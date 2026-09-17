@@ -948,8 +948,10 @@ Expected: `PASS`.
 - [ ] **Step 5: Manual verification with a real worker against the 4 required queues**
 
 ```bash
-uv run celery -A config worker -Q default,notifications,media,maintenance -l info
+uv run celery -A config worker -Q default,notifications,media,maintenance -l info --pool=solo
 ```
+
+**Ruling (recorded during Task 5 execution, not in the original plan text):** on Windows, Celery's default `prefork` pool (backed by `billiard`) fails with a semaphore permission error and loops restarting instead of actually running — a well-known Windows limitation, unrelated to this project's code. `--pool=solo` (single-threaded, no multiprocessing) is the standard workaround and is what every `celery worker` command in this plan should use when developing on Windows; on Linux/macOS `--pool=solo` also works (just single-threaded) so this flag is safe to use unconditionally in these dev instructions rather than maintaining OS-specific commands.
 
 In a second terminal:
 
@@ -1652,7 +1654,7 @@ cd backend && uv run python manage.py migrate && uv run python manage.py runserv
 ```
 
 ```bash
-cd backend && uv run celery -A config worker -Q default,notifications,media,maintenance -l info
+cd backend && uv run celery -A config worker -Q default,notifications,media,maintenance -l info --pool=solo
 ```
 
 ```bash
