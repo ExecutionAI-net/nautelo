@@ -47,5 +47,36 @@ class FinanceConfigurationVersion(models.Model):
             ),
         ]
 
+    #: Fields that must never change once a row has been persisted. `is_active`
+    #: is intentionally excluded — `FinanceConfigurationService.activate()` is
+    #: the one supported way to flip it when a newer version is activated.
+    _IMMUTABLE_FIELDS = (
+        "version",
+        "annual_rate_percent",
+        "term_months",
+        "down_payment_percent",
+        "created_by_user_id",
+        "created_at",
+    )
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            existing = FinanceConfigurationVersion.objects.filter(pk=self.pk).first()
+            if existing is not None:
+                changed_fields = [
+                    field
+                    for field in self._IMMUTABLE_FIELDS
+                    if getattr(existing, field) != getattr(self, field)
+                ]
+                if changed_fields:
+                    raise ValueError(
+                        "FinanceConfigurationVersion rows are immutable once created; "
+                        "only 'is_active' may be changed on an existing row (see "
+                        "FinanceConfigurationService.activate()). Attempted to change: "
+                        f"{', '.join(changed_fields)}."
+                    )
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"FinanceConfigurationVersion(v{self.version}, active={self.is_active})"

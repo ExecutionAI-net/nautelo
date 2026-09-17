@@ -60,3 +60,43 @@ def test_default_configuration_is_seeded_and_active(db):
     assert config.annual_rate_percent == Decimal("5.0000")
     assert config.term_months == 48
     assert config.down_payment_percent == Decimal("20.0000")
+
+
+@pytest.mark.django_db
+def test_save_on_existing_row_rejects_changes_to_immutable_fields():
+    FinanceConfigurationVersion.objects.all().delete()
+
+    config = FinanceConfigurationVersion.objects.create(
+        version=1,
+        annual_rate_percent=Decimal("5.00"),
+        term_months=48,
+        down_payment_percent=Decimal("20.00"),
+        is_active=False,
+    )
+
+    config.annual_rate_percent = Decimal("7.50")
+
+    with pytest.raises(ValueError):
+        config.save()
+
+    persisted = FinanceConfigurationVersion.objects.get(pk=config.pk)
+    assert persisted.annual_rate_percent == Decimal("5.0000")
+
+
+@pytest.mark.django_db
+def test_save_on_existing_row_allows_is_active_to_change():
+    FinanceConfigurationVersion.objects.all().delete()
+
+    config = FinanceConfigurationVersion.objects.create(
+        version=1,
+        annual_rate_percent=Decimal("5.00"),
+        term_months=48,
+        down_payment_percent=Decimal("20.00"),
+        is_active=True,
+    )
+
+    config.is_active = False
+    config.save()
+
+    persisted = FinanceConfigurationVersion.objects.get(pk=config.pk)
+    assert persisted.is_active is False
