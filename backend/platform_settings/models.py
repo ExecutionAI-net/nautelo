@@ -41,3 +41,33 @@ class PlatformSetting(UUIDTimeStampedModel):
             definition.validator(coerced)
         except ValueError as exc:
             raise ValidationError({"value": str(exc)}) from exc
+
+
+class PlatformSettingsVersion(models.Model):
+    """Global, monotonically increasing settings version + last-updated
+    timestamp (NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md §10.1: "Settings responses
+    include a monotonically increasing settings_version and updated_at").
+
+    Ruling: this is a genuine process-wide singleton counter, not a domain
+    entity with its own identity — it deliberately uses a fixed small-integer
+    primary key rather than a UUID, matching the Global Constraints' own
+    "unless stated otherwise" carve-out from the UUID-PK default.
+    """
+
+    SINGLETON_ID = 1
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=SINGLETON_ID, editable=False)
+    version = models.PositiveIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def load(cls) -> "PlatformSettingsVersion":
+        obj, _ = cls.objects.get_or_create(id=cls.SINGLETON_ID)
+        return obj
+
+    @classmethod
+    def bump(cls) -> int:
+        obj, _ = cls.objects.select_for_update().get_or_create(id=cls.SINGLETON_ID)
+        obj.version += 1
+        obj.save(update_fields=["version", "updated_at"])
+        return obj.version
