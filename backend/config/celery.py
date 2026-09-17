@@ -7,7 +7,3 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 app = Celery("nautelo")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
-
-app.conf.task_routes = {
-    "common.tasks.*": {"queue": "default"},
-}

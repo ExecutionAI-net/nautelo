@@ -30,7 +30,7 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings.test
       DJANGO_SECRET_KEY: ci-test-secret
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
-      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3000
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3020
       DATABASE_URL: postgres://nautelo:nautelo@localhost:5432/nautelo
       REDIS_URL: redis://localhost:6379/0
       CELERY_BROKER_URL: redis://localhost:6379/1
@@ -47,7 +47,7 @@ jobs:
       OBJECT_STORAGE_BUCKET_NAME: nautelo-media
       OBJECT_STORAGE_REGION: us-east-1
       CONTACT_HASH_SECRET: ci-test-secret
-      PUBLIC_BASE_URL: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:3020
     steps:
       - uses: actions/checkout@v4
 
