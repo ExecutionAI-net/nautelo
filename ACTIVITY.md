@@ -57,6 +57,7 @@ cloning `dev` once the project is in a shippable state.
 - Repo is live: [github.com/executionainet/nautelo](https://github.com/executionainet/nautelo), `dev` branch, CI green.
 - `docs/superpowers/plans/2026-09-17-phase-0-1-infrastructure.md` (Phase 0/1: infrastructure only) is **fully implemented and merged into `dev`** — all 10 tasks complete. The infrastructure skeleton now exists: `backend/` (Django 5.2 + DRF + JWT config + Celery + Channels + S3/MinIO storage + Stripe webhook signature verification) and `frontend/` (Next.js 16 + Tailwind v4 with NAUTA design tokens), plus `docker-compose.yml` for Postgres/Redis/MinIO. Full-stack smoke test passing: `uv run pytest` (7/7 backend tests), `/api/v1/health/` reports all-ok, `/health` on the frontend renders the same via SSR, Django admin login page loads.
 - No domain apps yet (`accounts`, `listings`, etc.) — that's spec Phase 2+, not started.
+- `docs/superpowers/plans/2026-09-17-phase-8-finance-calculation-engine.md` (Phase 8: finance configuration and calculation engine) is **fully implemented**, alongside `common` (Phase 0/1). The `finance` app adds `FinanceConfigurationVersion`, `FinanceConfigurationService`, a `Decimal`-exact amortization engine, and `POST /api/v1/finance/quotes/` for manual finance estimates. Listing-linked quotes, `FinanceQuoteLog`, and broker-override precedence are deferred to a later phase (needs `listings`/`User`).
 - Architecture fully decided — see table below.
 
 ## Architecture Decisions (confirmed 2026-09-17)
@@ -82,6 +83,14 @@ cloning `dev` once the project is in a shippable state.
 ---
 
 ## Log
+
+### 2026-09-17 — Phase 8 finance configuration and calculation engine complete
+
+- Implemented `docs/superpowers/plans/2026-09-17-phase-8-finance-calculation-engine.md` in full.
+- New `finance` Django app: `FinanceConfigurationVersion` (versioned, immutable, exactly-one-active-row DB constraint, seeded with the spec default of 5% / 48 months / 20% down), `FinanceConfigurationService` (cached active-config lookup, versioned activation), a `Decimal`-exact amortization calculation engine matching spec §17.1's worked examples exactly, and `POST /api/v1/finance/quotes/` for manual (non-listing) finance estimates.
+- Staff manage finance defaults via Django admin by adding a new configuration version (existing versions are permanently read-only, never editable in place).
+- Known limitations: no `listing_id` quote context (needs spec Phase 4's `listings` app); no `FinanceQuoteLog` persistence (needs `listings`/`User`); no broker-override/configuration-precedence mechanism at all yet (needs listings; deliberately not speculatively added to `FinanceConfigurationVersion` per YAGNI, since its shape isn't known until Phase 9 is planned); no rate limiting on the quote endpoint; `created_by_user_id` is a loose UUID, not yet a real foreign key (needs spec Phase 3's `User` model). All of these are deferred to the phase that integrates finance with listings (spec Phase 9 or later), by design — this phase was scoped to run concurrently with Phase 3/4.
+- Next: spec Phase 9 (finance card UI and broker listing toggle) once this plan and the Phase 4 taxonomy/listings plan have both landed.
 
 ### 2026-09-17 — Phase 0/1 infrastructure complete
 

@@ -15,9 +15,10 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 from common.views import HealthCheckView, StripeWebhookView
+from finance.views import FinanceQuoteView
 from platform_settings.views import PublicPlatformSettingsView
 
 urlpatterns = [
@@ -29,4 +30,6 @@ urlpatterns = [
         PublicPlatformSettingsView.as_view(),
         name="platform-public-settings",
     ),
+    path("api/v1/finance/quotes/", FinanceQuoteView.as_view(), name="finance-quote"),
+    path("api/v1/", include("taxonomy.urls")),
 ]
