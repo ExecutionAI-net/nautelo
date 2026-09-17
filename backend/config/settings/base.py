@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "audit",
     "finance",
     "taxonomy",
+    "platform_settings",
 ]
 
 MIDDLEWARE = [
