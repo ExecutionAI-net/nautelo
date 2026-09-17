@@ -54,8 +54,9 @@ NAUTA's own listing/media entitlements.
 ## Current State
 
 - Repo is live: [github.com/executionainet/nautelo](https://github.com/executionainet/nautelo), `dev` branch, CI green.
-- No application code exists yet (no `backend/`, no `frontend/`) — only docs, `.gitignore`, and the CI workflow so far. The CI workflow already runs on every push/PR and gracefully no-ops both jobs until Tasks 3/9 of the implementation plan create real projects.
-- Architecture fully decided — see table below. Ready to execute `docs/superpowers/plans/2026-09-17-phase-0-1-infrastructure.md` Task 2 onward via `subagent-driven-development`, per-task branch → PR → CI green → controller merge.
+- `docs/superpowers/plans/2026-09-17-phase-0-1-infrastructure.md` (Phase 0/1: infrastructure only) is **fully implemented and merged into `dev`** — all 10 tasks complete. The infrastructure skeleton now exists: `backend/` (Django 5.2 + DRF + JWT config + Celery + Channels + S3/MinIO storage + Stripe webhook signature verification) and `frontend/` (Next.js 16 + Tailwind v4 with NAUTA design tokens), plus `docker-compose.yml` for Postgres/Redis/MinIO. Full-stack smoke test passing: `uv run pytest` (7/7 backend tests), `/api/v1/health/` reports all-ok, `/health` on the frontend renders the same via SSR, Django admin login page loads.
+- No domain apps yet (`accounts`, `listings`, etc.) — that's spec Phase 2+, not started.
+- Architecture fully decided — see table below.
 
 ## Architecture Decisions (confirmed 2026-09-17)
 
@@ -81,6 +82,15 @@ NAUTA's own listing/media entitlements.
 ---
 
 ## Log
+
+### 2026-09-17 — Phase 0/1 infrastructure complete
+
+- Implemented `docs/superpowers/plans/2026-09-17-phase-0-1-infrastructure.md` in full.
+- Repo scaffolded: `backend/` (Django 5.2 + DRF + JWT config + Celery + Channels + S3 storage + Stripe webhook stub) and `frontend/` (Next.js 16 + Tailwind v4 with NAUTA design tokens), `docker-compose.yml` for Postgres/Redis/MinIO.
+- `/api/v1/health/` reports database, Redis and Celery worker status; `/api/v1/stripe/webhook/` verifies signatures (no fulfillment logic yet); `/ws/health/` proves the Redis-backed Channels layer; `/health` on the frontend proves Next.js → Django connectivity.
+- Known limitations: no domain apps yet (`accounts`, `listings`, etc. — spec Phase 2+); no real login/JWT-issuing endpoint (needs `User` model, Phase 3); `prod.py` settings are a placeholder, full hardening is Phase 22; frontend has no automated test tooling yet (deferred until real UI logic exists).
+- Execution notes for future sessions: Tasks 1-8 ran mostly sequentially (one branch/PR at a time), then Tasks 6/7/8 plus a `localhost`→`127.0.0.1` hotfix ran in **parallel git worktrees** once the backlog was independent enough — each on its own branch/PR, merged in sequence once reviewed and green, no conflicts. Several genuine environment bugs were found and fixed along the way rather than assumed away: MinIO images must come from `quay.io` (`docker.io` no longer serves them); GitHub Actions `run:` blocks abort on a command's non-zero exit (`bash -e`), so conditional handling needs an `if cmd; then...else...fi`, not a post-hoc `$?` capture; `pytest`'s "no tests collected" (exit 5) needed a `find`-based gate excluding `.venv` (vendored packages ship their own `test_*.py`); this Windows machine resolves `localhost` to IPv6 `::1` while Docker's port mappings only listen on IPv4, hanging backend↔Docker connections indefinitely (fixed by using `127.0.0.1` for backend-internal service URLs) — a bare `manage.py runserver` process doesn't have this problem (confirmed empirically in Task 9), so the fix is scoped to Docker-proxied services, not a blanket rule; `create-next-app@latest` today installs Next.js 16/Tailwind v4, which needs an explicit `@config` directive in `globals.css` to load `tailwind.config.ts` at all; and CI's `pnpm/action-setup` needed bumping from v9 to v12 to parse the `pnpm-workspace.yaml` schema pnpm 12 generates.
+- Next: write the Phase 2 plan (shared domain types, `platform_settings` app, audit foundation) per spec §10.
 
 ### 2026-09-17 — Repo live, CI green (Task 1 of Phase 0/1 plan)
 
