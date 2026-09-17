@@ -27,7 +27,6 @@ def _clear_platform_settings_cache():
 def staff_user(db):
     User = get_user_model()
     return User.objects.create_user(
-        username="staff-settings",
         email="staff-settings@nautelo.local",
         password="pw",
         is_staff=True,
