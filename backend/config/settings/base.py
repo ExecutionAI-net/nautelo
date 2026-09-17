@@ -104,6 +104,7 @@ CELERY_TASK_QUEUES = (
 )
 CELERY_TASK_ROUTES = {
     "common.tasks.*": {"queue": "default"},
+    "accounts.tasks.*": {"queue": "notifications"},
 }
 
 REST_FRAMEWORK = {
@@ -114,10 +115,11 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.ScopedRateThrottle",
+        "common.throttling.HashedIPScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "taxonomy_search": "60/min",
+        "auth": "10/min",
     },
     "EXCEPTION_HANDLER": "common.exceptions.nauta_exception_handler",
 }
