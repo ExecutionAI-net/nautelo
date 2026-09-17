@@ -73,3 +73,40 @@ def test_audit_event_cannot_be_deleted():
 
     with pytest.raises(ValueError, match="append-only"):
         event.delete()
+
+
+@pytest.mark.django_db
+def test_audit_event_queryset_update_is_blocked():
+    event = AuditEvent.objects.create(
+        actor_user=None,
+        actor_type=AuditEvent.ActorType.SYSTEM,
+        action="platform_setting.updated",
+        target_type="platform_settings.PlatformSetting",
+        target_id="finance.enabled",
+        source=AuditEvent.Source.TASK,
+        request_id="req-5",
+    )
+
+    with pytest.raises(ValueError, match="append-only"):
+        AuditEvent.objects.filter(pk=event.pk).update(action="tampered")
+
+    event.refresh_from_db()
+    assert event.action == "platform_setting.updated"
+
+
+@pytest.mark.django_db
+def test_audit_event_queryset_delete_is_blocked():
+    event = AuditEvent.objects.create(
+        actor_user=None,
+        actor_type=AuditEvent.ActorType.SYSTEM,
+        action="platform_setting.updated",
+        target_type="platform_settings.PlatformSetting",
+        target_id="finance.enabled",
+        source=AuditEvent.Source.TASK,
+        request_id="req-6",
+    )
+
+    with pytest.raises(ValueError, match="append-only"):
+        AuditEvent.objects.filter(pk=event.pk).delete()
+
+    assert AuditEvent.objects.filter(pk=event.pk).exists()

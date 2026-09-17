@@ -5,12 +5,28 @@ from django.db import models
 from common.models import UUIDModel
 
 
+class AuditEventQuerySet(models.QuerySet):
+    """Blocks the bulk-mutation paths that bypass AuditEvent.save()/delete().
+
+    QuerySet.update()/.delete() issue raw SQL directly and never call an
+    instance's save()/delete(), so those per-instance guards alone don't
+    stop `AuditEvent.objects.filter(...).update(...)` or `.delete()`.
+    """
+
+    def update(self, **kwargs):
+        raise ValueError("AuditEvent rows are append-only; bulk update is not permitted.")
+
+    def delete(self):
+        raise ValueError("AuditEvent rows are append-only; bulk delete is not permitted.")
+
+
 class AuditEvent(UUIDModel):
     """Append-only audit trail entry (NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md §10.2).
 
     Rows are created only through audit.services.record_audit_event() —
     never edited or deleted once written, enforced in save()/delete() below
-    and again at the Django Admin layer (see admin.py).
+    and again at the Django Admin layer (see admin.py). AuditEventQuerySet
+    above blocks the bulk update()/delete() paths that bypass those.
     """
 
     class ActorType(models.TextChoices):
@@ -43,6 +59,8 @@ class AuditEvent(UUIDModel):
     metadata = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder)
     ip_hash = models.CharField(max_length=64, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = AuditEventQuerySet.as_manager()
 
     class Meta:
         ordering = ["-created_at"]
