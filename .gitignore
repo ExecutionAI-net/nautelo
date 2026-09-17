@@ -1,0 +1,28 @@
+# Design reference (not source code — kept locally only)
+stitch_nauta_nautical_marketplace*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+backend/.venv/
+*.egg-info/
+
+# Django
+backend/staticfiles/
+backend/media/
+*.sqlite3
+backend/.env
+
+# Node
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

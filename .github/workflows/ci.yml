@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: nautelo
+          POSTGRES_USER: nautelo
+          POSTGRES_PASSWORD: nautelo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nautelo"
+          --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 5
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SECRET_KEY: ci-test-secret
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3000
+      DATABASE_URL: postgres://nautelo:nautelo@localhost:5432/nautelo
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      CHANNELS_REDIS_URL: redis://localhost:6379/3
+      STRIPE_SECRET_KEY: sk_test_ci
+      STRIPE_PUBLISHABLE_KEY: pk_test_ci
+      STRIPE_WEBHOOK_SECRET: whsec_test_ci
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      DEFAULT_FROM_EMAIL: noreply@nautelo.local
+      OBJECT_STORAGE_ENDPOINT_URL: http://localhost:9000
+      OBJECT_STORAGE_ACCESS_KEY: nautelo
+      OBJECT_STORAGE_SECRET_KEY: nautelo123
+      OBJECT_STORAGE_BUCKET_NAME: nautelo-media
+      OBJECT_STORAGE_REGION: us-east-1
+      CONTACT_HASH_SECRET: ci-test-secret
+      PUBLIC_BASE_URL: http://localhost:3000
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check backend project exists
+        id: check
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No backend/pyproject.toml yet — nothing to test."
+          fi
+
+      - name: Install uv
+        if: steps.check.outputs.exists == 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'true'
+        run: uv sync
+
+      - name: Start MinIO (via root docker compose)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          docker compose -f ../docker-compose.yml up -d --wait minio
+          docker compose -f ../docker-compose.yml up createbuckets
+
+      - name: Django system check
+        if: steps.check.outputs.exists == 'true'
+        run: uv run python manage.py check
+
+      - name: Run tests
+        if: steps.check.outputs.exists == 'true'
+        run: uv run pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check frontend project exists
+        id: check
+        run: |
+          if [ -f "package.json" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No frontend/package.json yet — nothing to build."
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.check.outputs.exists == 'true'
+        run: pnpm lint
+
+      - name: Build
+        if: steps.check.outputs.exists == 'true'
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        run: pnpm build

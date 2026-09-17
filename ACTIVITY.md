@@ -1,0 +1,89 @@
+# NAUTA (nautelo) — Activity Log
+
+This file tracks project state so any developer (or a fresh AI session) can
+get oriented without re-reading everything from scratch. Append new entries
+at the top of the "Log" section; keep "Current State" up to date.
+
+---
+
+## Project Summary
+
+**NAUTA** is a yacht/boat marketplace for Spain and Italy: private sellers,
+brokers and nautical service professionals list boats and services; buyers
+search, message and (for broker listings) see an illustrative finance
+estimate. NAUTA is explicitly **not** a bank, escrow provider, registry or
+payment processor for the boat sale itself — Stripe is used only to sell
+NAUTA's own listing/media entitlements.
+
+**Stack decision:** Django (backend/API) + Next.js (frontend). Repo:
+[github.com/executionainet/nautelo](https://github.com/executionainet/nautelo)
+— currently just a `dev` branch, empty. `main` will be opened by cloning
+`dev` once the project is in a shippable state.
+
+---
+
+## Source Documents (in repo root)
+
+| File | What it is |
+|---|---|
+| `NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md` | 2,651-line production-ready implementation spec, v1.0, dated 2026-09-17. Supersedes an earlier "51-screen static prototype" spec where they conflict. |
+| `stitch_nauta_nautical_marketplace (3).zip` | Google Stitch export: 51 static HTML/Tailwind screens (`code.html` + `screen.png` per screen), no backend, no shared components — a visual/UX reference only. |
+
+### Spec summary (key decisions)
+
+- **Domain apps (suggested):** `accounts, brokers, professionals, services_catalog, listings, taxonomy, messaging, financing, entitlements, payments, moderation, notifications, analytics, audit, platform_settings`.
+- **Recommended backend stack:** Python 3.12+, Django 5.2 LTS, DRF, PostgreSQL 16+, Redis (cache/Celery broker/Channels layer), Celery (async/media/email), Django Channels (WebSocket notifications), Stripe Checkout (one-time entitlement purchases only), S3-compatible object storage + CDN.
+- **Roles:** guest, authenticated buyer, private seller, broker member/admin, service provider, staff moderator/admin — enforced server-side, never trusted from the client.
+- **Listing lifecycle:** `DRAFT → PENDING_APPROVAL → PUBLISHED → EXPIRED/ARCHIVED`, with an immutable `ListingSnapshot` per approved version and a `ListingRevision` workflow for edits. Brand/model/year lock after first approval for private sellers.
+- **Entitlements/payments:** private sellers get 1 free listing / rolling 365 days (30-day publish window); additional listings require a one-time Stripe-purchased entitlement. Brokers are unlimited but per-broker auto-approval is staff-controlled. Stripe fulfillment happens **only** via verified, idempotent webhook — never the browser success redirect.
+- **Finance estimator:** standard fixed-rate amortization, global defaults 5% / 48 months / 20% down, staff-editable, broker-listings-only, versioned so old quotes stay reproducible. Explicitly labeled "illustrative estimate only."
+- **Contact privacy:** broker/professional contact info is blurred until the current user has sent a valid inquiry to that specific entity; grant is scoped per (viewer, entity), audited, never exposed in DOM/HTML source when locked.
+- **Unique views:** one counted view per listing per viewer identity (user ID or HMAC-hashed IP) for the listing's lifetime; owner/staff/bot excluded.
+- **IA change vs. the old 51-screen prototype:** Services and Professionals directories merge into one canonical `/services/professionals/` (old URLs 301 redirect); broker dashboard's "Services & Surveyors" is removed and replaced with "Messages." The 51-screen count is explicitly **not** a requirement to preserve.
+- **Delivery plan:** the spec defines 24 dependency-ordered phases (Phase 0 repo audit/scope freeze → Phase 24 deployment/rollback), each with its own migrations, backend rules, frontend states, permissions, and tests before being considered done. Section 39 has a strict "developer execution protocol" (no partial/visual-only implementations, no faked data, no TODO placeholders for backend enforcement).
+- Full API inventory, data model, and a UI→backend traceability matrix (section 31) are included — every dynamic UI value must map to a real backend source; hard-coded/demo values are prohibited in production.
+
+### Design reference summary
+
+- 51 static screens covering: public site (home, boat search/detail/compare, brokers, services/professionals, financing, guides, contact, auth), private-seller/broker/service-provider dashboards, and a full staff back office (users, brokers, boats, taxonomy, products/subscriptions, leads, ads, CMS, platform settings, verification desk).
+- Built with Tailwind (via CDN in the prototype) + Material Symbols icons; custom Material-3-style color tokens (dark navy primary `#001520`, warm cream surface `#fbf9f4`, teal secondary `#00696e`); typography is Playfair Display (headlines) + Plus Jakarta Sans (body/UI).
+- These are throwaway static mockups (inline Tailwind config per file, no component reuse, no real data) — useful for visual direction and layout, not for direct reuse as code. Several screens will be merged/removed per the spec (see IA change above).
+
+---
+
+## Current State
+
+- **No application code exists yet.** The project directory contains only the two source documents above.
+- **Not yet a git repository locally.** GitHub repo `executionainet/nautelo` exists remotely with an empty `dev` branch.
+- Tech stack decided (Django + Next.js) but **integration architecture is not yet decided** — see Open Questions below.
+
+## Architecture Decisions (confirmed 2026-09-17)
+
+| Decision | Choice | Notes |
+|---|---|---|
+| Django/Next.js boundary | **Django is a pure headless API** (DRF + admin only, no server-rendered HTML/templates for end users) | Next.js owns all public/private UI, including SSR/SSG for SEO-critical public pages (boat search, boat detail, brokers, professionals, services, guides). Spec wording like "view, template, serializer" is read as "API view/service/serializer," not Django templates. |
+| Staff back office | **Django admin, customized**, for v1 | Moderation queue, taxonomy mapping, product/entitlement management, broker approval policy, etc. built as customized Django admin (actions, list filters, inline diffs) rather than bespoke Next.js screens. Revisit per-workflow if admin genuinely can't express a flow (e.g., real-time moderation queue with WebSocket updates). |
+| V1 scope | **Follow the spec's 24 phases in full, in order** | No separate MVP carve-out — Phase 0 through Phase 24 as documented in the spec, each with its own migrations/tests/definition-of-done before moving on. |
+| Local dev infra | **Docker Compose from day one**: Postgres, Redis, Celery worker(s), MinIO (S3-compatible storage) | Mirrors production topology early so `select_for_update`, Celery queues, and signed media uploads can be tested locally from the start. |
+| Repo layout | **Monorepo**: `backend/` (Django project + apps) and `frontend/` (Next.js app) in one `nautelo` repo | Matches the already-created single GitHub repo. |
+| Auth mechanism | **JWT** via `djangorestframework-simplejwt` | Next.js stores access/refresh tokens in an httpOnly cookie and forwards them as a Bearer token to Django. Fully decoupled from Django sessions; WebSocket auth will use the same JWT once the `accounts` app (Phase 3) exists. |
+| Dev environment shape | **Infra-only in Docker** | Postgres, Redis, MinIO (and later Celery workers as a native process) run via Docker Compose; Django (`runserver`) and Next.js (`next dev`) run natively on the host for fast hot-reload/debugging. |
+| Python tooling | **uv** | Single tool for venv + lockfile + install/run (`uv add`, `uv run`). |
+| Node tooling | **pnpm** | Package manager for the `frontend/` app. |
+| CI / merge gating | **GitHub Actions** (`.github/workflows/ci.yml`: backend pytest, frontend build+lint) + **per-task PR model** | Every task (from Task 2 of the Phase 0/1 plan onward) is implemented on its own branch off `dev` via `subagent-driven-development`, opened as a PR, and merged by the controller only when CI is green and there are no conflicts. Tasks run strictly sequentially (one branch in flight at a time), which is also how conflicts are avoided — not detected-and-resolved after the fact. Branch protection on `dev` (require the CI check before merge) is a separate, explicit decision pending confirmation once `dev` has its first real commits. |
+
+## Next Steps
+
+1. Write a phased implementation plan (starting with spec Phase 0 + Phase 1) via the `writing-plans` process before any scaffolding.
+2. Scaffold the repository: `backend/` (Django project + the apps listed above), `frontend/` (Next.js app), `docker-compose.yml` for local dev.
+3. `git init`, first commit, push to `dev` on the GitHub remote.
+
+---
+
+## Log
+
+### 2026-09-17 — Initial review
+
+- Read `NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md` in full (2,651 lines) and inspected all 51 screens in the Stitch design export (structure, tokens, and a representative sample of markup).
+- Created this `ACTIVITY.md` file as the project's running handoff log.
+- Raised the open questions above with the project owner before starting any scaffolding.
