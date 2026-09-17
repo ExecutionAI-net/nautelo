@@ -184,7 +184,7 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings.test
       DJANGO_SECRET_KEY: ci-test-secret
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
-      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3000
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3020
       DATABASE_URL: postgres://nautelo:nautelo@localhost:5432/nautelo
       REDIS_URL: redis://localhost:6379/0
       CELERY_BROKER_URL: redis://localhost:6379/1
@@ -201,7 +201,7 @@ jobs:
       OBJECT_STORAGE_BUCKET_NAME: nautelo-media
       OBJECT_STORAGE_REGION: us-east-1
       CONTACT_HASH_SECRET: ci-test-secret
-      PUBLIC_BASE_URL: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:3020
     steps:
       - uses: actions/checkout@v4
 
@@ -288,7 +288,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8020
         run: pnpm build
 ```
 
@@ -635,7 +635,7 @@ DJANGO_SETTINGS_MODULE=config.settings.dev
 DJANGO_SECRET_KEY=change-me-in-dev
 DJANGO_DEBUG=True
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:3000
+DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:3020
 
 DATABASE_URL=postgres://nautelo:nautelo@localhost:5433/nautelo
 REDIS_URL=redis://localhost:6380/0
@@ -660,7 +660,7 @@ OBJECT_STORAGE_BUCKET_NAME=nautelo-media
 OBJECT_STORAGE_REGION=us-east-1
 
 CONTACT_HASH_SECRET=change-me-in-dev
-PUBLIC_BASE_URL=http://localhost:3000
+PUBLIC_BASE_URL=http://localhost:3020
 ```
 
 Then: `cp .env.example .env` (the real `.env` is git-ignored per Task 1).
@@ -845,9 +845,11 @@ Expected: both tests `PASS`.
 With `docker compose up -d` running (Task 2) and a Celery worker started (Task 5's verification step):
 
 ```bash
-uv run python manage.py runserver
-curl -s http://localhost:8000/api/v1/health/ | python -m json.tool
+uv run python manage.py runserver 8020
+curl -s http://localhost:8020/api/v1/health/ | python -m json.tool
 ```
+
+**Ruling (recorded during Task 4 execution, not in the original plan text):** Django's default dev-server port, 8000, is already bound on this machine by an unrelated project's Docker container (`bedtime-backend-1`, `127.0.0.1:8000->8000/tcp`) — hitting `localhost:8000` silently reached that other project's app instead of failing to connect, producing deeply confusing output (unrelated URL patterns in a 404 page) that looked like a code bug. This project now runs its backend dev server on **8020** everywhere in this plan, and the frontend dev server on **3020** (that project's Next.js frontend also already occupies the Next.js default, 3000). Ports below are updated accordingly; `.env.example` files and CI's placeholder env values match.
 
 Expected: `{"status": "ok", "checks": {"database": "ok", "redis": "ok", "celery_worker": "ok"}}`. Stop the worker and re-run `curl` — expect `"celery_worker": "unavailable"` and HTTP 503.
 
@@ -972,7 +974,7 @@ git commit -m "feat(backend): configure celery with 4 queues and a smoke-test ta
 - Test: `backend/common/tests/test_websocket.py`
 
 **Interfaces:**
-- Produces: `ws://localhost:8000/ws/health/` — an echo consumer (`common.consumers.EchoConsumer`) that accepts any connection and echoes back `{"echo": <received JSON>}`. This is infrastructure-only; the real authenticated notifications consumer is built in spec Phase 18 once `accounts`/`notifications` apps exist.
+- Produces: `ws://localhost:8020/ws/health/` — an echo consumer (`common.consumers.EchoConsumer`) that accepts any connection and echoes back `{"echo": <received JSON>}`. This is infrastructure-only; the real authenticated notifications consumer is built in spec Phase 18 once `accounts`/`notifications` apps exist.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1074,7 +1076,7 @@ Expected: `PASS`. (This test uses the `InMemoryChannelLayer` from `config/settin
 - [ ] **Step 5: Manual verification of the real Redis-backed channel layer**
 
 ```bash
-uv run python manage.py runserver
+uv run python manage.py runserver 8020
 ```
 
 In a second terminal, using `websockets` (already available via `uv run python -c`, no extra install needed if `channels-redis`'s deps pulled it in — otherwise `uv add --dev websockets` once):
@@ -1085,7 +1087,7 @@ import asyncio
 import websockets
 
 async def main():
-    async with websockets.connect('ws://localhost:8000/ws/health/') as ws:
+    async with websockets.connect('ws://localhost:8020/ws/health/') as ws:
         await ws.send('{\"ping\": \"pong\"}')
         print(await ws.recv())
 
@@ -1304,7 +1306,7 @@ Expected: both `PASS`. Note `stripe.Webhook.construct_event` verifies signatures
 If the Stripe CLI is available:
 
 ```bash
-stripe listen --forward-to localhost:8000/api/v1/stripe/webhook/
+stripe listen --forward-to localhost:8020/api/v1/stripe/webhook/
 stripe trigger checkout.session.completed
 ```
 
@@ -1510,7 +1512,7 @@ export default function RootLayout({
 
 ```typescript
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8020";
 
 export async function apiFetch<T>(
   path: string,
@@ -1596,7 +1598,7 @@ export default async function HealthPage() {
 `frontend/.env.local.example`:
 
 ```dotenv
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8020
 ```
 
 ```bash
@@ -1607,10 +1609,10 @@ cp .env.local.example .env.local
 
 ```bash
 pnpm build
-pnpm dev
+pnpm dev -- -p 3020
 ```
 
-With the Django dev server running (Task 4), open `http://localhost:3000/health` — expected: the page renders "Overall: ok" with `database: ok`, `redis: ok`, `celery_worker: ok` (assuming Docker Compose services and a Celery worker are running).
+With the Django dev server running on port 8020 (Task 4), open `http://localhost:3020/health` — expected: the page renders "Overall: ok" with `database: ok`, `redis: ok`, `celery_worker: ok` (assuming Docker Compose services and a Celery worker are running).
 
 - [ ] **Step 8: Commit**
 
@@ -1635,7 +1637,7 @@ In separate terminals, from a clean state:
 
 ```bash
 docker compose up -d
-cd backend && uv run python manage.py migrate && uv run python manage.py runserver
+cd backend && uv run python manage.py migrate && uv run python manage.py runserver 8020
 ```
 
 ```bash
@@ -1643,7 +1645,7 @@ cd backend && uv run celery -A config worker -Q default,notifications,media,main
 ```
 
 ```bash
-cd frontend && pnpm dev
+cd frontend && pnpm dev -- -p 3020
 ```
 
 Then verify:
@@ -1652,7 +1654,7 @@ Then verify:
 uv run pytest   # from backend/, full suite
 ```
 
-Expected: all tests from Tasks 4–8 pass in one run; `http://localhost:3000/health` shows all checks `ok`; `http://localhost:8000/admin/` loads Django admin's login page; `docker compose ps` shows `postgres`, `redis`, `minio` healthy.
+Expected: all tests from Tasks 4–8 pass in one run; `http://localhost:3020/health` shows all checks `ok`; `http://localhost:8020/admin/` loads Django admin's login page; `docker compose ps` shows `postgres`, `redis`, `minio` healthy. (Backend/frontend dev-server ports are 8020/3020, not the 8000/3000 defaults — see the port ruling in Task 4, another local project already occupies both defaults on this machine.)
 
 - [ ] **Step 2: Update `ACTIVITY.md`**
 
