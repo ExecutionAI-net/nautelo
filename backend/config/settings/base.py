@@ -2,13 +2,13 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from kombu import Queue
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env")
 
 SECRET_KEY = env("DJANGO_SECRET_KEY")
-DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
@@ -78,6 +78,12 @@ CHANNEL_LAYERS = {
 CELERY_BROKER_URL = env("CELERY_BROKER_URL")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")
 CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_QUEUES = (
+    Queue("default", routing_key="default"),
+    Queue("notifications", routing_key="notifications"),
+    Queue("media", routing_key="media"),
+    Queue("maintenance", routing_key="maintenance"),
+)
 CELERY_TASK_ROUTES = {
     "common.tasks.*": {"queue": "default"},
 }
