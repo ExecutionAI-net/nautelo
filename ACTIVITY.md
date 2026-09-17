@@ -17,8 +17,9 @@ NAUTA's own listing/media entitlements.
 
 **Stack decision:** Django (backend/API) + Next.js (frontend). Repo:
 [github.com/executionainet/nautelo](https://github.com/executionainet/nautelo)
-— currently just a `dev` branch, empty. `main` will be opened by cloning
-`dev` once the project is in a shippable state.
+— `dev` branch only for now, with the Phase 0/1 infrastructure skeleton
+already merged (see "Current State" below). `main` will be opened by
+cloning `dev` once the project is in a shippable state.
 
 ---
 
@@ -75,9 +76,8 @@ NAUTA's own listing/media entitlements.
 
 ## Next Steps
 
-1. Write a phased implementation plan (starting with spec Phase 0 + Phase 1) via the `writing-plans` process before any scaffolding.
-2. Scaffold the repository: `backend/` (Django project + the apps listed above), `frontend/` (Next.js app), `docker-compose.yml` for local dev.
-3. `git init`, first commit, push to `dev` on the GitHub remote.
+1. Write the Phase 2 plan (shared domain types, `platform_settings` app, audit foundation) per spec §10, via `writing-plans`.
+2. Before starting Phase 2, fix the small residual gaps the Phase 0/1 final review found (tracked in `.superpowers/sdd/2026-09-17-phase-0-1-infrastructure/progress.md`): a dead `wsgi.py` settings-module fallback, a shadowed leftover `common/tests.py`, the frontend's port-3020 ruling not applied to `backend/.env.example`/CI's CSRF/PUBLIC_BASE_URL values, and the `notifications`/`media`/`maintenance` Celery queues (required by the plan's Global Constraints) not yet declared anywhere in committed code.
 
 ---
 
