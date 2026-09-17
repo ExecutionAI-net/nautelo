@@ -1,6 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from accounts.enums import Locale, UserRole
 from accounts.models import User, UserManager
@@ -60,3 +61,17 @@ class UserSummarySerializer(serializers.ModelSerializer):
             "is_active",
         )
         read_only_fields = ("id", "email", "primary_role", "email_verified", "is_active")
+
+
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Authenticate by normalized email; expose the user summary alongside the tokens."""
+
+    username_field = User.USERNAME_FIELD
+
+    def validate(self, attrs):
+        attrs[self.username_field] = UserManager.normalize_email(
+            attrs.get(self.username_field, "")
+        )
+        data = super().validate(attrs)
+        data["user"] = UserSummarySerializer(self.user).data
+        return data

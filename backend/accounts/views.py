@@ -2,9 +2,14 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from accounts.cookies import REFRESH_COOKIE_NAME, clear_refresh_cookie, set_refresh_cookie
 from accounts.models import User
 from accounts.serializers import (
+    EmailTokenObtainPairSerializer,
     RegistrationSerializer,
     ResendVerificationSerializer,
     UserSummarySerializer,
@@ -71,3 +76,62 @@ class ResendVerificationView(APIView):
             queue_email_verification(user)
         # Always 202: the response must not reveal whether the address is registered.
         return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class LoginView(TokenObtainPairView):
+    serializer_class = EmailTokenObtainPairSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        refresh = response.data.pop("refresh", None)
+        if refresh:
+            set_refresh_cookie(response, refresh)
+        return response
+
+
+class RefreshView(TokenRefreshView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    # Deliberately NOT the "auth" scope: silent refresh runs on every page load.
+    throttle_scope = "auth-refresh"
+
+    def post(self, request, *args, **kwargs):
+        data = dict(request.data)
+        if not data.get("refresh"):
+            raw = request.COOKIES.get(REFRESH_COOKIE_NAME) or ""
+            if not raw:
+                # Do NOT hand the serializer an empty string: `refresh` is required
+                # and non-blank, so that would surface as a 400 validation_error
+                # instead of the 401 token_not_valid a missing credential must be.
+                raise InvalidToken("No refresh token was provided.")
+            data["refresh"] = raw
+        serializer = self.get_serializer(data=data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as exc:
+            raise InvalidToken(exc.args[0]) from exc
+
+        payload = dict(serializer.validated_data)
+        rotated = payload.pop("refresh", None)
+        response = Response(payload, status=status.HTTP_200_OK)
+        if rotated:
+            set_refresh_cookie(response, rotated)
+        return response
+
+
+class LogoutView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        raw = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
+        if raw:
+            try:
+                RefreshToken(raw).blacklist()
+            except TokenError:
+                pass  # An already-invalid token means the session is already gone.
+        return clear_refresh_cookie(Response(status=status.HTTP_204_NO_CONTENT))
