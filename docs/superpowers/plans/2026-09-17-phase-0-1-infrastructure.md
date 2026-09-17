@@ -240,7 +240,14 @@ jobs:
       - name: Run tests
         if: steps.check.outputs.exists == 'true'
         working-directory: backend
-        run: uv run pytest -v
+        run: |
+          uv run pytest -v
+          exit_code=$?
+          if [ "$exit_code" -eq 5 ]; then
+            echo "No tests collected yet — treating as pass (exit code 5)."
+            exit 0
+          fi
+          exit $exit_code
 
   frontend:
     runs-on: ubuntu-latest
@@ -288,6 +295,8 @@ jobs:
 ```
 
 Note: Postgres and Redis use GitHub Actions' native `services:` support (their default images already run the right server on start). MinIO does not — its image needs `server /data` passed as a command, which `services:` cannot override — so MinIO is instead started with the same root `docker-compose.yml` used for local dev, keeping one source of truth for its setup. The `exists` checks make every job a safe no-op (green) on early PRs, before Tasks 3/9 create `backend/pyproject.toml` and `frontend/package.json`. There is deliberately no job-level `defaults.run.working-directory` — `backend/`/`frontend/` don't exist as real directories in the repo until Tasks 3/9 create files inside them (git does not track empty directories), so a job-level working-directory override would fail the very existence-check step meant to detect that. Each step that needs to run inside `backend/`/`frontend/` sets `working-directory:` individually, after the existence check (against a repo-root-relative path) has already run successfully. `DATABASE_URL`/`REDIS_URL`/`CELERY_*`/`CHANNELS_REDIS_URL` above intentionally still use the standard ports `5432`/`6379` — CI's Postgres/Redis are GitHub Actions' own isolated `services:` containers, unrelated to the loopback-only, non-standard-port `docker-compose.yml` used for local dev (see the port ruling in Task 2). Only `OBJECT_STORAGE_ENDPOINT_URL` had to move to `9010`, because CI's MinIO comes from that same `docker-compose.yml`.
+
+**Hotfix (pytest exit code 5):** The "Run tests" step includes special handling for pytest exit code 5 ("no tests collected"), which occurs when pytest runs in a directory with no test files yet. This is expected during Task 3 (Django skeleton only, test files arrive in later tasks) and Task 3's PR CI run would normally fail with "no tests ran" even though nothing is broken. The script captures pytest's exit code and converts a bare code 5 to exit 0 (success), while all other exit codes (1 = test failure, 2 = interrupted, etc.) pass through unchanged. Once real test files exist in Task 4 onward, pytest will collect them normally and this branch never triggers.
 
 - [ ] **Step 3: Initialize git and make the first commit**
 
