@@ -1,7 +1,11 @@
+import re
 import unicodedata
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.utils.text import slugify
+
+_HAS_ALPHANUMERIC_RE = re.compile(r"[^\W_]", re.UNICODE)
 
 
 def normalize_taxonomy_name(value: str) -> str:
@@ -47,3 +51,18 @@ def ensure_other_placeholder(brand):
             defaults={"name": "Other"},
         )
         return other
+
+
+def normalize_custom_model_name(value: str) -> str:
+    """Whitespace-collapse and Unicode-normalize a free-text 'Other' model name.
+
+    Raises ValidationError if the cleaned value contains no letters or digits
+    (spec §13.2 item 5: "rejected if it contains only punctuation").
+    """
+    collapsed = " ".join(value.split())
+    normalized = unicodedata.normalize("NFC", collapsed)
+    if not _HAS_ALPHANUMERIC_RE.search(normalized):
+        raise ValidationError(
+            "Enter the model name.", code="custom_model_name_punctuation_only"
+        )
+    return normalized

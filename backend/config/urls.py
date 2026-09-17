@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 from common.views import HealthCheckView, StripeWebhookView
 
@@ -23,4 +23,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/v1/health/", HealthCheckView.as_view(), name="health-check"),
     path("api/v1/stripe/webhook/", StripeWebhookView.as_view(), name="stripe-webhook"),
+    path("api/v1/", include("taxonomy.urls")),
 ]
