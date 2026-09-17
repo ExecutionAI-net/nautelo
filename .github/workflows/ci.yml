@@ -41,7 +41,7 @@ jobs:
       STRIPE_WEBHOOK_SECRET: whsec_test_ci
       EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
       DEFAULT_FROM_EMAIL: noreply@nautelo.local
-      OBJECT_STORAGE_ENDPOINT_URL: http://localhost:9000
+      OBJECT_STORAGE_ENDPOINT_URL: http://localhost:9010
       OBJECT_STORAGE_ACCESS_KEY: nautelo
       OBJECT_STORAGE_SECRET_KEY: nautelo123
       OBJECT_STORAGE_BUCKET_NAME: nautelo-media
