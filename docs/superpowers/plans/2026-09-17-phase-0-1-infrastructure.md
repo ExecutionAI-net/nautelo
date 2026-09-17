@@ -840,18 +840,20 @@ uv run pytest common/tests/test_health.py -v
 
 Expected: both tests `PASS`.
 
-- [ ] **Step 5: Manual end-to-end verification against real infrastructure**
+- [ ] **Step 5: Manual end-to-end verification against real infrastructure (partial — see ruling)**
 
-With `docker compose up -d` running (Task 2) and a Celery worker started (Task 5's verification step):
+With `docker compose up -d` running (Task 2):
 
 ```bash
 uv run python manage.py runserver 8020
 curl -s http://localhost:8020/api/v1/health/ | python -m json.tool
 ```
 
-**Ruling (recorded during Task 4 execution, not in the original plan text):** Django's default dev-server port, 8000, is already bound on this machine by an unrelated project's Docker container (`bedtime-backend-1`, `127.0.0.1:8000->8000/tcp`) — hitting `localhost:8000` silently reached that other project's app instead of failing to connect, producing deeply confusing output (unrelated URL patterns in a 404 page) that looked like a code bug. This project now runs its backend dev server on **8020** everywhere in this plan, and the frontend dev server on **3020** (that project's Next.js frontend also already occupies the Next.js default, 3000). Ports below are updated accordingly; `.env.example` files and CI's placeholder env values match.
+**Ruling A (recorded during Task 4 execution, not in the original plan text):** Django's default dev-server port, 8000, is already bound on this machine by an unrelated project's Docker container (`bedtime-backend-1`, `127.0.0.1:8000->8000/tcp`) — hitting `localhost:8000` silently reached that other project's app instead of failing to connect, producing deeply confusing output (unrelated URL patterns in a 404 page) that looked like a code bug. This project now runs its backend dev server on **8020** everywhere in this plan, and the frontend dev server on **3020** (that project's Next.js frontend also already occupies the Next.js default, 3000). Ports below are updated accordingly; `.env.example` files and CI's placeholder env values match.
 
-Expected: `{"status": "ok", "checks": {"database": "ok", "redis": "ok", "celery_worker": "ok"}}`. Stop the worker and re-run `curl` — expect `"celery_worker": "unavailable"` and HTTP 503.
+**Ruling B (recorded during Task 4 execution — a plan defect, not in the original plan text):** the original wording above ("a Celery worker started (Task 5's verification step)") is a forward reference that cannot actually be satisfied yet: `config/celery.py` — the module `_check_celery`'s lazy import depends on, and the only thing that makes `celery -A config worker` resolvable at all — is created by **Task 5**, which has not run yet at this point in the plan's sequence. Attempting `uv run celery -A config worker -l info` here fails with `Error: Unable to load celery application. Module 'config' has no attribute 'celery'`, not because anything in Task 4 is broken. **Task 4's manual verification is therefore limited to the no-worker path only:** confirm `curl` returns `"celery_worker": "unavailable"`, overall `"status": "degraded"`, HTTP 503 — this is in fact the only reachable state right now, and it's the correct one. The `"celery_worker": "ok"` / HTTP 200 path is deferred and must be re-verified once Task 5 lands (Task 5's own Step 5 already does exactly this against a real worker — no new task is needed, just don't treat Task 4 as having proven the worker-available path).
+
+Expected right now: `{"status": "degraded", "checks": {"database": "ok", "redis": "ok", "celery_worker": "unavailable"}}`, HTTP 503.
 
 - [ ] **Step 6: Commit**
 
@@ -955,7 +957,16 @@ In a second terminal:
 uv run python manage.py shell -c "from common.tasks import ping; print(ping.delay().get(timeout=5))"
 ```
 
-Expected: worker log shows the task received and executed on the `default` queue; shell prints `pong`. This also satisfies the health check's `celery_worker: ok` state from Task 4.
+Expected: worker log shows the task received and executed on the `default` queue; shell prints `pong`.
+
+With the worker from this step still running, also complete the health-check verification that Task 4 deferred (see Task 4 Step 5's "Ruling B" — `config/celery.py` didn't exist yet at that point, so the worker-available path couldn't be proven until now):
+
+```bash
+uv run python manage.py runserver 8020
+curl -s http://localhost:8020/api/v1/health/ | python -m json.tool
+```
+
+Expected: `{"status": "ok", "checks": {"database": "ok", "redis": "ok", "celery_worker": "ok"}}`, HTTP 200. Stop the worker and re-run `curl` — expect `"celery_worker": "unavailable"` and HTTP 503 again, confirming the check reacts to the worker's actual presence rather than caching a stale result.
 
 - [ ] **Step 6: Commit**
 
