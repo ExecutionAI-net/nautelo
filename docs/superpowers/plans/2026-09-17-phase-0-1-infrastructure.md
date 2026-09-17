@@ -202,16 +202,13 @@ jobs:
       OBJECT_STORAGE_REGION: us-east-1
       CONTACT_HASH_SECRET: ci-test-secret
       PUBLIC_BASE_URL: http://localhost:3000
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
       - name: Check backend project exists
         id: check
         run: |
-          if [ -f "pyproject.toml" ]; then
+          if [ -f "backend/pyproject.toml" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -226,34 +223,34 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.exists == 'true'
+        working-directory: backend
         run: uv sync
 
       - name: Start MinIO (via root docker compose)
         if: steps.check.outputs.exists == 'true'
         run: |
-          docker compose -f ../docker-compose.yml up -d --wait minio
-          docker compose -f ../docker-compose.yml up createbuckets
+          docker compose -f docker-compose.yml up -d --wait minio
+          docker compose -f docker-compose.yml up createbuckets
 
       - name: Django system check
         if: steps.check.outputs.exists == 'true'
+        working-directory: backend
         run: uv run python manage.py check
 
       - name: Run tests
         if: steps.check.outputs.exists == 'true'
+        working-directory: backend
         run: uv run pytest -v
 
   frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
       - name: Check frontend project exists
         id: check
         run: |
-          if [ -f "package.json" ]; then
+          if [ -f "frontend/package.json" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -274,20 +271,23 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
         run: pnpm install --frozen-lockfile
 
       - name: Lint
         if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
         run: pnpm lint
 
       - name: Build
         if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
         run: pnpm build
 ```
 
-Note: Postgres and Redis use GitHub Actions' native `services:` support (their default images already run the right server on start). MinIO does not — its image needs `server /data` passed as a command, which `services:` cannot override — so MinIO is instead started with the same root `docker-compose.yml` used for local dev, keeping one source of truth for its setup. The `exists` checks make every job a safe no-op (green) on early PRs, before Tasks 3/9 create `backend/pyproject.toml` and `frontend/package.json`.
+Note: Postgres and Redis use GitHub Actions' native `services:` support (their default images already run the right server on start). MinIO does not — its image needs `server /data` passed as a command, which `services:` cannot override — so MinIO is instead started with the same root `docker-compose.yml` used for local dev, keeping one source of truth for its setup. The `exists` checks make every job a safe no-op (green) on early PRs, before Tasks 3/9 create `backend/pyproject.toml` and `frontend/package.json`. There is deliberately no job-level `defaults.run.working-directory` — `backend/`/`frontend/` don't exist as real directories in the repo until Tasks 3/9 create files inside them (git does not track empty directories), so a job-level working-directory override would fail the very existence-check step meant to detect that. Each step that needs to run inside `backend/`/`frontend/` sets `working-directory:` individually, after the existence check (against a repo-root-relative path) has already run successfully.
 
 - [ ] **Step 3: Initialize git and make the first commit**
 

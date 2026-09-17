@@ -48,16 +48,13 @@ jobs:
       OBJECT_STORAGE_REGION: us-east-1
       CONTACT_HASH_SECRET: ci-test-secret
       PUBLIC_BASE_URL: http://localhost:3000
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
       - name: Check backend project exists
         id: check
         run: |
-          if [ -f "pyproject.toml" ]; then
+          if [ -f "backend/pyproject.toml" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -72,34 +69,34 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.exists == 'true'
+        working-directory: backend
         run: uv sync
 
       - name: Start MinIO (via root docker compose)
         if: steps.check.outputs.exists == 'true'
         run: |
-          docker compose -f ../docker-compose.yml up -d --wait minio
-          docker compose -f ../docker-compose.yml up createbuckets
+          docker compose -f docker-compose.yml up -d --wait minio
+          docker compose -f docker-compose.yml up createbuckets
 
       - name: Django system check
         if: steps.check.outputs.exists == 'true'
+        working-directory: backend
         run: uv run python manage.py check
 
       - name: Run tests
         if: steps.check.outputs.exists == 'true'
+        working-directory: backend
         run: uv run pytest -v
 
   frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
       - name: Check frontend project exists
         id: check
         run: |
-          if [ -f "package.json" ]; then
+          if [ -f "frontend/package.json" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -120,14 +117,17 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
         run: pnpm install --frozen-lockfile
 
       - name: Lint
         if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
         run: pnpm lint
 
       - name: Build
         if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
         run: pnpm build
