@@ -6,7 +6,7 @@
 
 **Architecture:** Django (`backend/`) is a pure headless API (DRF + admin only, no server-rendered end-user HTML). Next.js (`frontend/`) owns all UI, including SSR/SSG for SEO-critical public pages. Postgres, Redis and MinIO (S3-compatible storage) run in Docker Compose; Django and Next.js run natively on the host. Auth will use JWT (`djangorestframework-simplejwt`) once a `User` model exists in Phase 3 — this plan only wires the configuration, since Phase 1 has no domain models yet.
 
-**Tech Stack:** Python 3.12, Django 5.2, Django REST Framework, `djangorestframework-simplejwt`, Django Channels + `channels-redis`, Celery + Redis, `django-storages` (S3), Stripe Python SDK, `uv` (Python tooling), PostgreSQL 16, Redis 7, MinIO; Next.js 15 (App Router, TypeScript), Tailwind CSS, `pnpm`.
+**Tech Stack:** Python 3.13 (see Task 3 ruling — the spec requires "3.12+", and 3.13 is the version this dev machine's Windows Defender Application Control policy actually permits; 3.12 itself is blocked), Django 5.2, Django REST Framework, `djangorestframework-simplejwt`, Django Channels + `channels-redis`, Celery + Redis, `django-storages` (S3), Stripe Python SDK, `uv` (Python tooling), PostgreSQL 16, Redis 7, MinIO; Next.js 15 (App Router, TypeScript), Tailwind CSS, `pnpm`.
 
 **Spec:** [`NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md`](../../../NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md) §3 (architecture), §7–9 (Phase 0/1), and the decisions recorded in [`ACTIVITY.md`](../../../ACTIVITY.md). This plan implements the spec's **Phase 0** (repository audit/scope freeze — collapsed to "record decisions," since there is no pre-existing codebase to audit) and **Phase 1** (infrastructure and environments) in full; it does **not** implement any domain model, business rule, or user-facing feature — those start at spec Phase 2 onward and need their own plan(s).
 
@@ -219,7 +219,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         uses: astral-sh/setup-uv@v3
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install dependencies
         if: steps.check.outputs.exists == 'true'
@@ -434,10 +434,12 @@ git commit -m "chore: add docker compose for postgres, redis, minio"
 
 ```bash
 cd backend
-uv init --name nautelo-backend --python 3.12 --no-readme
+uv init --name nautelo-backend --python 3.13 --no-readme
 uv add django==5.2.* djangorestframework django-cors-headers "psycopg[binary]" django-environ celery redis channels channels-redis djangorestframework-simplejwt django-storages boto3 stripe
 uv add --dev pytest pytest-django pytest-asyncio pytest-cov
 ```
+
+**Ruling (recorded during Task 3 execution, not in the original plan text):** this dev machine's Windows Defender Application Control / Smart App Control policy blocks executing Python 3.12 outright (both a `uv`-downloaded interpreter and the official python.org 3.12 installer), while allowing the Python 3.13 already present on the machine. Since the spec (§3) requires "Python 3.12+" — a floor, not a pin — and Django 5.2 officially supports 3.13, `uv init` targets 3.13 instead of 3.12 everywhere in this plan (this step and the CI workflow's `setup-uv` `python-version`). No other version-specific code exists yet to adjust. This is a machine-specific constraint, not a project decision — a future contributor without this WDAC policy could use either version, but 3.13 is now what `pyproject.toml`'s `requires-python = ">=3.12"` will actually be tested against in this repo.
 
 - [ ] **Step 2: Create the Django project**
 
