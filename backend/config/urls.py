@@ -18,9 +18,11 @@ from django.contrib import admin
 from django.urls import path
 
 from common.views import HealthCheckView, StripeWebhookView
+from finance.views import FinanceQuoteView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/v1/health/", HealthCheckView.as_view(), name="health-check"),
     path("api/v1/stripe/webhook/", StripeWebhookView.as_view(), name="stripe-webhook"),
+    path("api/v1/finance/quotes/", FinanceQuoteView.as_view(), name="finance-quote"),
 ]
