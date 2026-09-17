@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "storages",
     "common",
     "audit",
+    "finance",
 ]
 
 MIDDLEWARE = [
