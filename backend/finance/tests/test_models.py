@@ -51,3 +51,12 @@ def test_multiple_inactive_configuration_versions_are_allowed():
     )
 
     assert FinanceConfigurationVersion.objects.filter(is_active=False).count() == 2
+
+
+def test_default_configuration_is_seeded_and_active(db):
+    config = FinanceConfigurationVersion.objects.get(is_active=True)
+
+    assert config.version == 1
+    assert config.annual_rate_percent == Decimal("5.0000")
+    assert config.term_months == 48
+    assert config.down_payment_percent == Decimal("20.0000")
