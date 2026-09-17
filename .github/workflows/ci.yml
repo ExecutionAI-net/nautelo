@@ -87,7 +87,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         working-directory: backend
         run: |
-          if find . -type f -name "test_*.py" | grep -q .; then
+          if find . -type f -name "test_*.py" -not -path "./.venv/*" | grep -q .; then
             uv run pytest -v
           else
             echo "No test_*.py files yet — skipping pytest."
