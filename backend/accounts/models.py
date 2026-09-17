@@ -82,3 +82,23 @@ class User(UUIDTimeStampedModel, AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self) -> str:
         return self.full_name.split(" ")[0] if self.full_name else self.email
+
+
+class EmailVerificationToken(UUIDTimeStampedModel):
+    """Single-use, hashed, expiring email-verification token."""
+
+    user = models.ForeignKey(
+        "accounts.User",
+        related_name="email_verification_tokens",
+        on_delete=models.CASCADE,
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["user", "used_at"])]
+
+    def __str__(self):
+        return f"verification for {self.user_id}"
