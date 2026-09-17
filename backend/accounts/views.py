@@ -22,6 +22,30 @@ from accounts.services import (
 )
 
 
+def body_refresh_token(request):
+    """Read the `refresh` credential off a request body of any shape.
+
+    Never `dict(request.data)`: for a form-encoded body request.data is an
+    immutable QueryDict whose dict() copy wraps EVERY value in a list, so a
+    valid token would reach the serializer as ["<jwt>"] and be rejected with
+    400 "Not a valid string.". Both QueryDict.get() and dict.get() hand back the
+    scalar, so JSON and form encodings behave identically.
+
+    A JSON body is also not required to be an object: `[1, 2]` parses to a list,
+    which has no .get() and would raise an uncaught AttributeError - a bare 500
+    with none of spec 30.2's envelope. A non-mapping body carries no refresh
+    token, so it is treated as absent rather than allowed to crash.
+
+    A value that IS present but is not a string (e.g. `{"refresh": ["a", "b"]}`)
+    is returned unchanged, so DRF's own field validation rejects it as a 400
+    validation_error instead of this helper silently swallowing it.
+    """
+    data = request.data
+    if not hasattr(data, "get"):
+        return ""
+    return data.get("refresh") or ""
+
+
 class RegisterView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -99,16 +123,15 @@ class RefreshView(TokenRefreshView):
     throttle_scope = "auth-refresh"
 
     def post(self, request, *args, **kwargs):
-        data = dict(request.data)
-        if not data.get("refresh"):
-            raw = request.COOKIES.get(REFRESH_COOKIE_NAME) or ""
-            if not raw:
-                # Do NOT hand the serializer an empty string: `refresh` is required
-                # and non-blank, so that would surface as a 400 validation_error
-                # instead of the 401 token_not_valid a missing credential must be.
-                raise InvalidToken("No refresh token was provided.")
-            data["refresh"] = raw
-        serializer = self.get_serializer(data=data)
+        # `refresh` is the only field the serializer reads, so hand it that one
+        # value rather than a copy of the whole body - see body_refresh_token().
+        raw = body_refresh_token(request) or request.COOKIES.get(REFRESH_COOKIE_NAME) or ""
+        if not raw:
+            # Do NOT hand the serializer an empty string: `refresh` is required
+            # and non-blank, so that would surface as a 400 validation_error
+            # instead of the 401 token_not_valid a missing credential must be.
+            raise InvalidToken("No refresh token was provided.")
+        serializer = self.get_serializer(data={"refresh": raw})
         try:
             serializer.is_valid(raise_exception=True)
         except TokenError as exc:
@@ -128,7 +151,7 @@ class LogoutView(APIView):
     throttle_scope = "auth"
 
     def post(self, request):
-        raw = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
+        raw = body_refresh_token(request) or request.COOKIES.get(REFRESH_COOKIE_NAME)
         if raw:
             try:
                 RefreshToken(raw).blacklist()

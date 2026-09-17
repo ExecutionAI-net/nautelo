@@ -125,20 +125,77 @@ def test_refresh_without_a_cookie_is_401(api):
 
 
 @pytest.mark.django_db
-def test_refresh_with_a_malformed_body_token_is_400_validation_error(api):
-    """The 400-vs-401 boundary, pinned from both sides.
+def test_refresh_with_a_non_string_refresh_field_is_400_validation_error(api):
+    """The JSON-*type* boundary, not the JWT-*format* boundary.
 
-    A *missing* credential is an authentication failure (401 token_not_valid,
-    asserted above). A body that is present but structurally invalid for the
-    serializer - here `refresh` sent as a list instead of a string - is a
-    malformed payload, and SimpleJWT's `TokenRefreshSerializer.refresh`
-    (a plain, required, non-blank `CharField`) rejects it as DRF validation,
-    which the Task-2 envelope renders as 400 `validation_error`. Neither status
-    may drift into the other's case.
+    Three distinct failures must keep three distinct statuses:
+      - no credential at all            -> 401 token_not_valid (asserted above)
+      - a malformed JWT *string*        -> 401 token_not_valid (asserted below)
+      - `refresh` that is not a string  -> 400 validation_error (asserted here)
+    Only the last one is a malformed *payload*. SimpleJWT's
+    `TokenRefreshSerializer.refresh` is a plain, required, non-blank `CharField`,
+    so a list fails DRF's own type check before any token parsing happens, and
+    the Task-2 envelope renders it as 400. None of the three may drift into
+    another's case.
     """
     response = api.post(REFRESH_URL, {"refresh": ["not", "a", "string"]}, format="json")
     assert response.status_code == 400
     assert response.data["error"]["code"] == "validation_error"
+
+
+@pytest.mark.django_db
+def test_refresh_with_a_malformed_jwt_string_is_401(api):
+    """A syntactically invalid token string is an auth failure, not a payload error."""
+    response = api.post(REFRESH_URL, {"refresh": "total-garbage-not-a-jwt"}, format="json")
+    assert response.status_code == 401
+    assert response.data["error"]["code"] == "token_not_valid"
+
+
+@pytest.mark.django_db
+def test_refresh_accepts_a_form_encoded_body_token(api):
+    """Non-browser clients may post `refresh` as a form field, not just JSON.
+
+    For a form-encoded body `request.data` is an immutable `QueryDict`, whose
+    `dict()` copy wraps every value in a LIST - so a valid token read that way
+    reaches the serializer as `["<jwt>"]` and is rejected with 400 "Not a valid
+    string.". The view must pull the scalar out with `.get()` instead. No cookie
+    is sent here, so the body is the only credential in play.
+    """
+    make_user("formpost@example.com")
+    login = api.post(
+        LOGIN_URL, {"email": "formpost@example.com", "password": DEFAULT_TEST_PASSWORD},
+        format="json",
+    )
+    token = login.cookies[REFRESH_COOKIE_NAME].value
+    api.cookies.pop(REFRESH_COOKIE_NAME, None)
+
+    response = api.post(REFRESH_URL, {"refresh": token}, format="multipart")
+
+    assert response.status_code == 200
+    assert response.data["access"]
+    assert "refresh" not in response.data
+    assert response.cookies[REFRESH_COOKIE_NAME].value != token
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("url", [REFRESH_URL, LOGOUT_URL])
+def test_a_non_mapping_json_body_does_not_crash_the_auth_endpoints(api, url):
+    """A JSON body need not be an object, and a list has no `.get()`.
+
+    Reading `refresh` straight off `request.data` raises an uncaught
+    AttributeError for a top-level JSON array, which DRF's handler cannot render
+    - the client gets a bare 500 with no spec 30.2 envelope. A non-mapping body
+    simply carries no refresh token, so it must be treated as absent: 401 for
+    refresh (a missing credential) and 204 for logout (already signed out).
+    """
+    response = api.post(url, [1, 2], format="json")
+
+    assert response.status_code != 500
+    if url == REFRESH_URL:
+        assert response.status_code == 401
+        assert response.data["error"]["code"] == "token_not_valid"
+    else:
+        assert response.status_code == 204
 
 
 @pytest.mark.django_db
