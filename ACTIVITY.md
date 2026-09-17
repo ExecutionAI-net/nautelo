@@ -53,9 +53,9 @@ NAUTA's own listing/media entitlements.
 
 ## Current State
 
-- **No application code exists yet.** The project directory contains only the two source documents above.
-- **Not yet a git repository locally.** GitHub repo `executionainet/nautelo` exists remotely with an empty `dev` branch.
-- Tech stack decided (Django + Next.js) but **integration architecture is not yet decided** — see Open Questions below.
+- Repo is live: [github.com/executionainet/nautelo](https://github.com/executionainet/nautelo), `dev` branch, CI green.
+- No application code exists yet (no `backend/`, no `frontend/`) — only docs, `.gitignore`, and the CI workflow so far. The CI workflow already runs on every push/PR and gracefully no-ops both jobs until Tasks 3/9 of the implementation plan create real projects.
+- Architecture fully decided — see table below. Ready to execute `docs/superpowers/plans/2026-09-17-phase-0-1-infrastructure.md` Task 2 onward via `subagent-driven-development`, per-task branch → PR → CI green → controller merge.
 
 ## Architecture Decisions (confirmed 2026-09-17)
 
@@ -81,6 +81,14 @@ NAUTA's own listing/media entitlements.
 ---
 
 ## Log
+
+### 2026-09-17 — Repo live, CI green (Task 1 of Phase 0/1 plan)
+
+- Created the GitHub repo's initial commit: `.gitignore`, `.github/workflows/ci.yml`, `ACTIVITY.md`, the spec, and the implementation plan. Pushed to `dev`.
+- Hit and fixed a real access issue: the authenticated GitHub account (`hakantimur`) had read-only access to `executionainet/nautelo`; push failed with 403 until the project owner granted Write access. Documented here in case it recurs for another contributor.
+- Hit and fixed a real CI bug on the first run: a job-level `defaults.run.working-directory: backend`/`frontend` failed immediately because those directories don't exist yet (git doesn't track empty dirs), so even the "does this project exist yet" check step couldn't start. Fixed by removing the job-level default and setting `working-directory` per step, only on steps gated behind the existence check.
+- CI is now green on `dev` (both `backend` and `frontend` jobs correctly no-op since neither project exists yet).
+- Agreed execution model with the project owner: `subagent-driven-development` per task, but adapted to open a PR per task into `dev` (not one long-lived plan branch), merged by the controller only when CI is green and there's no conflict. Tasks run strictly sequentially, so only one branch is ever in flight. Branch protection on `dev` (require the CI check before merge) is intentionally not yet enabled — pending a separate explicit decision now that `dev` has real commits and a working CI check to require.
 
 ### 2026-09-17 — Initial review
 
