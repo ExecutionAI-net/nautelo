@@ -26,6 +26,8 @@ INSTALLED_APPS = [
     "channels",
     "storages",
     "common",
+    "audit",
+    "finance",
     "taxonomy",
 ]
 
