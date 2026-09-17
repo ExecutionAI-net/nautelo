@@ -195,7 +195,7 @@ jobs:
       STRIPE_WEBHOOK_SECRET: whsec_test_ci
       EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
       DEFAULT_FROM_EMAIL: noreply@nautelo.local
-      OBJECT_STORAGE_ENDPOINT_URL: http://localhost:9000
+      OBJECT_STORAGE_ENDPOINT_URL: http://localhost:9010
       OBJECT_STORAGE_ACCESS_KEY: nautelo
       OBJECT_STORAGE_SECRET_KEY: nautelo123
       OBJECT_STORAGE_BUCKET_NAME: nautelo-media
@@ -287,7 +287,7 @@ jobs:
         run: pnpm build
 ```
 
-Note: Postgres and Redis use GitHub Actions' native `services:` support (their default images already run the right server on start). MinIO does not — its image needs `server /data` passed as a command, which `services:` cannot override — so MinIO is instead started with the same root `docker-compose.yml` used for local dev, keeping one source of truth for its setup. The `exists` checks make every job a safe no-op (green) on early PRs, before Tasks 3/9 create `backend/pyproject.toml` and `frontend/package.json`. There is deliberately no job-level `defaults.run.working-directory` — `backend/`/`frontend/` don't exist as real directories in the repo until Tasks 3/9 create files inside them (git does not track empty directories), so a job-level working-directory override would fail the very existence-check step meant to detect that. Each step that needs to run inside `backend/`/`frontend/` sets `working-directory:` individually, after the existence check (against a repo-root-relative path) has already run successfully.
+Note: Postgres and Redis use GitHub Actions' native `services:` support (their default images already run the right server on start). MinIO does not — its image needs `server /data` passed as a command, which `services:` cannot override — so MinIO is instead started with the same root `docker-compose.yml` used for local dev, keeping one source of truth for its setup. The `exists` checks make every job a safe no-op (green) on early PRs, before Tasks 3/9 create `backend/pyproject.toml` and `frontend/package.json`. There is deliberately no job-level `defaults.run.working-directory` — `backend/`/`frontend/` don't exist as real directories in the repo until Tasks 3/9 create files inside them (git does not track empty directories), so a job-level working-directory override would fail the very existence-check step meant to detect that. Each step that needs to run inside `backend/`/`frontend/` sets `working-directory:` individually, after the existence check (against a repo-root-relative path) has already run successfully. `DATABASE_URL`/`REDIS_URL`/`CELERY_*`/`CHANNELS_REDIS_URL` above intentionally still use the standard ports `5432`/`6379` — CI's Postgres/Redis are GitHub Actions' own isolated `services:` containers, unrelated to the loopback-only, non-standard-port `docker-compose.yml` used for local dev (see the port ruling in Task 2). Only `OBJECT_STORAGE_ENDPOINT_URL` had to move to `9010`, because CI's MinIO comes from that same `docker-compose.yml`.
 
 - [ ] **Step 3: Initialize git and make the first commit**
 
@@ -315,7 +315,7 @@ Expected: the `dev` branch on GitHub now shows these files, and the Actions tab 
 - Create: `docker-compose.yml`
 
 **Interfaces:**
-- Produces: Postgres reachable at `localhost:5432` (db `nautelo`, user `nautelo`, password `nautelo`); Redis reachable at `localhost:6379`; MinIO S3 API at `localhost:9000` (console at `localhost:9001`, user `nautelo`, password `nautelo123`), with a `nautelo-media` bucket pre-created.
+- Produces: Postgres reachable at `localhost:5433` (db `nautelo`, user `nautelo`, password `nautelo`); Redis reachable at `localhost:6380`; MinIO S3 API at `localhost:9010` (console at `localhost:9011`, user `nautelo`, password `nautelo123`), with a `nautelo-media` bucket pre-created. All three are bound to `127.0.0.1` only and use non-default host ports — see the ruling after Step 2 below.
 
 - [ ] **Step 1: Write `docker-compose.yml`**
 
@@ -328,7 +328,7 @@ services:
       POSTGRES_USER: nautelo
       POSTGRES_PASSWORD: nautelo
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -340,7 +340,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -354,8 +354,8 @@ services:
       MINIO_ROOT_USER: nautelo
       MINIO_ROOT_PASSWORD: nautelo123
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -393,10 +393,12 @@ Expected: `postgres`, `redis`, `minio` show `healthy`; `createbuckets` exits wit
 ```bash
 docker compose exec postgres pg_isready -U nautelo
 docker compose exec redis redis-cli ping
-curl -f http://localhost:9000/minio/health/live
+curl -f http://localhost:9010/minio/health/live
 ```
 
-Expected: `accepting connections`, `PONG`, HTTP 200 respectively.
+Expected: `accepting connections`, `PONG`, HTTP 200 respectively. (`docker compose exec` runs inside the container's network namespace, so it always uses the container-internal ports 5432/6379 regardless of the host port mapping — only the `curl` from the host needs the mapped port.)
+
+**Ruling (recorded during Task 2 execution, not in the original plan text):** the host ports above were changed from the obvious defaults (`5432`, `6379`, `9000`/`9001`) to `5433`/`6380`/`9010`/`9011`, all bound to `127.0.0.1` only, for two reasons found during implementation: (1) this dev machine already runs another project's stack on the default ports, and colliding with it caused Task 2's implementer to stop that unrelated project's containers as a side effect; (2) an automated security review of the committed `docker-compose.yml` correctly flagged that publishing Postgres/Redis/MinIO on `0.0.0.0` with dev-grade credentials is unnecessary exposure — binding to loopback costs nothing locally (every consumer in this plan connects via `localhost` anyway) and closes that off. Container-internal ports are unchanged; only the host-side mapping moved. **This changes every `localhost:5432`/`6379`/`9000` reference elsewhere in this plan** — Task 3's `.env.example` and the CI workflow's `OBJECT_STORAGE_ENDPOINT_URL` are updated accordingly below.
 
 - [ ] **Step 3: Commit**
 
@@ -624,11 +626,11 @@ DJANGO_DEBUG=True
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:3000
 
-DATABASE_URL=postgres://nautelo:nautelo@localhost:5432/nautelo
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/1
-CELERY_RESULT_BACKEND=redis://localhost:6379/2
-CHANNELS_REDIS_URL=redis://localhost:6379/3
+DATABASE_URL=postgres://nautelo:nautelo@localhost:5433/nautelo
+REDIS_URL=redis://localhost:6380/0
+CELERY_BROKER_URL=redis://localhost:6380/1
+CELERY_RESULT_BACKEND=redis://localhost:6380/2
+CHANNELS_REDIS_URL=redis://localhost:6380/3
 
 JWT_ACCESS_TOKEN_LIFETIME_MINUTES=15
 JWT_REFRESH_TOKEN_LIFETIME_DAYS=7
@@ -640,7 +642,7 @@ STRIPE_WEBHOOK_SECRET=whsec_test_placeholder
 EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
 DEFAULT_FROM_EMAIL=noreply@nautelo.local
 
-OBJECT_STORAGE_ENDPOINT_URL=http://localhost:9000
+OBJECT_STORAGE_ENDPOINT_URL=http://localhost:9010
 OBJECT_STORAGE_ACCESS_KEY=nautelo
 OBJECT_STORAGE_SECRET_KEY=nautelo123
 OBJECT_STORAGE_BUCKET_NAME=nautelo-media
@@ -1127,7 +1129,7 @@ docker compose stop minio
 uv run pytest common/tests/test_storage.py -v
 ```
 
-Expected: `FAIL` with a connection error to `http://localhost:9000` — proving the test genuinely exercises MinIO rather than a mock.
+Expected: `FAIL` with a connection error to `http://localhost:9010` — proving the test genuinely exercises MinIO rather than a mock.
 
 - [ ] **Step 3: Bring MinIO back up and confirm the config from Task 3 is correct**
 
@@ -1143,7 +1145,7 @@ No code changes needed here — `STORAGES`, `AWS_*` settings were already writte
 uv run pytest common/tests/test_storage.py -v
 ```
 
-Expected: `PASS`. Confirm in the MinIO console (`http://localhost:9001`, login `nautelo`/`nautelo123`) that the `healthcheck/test.txt` object briefly appeared and was deleted (or watch `docker compose logs minio` during the test run).
+Expected: `PASS`. Confirm in the MinIO console (`http://localhost:9011`, login `nautelo`/`nautelo123`) that the `healthcheck/test.txt` object briefly appeared and was deleted (or watch `docker compose logs minio` during the test run).
 
 - [ ] **Step 5: Verify uploaded content cannot be executed**
 
