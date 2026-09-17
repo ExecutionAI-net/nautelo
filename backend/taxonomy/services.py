@@ -31,3 +31,19 @@ def generate_unique_slug(queryset, name, *, exclude_pk=None):
                 f"Could not generate a unique slug for '{name}' after 20 attempts"
             )
         slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
+
+
+from django.db import transaction
+
+
+def ensure_other_placeholder(brand):
+    """Idempotently guarantee `brand` has exactly one Other BoatModel."""
+    from .models import BoatModel  # local import: avoids a models<->services circular import
+
+    with transaction.atomic():
+        other, _ = BoatModel.objects.get_or_create(
+            brand=brand,
+            is_other_placeholder=True,
+            defaults={"name": "Other"},
+        )
+        return other

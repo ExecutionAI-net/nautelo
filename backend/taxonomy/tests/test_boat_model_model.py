@@ -40,7 +40,9 @@ def test_duplicate_normalized_name_within_the_same_brand_is_rejected():
 @pytest.mark.django_db
 def test_only_one_other_placeholder_per_brand_is_allowed_at_the_database_level():
     brand = BoatBrand.objects.create(name="Beneteau")
-    BoatModel.objects.create(brand=brand, name="Other", is_other_placeholder=True)
+    # This task's post_save signal already created the brand's Other placeholder here.
+    existing_other = BoatModel.objects.get(brand=brand, is_other_placeholder=True)
+    assert existing_other.name == "Other"
 
     with pytest.raises(IntegrityError):
         with transaction.atomic():
