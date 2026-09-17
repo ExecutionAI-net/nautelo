@@ -348,7 +348,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: nautelo
@@ -365,7 +365,7 @@ services:
       retries: 5
 
   createbuckets:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy
@@ -398,7 +398,9 @@ curl -f http://localhost:9010/minio/health/live
 
 Expected: `accepting connections`, `PONG`, HTTP 200 respectively. (`docker compose exec` runs inside the container's network namespace, so it always uses the container-internal ports 5432/6379 regardless of the host port mapping — only the `curl` from the host needs the mapped port.)
 
-**Ruling (recorded during Task 2 execution, not in the original plan text):** the host ports above were changed from the obvious defaults (`5432`, `6379`, `9000`/`9001`) to `5433`/`6380`/`9010`/`9011`, all bound to `127.0.0.1` only, for two reasons found during implementation: (1) this dev machine already runs another project's stack on the default ports, and colliding with it caused Task 2's implementer to stop that unrelated project's containers as a side effect; (2) an automated security review of the committed `docker-compose.yml` correctly flagged that publishing Postgres/Redis/MinIO on `0.0.0.0` with dev-grade credentials is unnecessary exposure — binding to loopback costs nothing locally (every consumer in this plan connects via `localhost` anyway) and closes that off. Container-internal ports are unchanged; only the host-side mapping moved. **This changes every `localhost:5432`/`6379`/`9000` reference elsewhere in this plan** — Task 3's `.env.example` and the CI workflow's `OBJECT_STORAGE_ENDPOINT_URL` are updated accordingly below.
+**Ruling 2 (recorded as a hotfix after Task 2 merged, confirmed by Task 3's CI run — not in the original plan text):** `minio/minio:latest` and `minio/mc:latest` are not pullable from Docker Hub (`docker.io`) — pulling either returns "pull access denied ... repository does not exist" both locally (hit during Task 2) and in GitHub Actions (hit during Task 3's PR check), so this is not an environment quirk, it is the current state of those Docker Hub repositories. Fixed permanently by using `quay.io/minio/minio:latest` and `quay.io/minio/mc:latest` instead — the images are otherwise identical, just hosted on a different registry. The `docker-compose.yml` block above and the CI workflow's "Start MinIO" step (which reuses this same file) both already reflect this.
+
+**Ruling 1 (recorded during Task 2 execution, not in the original plan text):** the host ports above were changed from the obvious defaults (`5432`, `6379`, `9000`/`9001`) to `5433`/`6380`/`9010`/`9011`, all bound to `127.0.0.1` only, for two reasons found during implementation: (1) this dev machine already runs another project's stack on the default ports, and colliding with it caused Task 2's implementer to stop that unrelated project's containers as a side effect; (2) an automated security review of the committed `docker-compose.yml` correctly flagged that publishing Postgres/Redis/MinIO on `0.0.0.0` with dev-grade credentials is unnecessary exposure — binding to loopback costs nothing locally (every consumer in this plan connects via `localhost` anyway) and closes that off. Container-internal ports are unchanged; only the host-side mapping moved. **This changes every `localhost:5432`/`6379`/`9000` reference elsewhere in this plan** — Task 3's `.env.example` and the CI workflow's `OBJECT_STORAGE_ENDPOINT_URL` are updated accordingly below.
 
 - [ ] **Step 3: Commit**
 
