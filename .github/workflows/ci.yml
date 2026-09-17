@@ -111,7 +111,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         if: steps.check.outputs.exists == 'true'
         with:
-          version: 9
+          version: 12
 
       - uses: actions/setup-node@v4
         if: steps.check.outputs.exists == 'true'
@@ -134,5 +134,5 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8020
         run: pnpm build
