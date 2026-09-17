@@ -1,3 +1,13 @@
-from django.shortcuts import render
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-# Create your views here.
+from .services import get_public_settings
+
+
+class PublicPlatformSettingsView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        return Response(get_public_settings())

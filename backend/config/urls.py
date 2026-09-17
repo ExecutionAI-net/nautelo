@@ -18,9 +18,15 @@ from django.contrib import admin
 from django.urls import path
 
 from common.views import HealthCheckView, StripeWebhookView
+from platform_settings.views import PublicPlatformSettingsView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/v1/health/", HealthCheckView.as_view(), name="health-check"),
     path("api/v1/stripe/webhook/", StripeWebhookView.as_view(), name="stripe-webhook"),
+    path(
+        "api/v1/platform/public-settings/",
+        PublicPlatformSettingsView.as_view(),
+        name="platform-public-settings",
+    ),
 ]

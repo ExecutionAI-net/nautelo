@@ -76,3 +76,25 @@ def update_setting(
     transaction.on_commit(lambda: cache.delete(SETTINGS_CACHE_KEY))
 
     return setting
+
+
+def get_public_settings() -> dict:
+    """Return the cached, publicly-safe settings payload
+    (spec §30.1: GET /api/v1/platform/public-settings/)."""
+    cached = cache.get(SETTINGS_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    rows = {row.key: row.value for row in PlatformSetting.objects.all()}
+    version = PlatformSettingsVersion.load()
+    result = {
+        "settings_version": version.version,
+        "updated_at": version.updated_at.isoformat().replace("+00:00", "Z"),
+        "settings": {
+            key: coerce_value(definition.value_type, rows[key])
+            for key, definition in SETTINGS_REGISTRY.items()
+            if definition.is_public and key in rows
+        },
+    }
+    cache.set(SETTINGS_CACHE_KEY, result, timeout=None)
+    return result
