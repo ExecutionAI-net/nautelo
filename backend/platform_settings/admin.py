@@ -2,8 +2,8 @@ from django.contrib import admin
 
 from audit.models import AuditEvent
 
-from .models import PlatformSetting
-from .services import update_setting
+from .models import FeatureFlag, PlatformSetting
+from .services import set_feature_flag, update_setting
 
 
 @admin.register(PlatformSetting)
@@ -35,3 +35,42 @@ class PlatformSettingAdmin(admin.ModelAdmin):
             actor=request.user,
             source=AuditEvent.Source.ADMIN,
         )
+
+
+@admin.register(FeatureFlag)
+class FeatureFlagAdmin(admin.ModelAdmin):
+    list_display = ("key", "is_enabled", "updated_at", "updated_by")
+    fields = ("key", "description", "is_enabled", "updated_at", "updated_by")
+    readonly_fields = ("updated_at", "updated_by")
+
+    def has_add_permission(self, request):
+        # Unlike PlatformSetting (all 12 keys pre-seeded, no ad hoc creation),
+        # staff may create a new flag key ahead of the feature that will
+        # check it — always allowed, same unconditional style as
+        # has_delete_permission below rather than deferring to Django's
+        # per-user `auth.Permission` grants.
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        # Prefer disabling a flag over deleting it, so its audit history
+        # stays attached to a real row. Unlike PlatformSetting, `add` is
+        # allowed here — staff may create a new flag key ahead of the
+        # feature that will check it.
+        return False
+
+    def save_model(self, request, obj, form, change):
+        flag = set_feature_flag(
+            key=obj.key,
+            is_enabled=obj.is_enabled,
+            actor=request.user,
+            description=obj.description,
+            source=AuditEvent.Source.ADMIN,
+        )
+        # On "Add", `obj` is a fresh instance with its own client-generated
+        # UUID (UUIDModel's default=uuid4 fires at instantiation, before any
+        # save) — sync `obj` onto the row set_feature_flag() actually
+        # created/updated so Django Admin's post-save redirect resolves to
+        # the real object instead of a pk that was never written to the DB.
+        obj.pk = flag.pk
+        obj.updated_at = flag.updated_at
+        obj.updated_by = flag.updated_by

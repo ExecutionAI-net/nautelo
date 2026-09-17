@@ -71,3 +71,27 @@ class PlatformSettingsVersion(models.Model):
         obj.version += 1
         obj.save(update_fields=["version", "updated_at"])
         return obj.version
+
+
+class FeatureFlag(UUIDTimeStampedModel):
+    """A generic staff-toggleable on/off switch (NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md §7
+    row 2 / §35.1). Unlike PlatformSetting, flag keys are not fixed by a
+    registry — each phase that needs one creates its own row (typically via
+    a data migration) when the feature it gates is actually built."""
+
+    key = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, blank=True)
+    is_enabled = models.BooleanField(default=False)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="feature_flag_updates",
+    )
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self):
+        return self.key

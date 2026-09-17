@@ -3,8 +3,8 @@ from django.contrib import admin as django_admin
 from django.test import RequestFactory
 
 from audit.models import AuditEvent
-from platform_settings.admin import PlatformSettingAdmin
-from platform_settings.models import PlatformSetting
+from platform_settings.admin import FeatureFlagAdmin, PlatformSettingAdmin
+from platform_settings.models import FeatureFlag, PlatformSetting
 from platform_settings.services import get_setting_value
 
 
@@ -30,3 +30,10 @@ def test_platform_setting_admin_save_model_goes_through_update_setting(staff_use
     assert AuditEvent.objects.filter(
         target_id="individual.free_listing_count", source=AuditEvent.Source.ADMIN
     ).exists()
+
+
+def test_feature_flag_admin_allows_add_but_denies_delete():
+    admin_instance = FeatureFlagAdmin(FeatureFlag, django_admin.site)
+
+    assert admin_instance.has_add_permission(None) is True
+    assert admin_instance.has_delete_permission(None) is False
