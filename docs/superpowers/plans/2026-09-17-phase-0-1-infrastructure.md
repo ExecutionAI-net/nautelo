@@ -1658,8 +1658,14 @@ cd backend && uv run celery -A config worker -Q default,notifications,media,main
 ```
 
 ```bash
-cd frontend && pnpm dev -- -p 3020
+cd frontend && pnpm next dev -p 3020
 ```
+
+(Note: `pnpm dev -- -p 3020` — the form used elsewhere for other tools — does
+not work on this project's pnpm/Next.js versions; pnpm passes the literal
+`--` through to `next dev`, which then treats it as a directory argument
+and fails with "Invalid project directory provided". Use `pnpm next dev -p
+3020` instead, confirmed working in Task 9.)
 
 Then verify:
 
@@ -1677,7 +1683,7 @@ Append a new entry at the top of the `## Log` section:
 ### 2026-09-17 — Phase 0/1 infrastructure complete
 
 - Implemented `docs/superpowers/plans/2026-09-17-phase-0-1-infrastructure.md` in full.
-- Repo scaffolded: `backend/` (Django 5.2 + DRF + JWT config + Celery + Channels + S3 storage + Stripe webhook stub) and `frontend/` (Next.js 15 + Tailwind with NAUTA design tokens), `docker-compose.yml` for Postgres/Redis/MinIO.
+- Repo scaffolded: `backend/` (Django 5.2 + DRF + JWT config + Celery + Channels + S3 storage + Stripe webhook stub) and `frontend/` (Next.js 16 + Tailwind v4 with NAUTA design tokens), `docker-compose.yml` for Postgres/Redis/MinIO.
 - `/api/v1/health/` reports database, Redis and Celery worker status; `/api/v1/stripe/webhook/` verifies signatures (no fulfillment logic yet); `/ws/health/` proves the Redis-backed Channels layer; `/health` on the frontend proves Next.js → Django connectivity.
 - Known limitations: no domain apps yet (`accounts`, `listings`, etc. — spec Phase 2+); no real login/JWT-issuing endpoint (needs `User` model, Phase 3); `prod.py` settings are a placeholder, full hardening is Phase 22; frontend has no automated test tooling yet (deferred until real UI logic exists).
 - Next: write the Phase 2 plan (shared domain types, `platform_settings` app, audit foundation) per spec §10.
