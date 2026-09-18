@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Q
 
 from common.models import UUIDTimeStampedModel
+from professionals.models import validate_service_area
 from services_catalog.services import RESERVED_CATEGORY_SLUGS, validate_category_slug
 
 
@@ -48,3 +49,41 @@ class ServiceCategory(UUIDTimeStampedModel):
 
     def get_absolute_url(self) -> str:
         return f"/services/{self.slug}/"
+
+
+class ProfessionalService(UUIDTimeStampedModel):
+    """One service a professional offers inside one category (spec §11.2)."""
+
+    professional = models.ForeignKey(
+        "professionals.ProfessionalProfile",
+        related_name="services",
+        on_delete=models.CASCADE,
+    )
+    category = models.ForeignKey(
+        ServiceCategory,
+        related_name="professional_services",
+        on_delete=models.PROTECT,
+    )
+    title_en = models.CharField(max_length=160)
+    title_it = models.CharField(max_length=160, blank=True)
+    title_es = models.CharField(max_length=160, blank=True)
+    description_en = models.TextField(blank=True)
+    description_it = models.TextField(blank=True)
+    description_es = models.TextField(blank=True)
+    service_area = models.JSONField(
+        default=list, blank=True, validators=[validate_service_area]
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("category__display_order", "title_en")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["professional", "category", "title_en"],
+                name="unique_professional_category_title",
+            )
+        ]
+        indexes = [models.Index(fields=["is_active"])]
+
+    def __str__(self):
+        return f"{self.professional.display_name} — {self.title_en}"
