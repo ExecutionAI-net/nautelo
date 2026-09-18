@@ -86,6 +86,12 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-18 — Local dev: per-worktree test database names
+
+- Problem: this project's local dev workflow runs many concurrent git worktrees against one shared Postgres instance (identical `DATABASE_URL` in every worktree's `backend/.env`). Django's test runner names the test database `test_<db name>` by default, so simultaneous `pytest` runs from two or more worktrees raced to create/drop the identical `test_nautelo` database — surfacing as a confusing `assert not self._finalizers` failure in `_pytest/fixtures.py`, with the real cause (`psycopg.errors.DuplicateDatabase` / `ObjectInUse`) further up the traceback. Independently observed and confirmed environmental (not a code defect) by two reviewers on 2026-09-18 while reviewing Phase 3 Task 9 and Phase 11 Task 6.
+- Fix: `backend/config/settings/test.py` now derives `DATABASES["default"]["TEST"]["NAME"]` from a hash of the settings module's own `BASE_DIR` (unique per worktree checkout, since each worktree is its own directory) whenever `GITHUB_ACTIONS` is not `"true"`. This needs no new env var and no manual step — a freshly created worktree gets a distinct test database name automatically, the moment its `backend/.env` (copied from `.env.example`, unchanged) is in place. CI is unaffected: GitHub Actions sets `GITHUB_ACTIONS=true` on every job, so CI keeps Django's default `test_nautelo` name, which is fine there since CI already runs one job at a time against its own fresh, ephemeral Postgres service.
+- Verified: reproduced the collision with two concurrent `pytest` runs from two worktrees against the shared Postgres before the fix (`psycopg.errors.DuplicateDatabase: database "test_nautelo" already exists`), confirmed it no longer occurs after (both runs completed cleanly, using distinct `test_nautelo_<hash>` database names), and ran the full backend suite once more alone (564 passed) to confirm no regressions. See `docs/superpowers/plans/2026-09-18-per-worktree-test-database.md` for the full plan.
+
 ### 2026-09-18 — Phase 11 (listing workflow, revisions and immutable fields) complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-11-listing-workflow.md` in full (Tasks 1-15).
