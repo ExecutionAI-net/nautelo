@@ -266,7 +266,7 @@ Nothing in §23 is time-driven. Stripe's own `checkout.session.expired` event mo
 
 Splitting the domain logic across `products.py`, `checkout.py`, `webhooks.py`, `fulfillment.py` and `refunds.py` rather than one `services.py` is deliberate: `webhooks.py` (untrusted input, no business rules) and `fulfillment.py` (trusted input, all the business rules) have different threat models and different reviewers, and keeping that security boundary visible in the file layout is worth more than the convenience of one file. `services.py` holds only the staff product write, which is neither.
 
-**Also created:** `backend/entitlements/migrations/0003_userentitlement_source_payment.py` (Task 4). **Modified outside `payments/`:** `backend/config/settings/base.py` (two appended one-liners), `backend/config/urls.py` (one appended `include`, two modified lines in Task 9), `backend/entitlements/models.py` (one field), `backend/entitlements/tests/test_user_entitlement_model.py` (one string), `backend/common/views.py` (a class removed), `backend/common/tests/stripe_helpers.py` (one appended keyword argument), `ACTIVITY.md` and `docs/superpowers/PHASE-TRACKER.md`. **Deleted:** `backend/common/tests/test_stripe_webhook.py`. The collision notice above states each one's risk.
+**Also created:** `backend/entitlements/migrations/000N_userentitlement_source_payment.py` (Task 4; `0003` at planning time — never hand-number, see the collision notice). **Modified outside `payments/`:** `backend/config/settings/base.py` (two appended one-liners), `backend/config/urls.py` (one appended `include`, two modified lines in Task 9), `backend/entitlements/models.py` (one field), `backend/entitlements/tests/test_user_entitlement_model.py` (one string), `backend/common/views.py` (a class removed), `backend/common/tests/stripe_helpers.py` (one appended keyword argument), `ACTIVITY.md` and `docs/superpowers/PHASE-TRACKER.md`. **Deleted:** `backend/common/tests/test_stripe_webhook.py`. The collision notice above states each one's risk.
 
 ---
 
@@ -1932,7 +1932,7 @@ git commit -m "feat(payments): PaymentOrder and ProcessedWebhookEvent with their
 
 **Files:**
 - Modify: `backend/entitlements/models.py` (one field), `backend/entitlements/tests/test_user_entitlement_model.py` (one string)
-- Create: `backend/entitlements/migrations/0003_userentitlement_source_payment.py` (generated)
+- Create: `backend/entitlements/migrations/000N_userentitlement_source_payment.py` (generated; `0003` at planning time — take whatever `makemigrations` emits, never hand-number)
 - Test: `backend/payments/tests/test_entitlement_link.py`
 
 **Interfaces:**
@@ -1972,8 +1972,8 @@ from payments.tests.factories import (
 )
 
 
-@pytest.mark.django_db
 def test_the_exactly_once_constraint_exists_with_the_documented_name():
+    # No django_db marker: this reads _meta only and touches no database.
     names = {c.name for c in UserEntitlement._meta.constraints}
 
     assert "entitlements_one_live_right_per_payment" in names
@@ -2187,7 +2187,7 @@ In `backend/entitlements/tests/test_user_entitlement_model.py`, inside `test_eve
 cd backend && uv run python manage.py makemigrations entitlements
 ```
 
-Expected: `entitlements/migrations/0003_userentitlement_source_payment.py`. **Read it.** Django will emit a `RemoveField` + `AddField` pair or an `AlterField`; either is acceptable here because the column is empty in every environment (nothing has ever written it — `PaymentOrder` did not exist). Confirm the migration's `dependencies` include `("payments", "0003_paymentorder_processedwebhookevent")`; if Django did not infer it, add it by hand, because the FK target table must exist first.
+Expected: `entitlements/migrations/000N_userentitlement_source_payment.py` (`0003` at planning time; if Phase 13 has landed a migration first, the number will be higher — take whatever Django emits). **Read it.** Django will emit a `RemoveField` + `AddField` pair or an `AlterField`; either is acceptable here because the column is empty in every environment (nothing has ever written it — `PaymentOrder` did not exist). Confirm the migration's `dependencies` include `("payments", "0003_paymentorder_processedwebhookevent")`; if Django did not infer it, add it by hand, because the FK target table must exist first.
 
 - [ ] **Step 6: Run the tests and confirm they pass**
 
@@ -5438,6 +5438,7 @@ from django.utils import timezone
 from audit.models import AuditEvent
 from entitlements.enums import EntitlementSource, EntitlementState, EntitlementType
 from entitlements.models import UserEntitlement
+from entitlements.tests.factories import make_entitlement
 from listings.tests.factories import make_private_listing
 from payments.enums import PaymentOrderStatus, ProductCode, WebhookResult
 from payments.fulfillment import (
@@ -5766,9 +5767,6 @@ def test_a_paid_event_on_a_terminal_order_alerts_staff(
     condition spec §35.4 tells operators to hunt for. Without this alert
     nobody would be looking.
     """
-    from entitlements.enums import EntitlementType
-    from entitlements.tests.factories import make_entitlement
-
     right = make_entitlement(user=seller, entitlement_type=EntitlementType.PAID_LISTING)
     order = make_order(
         user=seller,
@@ -6637,10 +6635,14 @@ def test_an_unused_right_is_revoked_on_a_full_refund(seller, captured_review, de
     assert entitlement_audit.actor_user_id is None
     assert entitlement_audit.actor_type == AuditEvent.ActorType.STRIPE
     assert entitlement_audit.source == AuditEvent.Source.WEBHOOK
+    # A clean revocation is NOT a staff case: spec §23.4 only escalates the
+    # consumed, partial and conflict paths. An alert here would train staff to
+    # ignore the queue.
+    assert captured_review == []
 
 
 @pytest.mark.django_db
-def test_a_reserved_right_is_released_then_revoked(seller):
+def test_a_reserved_right_is_released_then_revoked(seller, deliver):
     """Spec §23.4 bullet 2: "Reserved entitlement: release reservation, then
     revoke"."""
     order, right = fulfilled_order(seller, state=EntitlementState.RESERVED)
@@ -8280,7 +8282,7 @@ No other route is added and no existing route's URL, method or success shape cha
 
 **Deliberate, accepted deviations from Phase 13's contract** (recorded here so a later reader does not mistake either for a silent break):
 
-- **Phase 13 contract rule 6 said the purchased right's `valid_until` is `now + individual.paid_entitlement_valid_days`.** This phase uses `now + product.entitlement_valid_days` instead. **A downstream phase must not "fix" this back without reading the ruling in Task 10:** the product column is spec §11.9's and staff-editable per §23.1, so a per-product duration the purchase path ignored would be exactly the decorative field spec §2.1 forbids. Spec §11.9 gives the product that column and §23.1 lets staff edit it; a per-product duration the purchase path ignored would be decorative, which spec §2.1 forbids. Both are seeded 365 today, so no behaviour differs. See Known Limitation 5.
+- **Phase 13 contract rule 6 said the purchased right's `valid_until` is `now + individual.paid_entitlement_valid_days`.** This phase uses `now + product.entitlement_valid_days` instead. **A downstream phase must not "fix" this back without reading the ruling in Task 10:** the product column is spec §11.9's and staff-editable per §23.1, so a per-product duration the purchase path ignored would be exactly the decorative field spec §2.1 forbids. Both are seeded 365 today, so no behaviour differs. See Known Limitation 5.
 - **Phase 13 contract rule 1 said never to write a `UserEntitlement` outside `entitlements.consumption`/`entitlements.services`.** `payments.fulfillment.grant_purchased_entitlement` CREATES a row directly. The rule governs **transitions**; creation is not one, and `grant_listing_right` hard-codes `STAFF_GRANT`/`granted_by`/`reason`, none of which describes a purchase. Every transition away from the row (revocation on refund) does go through `entitlements.services`. See the ruling in the Scope rulings section.
 - **Phase 13 contract rule 6 called this phase "the natural first producer of `RESERVED` rows".** It produces none — a paid right is `AVAILABLE` immediately — so Phase 13's Known Limitation 3 obligation ("must also ship the abandonment-release flow, or leave `listing` NULL") does not bite here and passes intact to **Phase 15**.
 
