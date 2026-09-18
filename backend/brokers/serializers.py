@@ -4,6 +4,11 @@ from accounts.models import User, UserManager
 from accounts.services import is_staff_admin
 from brokers.enums import BrokerMembershipRole
 from brokers.models import BrokerMembership
+from brokers.selectors import (
+    broker_audit_history,
+    broker_listing_counts,
+    pending_revision_count,
+)
 
 
 class BrokerMembershipSerializer(serializers.ModelSerializer):
@@ -189,3 +194,73 @@ class BrokerMembershipUpdateSerializer(serializers.ModelSerializer):
                 field = "role" if attrs.get("role", membership.role) != BrokerMembershipRole.ADMIN else "is_active"
                 raise serializers.ValidationError({field: ["last_broker_admin"]})
         return attrs
+
+
+def actor_ref(user) -> dict | None:
+    """The minimum identification of a staff actor: who to ask about a change.
+
+    Deliberately three fields. This payload is read by staff moderators, and a
+    full user serialization would put an unrelated person's role, locale and
+    verification state on a screen that only needs to name them.
+    """
+    if user is None:
+        return None
+    return {
+        "id": str(user.pk),
+        "email": user.email,
+        "full_name": user.full_name,
+    }
+
+
+def audit_entry(event) -> dict:
+    """One row of the staff broker audit history.
+
+    `reason` is lifted out of `metadata` to the top level because it is the one
+    field spec §21 requires the panel to show; the raw `before`/`after` are kept
+    alongside it so a reviewer can see exactly what moved.
+    """
+    return {
+        "id": str(event.pk),
+        "action": event.action,
+        "actor": actor_ref(event.actor_user),
+        "created_at": event.created_at,
+        "reason": (event.metadata or {}).get("reason", ""),
+        "before": event.before,
+        "after": event.after,
+    }
+
+
+class StaffBrokerDetailSerializer(serializers.Serializer):
+    """Everything spec §21's "Staff broker UI" enumerates, in one payload.
+
+    Read-only by construction — no `create`, no `update`. The two mutations have
+    their own serializers and their own, narrower permission tiers, so nothing
+    here can be turned into a write by adding a field.
+
+    Also the response body of the approval-policy PATCH (Task 5), so a staff
+    admin toggling the switch gets the refreshed counts, stamps and audit
+    history back in the same round trip (spec §30.2: "Mutations return updated
+    resource/version").
+    """
+
+    def to_representation(self, broker):
+        return {
+            "id": str(broker.pk),
+            "name": broker.name,
+            "slug": broker.slug,
+            # §21 Staff broker UI item 1 — account status.
+            "status": broker.status,
+            # §21 Staff broker UI item 3 — the switch, its state, last changed
+            # by and last changed at.
+            "auto_approve_listings": broker.auto_approve_listings,
+            "auto_approve_changed_by": actor_ref(broker.auto_approve_changed_by),
+            "auto_approve_changed_at": broker.auto_approve_changed_at,
+            # §21 Staff broker UI item 2 — listing counts by status.
+            "listing_counts": broker_listing_counts(broker),
+            # Drives the §21 rule 7 bulk-approve action (Task 6).
+            "pending_revision_count": pending_revision_count(broker),
+            # §21 Staff broker UI item 6 — audit history.
+            "audit_history": [
+                audit_entry(event) for event in broker_audit_history(broker)
+            ],
+        }

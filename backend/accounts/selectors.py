@@ -69,6 +69,9 @@ def get_broker_memberships(user) -> list:
             "broker_name": membership.broker.name,
             "broker_slug": membership.broker.slug,
             "broker_status": membership.broker.status,
+            # Spec §11.1: read-only here; the only write path is the staff-admin
+            # approval-policy PATCH. `broker` is already select_related.
+            "broker_auto_approve_listings": membership.broker.auto_approve_listings,
             "role": membership.role,
             "can_edit_listings": membership.can_edit_listings,
             "can_manage_team": membership.can_manage_team,

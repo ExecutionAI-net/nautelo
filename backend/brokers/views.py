@@ -1,15 +1,22 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsActiveUser, IsBrokerTeamManager, IsEmailVerified
+from accounts.permissions import (
+    IsActiveUser,
+    IsBrokerTeamManager,
+    IsEmailVerified,
+    IsStaffModerator,
+)
 from brokers.models import BrokerMembership, BrokerOrganization
 from brokers.serializers import (
     BrokerMembershipCreateSerializer,
     BrokerMembershipSerializer,
     BrokerMembershipUpdateSerializer,
+    StaffBrokerDetailSerializer,
 )
 
 
@@ -88,3 +95,28 @@ class BrokerMemberDetailView(BrokerTeamBaseView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class StaffBrokerDetailView(APIView):
+    """GET /api/v1/staff/brokers/<id>/ — the source behind spec §21's staff screen.
+
+    IsStaffModerator, not IsStaffAdmin: spec §5 restricts *configuring* the
+    policy to staff admin and says nothing about seeing it, and a moderator
+    working the boats queue needs this broker's status, backlog and policy state
+    to decide anything. The payload carries no contact details, no member list
+    and no listing content — only counts, policy state and this organization's
+    own audit rows.
+
+    Not gated on the `listing_revisions` flag: refusing to *show* a policy state
+    tells staff nothing and would hide the audit history during an incident. The
+    two mutations that follow are gated.
+    """
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsStaffModerator]
+
+    def get(self, request, broker_id):
+        broker = get_object_or_404(
+            BrokerOrganization.objects.select_related("auto_approve_changed_by"),
+            pk=broker_id,
+        )
+        return Response(StaffBrokerDetailSerializer().to_representation(broker))
