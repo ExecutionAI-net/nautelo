@@ -10,9 +10,13 @@ from rest_framework.test import APIClient
 from audit.models import AuditEvent
 from entitlements.tests.factories import make_private_seller
 from listings.enums import ListingStatus
-from listings.expiry import expire_due_listings
+from listings.expiry import (
+    EXPIRY_REMINDER_DAYS,
+    expire_due_listings,
+    send_expiry_reminders,
+)
 from listings.models import BoatListing
-from listings.signals import listing_expired
+from listings.signals import listing_expired, listing_expiring
 from listings.tests.factories import make_brand, make_private_listing
 
 
@@ -148,3 +152,98 @@ def test_an_expired_listing_disappears_from_the_public_api(
 
     assert api.get(detail).status_code == 404
     assert api.get(reverse("listing-list")).data["count"] == 0
+
+
+@pytest.fixture
+def expiring_receiver():
+    received = []
+
+    def _receiver(sender, listing, threshold_days, **kwargs):
+        received.append((listing.pk, threshold_days))
+
+    listing_expiring.connect(_receiver)
+    yield received
+    listing_expiring.disconnect(_receiver)
+
+
+def test_the_default_thresholds_are_the_spec_22_5_defaults():
+    assert EXPIRY_REMINDER_DAYS == (7, 1)
+
+
+@pytest.mark.django_db
+def test_a_listing_seven_days_out_gets_one_reminder(expiring_receiver):
+    now = timezone.now()
+    soon = make_private_listing(
+        owner=make_private_seller(),
+        status=ListingStatus.PUBLISHED,
+        expires_at=now + timedelta(days=6, hours=12),
+    )
+
+    assert send_expiry_reminders(now=now) == {7: 1, 1: 0}
+    assert expiring_receiver == [(soon.pk, 7)]
+
+
+@pytest.mark.django_db
+def test_a_listing_one_day_out_gets_the_one_day_reminder(expiring_receiver):
+    now = timezone.now()
+    soon = make_private_listing(
+        owner=make_private_seller(),
+        status=ListingStatus.PUBLISHED,
+        expires_at=now + timedelta(hours=10),
+    )
+
+    assert send_expiry_reminders(now=now) == {7: 0, 1: 1}
+    assert expiring_receiver == [(soon.pk, 1)]
+
+
+@pytest.mark.django_db
+def test_a_daily_cadence_fires_each_threshold_at_most_once(expiring_receiver):
+    """Spec §27.1's deduplication key is "listing + threshold". With no
+    Notification table yet (Phase 18), the window arithmetic is what keeps a
+    daily run from re-firing the same reminder: each threshold's window is
+    exactly one day wide, half-open, and the two do not overlap."""
+    now = timezone.now()
+    listing = make_private_listing(
+        owner=make_private_seller(),
+        status=ListingStatus.PUBLISHED,
+        expires_at=now + timedelta(days=9, hours=1),
+    )
+
+    for day in range(10):
+        send_expiry_reminders(now=now + timedelta(days=day))
+
+    fired = [threshold for pk, threshold in expiring_receiver if pk == listing.pk]
+    assert sorted(fired) == [1, 7]
+
+
+@pytest.mark.django_db
+def test_a_listing_that_is_not_published_is_never_reminded(expiring_receiver):
+    owner = make_private_seller()
+    now = timezone.now()
+    make_private_listing(
+        owner=owner,
+        status=ListingStatus.SUSPENDED,
+        expires_at=now + timedelta(days=6, hours=12),
+    )
+    make_private_listing(
+        owner=owner,
+        brand=make_brand("Other Brand"),
+        status=ListingStatus.PUBLISHED,
+        expires_at=None,
+    )
+
+    assert send_expiry_reminders(now=now) == {7: 0, 1: 0}
+    assert expiring_receiver == []
+
+
+@pytest.mark.django_db
+def test_an_already_due_listing_is_expired_not_reminded(expiring_receiver):
+    now = timezone.now()
+    make_private_listing(
+        owner=make_private_seller(),
+        status=ListingStatus.PUBLISHED,
+        expires_at=now - timedelta(hours=1),
+    )
+
+    assert send_expiry_reminders(now=now) == {7: 0, 1: 0}
+    assert expiring_receiver == []

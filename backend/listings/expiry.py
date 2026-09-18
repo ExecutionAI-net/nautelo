@@ -6,7 +6,7 @@ by a service that holds the transaction, the row lock, the optimistic-locking
 compare-and-swap and the audit event together, and this is such a service.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.db.models import QuerySet
@@ -18,7 +18,7 @@ from audit.services import record_audit_event
 from .enums import ListingStatus, can_transition_listing
 from .locking import bump_version
 from .models import BoatListing
-from .signals import listing_expired
+from .signals import listing_expired, listing_expiring
 
 # Spec §22.5: "Default reminders: 7 days and 1 day before expiration."
 # A module constant rather than a platform setting: spec §10.1's registry — the
@@ -103,3 +103,55 @@ def expire_due_listings(*, now: datetime | None = None) -> int:
         for listing_id in listing_ids
         if expire_listing(listing_id=listing_id, now=now)
     )
+
+
+# One day wide, matching the task's daily cadence. A listing is reminded at
+# threshold D on the single run whose `now` falls inside
+# [expires_at - D days, expires_at - (D - 1) days).
+REMINDER_WINDOW = timedelta(days=1)
+
+
+def listings_reaching_threshold(
+    *, threshold_days: int, now: datetime
+) -> QuerySet[BoatListing]:
+    """Published listings that cross `threshold_days` remaining on this run.
+
+    The window is half-open — `[lower, upper)` — so two adjacent thresholds can
+    never both match the same listing on the same run, a listing is never
+    reminded twice for one threshold by a daily schedule, and a listing whose
+    window has already closed is not caught up retroactively.
+    """
+    upper = now + timedelta(days=threshold_days)
+    lower = upper - REMINDER_WINDOW
+    return BoatListing.objects.filter(
+        status=ListingStatus.PUBLISHED,
+        expires_at__isnull=False,
+        expires_at__gte=lower,
+        expires_at__lt=upper,
+    ).order_by("expires_at")
+
+
+def send_expiry_reminders(*, now: datetime | None = None) -> dict[int, int]:
+    """Spec §22.5: "notifies owner before ... expiry".
+
+    Fires `listings.signals.listing_expiring` once per listing per threshold.
+    Phase 18 (spec §27) attaches the receivers that turn that into an in-app row
+    and an email; this phase owns the *when*, not the *how* — exactly as Phase
+    11 left its eight workflow signals without receivers.
+
+    No transaction and no database write: a reminder changes nothing. That is
+    also why the signal is sent directly rather than through
+    `transaction.on_commit()` — there is no commit for it to wait on.
+    """
+    now = now or timezone.now()
+    counts: dict[int, int] = {}
+    for threshold_days in EXPIRY_REMINDER_DAYS:
+        listings = list(
+            listings_reaching_threshold(threshold_days=threshold_days, now=now)
+        )
+        for listing in listings:
+            listing_expiring.send(
+                sender=BoatListing, listing=listing, threshold_days=threshold_days
+            )
+        counts[threshold_days] = len(listings)
+    return counts
