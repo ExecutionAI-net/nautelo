@@ -86,6 +86,20 @@ function renderInRegion(
 }
 
 describe("BoatCard", () => {
+  it("compacts the visible view count above 9,999 but keeps the exact value in the label", () => {
+    render(<BoatCard locale="en" listing={listing({ view_count: 12345 })} disclaimerId="d" />);
+
+    expect(screen.getByRole("img", { name: "12,345 views" })).toBeInTheDocument();
+    expect(screen.queryByText("12,345")).not.toBeInTheDocument();
+    expect(screen.getByText(/^12\.?\d*K$/i)).toBeInTheDocument();
+  });
+
+  it("does not compact at exactly 9,999", () => {
+    render(<BoatCard locale="en" listing={listing({ view_count: 9999 })} disclaimerId="d" />);
+
+    expect(screen.getByText("9,999")).toBeInTheDocument();
+  });
+
   it("shows the price and the view count for every card", () => {
     render(<BoatCard locale="en" listing={listing()} disclaimerId="d" />);
 
