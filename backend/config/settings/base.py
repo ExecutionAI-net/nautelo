@@ -116,6 +116,7 @@ CELERY_TASK_ROUTES = {
     "common.tasks.*": {"queue": "default"},
     "accounts.tasks.*": {"queue": "notifications"},
     "notifications.tasks.*": {"queue": "notifications"},
+    "analytics.tasks.*": {"queue": "maintenance"},
 }
 
 REST_FRAMEWORK = {
