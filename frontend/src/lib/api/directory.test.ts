@@ -10,7 +10,20 @@ import {
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-afterEach(() => fetchMock.mockReset());
+// vi.mock's factory is hoisted above every top-level statement, including
+// plain `const` declarations - vi.hoisted() is the sanctioned way to define
+// a value the factory can still close over.
+const { forwardedClientIpMock } = vi.hoisted(() => ({
+  forwardedClientIpMock: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("./internal-headers", () => ({
+  forwardedClientIp: () => forwardedClientIpMock(),
+}));
+
+afterEach(() => {
+  fetchMock.mockReset();
+  forwardedClientIpMock.mockReset().mockResolvedValue(undefined);
+});
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -87,6 +100,40 @@ describe("directoryFetch error handling", () => {
     await expect(directoryFetch("/api/v1/service-categories/legal/")).resolves.toEqual({
       slug: "legal",
     });
+  });
+});
+
+describe("directoryFetch internal headers", () => {
+  it("always sends the internal service secret header", async () => {
+    fetchMock.mockResolvedValue(json({}));
+
+    await directoryFetch("/api/v1/service-categories/");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const sentHeaders = new Headers(init.headers as HeadersInit);
+    expect(sentHeaders.get("X-Internal-Service-Secret")).not.toBeNull();
+  });
+
+  it("omits the client IP header when none is available", async () => {
+    forwardedClientIpMock.mockResolvedValue(undefined);
+    fetchMock.mockResolvedValue(json({}));
+
+    await directoryFetch("/api/v1/service-categories/");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const sentHeaders = new Headers(init.headers as HeadersInit);
+    expect(sentHeaders.has("X-Internal-Client-IP")).toBe(false);
+  });
+
+  it("forwards the client IP header when one is available", async () => {
+    forwardedClientIpMock.mockResolvedValue("198.51.100.42");
+    fetchMock.mockResolvedValue(json({}));
+
+    await directoryFetch("/api/v1/service-categories/");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const sentHeaders = new Headers(init.headers as HeadersInit);
+    expect(sentHeaders.get("X-Internal-Client-IP")).toBe("198.51.100.42");
   });
 });
 
