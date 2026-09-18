@@ -697,7 +697,10 @@ def test_the_api_refuses_an_unconfirmed_run(api, workflow_enabled, body):
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["confirm"] == [
-        "Confirm that every pending submission for this broker should be approved."
+        {
+            "message": "Confirm that every pending submission for this broker should be approved.",
+            "code": "bulk_approve_not_confirmed",
+        }
     ]
     listing, _ = rows[0]
     listing.refresh_from_db()
@@ -720,7 +723,10 @@ def test_the_api_refuses_a_run_with_no_reason(api, workflow_enabled):
     # gets the bulk-approve wording rather than the policy-toggle one that
     # `clean_policy_reason` would raise from behind it.
     assert response.data["error"]["fields"]["reason"] == [
-        "Explain why this broker's pending submissions are being approved together."
+        {
+            "message": "Explain why this broker's pending submissions are being approved together.",
+            "code": "policy_reason_required",
+        }
     ]
     listing, _ = rows[0]
     listing.refresh_from_db()
