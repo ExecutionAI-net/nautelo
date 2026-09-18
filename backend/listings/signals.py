@@ -10,6 +10,9 @@ keyword argument `revision` (a ListingRevision), with two exceptions:
 
   * `listing_published` is sent with `sender=listings.models.BoatListing` and
     the keyword arguments `listing` and `snapshot`.
+  * `listing_expiring` and `listing_expired` (Phase 13, spec §22.5) are sent with
+    `sender=listings.models.BoatListing` and the keyword argument `listing`;
+    `listing_expiring` also carries `threshold_days`.
   * `listing_revision_approved` additionally carries `auto_approved: bool`
     (Phase 12, spec §21) — True when a broker organization's auto-approval
     policy published the revision rather than a moderator. Receivers must accept
@@ -26,3 +29,12 @@ listing_revision_approved = django.dispatch.Signal()
 listing_revision_changes_requested = django.dispatch.Signal()
 listing_revision_rejected = django.dispatch.Signal()
 listing_published = django.dispatch.Signal()
+
+# Spec §27.1's `listing.expiring` and `listing.expired`, fired by
+# listings.expiry. `listing_expiring` carries `threshold_days` so Phase 18 can
+# build §27.1's "listing + threshold" deduplication key; `listing_expired`
+# carries only the listing, whose `expires_at` is §27.1's "listing + expiry"
+# key. Both are sent with sender=listings.models.BoatListing and the keyword
+# argument `listing`.
+listing_expiring = django.dispatch.Signal()
+listing_expired = django.dispatch.Signal()

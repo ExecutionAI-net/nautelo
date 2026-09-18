@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 from kombu import Queue
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -117,6 +118,25 @@ CELERY_TASK_ROUTES = {
     "accounts.tasks.*": {"queue": "notifications"},
     "notifications.tasks.*": {"queue": "notifications"},
     "analytics.tasks.*": {"queue": "maintenance"},
+    "listings.tasks.*": {"queue": "maintenance"},
+    "entitlements.tasks.*": {"queue": "maintenance"},
+}
+
+# Spec §22.5's "daily task". Times are UTC and staggered so the expiry sweep
+# finishes before the reminder pass reads `expires_at`.
+CELERY_BEAT_SCHEDULE = {
+    "expire-due-listings": {
+        "task": "listings.tasks.expire_due_listings",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    "send-listing-expiry-reminders": {
+        "task": "listings.tasks.send_listing_expiry_reminders",
+        "schedule": crontab(hour=3, minute=15),
+    },
+    "sweep-entitlement-ledger": {
+        "task": "entitlements.tasks.sweep_entitlement_ledger",
+        "schedule": crontab(hour=3, minute=30),
+    },
 }
 
 REST_FRAMEWORK = {
