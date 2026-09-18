@@ -4,6 +4,7 @@ import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/direc
 import {
   FINANCE_MESSAGES,
   formatCount,
+  formatViewCount,
   formatMoney,
   isDecimalString,
   tf,
@@ -385,5 +386,33 @@ describe("formatCount", () => {
     expect(formatCount("en", 999)).toBe("999");
     expect(formatCount("en", 1000000)).toBe("1,000,000");
     expect(formatCount("it", 1000000)).toBe("1.000.000");
+  });
+});
+
+describe("formatViewCount", () => {
+  it("shows the exact localized integer up to and including 9,999", () => {
+    expect(formatViewCount("en", 0)).toBe("0");
+    expect(formatViewCount("en", 9999)).toBe("9,999");
+    // CLDR does not group a 4-digit number in Italian/Spanish; whatever ICU
+    // decides, the value below the threshold is exactly formatCount's.
+    expect(formatViewCount("it", 9999)).toBe(formatCount("it", 9999));
+    expect(formatViewCount("es", 9999)).toBe(formatCount("es", 9999));
+  });
+
+  it("compacts only above 9,999", () => {
+    const compact = formatViewCount("en", 10000);
+
+    expect(compact).not.toBe("10,000");
+    expect(compact).toMatch(/10\s?K/i);
+  });
+
+  it("compacts large counts in every locale without dropping the magnitude", () => {
+    for (const locale of ["en", "it", "es"] as const) {
+      const compact = formatViewCount(locale, 1250000);
+
+      expect(compact).not.toBe(formatCount(locale, 1250000));
+      expect(compact.length).toBeLessThan(formatCount(locale, 1250000).length);
+      expect(compact).toMatch(/^1[.,][23]/);
+    }
   });
 });

@@ -252,3 +252,18 @@ export function formatMoney(locale: Locale, amount: string, currency: string): s
 export function formatCount(locale: Locale, value: number): string {
   return new Intl.NumberFormat(INTL_LOCALES[locale]).format(value);
 }
+
+/** Spec §19.5: compact formatting only ABOVE this value. */
+export const COMPACT_VIEW_COUNT_THRESHOLD = 9999;
+
+/**
+ * The visible view count: the exact localized integer up to and including
+ * 9,999, compact notation above it (spec §19.5). The exact value must still be
+ * offered through the accessible label, via formatCount.
+ */
+export function formatViewCount(locale: Locale, value: number): string {
+  if (value <= COMPACT_VIEW_COUNT_THRESHOLD) {
+    return formatCount(locale, value);
+  }
+  return new Intl.NumberFormat(INTL_LOCALES[locale], { notation: "compact" }).format(value);
+}

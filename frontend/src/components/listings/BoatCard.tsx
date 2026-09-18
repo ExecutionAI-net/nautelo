@@ -2,7 +2,7 @@ import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclo
 import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { financingHref, type ListingFinance, type PublicListing } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
-import { formatCount, tf } from "@/lib/i18n/finance";
+import { formatCount, formatViewCount, tf } from "@/lib/i18n/finance";
 
 type EligibleFinance = Extract<ListingFinance, { visible: true }>;
 
@@ -46,7 +46,9 @@ export default function BoatCard({
     .filter(Boolean)
     .join(", ");
   const primaryImage = listing.media.find((item) => item.media_type === "IMAGE");
-  const views = formatCount(locale, listing.view_count);
+  // Compact above 9,999 (spec §19.5); the accessible label keeps the exact value.
+  const views = formatViewCount(locale, listing.view_count);
+  const exactViews = formatCount(locale, listing.view_count);
   const price = safeMoney(locale, listing.price.amount, listing.price.currency);
   const finance = eligibleFinance(listing.finance);
   // Spec §18.2's price half of the eligibility conjunction, re-checked here:
@@ -79,7 +81,7 @@ export default function BoatCard({
         <span
           role="img"
           className="inline-flex items-center gap-space-xs"
-          aria-label={tf(locale, "listing.views_label", { count: views })}
+          aria-label={tf(locale, "listing.views_label", { count: exactViews })}
         >
           <svg
             aria-hidden="true"
