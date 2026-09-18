@@ -74,13 +74,22 @@ Spec §18.2 names `listing.show_finance_estimate`, and spec §11.4's `ListingSna
 Spec §18.4 specifies a field group inside the listing create/edit form. That form is spec §25 (Phase 16), which does not exist and which §25.1 requires to be *one* policy-driven form rather than two. Task 11 therefore delivers `FinancingEstimateFieldset` — the complete, tested field group with its own payload builder — plus the rule that it renders nothing at all for a private seller, and Phase 16 mounts it at step 8 of §25.2. This is the same seam pattern Phase 5 used for the inquiry form and contact panel. The backend half of §18.4 ("Private-seller forms must … [not] accept them through API payloads") is already enforced by Phase 11's `listings.payloads._reject_disallowed_fields` (`finance_not_allowed_for_private_seller`); Task 12 proves it with a §40 Scenario D acceptance test rather than rebuilding it.
 
 **Note (ruling — `finance.broker_overrides_enabled` is a new `PlatformSetting` key).**
-Spec §17.2 requires that "staff permits broker overrides" be a real, globally switchable capability ("Staff can disable override capability globally without altering existing stored values"). Spec §10.1's settings table has no such key and spec §11.6's `FinanceConfigurationVersion` has no such column — Phase 8 recorded this gap verbatim in its Known Limitations and deliberately did not invent a field. The capability needs a home and there are only three candidates: a new column on the immutable configuration model (wrong — the switch is policy, not a calculation input, and versioning it would make disabling overrides rewrite finance history), a §35.1 feature flag (wrong — flags are rollout switches, and §35.1's list is closed), or the typed, audited, staff-editable settings registry §10.1 exists to hold. **Decision:** Task 2 adds `finance.broker_overrides_enabled` (boolean, default `true`, public) to `SETTINGS_REGISTRY`, seeded by its own migration, and updates `platform_settings/tests/test_registry.py` — whose `test_registry_defines_exactly_the_twelve_spec_keys` is a deliberate contract test — in the same commit, with the reason written into the test file.
+Spec §17.2 requires that "staff permits broker overrides" be a real, globally switchable capability ("Staff can disable override capability globally without altering existing stored values"). Spec §10.1's settings table has no such key and spec §11.6's `FinanceConfigurationVersion` has no such column — Phase 8 recorded this gap verbatim in its Known Limitations and deliberately did not invent a field. The capability needs a home and there are only three candidates: a new column on the immutable configuration model (wrong — the switch is policy, not a calculation input, and versioning it would make disabling overrides rewrite finance history), a §35.1 feature flag (wrong — flags are rollout switches, and §35.1's list is closed), or the typed, audited, staff-editable settings registry §10.1 exists to hold. **Decision:** Task 2 adds `finance.broker_overrides_enabled` (boolean, default `true`, **`is_public=False`**) to `SETTINGS_REGISTRY`, seeded by its own migration, and updates `platform_settings/tests/test_registry.py` — whose `test_registry_defines_exactly_the_twelve_spec_keys` is a deliberate contract test — in the same commit, with the reason written into the test file.
+
+**Sub-ruling — the key is not public.** `SettingDefinition.is_public` defaults to `True` and all twelve merged keys take that default, so this one has to say `is_public=False` explicitly. It is a staff-only policy switch: Task 3 reads it server-side inside `FinancePolicy.load()`, and no frontend consumer reads it at all (Task 11's `overridesEnabled` prop is fed by Phase 16's own staff-aware form context, not by the public settings endpoint). Publishing it would tell every anonymous visitor how the platform's override policy is configured, for no gain. Because it is non-public it never enters `get_public_settings()`'s `settings` dict, so `platform_settings/tests/test_views.py::test_public_settings_endpoint_returns_all_seeded_keys` — an exact-dict assertion over that payload — **needs no edit and stays genuinely untouched**. This is narrower than the alternative and is deliberately *not* the same thing as the ruling below, which publishes the finance *configuration values*, not this policy flag.
 
 **Note (ruling — the card's optional details disclosure fetches an authoritative quote).**
 Spec §18.1 permits a disclosure showing "down payment, financed principal, term, rate, total installments and total interest" and requires it to "use live calculation results, never fixed sample copy". Spec §18.5's card block carries none of those four derived amounts, and widening it would break the exact shape §18.5 fixes and add five decimal strings to every row of a 24-card page for a panel almost nobody opens. Computing them in JavaScript instead would put money arithmetic in the browser, which spec §17's definition of done forbids as authoritative ("frontend may preview but server response is authoritative"). **Decision:** the disclosure is a client component that POSTs `{"listing_id": ...}` to `/api/v1/finance/quotes/` on first expand and renders the server's numbers. This is also the only card interaction spec §11.6 would ever let a `FinanceQuoteLog` record ("Do not store a quote log for every card rendered. Log only an explicit calculator interaction or detail request") — the hook is in the right place for whichever phase builds that log.
 
 **Note (ruling — an invalid stored override is ignored, not an error).**
-Spec §17.2 step 2 says to use listing overrides when "valid listing override fields are present". A stored override can be out of range in exactly one way today (see Known Limitations: Phase 11's shared percent validator allowed a 100% down payment, which Task 1 closes), and could be again after any future validator change. A public card must never 500 and must never divide by zero. **Decision:** `finance.listing_quotes` range-checks each stored override at read time against §17.3's bounds and silently falls back to the global value, reporting that field's source as `GLOBAL`. The card stays correct and the listing stays publishable; nothing is deleted (§17.2).
+Spec §17.2 step 2 says to use listing overrides when "valid listing override fields are present". A stored override can be out of range in exactly one way today — Phase 11's shared `_clean_percent` validator bounds both override percentages at 0–100 while spec §17.3 caps the down payment at 99.99%, so a stored 100% down payment (a zero principal, which §17.3 also forbids) is reachable on merged `dev`. **That write-path bug is not fixed by this plan.** It is a live, unflagged API-correctness defect unrelated to this phase's feature-flag-guarded UI work, so it is being fixed as its own standalone PR on branch **`fix-finance-percent-ceiling`**, which gives each percent field its own ceiling in `listings.payloads` and merges to `dev` before this plan executes. Every task here may therefore assume `finance_down_payment_override_percent` is already correctly bounded at 0–99.99% by the validation layer.
+
+The read-time check stays anyway, and is not redundant with it: a validator can change, a row written before the prerequisite fix does not change, and Task 3's precedence code is where the value is *used*. Defence in depth belongs with the reader. A public card must never 500 and must never divide by zero. **Decision:** `finance.listing_quotes` range-checks each stored override at read time against §17.3's bounds and silently falls back to the global value, reporting that field's source as `GLOBAL`. The card stays correct and the listing stays publishable; nothing is deleted (§17.2).
+
+**Note (ruling — the active finance configuration is published on the existing public settings endpoint).**
+Spec §4.1 makes `/financing/` a standalone route, reachable with no `?listing=`. Spec §2.1 is explicit that "Production UI must not display invented, hard-coded … operational data", naming `FinanceQuoteService` among its examples, and spec §17.5 requires that a staff change to the defaults "changes automatically affect boat cards and the finance page". Those three sentences together leave exactly one honest way to open that page: the browser must be told the platform's *real current* assumptions by the server. Hard-coding `5 / 48 / 20` in the bundle violates §2.1 and silently goes stale the first time staff activate a new version, violating §17.5; leaving the form empty is not invented data but it is a worse page and it makes §17.5's "and the finance page" vacuous for the no-listing case. **Decision:** Task 2 adds one read-only key, `finance_configuration`, to `GET /api/v1/platform/public-settings/`, carrying the **active** `FinanceConfigurationVersion`'s `version`, `annual_rate_percent`, `term_months` and `down_payment_percent`, and `null` when there is no active row. This publishes nothing new in kind: the identical four values already ride on every eligible boat card in spec §18.5's `finance` block, on the same unauthenticated endpoint family. Task 10's calculator starts pre-filled from it and Task 11's `defaults` prop is the same shape.
+
+**Sub-ruling — it is composed in the view, not folded into `get_public_settings()`.** That function caches its payload under `platform_settings:public` with `timeout=None` and is invalidated only by `update_setting`. Activating a new `FinanceConfigurationVersion` does not go through `update_setting`, so folding the configuration into that dict would freeze it forever and break spec §17.5 in the least visible way possible. The view composes the two instead: the settings half keeps its own forever-cache, and the finance half is read through `FinanceConfigurationService.get_active_configuration()`, which owns a 300-second TTL that `activate()` invalidates on commit — exactly the cache contract the card path already relies on. This also keeps the finance import out of `platform_settings.services`, where everything else in the project imports *from*.
 
 ---
 
@@ -94,11 +103,13 @@ nautelo/
 │   ├── config/settings/base.py                                    (modify: Task 5 — finance_quote throttle rate)
 │   ├── platform_settings/
 │   │   ├── registry.py                                            (modify: Task 2 — finance.broker_overrides_enabled)
+│   │   ├── views.py                                               (modify: Task 2 — publish the active finance configuration)
 │   │   ├── migrations/0005_seed_finance_broker_overrides_setting.py (new: Task 2)
-│   │   └── tests/test_registry.py                                 (modify: Task 2)
+│   │   └── tests/
+│   │       ├── test_registry.py                                   (modify: Task 2)
+│   │       └── test_views.py                                      (modify: Task 2 — add two cases, change none)
 │   ├── listings/
 │   │   ├── models.py                                              (modify: Task 1 — 4 snapshot columns)
-│   │   ├── payloads.py                                            (modify: Task 1 — per-field percent bound)
 │   │   ├── snapshots.py                                           (modify: Task 1 — copy finance settings)
 │   │   ├── serializers.py                                         (modify: Task 4 — the finance block)
 │   │   ├── migrations/0005_listingsnapshot_finance_settings.py    (generated: Task 1)
@@ -106,7 +117,6 @@ nautelo/
 │   │   └── tests/
 │   │       ├── factories.py                                       (modify: Task 1)
 │   │       ├── test_snapshot_finance_settings.py                  (new: Task 1)
-│   │       ├── test_payloads.py                                   (modify: Task 1)
 │   │       ├── test_public_read_api.py                            (modify: Task 4 — replace the Phase 11 absence test)
 │   │       ├── test_public_finance_block.py                       (new: Task 4)
 │   │       └── test_phase_9_acceptance.py                         (new: Task 12)
@@ -148,16 +158,15 @@ Generated migration filenames are whatever `makemigrations` produces; each task 
 **Files:**
 - Modify: `backend/listings/models.py` (`ListingSnapshot`, after the `currency`/`price` pair)
 - Modify: `backend/listings/snapshots.py` (`create_snapshot_from_revision`)
-- Modify: `backend/listings/payloads.py` (`_clean_percent` and its two call sites)
 - Modify: `backend/listings/tests/factories.py` (`make_snapshot` defaults)
-- Modify: `backend/listings/tests/test_payloads.py` (add two cases)
 - Create: `backend/listings/tests/test_snapshot_finance_settings.py`
 - Create (generated): `backend/listings/migrations/0005_listingsnapshot_finance_settings.py`
 - Create (hand-written): `backend/listings/migrations/0006_backfill_snapshot_finance_settings.py`
 
 **Interfaces:**
-- Consumes: Phase 11's `listings.snapshots.create_snapshot_from_revision(*, listing, revision, cleaned_payload, approved_by, approved_at)`, `listings.models.ListingSnapshot`, `listings.payloads.validate_revision_payload(payload, *, listing, origin, for_submission)`.
+- Consumes: Phase 11's `listings.snapshots.create_snapshot_from_revision(*, listing, revision, cleaned_payload, approved_by, approved_at)`, `listings.models.ListingSnapshot`.
 - Produces: `ListingSnapshot.show_finance_estimate: bool` (default `False`), `ListingSnapshot.finance_down_payment_override_percent: Decimal | None` (7,4), `ListingSnapshot.finance_rate_override_percent: Decimal | None` (7,4), `ListingSnapshot.finance_term_override_months: int | None` — all written only by `create_snapshot_from_revision`, all immutable once the row exists. Task 3 reads exactly these four names off `listing.current_public_snapshot`.
+- **Assumed already merged, not built here:** `finance_down_payment_override_percent` is bounded at 0–99.99% and `finance_rate_override_percent` at 0–100% by `listings.payloads`. That per-field ceiling is the standalone prerequisite PR on branch **`fix-finance-percent-ceiling`** (see the scope ruling "an invalid stored override is ignored, not an error"), which lands on `dev` before this plan starts. This task touches neither `listings/payloads.py` nor `listings/tests/test_payloads.py`; it builds on the corrected write path and copies whatever the listing row holds. Task 3's read-time range check is the defence-in-depth half and stays, because it belongs with the code that *reads* the value, not with the write-path fix.
 
 **Note (ruling — no database constraint ties the snapshot flag to `seller_type`).** `BoatListing` carries `listings_finance_flag_requires_broker` because both columns are on that row. The snapshot's `seller_type` lives on the listing, so the equivalent rule is cross-table and cannot be a `CheckConstraint`. It does not need to be: the snapshot copies a column the listing-level constraint already guarantees, and Task 3 re-checks `seller_type == BROKER` independently on every read (spec §18.2 lists it as its own condition, so the eligibility rule cannot rely on any single field carrying two meanings). Task 3's `test_a_private_listing_is_never_eligible_even_if_its_snapshot_says_otherwise` pins that independence.
 
@@ -311,47 +320,16 @@ def test_the_finance_columns_are_immutable_like_the_rest_of_the_snapshot():
         snapshot.save(update_fields=["show_finance_estimate"])
 ```
 
-Append to `backend/listings/tests/test_payloads.py` — the file already builds a broker listing for its existing `finance_not_allowed_for_private_seller` cases, so reuse that fixture/helper by its existing name rather than adding a second one:
-
-```python
-def test_a_down_payment_override_above_the_spec_ceiling_is_rejected(broker_listing):
-    """Spec §17.3: down payment 0-99.99%. A 100% down payment would leave a
-    zero principal, which the same section forbids ("principal must remain
-    positive")."""
-    with pytest.raises(ValidationError) as exc:
-        validate_revision_payload(
-            {"finance_down_payment_override_percent": "100.0000"},
-            listing=broker_listing,
-            origin=RevisionOrigin.OWNER,
-            for_submission=False,
-        )
-
-    assert exc.value.detail["finance_down_payment_override_percent"][0].code == (
-        "invalid_percent"
-    )
-
-
-def test_a_rate_override_of_one_hundred_percent_is_still_accepted(broker_listing):
-    """Spec §17.3: annual rate 0-100%. The two percent fields have different
-    ceilings and must not share one bound."""
-    cleaned = validate_revision_payload(
-        {"finance_rate_override_percent": "100.0000"},
-        listing=broker_listing,
-        origin=RevisionOrigin.OWNER,
-        for_submission=False,
-    )
-
-    assert cleaned["finance_rate_override_percent"] == "100.0000"
-```
+That is the whole of this task's new test surface. **`backend/listings/tests/test_payloads.py` is not touched.** The per-field percent ceiling it would have covered is the standalone `fix-finance-percent-ceiling` PR's, and that PR carries its own write-path unit tests; duplicating them here would test merged code this task does not change. (Note for anyone diffing against an earlier draft of this plan: that draft's two additions took a `broker_listing` fixture parameter. No such fixture exists — `listings/tests/test_payloads.py` defines no `@pytest.fixture` at all and its existing tests, including `test_a_broker_may_send_finance_fields`, build a listing inline with `make_broker_listing(broker=make_broker(), actor=make_user(email=OWNER_EMAIL))`. If the prerequisite PR adds tests there, that is the pattern to follow.)
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 ```bash
 cd backend
-uv run pytest listings/tests/test_snapshot_finance_settings.py listings/tests/test_payloads.py -v
+uv run pytest listings/tests/test_snapshot_finance_settings.py -v
 ```
 
-Expected: the four new snapshot tests fail with `TypeError: ListingSnapshot() got unexpected keyword arguments: 'show_finance_estimate'` (or `AttributeError` on the assertion); `test_a_down_payment_override_above_the_spec_ceiling_is_rejected` fails because `100.0000` is currently accepted and no `ValidationError` is raised.
+Expected: all four new snapshot tests fail with `TypeError: ListingSnapshot() got unexpected keyword arguments: 'show_finance_estimate'` (or `AttributeError` on the assertion).
 
 - [ ] **Step 3a: Add the four columns to `ListingSnapshot`**
 
@@ -419,57 +397,7 @@ In `backend/listings/tests/factories.py`, inside `make_snapshot`'s `defaults` di
         "finance_term_override_months": listing.finance_term_override_months,
 ```
 
-- [ ] **Step 3d: Give each percent field its own ceiling**
-
-In `backend/listings/payloads.py`, add the two bounds next to the other module constants, under `MAX_MEDIA_IDS`:
-
-```python
-# Spec §17.3: annual rate 0-100%, down payment 0-99.99%. The two percent fields
-# have different ceilings — a 100% down payment leaves a zero principal, which
-# the same section forbids ("principal must remain positive") — so they cannot
-# share one bound.
-MAX_RATE_OVERRIDE_PERCENT = Decimal("100")
-MAX_DOWN_PAYMENT_OVERRIDE_PERCENT = Decimal("99.99")
-```
-
-Replace `_clean_percent` with the bounded version:
-
-```python
-def _clean_percent(errors, field, value, *, maximum):
-    if not isinstance(value, str):
-        errors[field] = _error(
-            'Send the percentage as a decimal string, e.g. "4.7500".', "invalid_percent"
-        )
-        return None
-    try:
-        amount = Decimal(value)
-    except InvalidOperation:
-        errors[field] = _error("Enter a valid percentage.", "invalid_percent")
-        return None
-    if not (Decimal(0) <= amount <= maximum) or amount.as_tuple().exponent < -4:
-        errors[field] = _error(
-            f"Enter a percentage between 0 and {maximum} with at most four "
-            "decimal places.",
-            "invalid_percent",
-        )
-        return None
-    return f"{amount.quantize(Decimal('0.0001')):f}"
-```
-
-Replace the loop that validates the two override percentages:
-
-```python
-    for field, maximum in (
-        ("finance_down_payment_override_percent", MAX_DOWN_PAYMENT_OVERRIDE_PERCENT),
-        ("finance_rate_override_percent", MAX_RATE_OVERRIDE_PERCENT),
-    ):
-        if present(field):
-            value = _clean_percent(errors, field, payload[field], maximum=maximum)
-            if value is not None:
-                cleaned[field] = value
-```
-
-- [ ] **Step 3e: Generate the schema migration**
+- [ ] **Step 3d: Generate the schema migration**
 
 ```bash
 cd backend
@@ -478,7 +406,22 @@ uv run python manage.py makemigrations listings --name listingsnapshot_finance_s
 
 Expected: `backend/listings/migrations/0005_listingsnapshot_finance_settings.py` adding four fields to `listingsnapshot`. All four are nullable or defaulted, so Django asks no interactive question.
 
-- [ ] **Step 3f: Write the backfill migration**
+- [ ] **Step 3e: Write the backfill migration**
+
+> **Controller verification required before merging this task.** The migration's docstring below asserts that it "runs against zero rows in every environment that exists today". That is a claim about live data, not about code, and nothing in this plan can prove it. **Before merging this task** (and, since the same claim underwrites the prerequisite ceiling fix's safety, ideally before `fix-finance-percent-ceiling` merges too, whichever comes first), the controller must run this against each real database — production, staging, and any long-lived shared dev database — and confirm every one returns `0`:
+>
+> ```bash
+> cd backend
+> uv run python manage.py shell -c "
+> from listings.models import BoatListing
+> from decimal import Decimal
+> print(BoatListing.objects.filter(
+>     finance_down_payment_override_percent__gt=Decimal('99.99')
+> ).count())
+> "
+> ```
+>
+> A non-zero count means a stored override already exceeds spec §17.3's ceiling and would be carried onto a public snapshot by this migration. In that case: stop, decide explicitly what those listings should publish (Task 3's read-time range check would silently fall them back to the global down payment, which is the safe behaviour but a *silent* change to a live listing's stated terms), and record the decision before proceeding. Do not treat the docstring as evidence.
 
 Create `backend/listings/migrations/0006_backfill_snapshot_finance_settings.py`:
 
@@ -491,9 +434,11 @@ public estimate on deploy, so the values are copied forward here.
 
 There is no per-version history to recover — the columns did not exist before
 now — so every snapshot of a listing receives that listing's current values.
-This runs against zero rows in every environment that exists today (no broker
-listing has been published with the toggle on) and is written anyway so the
-migration is correct wherever it is applied.
+This is expected to run against zero rows in every environment that exists
+today (no broker listing has been published with the toggle on) and is written
+anyway so the migration is correct wherever it is applied. That expectation is
+verified against each real database by the controller before this migration
+merges, not assumed — see the Phase 9 plan's Task 1, Step 3e.
 
 `apps.get_model` returns the historical model, which carries Django's plain
 default manager rather than listings.models.ListingSnapshotQuerySet — so the
@@ -547,7 +492,7 @@ uv run python manage.py migrate
 uv run pytest listings/ -v
 ```
 
-Expected: the four new snapshot tests and the two new payload tests PASS, and Phase 11's whole `listings` suite still passes — the factory change keeps every existing `make_snapshot` call working and the new columns are additive.
+Expected: the four new snapshot tests PASS, and Phase 11's whole `listings` suite still passes untouched — the factory change keeps every existing `make_snapshot` call working and the new columns are additive. `listings/tests/test_payloads.py` is not modified by this task and must pass exactly as it stands on `dev` (including whatever the prerequisite `fix-finance-percent-ceiling` PR added to it).
 
 - [ ] **Step 5: Commit**
 
@@ -558,18 +503,24 @@ git commit -m "feat(listings): publish broker finance settings into the immutabl
 
 ---
 
-### Task 2: `finance.broker_overrides_enabled` setting and the `finance_estimates` rollout flag
+### Task 2: `finance.broker_overrides_enabled` setting, the `finance_estimates` rollout flag, and the public finance configuration
 
 **Files:**
 - Modify: `backend/platform_settings/registry.py`
-- Modify: `backend/platform_settings/tests/test_registry.py`
+- Modify: `backend/platform_settings/views.py`
+- Modify: `backend/platform_settings/tests/test_registry.py` (add one key, add one case, rename one test)
+- Modify: `backend/platform_settings/tests/test_views.py` (**add** two cases; change none)
 - Create: `backend/platform_settings/migrations/0005_seed_finance_broker_overrides_setting.py`
 - Create: `backend/finance/migrations/0003_seed_finance_estimates_flag.py`
 - Create: `backend/finance/tests/test_finance_policy_rows.py`
 
 **Interfaces:**
-- Consumes: `platform_settings.registry.SETTINGS_REGISTRY`, `SettingDefinition`, `SettingValueType`, `_no_extra_validation`; `platform_settings.services.get_setting_value`, `is_feature_enabled`.
-- Produces: the setting key `"finance.broker_overrides_enabled"` (boolean, default `True`, public) and the feature-flag key `"finance_estimates"` (seeded `is_enabled=False`). Task 3 reads both through `get_setting_value` / `is_feature_enabled`; no other module hard-codes either string except the two migrations, which repeat the literal on purpose.
+- Consumes: `platform_settings.registry.SETTINGS_REGISTRY`, `SettingDefinition`, `SettingValueType`, `_no_extra_validation`; `platform_settings.services.get_setting_value`, `is_feature_enabled`, `get_public_settings`; Phase 8's `finance.services.FinanceConfigurationService.get_active_configuration()` and `finance.models.FinanceConfigurationVersion`.
+- Produces:
+  - the setting key `"finance.broker_overrides_enabled"` (boolean, default `True`, **`is_public=False`**) and the feature-flag key `"finance_estimates"` (seeded `is_enabled=False`). Task 3 reads both through `get_setting_value` / `is_feature_enabled`; no other module hard-codes either string except the two migrations, which repeat the literal on purpose.
+  - one new top-level key on `GET /api/v1/platform/public-settings/`: `finance_configuration: {"version": int, "annual_rate_percent": str, "term_months": int, "down_payment_percent": str} | None`. Task 10 pre-fills the standalone `/financing/` calculator from it and Task 11's `defaults` prop takes the same three assumption values. Nothing inside the existing `settings` sub-dict changes.
+
+**Note (ruling — `is_public=False`, and what that buys).** `SettingDefinition.is_public` defaults to `True`, so this is the first key in the registry that has to say otherwise. It is staff-only policy: `FinancePolicy.load()` reads it server-side (Task 3) and no browser needs it — Task 11's `overridesEnabled` prop comes from Phase 16's form context, not from this endpoint. The consequence that matters for this task: `get_public_settings()` filters on `definition.is_public`, so the key never enters the `settings` dict, and **`platform_settings/tests/test_views.py::test_public_settings_endpoint_returns_all_seeded_keys` — which asserts exact dict equality over that payload — needs no edit at all.** It stays untouched. Step 3d below *adds* new tests to that file; it changes none. (The registry test is a different matter: `test_registry_defines_exactly_the_twelve_spec_keys` compares the whole key set regardless of visibility, so it does change, with its reason written into the file.)
 
 **Note (ruling — the flag seeds disabled, the setting seeds enabled).** Spec §35.2 step 4 ships code ahead of the feature, and Phase 11's `listing_revisions` flag set the precedent (`is_enabled=False`, "seeded disabled so code can ship ahead of the feature"). `finance_estimates` follows it. `finance.broker_overrides_enabled` is different in kind: it is not a rollout switch but spec §17.2's standing capability, whose described default is that overrides *are* supported ("For release 1.0, broker overrides are supported but optional"), so it seeds `true` and staff turn it off if they ever want to.
 
@@ -606,7 +557,7 @@ def test_the_finance_estimates_flag_is_seeded_disabled():
     assert is_feature_enabled("finance_estimates", default=False) is False
 ```
 
-In `backend/platform_settings/tests/test_registry.py`, add the new key to `EXPECTED_KEYS_AND_DEFAULTS` directly after `"finance.enabled"` and rename the set-comparison test. Keep the other ten entries exactly as they are in the real file:
+In `backend/platform_settings/tests/test_registry.py`, add the new key to `EXPECTED_KEYS_AND_DEFAULTS` directly after `"finance.enabled"`, rename the set-comparison test, and add the visibility case. Keep the other eleven entries exactly as they are in the real file:
 
 ```python
     "finance.enabled": (SettingValueType.BOOLEAN, True),
@@ -618,22 +569,91 @@ In `backend/platform_settings/tests/test_registry.py`, add the new key to `EXPEC
     # rather than inventing a column on the immutable configuration model or
     # stretching §35.1's closed flag list. This test is the contract for §10.1's
     # table, so the deviation is recorded here rather than silently absorbed.
+    # It is the registry's only non-public key (see the test below).
     "finance.broker_overrides_enabled": (SettingValueType.BOOLEAN, True),
 ```
 
 ```python
 def test_registry_defines_the_spec_keys_plus_the_phase_9_override_switch():
     assert set(SETTINGS_REGISTRY) == set(EXPECTED_KEYS_AND_DEFAULTS)
+
+
+def test_the_broker_override_switch_is_not_a_public_setting():
+    """Staff-only policy, so `is_public=False` — the registry's only such key.
+
+    FinancePolicy.load() reads it server-side and no browser consumer exists:
+    the listing form's "use custom assumptions" control is gated by Phase 16's
+    own staff-aware form context, not by the public settings payload. Keeping it
+    non-public also means GET /api/v1/platform/public-settings/ is unchanged, so
+    test_views.py::test_public_settings_endpoint_returns_all_seeded_keys — an
+    exact-dict assertion over that payload — stays untouched by Phase 9.
+    """
+    assert SETTINGS_REGISTRY["finance.broker_overrides_enabled"].is_public is False
+```
+
+**Append** to `backend/platform_settings/tests/test_views.py`. Do not edit anything already in that file — in particular `test_public_settings_endpoint_returns_all_seeded_keys` keeps its exact twelve-key `body["settings"]` dict, because the new registry key is non-public and the new finance block is a *sibling* of `settings`, not a member of it:
+
+```python
+@pytest.mark.django_db
+def test_public_settings_endpoint_publishes_the_active_finance_configuration(client):
+    """Spec §2.1 and §17.5 (added by Phase 9).
+
+    Spec §2.1: "Production UI must not display invented, hard-coded ...
+    operational data", naming FinanceQuoteService among its examples. Spec
+    §17.5: a staff change to the defaults "changes automatically affect boat
+    cards and the finance page". /financing/ is a standalone route (§4.1) that a
+    visitor can open with no listing, so the only honest way for it to show the
+    platform's assumptions is for the server to send the real current ones.
+
+    This publishes nothing new in kind: the same four values already ride on
+    every eligible boat card in spec §18.5's finance block, on the same
+    unauthenticated endpoint family. The three assumption values are decimal
+    strings per spec §30.2; term_months and version are integers.
+    """
+    response = client.get("/api/v1/platform/public-settings/")
+
+    assert response.status_code == 200
+    assert response.json()["finance_configuration"] == {
+        "version": 1,
+        "annual_rate_percent": "5.0000",
+        "term_months": 48,
+        "down_payment_percent": "20.0000",
+    }
+
+
+@pytest.mark.django_db
+def test_public_settings_endpoint_reports_no_finance_configuration_when_none_is_active(
+    client,
+):
+    """The endpoint degrades, it never 500s. Phase 8's migration 0002 always
+    seeds an active version, but a staff deletion in Django admin is reachable —
+    the same degradation FinancePolicy.load() makes on the card path (Task 3).
+    Task 10 renders an un-prefilled form on null rather than inventing numbers.
+    """
+    FinanceConfigurationVersion.objects.all().delete()
+    FinanceConfigurationService._invalidate_cache()
+
+    response = client.get("/api/v1/platform/public-settings/")
+
+    assert response.status_code == 200
+    assert response.json()["finance_configuration"] is None
+```
+
+with the imports these two need added to that file's import block:
+
+```python
+from finance.models import FinanceConfigurationVersion
+from finance.services import FinanceConfigurationService
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 ```bash
 cd backend
-uv run pytest finance/tests/test_finance_policy_rows.py platform_settings/tests/test_registry.py -v
+uv run pytest finance/tests/test_finance_policy_rows.py platform_settings/ -v
 ```
 
-Expected: `test_the_broker_override_switch_is_seeded_and_defaults_to_enabled` fails with `KeyError: 'Unknown platform setting key: finance.broker_overrides_enabled'`; `test_the_finance_estimates_flag_is_seeded_disabled` fails with `FeatureFlag.DoesNotExist`; the renamed registry test fails on the set comparison.
+Expected: `test_the_broker_override_switch_is_seeded_and_defaults_to_enabled` fails with `KeyError: 'Unknown platform setting key: finance.broker_overrides_enabled'`; `test_the_finance_estimates_flag_is_seeded_disabled` fails with `FeatureFlag.DoesNotExist`; the renamed registry test fails on the set comparison; `test_the_broker_override_switch_is_not_a_public_setting` fails with `KeyError`; both new view tests fail with `KeyError: 'finance_configuration'`. **`test_public_settings_endpoint_returns_all_seeded_keys` passes throughout** — if it does not, something has been made public that should not be.
 
 - [ ] **Step 3a: Register the setting**
 
@@ -643,11 +663,20 @@ In `backend/platform_settings/registry.py`, add one entry to `SETTINGS_REGISTRY`
     # Spec §17.2's global override capability. Not in §10.1's table — see the
     # scope ruling in docs/superpowers/plans/2026-09-18-phase-9-finance-ui.md.
     # Disabling it makes stored listing overrides ignored, never deleted.
+    #
+    # is_public=False (the only key in this registry that overrides the default):
+    # this is a staff-only policy switch with no browser consumer. finance
+    # .listing_quotes.FinancePolicy.load() reads it server-side; the listing
+    # form's override controls are gated by Phase 16's staff-aware form context,
+    # not by GET /api/v1/platform/public-settings/. Keeping it out of the public
+    # payload avoids telling anonymous visitors how override policy is
+    # configured, and leaves that endpoint's contract test unchanged.
     "finance.broker_overrides_enabled": SettingDefinition(
         "finance.broker_overrides_enabled",
         SettingValueType.BOOLEAN,
         True,
         _no_extra_validation,
+        is_public=False,
     ),
 ```
 
@@ -731,21 +760,92 @@ class Migration(migrations.Migration):
     operations = [migrations.RunPython(create_flag, delete_flag)]
 ```
 
+- [ ] **Step 3d: Publish the active finance configuration on the public settings endpoint**
+
+Replace `backend/platform_settings/views.py` in full (it is fourteen lines today):
+
+```python
+from decimal import Decimal
+
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from finance.models import FinanceConfigurationVersion
+from finance.services import FinanceConfigurationService
+
+from .services import get_public_settings
+
+
+def _active_finance_configuration() -> dict | None:
+    """Spec §1's global finance defaults as the platform currently holds them.
+
+    Published because spec §2.1 forbids a production surface from showing
+    invented or hard-coded operational data and spec §17.5 requires a staff
+    change to reach "boat cards and the finance page" automatically. The
+    standalone /financing/ calculator (spec §4.1) has no listing to read
+    assumptions from, so without this it would have to either hard-code a stale
+    copy of these numbers or show an empty form. Nothing new is disclosed: the
+    same four values already appear on every eligible boat card in spec §18.5's
+    finance block, on the same unauthenticated endpoint family.
+
+    Read-only. Staff still change the defaults the one supported way, by
+    activating a new FinanceConfigurationVersion.
+    """
+    try:
+        configuration = FinanceConfigurationService.get_active_configuration()
+    except FinanceConfigurationVersion.DoesNotExist:
+        # Degrade, never 500 — same choice FinancePolicy.load() makes on the
+        # card path. The caller renders an un-prefilled form rather than
+        # inventing numbers.
+        return None
+    return {
+        "version": configuration.version,
+        # Spec §30.2: rates are decimal strings; §11.6 stores them at four
+        # places. Matches finance.listing_quotes.format_percent exactly, so the
+        # finance page and a boat card can never render one rate two ways.
+        "annual_rate_percent": f"{configuration.annual_rate_percent.quantize(Decimal('0.0001')):f}",
+        "term_months": configuration.term_months,
+        "down_payment_percent": f"{configuration.down_payment_percent.quantize(Decimal('0.0001')):f}",
+    }
+
+
+class PublicPlatformSettingsView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        # Composed here rather than inside get_public_settings() on purpose.
+        # That function caches its whole payload under "platform_settings:public"
+        # with timeout=None and is invalidated only by update_setting(), which
+        # activating a FinanceConfigurationVersion does not call — folding the
+        # configuration in there would freeze it forever and quietly break spec
+        # §17.5. Read through FinanceConfigurationService instead, which owns a
+        # 300-second TTL that activate() invalidates on commit.
+        return Response(
+            {
+                **get_public_settings(),
+                "finance_configuration": _active_finance_configuration(),
+            }
+        )
+```
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 ```bash
 cd backend
 uv run python manage.py migrate
+uv run python manage.py check
 uv run pytest finance/ platform_settings/ -v
 ```
 
-Expected: both new tests and the renamed registry test PASS. The new setting is public, so it joins `GET /api/v1/platform/public-settings/`'s payload — if any `platform_settings` test asserts a *closed* set of public keys, add the new key to it in this same commit with the same written reason as the registry test.
+Expected: the two new policy-row tests, the renamed registry test, the new `is_public` test and the two new view tests all PASS, and **`test_public_settings_endpoint_returns_all_seeded_keys` passes unmodified** — the new registry key is `is_public=False` so it never reaches that payload's `settings` dict, and `finance_configuration` sits beside `settings`, not inside it. That test is the reason the key is non-public; if it fails, the `is_public=False` was dropped. `manage.py check` proves `platform_settings.views` importing `finance.services` closes no cycle (`finance.services` imports only `finance.models`, and nothing in `finance` imports `platform_settings.views`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add backend/platform_settings backend/finance
-git commit -m "feat(finance): add the broker-override switch and the finance_estimates flag"
+git commit -m "feat(finance): add the broker-override switch, the finance_estimates flag and the public finance configuration"
 ```
 
 ---
@@ -761,13 +861,16 @@ git commit -m "feat(finance): add the broker-override switch and the finance_est
 - Produces, all imported by Tasks 4, 5 and 12:
   - `FINANCE_ESTIMATES_FLAG: str`, `FINANCE_ENABLED_SETTING: str`, `BROKER_OVERRIDES_SETTING: str`
   - `GLOBAL: str`, `LISTING_OVERRIDE: str`, `REQUESTED: str`
+  - `FinanceConfigurationUnavailable(RuntimeError)`
   - `FinancePolicy` (frozen dataclass: `estimates_enabled: bool`, `finance_enabled: bool`, `broker_overrides_enabled: bool`, `configuration: FinanceConfigurationVersion | None`; property `active: bool`; classmethod `load() -> FinancePolicy`)
   - `EffectiveAssumptions` (frozen dataclass: `annual_rate_percent: Decimal`, `term_months: int`, `down_payment_percent: Decimal`, `configuration_version: int`, `sources: dict[str, str]`)
-  - `resolve_effective_assumptions(*, snapshot, policy) -> EffectiveAssumptions`
+  - `resolve_effective_assumptions(*, snapshot, policy) -> EffectiveAssumptions` — **precondition: `policy.configuration is not None`** (equivalently `policy.active`), enforced by an explicit `FinanceConfigurationUnavailable` raise rather than left implicit; see the ruling below
   - `FinanceQuoteService.is_visible(listing, *, policy) -> bool`
   - `FinanceQuoteService.card_block(listing, *, policy) -> dict`
 
 **Note (ruling — this module is the `FinanceQuoteService` spec §31 names).** The traceability matrix's "Estimated installment" row names `FinanceQuoteService` as the backend source and "Finance assumptions" names "config version + listing overrides". Phase 8 shipped neither, because neither is meaningful without a listing. Both live here, in one module, because they change together: every rule that decides *whether* a listing may show finance also decides *which* numbers it shows.
+
+**Note (ruling — `resolve_effective_assumptions` enforces its precondition instead of assuming it).** The function reads the global assumptions off `policy.configuration`, which is `FinanceConfigurationVersion | None`. Both of this phase's call sites — `card_block` (Task 3) and `_listing_quote` (Task 5) — reach it only after `FinanceQuoteService.is_visible()` returned `True`, which implies `policy.active`, which implies `configuration is not None`. So it cannot crash today. But this plan **exports the function to later phases** (see the Contract summary), and that precondition is invisible at the call site: a Phase 20 caller with a policy in hand and no listing to check visibility on would get `AttributeError: 'NoneType' object has no attribute 'annual_rate_percent'` from inside a module it did not write. **Decision:** guard explicitly and raise `FinanceConfigurationUnavailable` with a sentence naming the precondition and how to satisfy it. The signature is deliberately *not* narrowed to take a bare `configuration` — `policy` is also what carries `broker_overrides_enabled`, which the override half of this function needs, so splitting it would mean two parameters that must agree and a change rippling through Tasks 3, 5 and 12. A guard plus a test is the smaller, equally enforced change. The exception never reaches a public response: every public path checks `is_visible()` first and `card_block` returns `{"visible": False}` instead.
 
 **Note (ruling — `FinancePolicy` is loaded once per request, not once per card).** `get_setting_value` queries Postgres on every call (no cache), so reading `finance.enabled` and `finance.broker_overrides_enabled` inside `card_block` would cost two queries per card — 48 on a 24-card page. `FinancePolicy.load()` gathers all four inputs once and is passed down as a keyword argument, which also makes every test able to state the policy it is testing instead of mutating global state. Task 4 caches one instance per serializer instance and proves it with a query-count test.
 
@@ -794,6 +897,7 @@ from brokers.tests.factories import make_broker
 from finance.listing_quotes import (
     GLOBAL,
     LISTING_OVERRIDE,
+    FinanceConfigurationUnavailable,
     FinancePolicy,
     FinanceQuoteService,
     resolve_effective_assumptions,
@@ -1071,6 +1175,24 @@ def test_a_missing_active_configuration_hides_finance_instead_of_raising(
     assert FinanceQuoteService.card_block(
         eligible_listing, policy=FinancePolicy.load()
     ) == {"visible": False}
+
+
+@pytest.mark.django_db
+def test_resolving_assumptions_without_a_configuration_raises_a_named_error():
+    """resolve_effective_assumptions is exported to later phases (see the plan's
+    Contract summary), and its precondition — an active configuration — is
+    implied by is_visible() at both of this phase's call sites rather than stated
+    at them. It is enforced here so a future caller that does not know the rule
+    gets a sentence naming it instead of an AttributeError on None.
+    """
+    _enable_estimates()
+    FinanceConfigurationVersion.objects.all().delete()
+    FinanceConfigurationService._invalidate_cache()
+    policy = FinancePolicy.load()
+    assert policy.configuration is None
+
+    with pytest.raises(FinanceConfigurationUnavailable):
+        resolve_effective_assumptions(snapshot=None, policy=policy)
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1144,6 +1266,20 @@ MIN_TERM_MONTHS = 1
 MAX_TERM_MONTHS = 360
 
 
+class FinanceConfigurationUnavailable(RuntimeError):
+    """Raised when effective assumptions are asked for with no active
+    configuration to resolve them against.
+
+    This never reaches a public response. Every public path checks
+    FinanceQuoteService.is_visible() first (which implies FinancePolicy.active,
+    which implies a configuration), and card_block() answers {"visible": False}
+    instead of raising. It exists so that a later phase calling the exported
+    resolve_effective_assumptions() without that precondition fails loudly at
+    its own call site, with a sentence naming what is missing, rather than
+    dereferencing None deep inside this module.
+    """
+
+
 @dataclass(frozen=True)
 class FinancePolicy:
     """The request-scoped answer to "is finance on, and may brokers override?".
@@ -1209,8 +1345,26 @@ def resolve_effective_assumptions(
     *, snapshot: ListingSnapshot | None, policy: FinancePolicy
 ) -> EffectiveAssumptions:
     """Spec §17.2's precedence: global configuration, then valid listing
-    overrides when staff permit them."""
+    overrides when staff permit them.
+
+    Precondition: `policy.configuration is not None` — equivalently,
+    `policy.active` is True. Both call sites in this phase reach here only after
+    FinanceQuoteService.is_visible() returned True, which implies it. The
+    precondition is *enforced* rather than documented because this function is
+    exported to later phases (see the Phase 9 plan's Contract summary), and a
+    caller who does not know the implicit rule would otherwise get an
+    AttributeError on None from inside a module it did not write.
+    """
     configuration = policy.configuration
+    if configuration is None:
+        raise FinanceConfigurationUnavailable(
+            "resolve_effective_assumptions() requires an active finance "
+            "configuration to resolve against. Check FinancePolicy.active — or "
+            "call FinanceQuoteService.is_visible() first, which implies it — "
+            "before calling this. policy.configuration is None whenever finance "
+            "is globally disabled, the finance_estimates flag is off, or no "
+            "active FinanceConfigurationVersion row exists."
+        )
     values = {
         "annual_rate_percent": configuration.annual_rate_percent,
         "term_months": configuration.term_months,
@@ -1321,7 +1475,7 @@ uv run python manage.py check
 uv run pytest finance/ -v
 ```
 
-Expected: all 13 new tests PASS and Phase 8's existing `finance` suite still passes. `manage.py check` proves the new cross-app import does not create a cycle.
+Expected: all 14 new tests PASS and Phase 8's existing `finance` suite still passes. `manage.py check` proves the new cross-app import does not create a cycle.
 
 - [ ] **Step 5: Commit**
 
@@ -1634,17 +1788,22 @@ git commit -m "feat(listings): add the spec 18.5 finance block to the public lis
 - Modify: `backend/finance/serializers.py`
 - Modify: `backend/finance/views.py`
 - Modify: `backend/config/settings/base.py` (one throttle rate)
+- Modify: `backend/finance/tests/test_views.py` (**one line added to one expected dict, with its reason** — see the ruling below)
 - Create: `backend/finance/tests/test_listing_quote_context.py`
 
 **Interfaces:**
 - Consumes: Task 3's `FinancePolicy`, `FinanceQuoteService`, `resolve_effective_assumptions`, `format_percent`, `GLOBAL`/`LISTING_OVERRIDE`/`REQUESTED`; `listings.views.published_listings_queryset()` (Phase 11 contract rule 1: the single definition of "publicly visible"); Phase 8's `calculate_finance_quote` and `FinanceQuoteRequestSerializer`.
-- Produces: the spec §17.4 "context 1" request shape (`listing_id` plus optional assumption overrides, no required price) and two new response keys used by the frontend in Task 10 — `assumption_sources: {field: "GLOBAL"|"LISTING_OVERRIDE"|"REQUESTED"} | None` and a populated `configuration_version` for listing quotes. New error codes: `listing_not_found`, `finance_not_available_for_listing`, `price_mismatch`. New throttle scope `finance_quote` = `120/min`.
+- Produces: the spec §17.4 "context 1" request shape (`listing_id` plus optional assumption overrides, no required price) and two new response keys used by the frontend in Task 10 — `assumption_sources: {field: "GLOBAL"|"LISTING_OVERRIDE"|"REQUESTED"} | None` and a populated `configuration_version` for listing quotes. **`assumption_sources` is on both response paths** (`None` on a manual quote), which is what makes the two contexts one shape; the manual context's exact-dict contract test is widened accordingly, in this commit — see the ruling below. New error codes: `listing_not_found`, `finance_not_available_for_listing`, `price_mismatch`. New throttle scope `finance_quote` = `120/min`.
 
 **Note (ruling — what a listing-context quote refuses).** Spec §17.4 says only that the server "loads price and permitted effective settings". Three refusals make that concrete and are chosen so the page always has a sensible next state: a `listing_id` that is not publicly published (including one that exists but is `DRAFT`, `SUSPENDED` or `EXPIRED`) is `404 listing_not_found`, because publication status is exactly what `published_listings_queryset` decides and a non-public listing must look absent (Phase 11's rule); a published listing that is not finance-eligible is `400 finance_not_available_for_listing`, which lets the page fall back to the plain calculator instead of pretending; and a client-supplied `price` that disagrees with the server's is `400 price_mismatch`, because §17.4 says the client price "must either be omitted or match" and silently overwriting it would hide a tampered link rather than refuse it.
 
 **Note (ruling — exploration values are reported as `REQUESTED`).** Spec §36.1 permits the finance page to "let user explore alternative rate/term/down payment values, but the card defaults remain server-defined". So a listing-context request may carry assumption values, and each one the client supplied is reported in `assumption_sources` as `REQUESTED` — never as `GLOBAL` or `LISTING_OVERRIDE`, which are spec §17.2's two *platform* sources. The price is never client-controllable in this context. This is additive to §17.4's response example; §17.2's "Store/return the effective source of each value" is what requires the field to exist at all, and Phase 8 could not implement it because no listing existed.
 
-**Note — the manual context is unchanged.** With no `listing_id`, all five fields stay required, `configuration_version` stays `null` (Phase 8's Task 7 ruling: a manual quote reads no stored configuration, so naming one would imply a relationship that does not exist) and `assumption_sources` is `null`. Phase 8's `finance/tests/test_views.py` and `test_serializers.py` must pass untouched; Step 4 re-runs them as the proof.
+**Note (ruling — the manual context's *behaviour* is unchanged, and its one locked-down contract test is widened by one key in this same commit).** With no `listing_id`, all five fields stay required, every computed value is bit-for-bit what Phase 8 returned, and `configuration_version` stays `null` (Phase 8's Task 7 ruling: a manual quote reads no stored configuration, so naming one would imply a relationship that does not exist). `assumption_sources` is `null` there for the same reason — a manual quote has no platform source to report.
+
+But the key **is present on both paths**, because `_quote_response` below builds one response shape for both of spec §17.4's contexts. That is the deliberate choice, not an accident of the helper: a uniform shape is what lets Task 6's single `FinanceQuote` type carry `assumption_sources: Record<AssumptionField, AssumptionSource> | null` and cover both paths without a second type or a presence check, and it is why this plan's own `test_a_manual_quote_is_unchanged_by_this_phase` can assert `response.data["assumption_sources"] is None` — an assertion that requires the key to exist.
+
+The consequence must be stated plainly rather than hedged: **`backend/finance/tests/test_views.py::test_finance_quote_endpoint_matches_spec_worked_example` asserts exact dict equality on a manual quote's eleven keys and therefore DOES break.** It is edited in this same commit — one `"assumption_sources": None` entry added to its expected dict, with the reason written into the test file — exactly the way Task 2 widens `test_registry_defines_exactly_the_twelve_spec_keys` and Task 4 replaces `test_the_response_never_exposes_a_finance_block_in_this_phase`. A locked-down contract test is changed deliberately, in the commit that changes the contract, with the argument recorded next to it. `finance/tests/test_serializers.py` genuinely is untouched: the request serializer's manual-context behaviour and error codes are unchanged.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1866,8 +2025,14 @@ def test_a_listing_override_is_reported_as_such(api, estimates_on):
 
 @pytest.mark.django_db
 def test_a_manual_quote_is_unchanged_by_this_phase(api):
-    """Phase 8's context 2 keeps its exact contract: every field required, no
-    configuration version, no assumption sources."""
+    """Phase 8's context 2 keeps its exact behaviour: every field required, the
+    same numbers, no configuration version and no platform assumption source.
+
+    Note the shape: `assumption_sources` is *present and null*, not absent —
+    both contexts share one response shape (see Task 5's ruling). This is the
+    assertion that pins it, and it is why finance/tests/test_views.py's
+    exact-dict test gains the same key in this commit.
+    """
     response = api.post(
         QUOTE_URL,
         {
@@ -1895,14 +2060,37 @@ def test_a_manual_quote_still_requires_every_field(api):
     assert response.data["error"]["fields"]["term_months"][0].code == "required"
 ```
 
+In `backend/finance/tests/test_views.py`, add **one entry plus its reason** to `test_finance_quote_endpoint_matches_spec_worked_example`'s expected dict, directly after the existing `"disclaimer_key"` line. Change nothing else in that file — every other key, value and comment stays byte-identical, which is the point: the numbers prove the manual calculation did not move.
+
+```python
+        "configuration_version": None,
+        "disclaimer_key": "finance.illustrative_disclaimer",
+        # Added by Phase 9 (docs/superpowers/plans/2026-09-18-phase-9-finance-ui
+        # .md, Task 5). FinanceQuoteView._quote_response now builds ONE response
+        # shape for both of spec §17.4's contexts, so `assumption_sources` is
+        # present on a manual quote too — and is None here, because a manual
+        # quote reads no stored configuration and no listing override, so there
+        # is no platform source (§17.2's GLOBAL / LISTING_OVERRIDE) to report.
+        #
+        # This exact-dict assertion is Phase 8's locked contract for the manual
+        # context and it is widened deliberately, in the same commit as the
+        # change that widens the response. The alternative — omitting the key on
+        # the manual path — would leave two response shapes behind one endpoint
+        # and force the frontend's FinanceQuote type into an optional field or a
+        # second type, for no gain. Every other key above is unchanged, and the
+        # money values are the proof that the calculation itself did not move.
+        "assumption_sources": None,
+    }
+```
+
 - [ ] **Step 2: Run the tests to verify they fail**
 
 ```bash
 cd backend
-uv run pytest finance/tests/test_listing_quote_context.py -v
+uv run pytest finance/tests/test_listing_quote_context.py finance/tests/test_views.py -v
 ```
 
-Expected: the listing-context tests fail with `400` and `{"code": "validation_error", "fields": {"price": ["This field is required."], ...}}` — today's serializer rejects a body that carries only `listing_id`; `test_a_manual_quote_is_unchanged_by_this_phase` fails on `KeyError: 'assumption_sources'`.
+Expected: the listing-context tests fail with `400` and `{"code": "validation_error", "fields": {"price": ["This field is required."], ...}}` — today's serializer rejects a body that carries only `listing_id`; `test_a_manual_quote_is_unchanged_by_this_phase` fails on `KeyError: 'assumption_sources'`; and the widened `test_finance_quote_endpoint_matches_spec_worked_example` fails on the dict comparison, because the response does not carry the key yet. All three go green together in Step 4.
 
 - [ ] **Step 3a: Teach the request serializer the two contexts**
 
@@ -2156,6 +2344,15 @@ class FinanceQuoteView(APIView):
 
     @staticmethod
     def _quote_response(*, currency, price, values, configuration_version, sources):
+        """One response shape for both of spec §17.4's contexts.
+
+        `configuration_version` and `assumption_sources` are always present and
+        are None on a manual quote, rather than being omitted there: two shapes
+        behind one endpoint would force every client into a presence check and
+        would need a second frontend type. Phase 8's
+        test_finance_quote_endpoint_matches_spec_worked_example is widened by
+        one key in this same commit because of this (see Task 5's ruling).
+        """
         result = calculate_finance_quote(
             price=price,
             down_payment_percent=values["down_payment_percent"],
@@ -2201,7 +2398,10 @@ cd backend
 uv run pytest finance/ listings/ -v
 ```
 
-Expected: all 12 new tests PASS **and** Phase 8's `finance/tests/test_views.py` and `finance/tests/test_serializers.py` pass untouched — that pair is the proof the manual context did not regress.
+Expected: all 12 new tests PASS. The manual context's proof is two-part and neither part is "untouched":
+
+- `finance/tests/test_serializers.py` passes **untouched** — the request serializer's manual-context behaviour, required-field set and error codes are genuinely unchanged.
+- `finance/tests/test_views.py::test_finance_quote_endpoint_matches_spec_worked_example` passes with **exactly the one-line widening made in Step 1** (`"assumption_sources": None` plus its written reason) and no other edit. Every money value and `configuration_version: None` in that dict is unchanged, and that is what proves the manual calculation did not regress. If making it pass requires touching any other line, stop: the manual path has changed and it should not have.
 
 - [ ] **Step 5: Commit**
 
@@ -2224,9 +2424,11 @@ git commit -m "feat(finance): add the listing_id quote context and rate-limit th
   - `type ListingFinance = { visible: false } | { visible: true; monthly_payment: string; annual_rate_percent: string; term_months: number; down_payment_percent: string; configuration_version: number }`
   - `type PublicListing` (the full spec §18.5 / Phase 11 representation)
   - `type FinanceQuote` (the spec §17.4 response)
-  - `type AssumptionSource = "GLOBAL" | "LISTING_OVERRIDE" | "REQUESTED"`
+  - `type AssumptionSource = "GLOBAL" | "LISTING_OVERRIDE" | "REQUESTED"` and `type AssumptionField = "annual_rate_percent" | "term_months" | "down_payment_percent"` — the backend's two closed sets, mirrored, so `FinanceQuote.assumption_sources` is `Record<AssumptionField, AssumptionSource> | null` rather than an open `Record<string, …>`
+  - `type FinanceConfigurationDefaults = { version: number; annual_rate_percent: string; term_months: number; down_payment_percent: string }`
   - `fetchPublishedListings(params: ListingSearch): Promise<Paginated<PublicListing> | null>`
   - `fetchPublishedListing(id: string): Promise<PublicListing | null>`
+  - `fetchFinanceDefaults(): Promise<FinanceConfigurationDefaults | null>` — reads Task 2's `finance_configuration` key off `GET /api/v1/platform/public-settings/`; Task 10 pre-fills the calculator from it
   - `requestFinanceQuote(input: FinanceQuoteInput): Promise<FinanceQuote>` (throws `ApiError`)
   - `financingHref(listing: PublicListing): string`
 
@@ -2370,7 +2572,31 @@ export interface PublicListing {
   finance: ListingFinance;
 }
 
+// The backend's two closed sets, mirrored. AssumptionField is
+// finance.listing_quotes.ASSUMPTION_FIELDS and AssumptionSource is §17.2's two
+// platform sources plus this plan's REQUESTED. Typing the map as
+// Record<AssumptionField, AssumptionSource> rather than Record<string, …> means
+// a typo in a field name is a compile error and a consumer can index it without
+// a possibly-undefined result.
+export type AssumptionField =
+  | "annual_rate_percent"
+  | "term_months"
+  | "down_payment_percent";
+
 export type AssumptionSource = "GLOBAL" | "LISTING_OVERRIDE" | "REQUESTED";
+
+/**
+ * The active FinanceConfigurationVersion, as GET
+ * /api/v1/platform/public-settings/ publishes it (Task 2). `null` when no
+ * version is active. Structurally identical to FinancingEstimateFieldset's
+ * `defaults` prop minus `version`, which is why Task 11 takes the same object.
+ */
+export interface FinanceConfigurationDefaults {
+  version: number;
+  annual_rate_percent: string;
+  term_months: number;
+  down_payment_percent: string;
+}
 
 export interface FinanceQuote {
   currency: string;
@@ -2384,7 +2610,9 @@ export interface FinanceQuote {
   total_interest: string;
   configuration_version: number | null;
   disclaimer_key: string;
-  assumption_sources: Record<string, AssumptionSource> | null;
+  // Present on both of spec §17.4's contexts; null on a manual quote, which has
+  // no platform source to report (Task 5).
+  assumption_sources: Record<AssumptionField, AssumptionSource> | null;
 }
 
 export interface ListingSearch {
@@ -2430,6 +2658,33 @@ export async function fetchPublishedListings(
 
 export async function fetchPublishedListing(id: string): Promise<PublicListing | null> {
   return publicFetch<PublicListing>(`/api/v1/listings/${encodeURIComponent(id)}/`);
+}
+
+/**
+ * The platform's current finance assumptions, from the public settings endpoint
+ * (Task 2). Returns null when the endpoint reports no active configuration, and
+ * null rather than throwing when the endpoint is unreachable: a calculator that
+ * starts un-prefilled is a worse page, not a broken one, and spec §2.1 forbids
+ * substituting invented numbers for the real ones. Server components only —
+ * `cache: "no-store"` so a staff activation (spec §17.5) is never served stale
+ * from the build cache.
+ */
+export async function fetchFinanceDefaults(): Promise<FinanceConfigurationDefaults | null> {
+  try {
+    const response = await fetch(`${PUBLIC_API_BASE_URL}/api/v1/platform/public-settings/`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as {
+      finance_configuration: FinanceConfigurationDefaults | null;
+    };
+    return body.finance_configuration ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface FinanceQuoteInput {
@@ -3589,14 +3844,16 @@ git commit -m "feat(frontend): add the /boats/ list page and its single finance 
 - Create: `frontend/src/app/financing/page.tsx`
 
 **Interfaces:**
-- Consumes: `requestFinanceQuote`, `type FinanceQuote` (Task 6); `ApiError` from `@/lib/api/client`; `tf`, `formatMoney` (Task 7).
-- Produces: the route `/financing/` (spec §4.1), and `FinanceCalculator` with props `{ locale: Locale; listingId: string | null; fallbackPrice: string | null; currency: string }`.
+- Consumes: `requestFinanceQuote`, `fetchFinanceDefaults`, `type FinanceQuote`, `type FinanceConfigurationDefaults` (Task 6); `ApiError` from `@/lib/api/client`; `tf`, `formatMoney` (Task 7).
+- Produces: the route `/financing/` (spec §4.1), and `FinanceCalculator` with props `{ locale: Locale; listingId: string | null; fallbackPrice: string | null; currency: string; defaults: FinanceConfigurationDefaults | null }`.
 
 **Note (ruling — the listing is the authority and the query price is never sent).** Spec §18.3: "The finance page treats `listing` as the authority and ignores tampered price parameters. Query price exists only for immediate display fallback while loading." So when `listingId` is present the component sends `{listing_id}` and never a price — a tampered `?price=` can therefore only ever appear as the greyed placeholder that the server's own price replaces a moment later, and it can never reach a calculation. Task 5's `price_mismatch` refusal covers the other direction (a caller that does send one).
 
 **Note (ruling — an ineligible listing falls back to the plain calculator).** A `finance_not_available_for_listing` answer means the link is stale or the broker turned the toggle off. The page says so in one line and continues as the manual calculator seeded with platform defaults, because `/financing/` is a standalone route in spec §4.1 and refusing the whole page would be worse for the visitor than answering the question they came with.
 
-**Note (ruling — the defaults the manual mode starts from come from the public settings endpoint… and do not, yet).** The honest source for "the platform's current rate/term/down payment" on an unauthenticated page would be `GET /api/v1/platform/public-settings/`, but Phase 8 put the live values in `FinanceConfigurationVersion` rather than in the three §10.1 setting keys, and that endpoint therefore does not carry them (see Known Limitations). Rather than hard-code 5/48/20 in the browser — which spec §2.1 and §29.1 both forbid ("Calculating with stale hard-coded 120 months/6.5% copy from the prototype") — the manual form starts **empty** and its submit button stays disabled until the visitor fills it in. When a listing is present, the server's own effective assumptions arrive with the first quote and populate the fields. Exposing the active configuration on the public settings endpoint is named as the follow-up.
+**Note (ruling — the defaults the manual mode starts from are the platform's real ones, fetched from the server).** Spec §2.1 is the governing sentence: *"Production UI must not display invented, hard-coded … operational data"*, and it names `FinanceQuoteService` among its examples — so the rate, term and down payment this page starts from must be the platform's actual current values, not a copy of them compiled into the bundle. Spec §17.5 is the second: a staff change to the defaults *"changes automatically affect boat cards and the finance page"* — the finance page is named there explicitly, so a value that only updates on the next frontend deploy does not satisfy it. (Spec §29.1's prohibition on *"stale hard-coded 120 months/6.5% copy from the prototype"* points the same way and is the concrete historical instance of the rule, but it is about that specific prototype leftover — it is the secondary citation here, not the lead.)
+
+That left three candidates and only one honest one. Hard-coding `5 / 48 / 20` fails §2.1 and goes stale on the first activation, failing §17.5. An empty form invents nothing, but it makes §17.5's "and the finance page" vacuous for the standalone case and is a visibly worse page. **Decision:** Task 2 publishes the active `FinanceConfigurationVersion` as `finance_configuration` on `GET /api/v1/platform/public-settings/`, the page fetches it server-side with `fetchFinanceDefaults()` (Task 6) and passes it as the `defaults` prop, and the manual form opens **pre-filled with real current values** — rate, term and down payment ready, price the one field the visitor supplies, submit disabled until they do. When `defaults` is `null` (no active configuration, or the endpoint is unreachable) the three fields open empty and submit waits for all four: degraded, never invented. When a listing *is* present the server's own effective assumptions still arrive with the first quote and overwrite whatever was pre-filled, so the listing remains the authority (spec §18.3) in every case.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3635,6 +3892,17 @@ const QUOTE = {
   },
 };
 
+// Exactly the shape GET /api/v1/platform/public-settings/ publishes under
+// `finance_configuration` (Task 2). These are the seeded spec §1 values; the
+// point of the prop is that they arrive from the server, not that they are
+// these particular numbers.
+const DEFAULTS = {
+  version: 1,
+  annual_rate_percent: "5.0000",
+  term_months: 48,
+  down_payment_percent: "20.0000",
+};
+
 beforeEach(() => {
   requestFinanceQuote.mockReset();
 });
@@ -3648,6 +3916,7 @@ describe("FinanceCalculator with a listing", () => {
         listingId="abc"
         fallbackPrice="1.00"
         currency="EUR"
+        defaults={DEFAULTS}
       />,
     );
 
@@ -3665,6 +3934,7 @@ describe("FinanceCalculator with a listing", () => {
         listingId="abc"
         fallbackPrice="1.00"
         currency="EUR"
+        defaults={DEFAULTS}
       />,
     );
 
@@ -3675,7 +3945,13 @@ describe("FinanceCalculator with a listing", () => {
   it("sends an explored term with the listing and still never a price", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
     render(
-      <FinanceCalculator locale="en" listingId="abc" fallbackPrice={null} currency="EUR" />,
+      <FinanceCalculator
+        locale="en"
+        listingId="abc"
+        fallbackPrice={null}
+        currency="EUR"
+        defaults={DEFAULTS}
+      />,
     );
     await waitFor(() => expect(screen.getByText("€8,456.36")).toBeInTheDocument());
 
@@ -3699,7 +3975,13 @@ describe("FinanceCalculator with a listing", () => {
       new ApiError(400, "finance_not_available_for_listing", "nope"),
     );
     render(
-      <FinanceCalculator locale="en" listingId="abc" fallbackPrice={null} currency="EUR" />,
+      <FinanceCalculator
+        locale="en"
+        listingId="abc"
+        fallbackPrice={null}
+        currency="EUR"
+        defaults={DEFAULTS}
+      />,
     );
 
     await waitFor(() =>
@@ -3708,12 +3990,21 @@ describe("FinanceCalculator with a listing", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getByLabelText("Price")).toBeEnabled();
+    // The stale-link fallback is still a usable calculator, not an empty one:
+    // the platform defaults the page arrived with are still in the fields.
+    expect(screen.getByLabelText("Annual rate")).toHaveValue("5.0000");
   });
 
   it("always shows the disclaimer", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
     render(
-      <FinanceCalculator locale="en" listingId="abc" fallbackPrice={null} currency="EUR" />,
+      <FinanceCalculator
+        locale="en"
+        listingId="abc"
+        fallbackPrice={null}
+        currency="EUR"
+        defaults={DEFAULTS}
+      />,
     );
 
     expect(screen.getByText(/Illustrative estimate only/)).toBeInTheDocument();
@@ -3721,25 +4012,58 @@ describe("FinanceCalculator with a listing", () => {
 });
 
 describe("FinanceCalculator without a listing", () => {
-  it("asks for nothing until the visitor fills the form in", () => {
+  it("opens pre-filled with the platform's real assumptions and asks for the price", () => {
     render(
-      <FinanceCalculator locale="en" listingId={null} fallbackPrice={null} currency="EUR" />,
+      <FinanceCalculator
+        locale="en"
+        listingId={null}
+        fallbackPrice={null}
+        currency="EUR"
+        defaults={DEFAULTS}
+      />,
     );
 
+    // Spec §2.1: real current configuration, handed down by the server — not a
+    // hard-coded copy, and not an empty form.
+    expect(screen.getByLabelText("Annual rate")).toHaveValue("5.0000");
+    expect(screen.getByLabelText("Term")).toHaveValue("48");
+    expect(screen.getByLabelText("Down payment")).toHaveValue("20.0000");
+    // Price is the visitor's to supply, and nothing is requested until they do.
+    expect(screen.getByLabelText("Price")).toHaveValue("");
     expect(requestFinanceQuote).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Recalculate" })).toBeDisabled();
+  });
+
+  it("opens empty rather than inventing numbers when no configuration is active", () => {
+    render(
+      <FinanceCalculator
+        locale="en"
+        listingId={null}
+        fallbackPrice={null}
+        currency="EUR"
+        defaults={null}
+      />,
+    );
+
+    expect(screen.getByLabelText("Annual rate")).toHaveValue("");
+    expect(screen.getByLabelText("Term")).toHaveValue("");
+    expect(screen.getByLabelText("Down payment")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Recalculate" })).toBeDisabled();
   });
 
   it("sends every value itself in manual mode", async () => {
     requestFinanceQuote.mockResolvedValue({ ...QUOTE, configuration_version: null });
     render(
-      <FinanceCalculator locale="en" listingId={null} fallbackPrice={null} currency="EUR" />,
+      <FinanceCalculator
+        locale="en"
+        listingId={null}
+        fallbackPrice={null}
+        currency="EUR"
+        defaults={DEFAULTS}
+      />,
     );
 
     await userEvent.type(screen.getByLabelText("Price"), "459000.00");
-    await userEvent.type(screen.getByLabelText("Annual rate"), "5.0000");
-    await userEvent.type(screen.getByLabelText("Term"), "48");
-    await userEvent.type(screen.getByLabelText("Down payment"), "20.0000");
     await userEvent.click(screen.getByRole("button", { name: "Recalculate" }));
 
     await waitFor(() =>
@@ -3774,7 +4098,11 @@ Create `frontend/src/components/finance/FinanceCalculator.tsx`:
 import { useEffect, useState } from "react";
 
 import { ApiError } from "@/lib/api/client";
-import { requestFinanceQuote, type FinanceQuote } from "@/lib/api/listings";
+import {
+  requestFinanceQuote,
+  type FinanceConfigurationDefaults,
+  type FinanceQuote,
+} from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
 import { formatMoney, tf } from "@/lib/i18n/finance";
 
@@ -3792,33 +4120,58 @@ const EMPTY: Assumptions = {
   price: "",
 };
 
+// The platform's real current assumptions, or empty when the server reports no
+// active configuration. Never a hard-coded 5 / 48 / 20 fallback: spec §2.1
+// forbids displaying invented operational data, and an un-prefilled field is
+// the honest degraded state.
+function initialValues(defaults: FinanceConfigurationDefaults | null): Assumptions {
+  if (defaults === null) {
+    return EMPTY;
+  }
+  return {
+    annual_rate_percent: defaults.annual_rate_percent,
+    term_months: String(defaults.term_months),
+    down_payment_percent: defaults.down_payment_percent,
+    price: "",
+  };
+}
+
 /**
  * Spec §4.1's /financing/ estimator, in both of spec §17.4's contexts.
  *
  * With a listing (spec §18.3), the listing is the authority: the request
  * carries `listing_id` and never a price, so a tampered `?price=` can only ever
- * appear as the greyed placeholder below and never reaches a calculation. The
- * visitor may still explore other assumptions (spec §36.1) — those are sent and
- * the server reports them back as REQUESTED.
+ * appear as the greyed placeholder below and never reaches a calculation, and
+ * the server's own effective assumptions overwrite the pre-filled defaults as
+ * soon as the first quote lands. The visitor may still explore other
+ * assumptions (spec §36.1) — those are sent and reported back as REQUESTED.
  *
- * Without a listing, the form starts empty rather than pre-filled with the
- * platform defaults: the public settings endpoint does not yet expose the
- * active FinanceConfigurationVersion (see the Phase 9 plan's Known
- * Limitations), and hard-coding 5% / 48 / 20% in the browser is exactly the
- * invented state spec §2.1 and §29.1 forbid.
+ * Without a listing, the form opens pre-filled from `defaults`, which the page
+ * fetched server-side from GET /api/v1/platform/public-settings/ (Task 2's
+ * `finance_configuration`). Those are the platform's real current values, so
+ * spec §2.1's ban on invented or hard-coded operational data is satisfied by
+ * using the live configuration rather than by showing nothing, and spec §17.5's
+ * "changes automatically affect boat cards and the finance page" holds without
+ * a frontend deploy. `defaults === null` means no active configuration (or an
+ * unreachable endpoint): the three fields open empty rather than guessing.
+ *
+ * Price is never pre-filled in manual mode — the platform has no opinion about
+ * which boat a visitor with no listing has in mind.
  */
 export default function FinanceCalculator({
   locale,
   listingId,
   fallbackPrice,
   currency,
+  defaults,
 }: {
   locale: Locale;
   listingId: string | null;
   fallbackPrice: string | null;
   currency: string;
+  defaults: FinanceConfigurationDefaults | null;
 }) {
-  const [values, setValues] = useState<Assumptions>(EMPTY);
+  const [values, setValues] = useState<Assumptions>(() => initialValues(defaults));
   const [quote, setQuote] = useState<FinanceQuote | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [listingUsable, setListingUsable] = useState(listingId !== null);
@@ -3978,6 +4331,7 @@ Create `frontend/src/app/financing/page.tsx`:
 import type { Metadata } from "next";
 
 import FinanceCalculator from "@/components/finance/FinanceCalculator";
+import { fetchFinanceDefaults } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
 
@@ -4018,6 +4372,13 @@ export default async function FinancingPage({
   const requested = (first(params.currency) ?? "").toUpperCase();
   const currency = requested === DEFAULT_CURRENCY ? requested : DEFAULT_CURRENCY;
 
+  // Spec §2.1 / §17.5: the calculator opens on the platform's REAL current
+  // assumptions, read at request time (`force-dynamic` above, `no-store`
+  // inside), never on a copy compiled into this bundle. `null` when no
+  // configuration is active — the form then opens un-prefilled rather than
+  // inventing numbers.
+  const defaults = await fetchFinanceDefaults();
+
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
       <h1 className="font-headline-md text-headline-md text-primary">
@@ -4031,6 +4392,7 @@ export default async function FinancingPage({
         listingId={listingId}
         fallbackPrice={fallbackPrice}
         currency={currency}
+        defaults={defaults}
       />
     </main>
   );
@@ -4045,7 +4407,7 @@ pnpm test src/components/finance
 pnpm lint
 ```
 
-Expected: seven tests PASS; lint clean.
+Expected: eight tests PASS; lint clean.
 
 - [ ] **Step 4b: Prove the tamper defence over HTTP**
 
@@ -4056,6 +4418,15 @@ curl -s "http://127.0.0.1:3020/financing/?listing=<uuid>&price=1.00&currency=EUR
 ```
 
 Expected: the page hydrates and shows the server's €8,456.36 — the `1.00` never becomes a result. Confirm in the browser's network tab that the outgoing `POST /api/v1/finance/quotes/` body is `{"listing_id":"<uuid>"}` with no `price` key.
+
+- [ ] **Step 4c: Prove the standalone page opens on real server values**
+
+```bash
+curl -s "http://127.0.0.1:8020/api/v1/platform/public-settings/" | grep -o '"finance_configuration":[^}]*}'
+curl -s "http://127.0.0.1:3020/financing/" | grep -c 'value="5.0000"'
+```
+
+Expected: the endpoint reports the active version's four values, and the bare `/financing/` page's rate field is server-rendered with that same `5.0000` — not a literal in the bundle. Then activate a new configuration with a different rate (Django admin or `FinanceConfigurationService.activate`), reload `/financing/` **without rebuilding the frontend**, and confirm the field shows the new rate: that is spec §17.5's "changes automatically affect … the finance page", demonstrated.
 
 - [ ] **Step 5: Commit**
 
@@ -4078,6 +4449,7 @@ git commit -m "feat(frontend): add the /financing/ estimator with the listing as
   - `type FinanceFieldsetState = { show_finance_estimate: boolean; use_custom_assumptions: boolean; finance_rate_override_percent: string; finance_term_override_months: string; finance_down_payment_override_percent: string }`
   - `EMPTY_FINANCE_FIELDSET_STATE: FinanceFieldsetState`
   - `financeFieldsetPayload(state: FinanceFieldsetState): Record<string, string | number | boolean>` — the draft-payload fragment Phase 16 merges into its `PATCH /api/v1/listings/<id>/draft/` body
+  - `type FinanceDefaults = { annual_rate_percent: string; term_months: number; down_payment_percent: string }` — the three platform assumption values shown when the toggle is on (spec §18.4: "show global defaults"). Structurally `FinanceConfigurationDefaults` (Task 6) minus `version`, so Phase 16 feeds this prop straight from `fetchFinanceDefaults()` — the same server source the `/financing/` page uses, so the form and the calculator can never disagree about the platform's defaults. Never a literal.
   - `FinancingEstimateFieldset` — default export, props `{ locale; sellerType; overridesEnabled; defaults; value; onChange }`
 
 **Note (ruling — the component returns `null` for a private seller, and its payload builder omits the keys).** Spec §18.4: "Private-seller forms must neither render the fields nor accept them through API payloads." Rendering the group hidden with CSS is exactly what spec §39 forbids ("Hide prohibited fields only with CSS"), so the component renders nothing at all, and `financeFieldsetPayload` is never called for a private seller because Phase 16 will not mount the group. The backend refusal (`finance_not_allowed_for_private_seller`) stands independently and is proven in Task 12.
@@ -4685,8 +5057,6 @@ uv run pytest listings/tests/test_phase_9_acceptance.py -v
 
 Expected: five tests PASS with no production-code change. If any fails, fix the production code — not the test — and record what was wrong in the handoff note.
 
-**Note:** `test_acceptance_3`'s PATCH relies on Phase 11's `listing-draft-update` route name, its `{"version": ...}` envelope and its error envelope's `fields` map. If the refusal arrives as a differently shaped body, assert the `finance_not_allowed_for_private_seller` **code** wherever the envelope actually carries it rather than loosening the test — the code is the stable contract (spec §30.2).
-
 - [ ] **Step 3: Full regression across both projects**
 
 ```bash
@@ -4729,12 +5099,14 @@ Append a new entry at the top of `ACTIVITY.md`'s `## Log` section, substituting 
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-9-finance-ui.md` in full (12 tasks).
 - **Migrations:** `listings.0005_listingsnapshot_finance_settings` (four additive columns on `ListingSnapshot`, all nullable or defaulted — reversible, drops the columns), `listings.0006_backfill_snapshot_finance_settings` (copies configured broker listings' finance settings onto their snapshots; ran against 0 rows; reverse is a no-op because 0005's reverse drops the columns), `platform_settings.0005_seed_finance_broker_overrides_setting` (reversible), `finance.0003_seed_finance_estimates_flag` (reversible). No column was altered or dropped; rollback is safe in any order that respects the dependency chain.
-- **Models/services/endpoints/components:** `ListingSnapshot` publishes the four broker finance settings; `finance.listing_quotes` is new and owns spec §18.2 eligibility, spec §17.2 GLOBAL/LISTING_OVERRIDE precedence and the spec §18.5 block (the `FinanceQuoteService` spec §31 names); `listings.serializers.PublicListingSerializer` gained the `finance` key and nothing else; `POST /api/v1/finance/quotes/` accepts `listing_id` and returns `assumption_sources`; `listings.payloads` now bounds the down-payment override at 99.99% per spec §17.3. Frontend: `lib/api/listings.ts`, `lib/i18n/finance.ts`, `components/listings/BoatCard`, `FinanceDetailsDisclosure`, `FinancingEstimateFieldset`, `components/finance/FinanceCalculator`, and the `/boats/` and `/financing/` pages.
-- **Permissions and audit:** no new permission class. The quote endpoint stays `AllowAny` and gained the `finance_quote` throttle scope (120/min) on Phase 3's IP-hashing throttle. Changing `finance.broker_overrides_enabled` writes `platform_setting.updated`; toggling `finance_estimates` writes `feature_flag.updated` — both through Phase 2's audited services, no new audit action introduced.
+- **Models/services/endpoints/components:** `ListingSnapshot` publishes the four broker finance settings; `finance.listing_quotes` is new and owns spec §18.2 eligibility, spec §17.2 GLOBAL/LISTING_OVERRIDE precedence and the spec §18.5 block (the `FinanceQuoteService` spec §31 names); `listings.serializers.PublicListingSerializer` gained the `finance` key and nothing else; `POST /api/v1/finance/quotes/` accepts `listing_id` and returns `assumption_sources` on both contexts; `GET /api/v1/platform/public-settings/` gained a read-only `finance_configuration` key carrying the active version's four values. Frontend: `lib/api/listings.ts`, `lib/i18n/finance.ts`, `components/listings/BoatCard`, `FinanceDetailsDisclosure`, `FinancingEstimateFieldset`, `components/finance/FinanceCalculator`, and the `/boats/` and `/financing/` pages.
+- **Prerequisite merged separately:** the down-payment override's 99.99% ceiling (spec §17.3) was a live validation defect in merged `listings.payloads` unrelated to this phase's flag-guarded UI work. It shipped as its own PR on `fix-finance-percent-ceiling` before this plan started; Phase 9 builds on the corrected write path and adds the read-time range check in `finance.listing_quotes` as defence in depth.
+- **Contract tests changed deliberately, each with its reason in the file:** `platform_settings/tests/test_registry.py` (renamed, one key added), `listings/tests/test_public_read_api.py` (the finance-block-absence test replaced), `finance/tests/test_views.py` (one `"assumption_sources": None` entry added to the worked-example dict, no other line touched). `platform_settings/tests/test_views.py` gained two cases and had none changed — `finance.broker_overrides_enabled` is `is_public=False`, so the public settings payload's `settings` dict is byte-identical to Phase 2's.
+- **Permissions and audit:** no new permission class. The quote endpoint stays `AllowAny` and gained the `finance_quote` throttle scope (120/min) on Phase 3's IP-hashing throttle. `GET /api/v1/platform/public-settings/` stays `AllowAny`, unauthenticated and read-only; its new `finance_configuration` key publishes only values already visible on every eligible boat card's spec §18.5 block, and `finance.broker_overrides_enabled` is `is_public=False` so no staff policy switch is published. Changing `finance.broker_overrides_enabled` writes `platform_setting.updated`; toggling `finance_estimates` writes `feature_flag.updated` — both through Phase 2's audited services, no new audit action introduced.
 - **Tests:** `<N>` backend tests pass against real PostgreSQL and Redis; `<N>` frontend tests pass; `pnpm build` and `manage.py makemigrations --check` are clean. Spec §18's acceptance tests 1, 2, 3 and 5 and spec §40 Scenarios C and D are `backend/listings/tests/test_phase_9_acceptance.py`; acceptance test 4 (new tab, no opener access) is `BoatCard.test.tsx`.
 - **Feature flag state:** `finance_estimates` is seeded **disabled**. Every finance surface is invisible until staff enable it; `listing_revisions` is unchanged.
-- **Known limitations:** see the plan's "Known Limitations" section — no `FinanceQuoteLog`, no boat detail page (no listing slug until Phase 20/21), the listing form itself is Phase 16, `GET /api/v1/platform/public-settings/` still does not expose the active finance configuration, and two `SUPPORTED_CURRENCIES` constants still exist.
-- **Screenshots:** `/boats/` with an eligible and an ineligible card side by side, the card's open details disclosure, and `/financing/` reached from the CTA with a tampered `?price=` in the URL and the server's own price on the page.
+- **Known limitations:** see the plan's "Known Limitations" section — no `FinanceQuoteLog`, no boat detail page (no listing slug until Phase 20/21), the listing form itself is Phase 16, spec §10.1's three finance setting *keys* still do not exist in `SETTINGS_REGISTRY` (Phase 8's `FinanceConfigurationVersion` remains the source of truth; only its values are now published), and two `SUPPORTED_CURRENCIES` constants still exist.
+- **Screenshots:** `/boats/` with an eligible and an ineligible card side by side, the card's open details disclosure, `/financing/` reached from the CTA with a tampered `?price=` in the URL and the server's own price on the page, and bare `/financing/` pre-filled from the active configuration (with the same page after a staff activation, unchanged frontend build, showing the new rate).
 - Next: Phase 10 (listing view analytics) writes the `view_count` this phase's card already renders; Phase 16 mounts `FinancingEstimateFieldset`; Phase 20 owns the boat detail page and the responsive/visual-regression pass.
 ```
 
@@ -4752,10 +5124,10 @@ git commit -m "test(listings): add Phase 9 acceptance tests and record the phase
 Each item names the phase that closes it. None breaks a MUST requirement *of this phase* (spec §39: "Any known limitation that breaks a MUST requirement prevents completion").
 
 1. **No `FinanceQuoteLog`.** Spec §11.6 calls it "optional but recommended" and §30.4 mentions rate-limiting "finance quote logging". Nothing is logged. The two places where §11.6's rule ("Log only an explicit calculator interaction or detail request", never a rendered card) would attach already exist and are the only two quote requests the product makes: the card's details disclosure and the finance page. Adding the model is a small, self-contained follow-up for whichever phase wants the analytics; the `source CARD | FINANCE_PAGE` discriminator §11.6 specifies maps one-to-one onto those two callers.
-2. **`GET /api/v1/platform/public-settings/` does not expose the active finance configuration.** Spec §10.1 lists `finance.annual_rate_percent`, `finance.term_months` and `finance.down_payment_percent` as settings, but Phase 8 implemented the live values as `FinanceConfigurationVersion` rows instead (a deliberate, recorded deviation — versioned and immutable so historical quotes stay reproducible), so those three keys do not exist in `SETTINGS_REGISTRY` and the public endpoint carries neither them nor the version. The visible consequence is in Task 10: `/financing/` opened with no `?listing=` starts with an empty form instead of pre-filled platform defaults. The fix is one read-only addition to that endpoint's payload (the active version's three values plus its `version`), not a second source of truth — whichever phase next touches finance or Phase 20's public UI integration should make it.
+2. **Spec §10.1's three finance setting *keys* still do not exist in `SETTINGS_REGISTRY`.** Spec §10.1 lists `finance.annual_rate_percent`, `finance.term_months` and `finance.down_payment_percent` as settings, but Phase 8 implemented the live values as `FinanceConfigurationVersion` rows instead (a deliberate, recorded deviation — versioned and immutable so historical quotes stay reproducible). That deviation stands; this plan does not undo it. What Task 2 *does* close is its only visible consequence: `GET /api/v1/platform/public-settings/` now publishes the active version's four values under a `finance_configuration` key, so `/financing/` opened with no `?listing=` starts pre-filled from real platform state (spec §2.1, §17.5) instead of an empty form. **Remaining gap:** the values are published read-only, under a different key shape than §10.1's table describes, and staff still change them only by activating a new configuration version — there is no `update_setting` path for them and this plan deliberately does not add one, because a §10.1-shaped mutable setting would contradict Phase 8's immutability guarantee. A future phase that wants §10.1's literal shape has to reconcile the two models first, not just rename a key.
 3. **No public boat detail page.** Spec §4.1 fixes it at `/boats/<listing-slug>/` and Phase 11's Known Limitation 6 records that no slug field exists, so the URL cannot be built correctly yet. `GET /api/v1/listings/<id>/` serves the same representation, including the `finance` block, and acceptance test 1's "or detail" half is proven against it. → **Phase 20/21**.
 4. **`/boats/` has no filters, facets, sort or saved search.** Spec §29.4's filter requirements are written for the professionals directory; the boat search surface is Phase 20's, together with the responsive QA (§29.5) and the visual regression snapshots (§29.6's definition of done). This page is the smallest real host for the card.
-5. **The listing create/edit form does not exist.** `FinancingEstimateFieldset` is complete and tested but is mounted nowhere until **Phase 16** (spec §25.2 step 8) builds the form. Its `defaults` prop expects the active configuration's three values, which the form will have to obtain — see limitation 2.
+5. **The listing create/edit form does not exist.** `FinancingEstimateFieldset` is complete and tested but is mounted nowhere until **Phase 16** (spec §25.2 step 8) builds the form. Its `defaults` prop expects the active configuration's three values, which Phase 16 gets from Task 6's `fetchFinanceDefaults()` — the same source the `/financing/` page uses, so the form and the calculator can never show different platform defaults.
 6. **Two `SUPPORTED_CURRENCIES` constants.** `finance.serializers.SUPPORTED_CURRENCIES` (a tuple) and `listings.models.SUPPORTED_CURRENCIES` (a frozenset) both hold `EUR`. This plan reads the finance one for eligibility, because the question it answers is "can the calculation engine handle this currency". Collapsing them into one shared constant means touching two merged apps for no behavioural gain today; the moment a second currency is added, that is the trigger.
 7. **`DIRECTORY_API_BASE_URL` is imported by a non-directory module.** `lib/api/listings.ts` aliases it to `PUBLIC_API_BASE_URL` rather than redeclaring `process.env.NEXT_PUBLIC_API_BASE_URL`, because two constants for one value drift. Renaming it in a shared module is a mechanical cleanup for whichever phase next touches both files.
 8. **The card's image slot is a placeholder for every listing.** `media_manifest` carries `storage_key`, not a URL, and building CDN URLs is **Phase 15** (spec §24). The slot renders a neutral CSS block for both cases today and the component already branches on whether a primary image exists, so Phase 15 replaces one element.
@@ -4780,6 +5152,7 @@ from finance.listing_quotes import (
     LISTING_OVERRIDE,
     REQUESTED,
     EffectiveAssumptions,
+    FinanceConfigurationUnavailable,
     FinancePolicy,
     FinanceQuoteService,
     format_percent,
@@ -4787,21 +5160,24 @@ from finance.listing_quotes import (
     resolve_effective_assumptions,
 )
 from finance.serializers import MANUAL_REQUIRED_FIELDS, FinanceQuoteRequestSerializer
-from listings.payloads import (
-    MAX_DOWN_PAYMENT_OVERRIDE_PERCENT,
-    MAX_RATE_OVERRIDE_PERCENT,
-)
 ```
+
+Plus one HTTP addition, consumed rather than imported: `GET /api/v1/platform/public-settings/` gains a top-level `finance_configuration` key — `{"version": int, "annual_rate_percent": str, "term_months": int, "down_payment_percent": str}`, or `null` when no version is active.
+
+(`listings.payloads.MAX_DOWN_PAYMENT_OVERRIDE_PERCENT` / `MAX_RATE_OVERRIDE_PERCENT` are **not** Phase 9's. They come from the standalone `fix-finance-percent-ceiling` PR that lands on `dev` before this plan runs; import them from that, not from here.)
 
 ```ts
 // frontend
 import {
+  fetchFinanceDefaults,
   fetchPublishedListing,
   fetchPublishedListings,
   financingHref,
   listingQuery,
   requestFinanceQuote,
+  type AssumptionField,
   type AssumptionSource,
+  type FinanceConfigurationDefaults,
   type FinanceQuote,
   type FinanceQuoteInput,
   type ListingFinance,
@@ -4833,7 +5209,11 @@ Rules a later phase must follow:
 4. **`FinancePolicy.load()` once per request, never per row.** It costs two Postgres reads. `PublicListingSerializer` caches one per instance; any new listing-facing serializer must do the same, and `listings/tests/test_public_finance_block.py::test_serializing_three_cards_costs_the_same_queries_as_one` is the test that catches a regression.
 5. **Phase 10 writes `BoatListing.view_count_cached`; the card already renders it.** No card change is needed. If §19.5's compact formatting above 9,999 is added, add it inside `formatCount` in `lib/i18n/finance.ts` so every surface changes at once, and keep the exact value in the accessible label.
 6. **Phase 15 replaces the card's image placeholder**, in `BoatCard.tsx`'s one `data-testid="boat-image-placeholder"` element, by turning `media_manifest[].storage_key` into a real URL. Do not invent a URL shape anywhere else.
-7. **Phase 16 mounts `FinancingEstimateFieldset` at step 8 of spec §25.2** and merges `financeFieldsetPayload(state)` into its draft `PATCH` body. Do not build a second finance field group, do not render it for a private seller, and do not send `null` overrides to "clear" stored values — spec §18.4 says stored overrides may remain and are ignored.
+7. **Phase 16 mounts `FinancingEstimateFieldset` at step 8 of spec §25.2** and merges `financeFieldsetPayload(state)` into its draft `PATCH` body. Do not build a second finance field group, do not render it for a private seller, and do not send `null` overrides to "clear" stored values — spec §18.4 says stored overrides may remain and are ignored. Feed its `defaults` prop from `fetchFinanceDefaults()`, never from a literal.
+
+7a. **`resolve_effective_assumptions(*, snapshot, policy)` requires `policy.configuration is not None`,** which `FinancePolicy.active` reports and `FinanceQuoteService.is_visible()` implies. Check one of them first; calling it otherwise raises `FinanceConfigurationUnavailable` by design. `card_block()` already does this and answers `{"visible": False}` instead, so a public path never sees the exception.
+
+7b. **The platform's current finance assumptions come from `finance_configuration` on `GET /api/v1/platform/public-settings/`.** Never hard-code `5 / 48 / 20` in a frontend bundle, a fixture that ships to production, or a second endpoint (spec §2.1, §17.5). The key is read-only: staff change the values by activating a new `FinanceConfigurationVersion`, never by writing a setting. When it is `null`, render an un-prefilled control — do not substitute a fallback constant. Note that it is composed in `PublicPlatformSettingsView`, deliberately outside `get_public_settings()`'s forever-cache; anything else added there must make the same choice or it will serve stale finance data.
 8. **Phase 16's `can_show_finance` policy flag (spec §25.1) is `listing.seller_type == BROKER`,** and the server-side truth that backs it is `listings.payloads.allowed_payload_fields`, which already admits `BROKER_FINANCE_FIELDS` only for a broker listing. Report the policy; do not re-derive the rule.
 9. **Phase 20 owns the boat detail page, the `/boats/` search facets and the responsive/visual-regression pass.** It must reuse `BoatCard` rather than introducing a second card (spec §29.1), and the detail page must use the same `finance` block from the same representation.
 10. **A new UI string goes in `FINANCE_MESSAGES` with all three languages**, never as a literal in a component (spec §37), and never using "approved", "pre-approved", "guaranteed", "offer" or "your rate" (spec §2.5) — `finance.test.ts` fails on all five.
@@ -4855,6 +5235,7 @@ Rules a later phase must follow:
 | §18.1 Optional details disclosure using live calculation results, never fixed sample copy | Task 8 (`FinanceDetailsDisclosure` fetches the server quote on first open — ruling recorded) |
 | §18.1 The disclaimer asterisk resolves within the card/list region | Tasks 8 and 9 (`disclaimerId` prop, one `#finance-disclaimer` footnote per list region, rendered only when a card on the page shows an estimate) |
 | §18.1 …and on the finance page | Task 10 (the disclaimer is always rendered, with or without a quote) |
+| §2.1 / §17.5 The standalone `/financing/` page shows real platform assumptions, not invented ones, and follows a staff change without a redeploy | Task 2 (`finance_configuration` on the public settings endpoint), Task 6 (`fetchFinanceDefaults`), Task 10 (`defaults` prop, pre-filled form, `null` → un-prefilled; Step 4c demonstrates the no-redeploy update) |
 | §18.2 The six-condition eligibility conjunction | Task 3 (`FinanceQuoteService.is_visible`, one test per condition) |
 | §18.2 If any condition fails, remove the whole estimated-payment column, CTA and disclosure; no zeros, no disabled placeholders | Tasks 3 (`{"visible": False}`), 4, 8 (the union type makes reading a figure without narrowing a compile error; the "removes the whole finance column" test asserts absence of all four elements) |
 | §18.3 CTA target `/financing/?listing=…&price=…&currency=EUR` | Task 6 (`financingHref`, exact-string test), Task 8 (test), Task 12 |
@@ -4877,21 +5258,35 @@ Rules a later phase must follow:
 | Acceptance 4 — CTA opens a separate tab without granting opener access | `BoatCard.test.tsx` (Task 8); named explicitly in Task 12's module docstring because it has no backend surface |
 | Acceptance 5 — staff changing defaults updates all non-overridden eligible cards | Task 12 `test_acceptance_5…` (one plain card changes, one overridden card does not) + Task 3's unit-level equivalent |
 
-**2. Spec coverage — cross-referenced sections.** §1's fixed decisions (global defaults 5/48/20, broker-only finance, never for private sellers) → Global Constraints, Tasks 3, 11, 12. §2.1 (every visible state has a backend source) → the image-placeholder and empty-form rulings, and the absence of any hard-coded rate/term anywhere in the frontend. §2.5 (no misleading finance language) → Task 7's forbidden-word test over the EN dictionary and Task 12 Step 4's backend grep. §4.1's `/boats/` and `/financing/` routes → Tasks 9 and 10; `/boats/<listing-slug>/` is ruled out with Phase 11's Known Limitation 6 as the reason. §10.1's settings table → Task 2, with the one addition recorded in the registry test itself. §11.4's `ListingSnapshot` → Task 1's four columns, with the §11.4-vs-§36.1 tension resolved in a written scope ruling. §11.6's `FinanceConfigurationVersion` → read, never written, by this phase; `FinanceQuoteLog` is a Known Limitation with its two natural call sites named. §17.1's formula → never re-implemented; every path calls Phase 8's `calculate_finance_quote`, and §17.1's two worked vectors (€8,456.36 and €4,569.01) both appear as assertions. §17.2's precedence and effective-source reporting → Task 3 (`GLOBAL`/`LISTING_OVERRIDE`) and Task 5 (`assumption_sources` in the response), closing Phase 8's "no configuration-precedence mechanism at all" limitation. §17.3's ranges → Task 1 (the down-payment ceiling fix), Task 3 (re-checked at read time), Task 5 (serializer bounds, unchanged). §17.4's two contexts → Task 5, closing Phase 8's "no `listing_id` quote context" limitation; §17.4's `overall_cash_outlay` note → the `finance.overall_outlay` key exists with clear labelling for whichever surface wants it. §17.5's request-time calculation and post-commit invalidation → Tasks 3 and 12 (with the on-commit capture that makes the test honest). §25.1's `can_show_finance` → contract rule 8. §29.1's boat-card field list and its four prohibitions → Task 8 (one component, one representation; no hard-coded counts, no private-seller finance, no prototype 120/6.5 copy, no client-side seller-type inference — `seller_type` comes from the API). §29.5's stacking price/payment row and keyboard-focusable CTA → Task 8's `sm:` breakpoint and a real `<a>` rendered on the server. §29.6's accessible icon text and non-colour state → Task 8's `aria-label` + `aria-hidden` icon, Task 11's labelled controls. §30.1's `POST /api/v1/finance/quotes/` → extended, not replaced. §30.2's envelope, decimal strings and stable codes → Task 5. §30.4's finance rate limit → Task 5's `finance_quote` scope on Phase 3's IP-hashing throttle. §31's traceability rows (Estimated installment / Finance assumptions / Broker finance toggle / Card view count) → Tasks 3, 4, 8, 11, each with the named failure state ("entire block hidden if ineligible", "global fallback", "absent for private seller"). §35.1's `finance_estimates` → Task 2, gating both the API block and, through it, every frontend surface. §36.1's seven finance edge cases → zero-interest (Phase 8's engine, untouched), price changes only when public and pending revisions not leaking (Task 1's snapshot + the snapshot price), draft settings not leaking (Task 1), the global kill switch (Task 3), localized currency with numeric calculation (Task 7), and exploration with the disclaimer visible (Task 10). §37's five keys for this feature → Task 7, asserted by name. §39's protocol → the per-task TDD structure, the two HTTP-level red-to-green checks in Tasks 9 and 10, and Task 12's handoff note covering all seven required items. §40 Scenarios C and D → Task 12.
+**2. Spec coverage — cross-referenced sections.** §1's fixed decisions (global defaults 5/48/20, broker-only finance, never for private sellers) → Global Constraints, Tasks 3, 11, 12. §2.1 (every visible state has a backend source; "Production UI must not display invented, hard-coded … operational data", naming `FinanceQuoteService`) → the image-placeholder ruling, and the absence of any hard-coded rate/term anywhere in the frontend: Task 2 publishes the active configuration, Task 6 fetches it, Task 10's calculator and Task 11's fieldset both take it as a prop, and a `null` configuration degrades to an un-prefilled control rather than a fallback constant. §2.5 (no misleading finance language) → Task 7's forbidden-word test over the EN dictionary and Task 12 Step 4's backend grep. §4.1's `/boats/` and `/financing/` routes → Tasks 9 and 10; `/boats/<listing-slug>/` is ruled out with Phase 11's Known Limitation 6 as the reason. §10.1's settings table → Task 2, with the one addition recorded in the registry test itself and deliberately `is_public=False` (staff-only policy, no browser consumer), which is why the public settings endpoint's exact-dict contract test needs no edit; §10.1's three finance *value* keys remain Phase 8's `FinanceConfigurationVersion` (Known Limitation 2), whose active values Task 2 now publishes read-only. §11.4's `ListingSnapshot` → Task 1's four columns, with the §11.4-vs-§36.1 tension resolved in a written scope ruling. §11.6's `FinanceConfigurationVersion` → read, never written, by this phase; `FinanceQuoteLog` is a Known Limitation with its two natural call sites named. §17.1's formula → never re-implemented; every path calls Phase 8's `calculate_finance_quote`, and §17.1's two worked vectors (€8,456.36 and €4,569.01) both appear as assertions. §17.2's precedence and effective-source reporting → Task 3 (`GLOBAL`/`LISTING_OVERRIDE`) and Task 5 (`assumption_sources` in the response), closing Phase 8's "no configuration-precedence mechanism at all" limitation. §17.3's ranges → the standalone `fix-finance-percent-ceiling` prerequisite PR (the write-path down-payment ceiling, merged to `dev` before this plan runs — not built here), Task 3 (re-checked at read time as defence in depth, with the fallback-to-global ruling), Task 5 (serializer bounds, unchanged). §17.4's two contexts → Task 5, closing Phase 8's "no `listing_id` quote context" limitation; §17.4's `overall_cash_outlay` note → the `finance.overall_outlay` key exists with clear labelling for whichever surface wants it. §17.5's request-time calculation and post-commit invalidation, and its "changes automatically affect boat cards **and the finance page**" → Tasks 3 and 12 for the card half (with the on-commit capture that makes the test honest), and Task 2 + Task 10 for the finance-page half (the page reads the active configuration at request time through the public settings endpoint, which is composed outside that endpoint's forever-cache precisely so an activation is not frozen out; Task 10 Step 4c demonstrates it end to end without a frontend rebuild). §25.1's `can_show_finance` → contract rule 8. §29.1's boat-card field list and its four prohibitions → Task 8 (one component, one representation; no hard-coded counts, no private-seller finance, no prototype 120/6.5 copy, no client-side seller-type inference — `seller_type` comes from the API). §29.5's stacking price/payment row and keyboard-focusable CTA → Task 8's `sm:` breakpoint and a real `<a>` rendered on the server. §29.6's accessible icon text and non-colour state → Task 8's `aria-label` + `aria-hidden` icon, Task 11's labelled controls. §30.1's `POST /api/v1/finance/quotes/` → extended, not replaced; `GET /api/v1/platform/public-settings/` likewise gains one top-level key and no new route, so this plan adds no URL at all. §30.2's envelope, decimal strings and stable codes → Task 5. §30.4's finance rate limit → Task 5's `finance_quote` scope on Phase 3's IP-hashing throttle. §31's traceability rows (Estimated installment / Finance assumptions / Broker finance toggle / Card view count) → Tasks 3, 4, 8, 11, each with the named failure state ("entire block hidden if ineligible", "global fallback", "absent for private seller"). §35.1's `finance_estimates` → Task 2, gating both the API block and, through it, every frontend surface. §36.1's seven finance edge cases → zero-interest (Phase 8's engine, untouched), price changes only when public and pending revisions not leaking (Task 1's snapshot + the snapshot price), draft settings not leaking (Task 1), the global kill switch (Task 3), localized currency with numeric calculation (Task 7), and exploration with the disclaimer visible and the card defaults still server-defined (Task 10 — the explored values are the server's own, pre-filled from the active configuration, and come back marked `REQUESTED`). §37's five keys for this feature → Task 7, asserted by name. §39's protocol → the per-task TDD structure, the two HTTP-level red-to-green checks in Tasks 9 and 10, and Task 12's handoff note covering all seven required items. §40 Scenarios C and D → Task 12.
 
-**Gaps deliberately left, with the owning phase named:** `FinanceQuoteLog` (§11.6, optional — any later analytics phase), the boat detail page (§4.1 — Phase 20/21), the listing form that mounts the field group (§25 — Phase 16), compact view-count formatting (§19.5 — Phase 10), CDN media URLs (§24 — Phase 15), locale routing (§37 — unchanged from Phase 5), and the public exposure of the active finance configuration (§10.1 vs. Phase 8's model choice). All are in Known Limitations; none is a §18 requirement.
+**Gaps deliberately left, with the owning phase named:** `FinanceQuoteLog` (§11.6, optional — any later analytics phase), the boat detail page (§4.1 — Phase 20/21), the listing form that mounts the field group (§25 — Phase 16), compact view-count formatting (§19.5 — Phase 10), CDN media URLs (§24 — Phase 15), locale routing (§37 — unchanged from Phase 5), and the reconciliation of §10.1's three finance setting *keys* with Phase 8's `FinanceConfigurationVersion` model (their active values are now published read-only, but they are still not registry settings). All are in Known Limitations; none is a §18 requirement.
 
-**3. Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears in any task. (The single "TODO" in the document is Global Constraints quoting spec §39's prohibition.) Every code step carries the real code; every test step carries the real test. The four places that instruct the executor to read the real file rather than repeat it — the ten untouched `EXPECTED_KEYS_AND_DEFAULTS` entries in Task 2, the existing broker-listing fixture in Task 1's `test_payloads.py` additions, the existing throttle-rate dict in Task 5, and the `<N>` counts in Task 12's handoff note — are each explicit about what to substitute and why, and none of them hides a decision.
+**Work this plan explicitly does not do, with its owner named:** the down-payment override's 99.99% write-path ceiling (spec §17.3). It is a live defect in merged `listings.payloads`, unrelated to this phase's flag-guarded UI, and is being fixed as the standalone `fix-finance-percent-ceiling` PR that merges to `dev` first. This plan assumes it and layers a read-time re-check on top (Task 3). Task 1 touches neither `listings/payloads.py` nor `listings/tests/test_payloads.py`.
+
+**3. Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears in any task. (The single "TODO" in the document is Global Constraints quoting spec §39's prohibition.) Every code step carries the real code; every test step carries the real test. Three places instruct the executor to read the real file rather than repeat it — the eleven untouched `EXPECTED_KEYS_AND_DEFAULTS` entries in Task 2, the existing throttle-rate dict in Task 5, and the `<N>` counts in Task 12's handoff note — and each is explicit about what to substitute and why. The **conditional** instruction that used to sit in Task 2's Step 4 ("if any `platform_settings` test asserts a closed set of public keys, add the new key to it") is gone: the key is `is_public=False`, so the answer is decided, not delegated, and Step 4 now states plainly that `test_public_settings_endpoint_returns_all_seeded_keys` requires no change. Every contract test this plan does change is named by file and test, with the exact edit and its justification comment written out.
+
+**3a. Locked-down contract tests touched by this plan — all four accounted for, none left as a guess:**
+
+| Test | This plan | How |
+|---|---|---|
+| `platform_settings/tests/test_registry.py::test_registry_defines_exactly_the_twelve_spec_keys` | **changes** (Task 2) | renamed, one key added to `EXPECTED_KEYS_AND_DEFAULTS`, reason written in the file; a new `test_the_broker_override_switch_is_not_a_public_setting` pins the visibility decision |
+| `platform_settings/tests/test_views.py::test_public_settings_endpoint_returns_all_seeded_keys` | **does not change** (Task 2) | the new key is `is_public=False` so it never enters `settings`, and `finance_configuration` is a sibling of `settings`, not a member — two cases are *added* to that file, none edited |
+| `listings/tests/test_public_read_api.py::test_the_response_never_exposes_a_finance_block_in_this_phase` | **replaced** (Task 4) | it asserts the absence of the thing this phase adds; replaced in place, same commit, reason in the docstring; the `forbidden` top-level-key set above it is untouched |
+| `finance/tests/test_views.py::test_finance_quote_endpoint_matches_spec_worked_example` | **changes** (Task 5) | exact-dict equality on a manual quote; `"assumption_sources": None` added with its reason, every other line byte-identical so the money values still prove no regression |
+
+`finance/tests/test_serializers.py` and `listings/tests/test_payloads.py` are the two suites this plan claims run genuinely untouched, and neither claim is load-bearing on a file this plan edits.
 
 **4. Type and name consistency (checked across every task's Interfaces block):**
-- `FinancePolicy.load()`, `FinancePolicy.active`, `FinanceQuoteService.is_visible(listing, *, policy)`, `FinanceQuoteService.card_block(listing, *, policy)` and `resolve_effective_assumptions(*, snapshot, policy)` keep identical signatures in Tasks 3, 4, 5 and 12. The `policy` keyword is never positional anywhere.
+- `FinancePolicy.load()`, `FinancePolicy.active`, `FinanceQuoteService.is_visible(listing, *, policy)`, `FinanceQuoteService.card_block(listing, *, policy)` and `resolve_effective_assumptions(*, snapshot, policy)` keep identical signatures in Tasks 3, 4, 5 and 12. The `policy` keyword is never positional anywhere. `resolve_effective_assumptions`'s precondition (`policy.configuration is not None`) is stated in its Interfaces entry, enforced by a `FinanceConfigurationUnavailable` raise in its body, pinned by its own test in Task 3, and repeated as contract rule 7a — so the one implicit rule an exported function carried is now explicit in four places.
 - `format_percent(value)` is defined once in Task 3 and used by both `card_block` (Task 3) and `_quote_response` (Task 5), so a card and a quote can never format the same rate two ways.
 - The four snapshot column names (`show_finance_estimate`, `finance_down_payment_override_percent`, `finance_rate_override_percent`, `finance_term_override_months`) are byte-identical to `BoatListing`'s, in the model (Task 1), the builder (Task 1), the factory (Task 1), the backfill migration (Task 1) and the reader (Task 3).
-- The assumption-source vocabulary is one closed set — `GLOBAL`, `LISTING_OVERRIDE`, `REQUESTED` — defined once in Task 3, used in Tasks 3 and 5, asserted as literal strings in both test files and typed as `AssumptionSource` on the frontend (Task 6).
+- The assumption-source vocabulary is one closed set — `GLOBAL`, `LISTING_OVERRIDE`, `REQUESTED` — defined once in Task 3, used in Tasks 3 and 5, asserted as literal strings in both test files and typed as `AssumptionSource` on the frontend (Task 6). The *field* vocabulary is closed too: `finance.listing_quotes.ASSUMPTION_FIELDS` and the frontend's `AssumptionField` union hold the same three names, so `assumption_sources` is `Record<AssumptionField, AssumptionSource> | null` rather than an open `Record<string, …>` and a mistyped field name is a compile error.
+- The active configuration's four published names (`version`, `annual_rate_percent`, `term_months`, `down_payment_percent`) are byte-identical to `FinanceConfigurationVersion`'s own columns in Task 2's view helper, Task 2's two endpoint tests, Task 6's `FinanceConfigurationDefaults`, Task 10's `DEFAULTS` test fixture and Task 11's `defaults` prop — and the three assumption values are the same three names `EffectiveAssumptions` and the `finance` card block use, so one rate never travels under two names. Both percent values are formatted the same way as `finance.listing_quotes.format_percent` (quantize to four places), so a card and the calculator cannot render one rate two ways.
 - The `finance` block's six keys appear identically in Task 3's implementation, Task 3's exact-dict test, Task 4's endpoint tests, Task 6's `ListingFinance` union, Task 8's component and Task 12's Scenario C assertion.
 - Error codes are a closed set — `listing_not_found`, `finance_not_available_for_listing`, `price_mismatch` — listed in Global Constraints, produced in Task 5, branched on in Task 10, and named again in contract rule 12.
 - Frontend: `tf(locale, key, params?)` (never `t`, which is Phase 5's directory function) and `formatMoney(locale, amount, currency)` / `formatCount(locale, value)` keep identical signatures in Tasks 7, 8, 9, 10 and 11. Every message key used in a component exists in `FINANCE_MESSAGES`, and Task 7's first test fails on any key missing a locale. `Locale` is imported, never redeclared (Phase 5 contract rule 12).
-- `PublicListing`, `ListingFinance`, `FinanceQuote` and `AssumptionSource` match the backend serializers field for field, including `finance` being a union rather than an optional-field object.
+- `PublicListing`, `ListingFinance`, `FinanceQuote`, `AssumptionField`, `AssumptionSource` and `FinanceConfigurationDefaults` match the backend responses field for field, including `finance` being a union rather than an optional-field object and `FinanceQuote.assumption_sources` being present-and-nullable on **both** contexts rather than optional on one — which is exactly what Task 5's widening of `finance/tests/test_views.py` makes true on the wire.
 - `BoatCard`'s props (`locale`, `listing`, `disclaimerId`) are the same three in its definition (Task 8), its test (Task 8) and its only call site (Task 9), and `disclaimerId` is required so a card cannot be mounted into a region with no footnote.
 - `FinanceFieldsetState`, `EMPTY_FINANCE_FIELDSET_STATE` and `financeFieldsetPayload` are named identically in Task 11's definition, its test and the contract summary; the payload keys it emits (`show_finance_estimate`, `finance_rate_override_percent`, `finance_term_override_months`, `finance_down_payment_override_percent`) are exactly Phase 11's `BROKER_FINANCE_FIELDS`, so a payload this builder produces is one `listings.payloads.validate_revision_payload` accepts.
 - Route names used in `reverse()` (`listing-list`, `listing-detail`, `listing-draft-update`, `finance-quote`) are Phase 8's and Phase 11's existing names; this plan adds no URL.
@@ -4899,8 +5294,18 @@ Rules a later phase must follow:
 **Gaps found and closed during this review:**
 
 1. **Two tests would have passed for the wrong reason.** `test_a_new_active_configuration_changes_a_non_overridden_card` (Task 3) and `test_acceptance_5…` (Task 12) both warm Phase 8's 300-second configuration cache before activating a new version, and `FinanceConfigurationService.activate` defers its invalidation to `transaction.on_commit`, which never fires inside a `django_db` test. Both now take `django_capture_on_commit_callbacks` and wrap the activation, matching Phase 8's own `test_activate_deactivates_previous_version_and_invalidates_cache`. Without this, spec §18's acceptance test 5 would have been "proved" by a stale cache.
-2. **A real validation gap in merged code, reachable from this phase's feature.** Phase 11's `_clean_percent` bounds both override percentages at 0–100, but spec §17.3 caps the down payment at 99.99% — and a stored 100% down payment means a zero principal, which the same section forbids. It was harmless while nothing read the field; it stops being harmless the moment a card calculates from it. Task 1 gives each field its own ceiling and Task 3 additionally re-checks stored overrides at read time, so an out-of-range value that predates the fix falls back to the global assumption instead of reaching the calculator.
+2. **A real validation gap in merged code, reachable from this phase's feature — and split out of this plan.** Phase 11's `_clean_percent` bounds both override percentages at 0–100, but spec §17.3 caps the down payment at 99.99%, and a stored 100% down payment means a zero principal, which the same section forbids. It was harmless while nothing read the field; it stops being harmless the moment a card calculates from it. The review that found it also found it did not belong here: it is a live, unflagged API-correctness defect on a write path this phase does not otherwise touch, while everything else in Phase 9 is gated behind a `finance_estimates` flag seeded disabled. Bundling the two would have made a one-line correctness fix wait on a twelve-task UI phase and would have mixed an unflagged behaviour change into a flagged release. It is therefore the standalone **`fix-finance-percent-ceiling`** PR, merged to `dev` before this plan starts; Task 1 assumes it and touches neither `listings/payloads.py` nor `listings/tests/test_payloads.py`. What stays here is Task 3's read-time re-check, which is not a duplicate: it belongs with the code that *reads* a stored value, it covers rows written before the fix, and it survives any future validator change. An out-of-range stored override falls back to the global assumption instead of reaching the calculator.
+
+2a. **Two regression tests in an earlier draft referenced a fixture that does not exist.** They took a `broker_listing` parameter and the draft claimed `listings/tests/test_payloads.py` "already builds a broker listing … so reuse that fixture/helper by its existing name". That file defines **no** `@pytest.fixture` at all — the only fixtures reaching it are the two autouse cache-clearing ones in `listings/tests/conftest.py` and `backend/conftest.py` — and its existing tests build listings inline (`make_broker_listing(broker=make_broker(), actor=make_user(email=OWNER_EMAIL))`). Both tests exercised the write path, which finding 2 moved out of this plan, so they went with it rather than being repaired here; Task 1's Step 1 records the pattern so the prerequisite PR does not repeat the mistake.
+
+2b. **An exported function could crash on a valid input.** `resolve_effective_assumptions(*, snapshot, policy)` dereferenced `policy.configuration` unconditionally. Neither of this phase's two call sites can reach it with `None` — both go through `is_visible()` first, which implies `policy.active`, which implies a configuration — so it never crashes today. But the Contract summary *exports* it, and the precondition was invisible at the call site, so a later phase would have met an `AttributeError` on `None` inside a module it did not write. It now raises `FinanceConfigurationUnavailable` with a sentence naming the precondition and how to check it, with a test. The signature was deliberately not narrowed to take a bare `configuration`: `policy` also carries `broker_overrides_enabled`, which the override half of the function needs, so splitting it would create two parameters that must agree and a ripple through Tasks 3, 5 and 12 for no extra safety.
 3. **The plan originally read the finance flags off the `BoatListing` row**, which spec §18.2's literal wording invites. Spec §36.1's "draft broker finance settings do not leak before publication" and Phase 11 contract rule 1 both forbid it, and `listings.drafts._apply_payload_to_listing` proves those columns are draft state. Task 1 (snapshot the settings) exists because of this review, and the scope ruling records the whole argument.
 4. **`listing.views` was going to be an unused key.** The card labels its count with `listing.views_label`, so the standalone noun spec §37 names had no call site. It is kept with a comment naming Phase 10's labelled-count surfaces as its consumer, rather than deleted (which would drop a §37 key) or forced into the card (which would duplicate the label).
 5. **`FinancePolicy` was originally resolved inside `card_block`.** That is two Postgres reads per card, 48 on a full page, because `get_setting_value` is uncached. It is now a request-scoped object passed as a keyword, with `test_serializing_three_cards_costs_the_same_queries_as_one` as the regression guard and contract rule 4 as the instruction for the next serializer.
-6. **The manual `/financing/` form was going to be pre-filled with 5% / 48 / 20%.** Those numbers live in `FinanceConfigurationVersion`, which the public settings endpoint does not expose, so pre-filling them would have meant hard-coding platform state in the browser — precisely what spec §29.1 lists among its prohibitions. The form starts empty with a disabled submit, and exposing the active configuration publicly is recorded as Known Limitation 2 with the one-line fix named.
+6. **The manual `/financing/` form was going to be pre-filled with a hard-coded 5% / 48 / 20%, then was going to be empty, and is now pre-filled from the server.** Hard-coding is what spec §2.1 forbids outright ("Production UI must not display invented, hard-coded … operational data", naming `FinanceQuoteService`) and what spec §17.5 breaks on the first staff activation. An empty form invents nothing but makes §17.5's "and the finance page" vacuous for the standalone case and is a visibly worse page. The third option was the right one and is small: Task 2 publishes the active `FinanceConfigurationVersion`'s four values read-only under `finance_configuration` on the endpoint that already exists, Task 6 fetches it, Task 10 pre-fills from it, and `null` degrades to an un-prefilled control rather than a fallback constant. Nothing new is disclosed — the same four values already ride on every eligible boat card's §18.5 block on the same unauthenticated endpoint family. The one trap this had to avoid is recorded in the sub-ruling: `get_public_settings()` caches its payload forever and is invalidated only by `update_setting`, which activating a configuration does not call, so the finance half is composed in the view and read through `FinanceConfigurationService`'s own activation-invalidated cache instead. Folding it into that dict would have satisfied §2.1 and silently broken §17.5.
+
+7. **A staff-only policy switch was going to be published to every anonymous visitor.** `SettingDefinition.is_public` defaults to `True` and all twelve merged keys take the default, so `finance.broker_overrides_enabled` would have joined the public payload by omission — breaking `test_public_settings_endpoint_returns_all_seeded_keys`, which an earlier draft handled with a conditional instruction ("if any test asserts a closed set, add the key to it") rather than a decision. It is now `is_public=False`, which is both correct (Task 3 reads it server-side; no browser consumer exists) and narrower: that contract test needs no edit at all. Not to be confused with finding 6 — that publishes the finance *configuration values*; this withholds a *policy flag*.
+
+8. **Task 5 broke a Phase 8 exact-dict test while claiming, twice, that it would not.** `_quote_response` adds `assumption_sources` to both response paths, so a manual quote gains a key — and `finance/tests/test_views.py::test_finance_quote_endpoint_matches_spec_worked_example` asserts exact dict equality. The draft's Interfaces note and its Step 4 both said that file "must pass untouched", while the plan's *own* new `test_a_manual_quote_is_unchanged_by_this_phase` asserted `response.data["assumption_sources"] is None`, which requires the key to exist. The two claims could not both be true. Resolved in favour of the uniform shape — one response shape for both of §17.4's contexts is what lets Task 6's single `FinanceQuote` type cover both, and the alternative would have needed an optional field or a second type — with the exact-dict test widened by exactly one entry in the same commit, its justification written into the test file the way Tasks 2 and 4 do for the other contract tests they change. Every "pass untouched" claim about that file is removed; the honest claim, that `test_serializers.py` is untouched and that every *other* line of the worked-example dict is byte-identical, is what Step 4 now asserts.
+
+9. **A migration docstring made a claim about live data that nothing in this plan can check.** `0006_backfill_snapshot_finance_settings` says it "runs against zero rows in every environment that exists today". That is probably true and is load-bearing — a non-zero count means the migration would carry a broker's stored finance settings onto a live public snapshot, and any row above the 99.99% ceiling would then be silently re-based to the global down payment by Task 3's read-time check, changing a live listing's stated terms without anyone deciding to. Task 1's Step 3e now carries an explicit, blocking controller instruction to run the counting query against every real database and confirm zero before merging, with the docstring reworded from an assertion to an expectation that names where it is verified.
