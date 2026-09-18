@@ -1,0 +1,63 @@
+from services_catalog.models import (
+    LegacyDirectoryMapping,
+    ProfessionalService,
+    ServiceCategory,
+)
+
+
+def make_service_category(
+    *,
+    slug="generic-service",
+    name_en="Generic Service",
+    display_order=0,
+    is_active=True,
+    has_seo_page=False,
+    **extra,
+):
+    return ServiceCategory.objects.create(
+        slug=slug,
+        name_en=name_en,
+        display_order=display_order,
+        is_active=is_active,
+        has_seo_page=has_seo_page,
+        **extra,
+    )
+
+
+def make_professional_service(
+    professional,
+    category,
+    *,
+    title_en="Vessel registration support",
+    is_active=True,
+    service_area=None,
+    **extra,
+):
+    return ProfessionalService.objects.create(
+        professional=professional,
+        category=category,
+        title_en=title_en,
+        is_active=is_active,
+        service_area=["IT-52"] if service_area is None else service_area,
+        **extra,
+    )
+
+
+def make_legacy_mapping(
+    *,
+    legacy_identifier,
+    target,
+    legacy_kind=None,
+    legacy_slug="",
+    resolution=None,
+    **extra,
+):
+    return LegacyDirectoryMapping.objects.create(
+        legacy_kind=legacy_kind or LegacyDirectoryMapping.LegacyKind.PROVIDER,
+        legacy_identifier=legacy_identifier,
+        legacy_slug=legacy_slug,
+        target_type=LegacyDirectoryMapping.TargetType.PROFESSIONAL_PROFILE,
+        target_id=target.pk,
+        resolution=resolution or LegacyDirectoryMapping.Resolution.MAPPED,
+        **extra,
+    )

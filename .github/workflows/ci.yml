@@ -47,6 +47,7 @@ jobs:
       OBJECT_STORAGE_BUCKET_NAME: nautelo-media
       OBJECT_STORAGE_REGION: us-east-1
       CONTACT_HASH_SECRET: ci-test-secret
+      INTERNAL_SERVICE_SECRET: ci-test-secret
       PUBLIC_BASE_URL: http://localhost:3020
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +117,11 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.check.outputs.exists == 'true'
         with:
-          node-version: 20
+          # 22, not 20: jsdom 30 (via undici 8) calls worker_threads.markAsUncloneable,
+          # which landed in Node 22.10.0 and was never backported to the 20.x line —
+          # the final 20.20.2 release still lacks it. vitest 5 and jsdom 30 both
+          # declare Node 20 unsupported in their `engines` fields.
+          node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -129,6 +134,11 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         working-directory: frontend
         run: pnpm lint
+
+      - name: Test
+        if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
+        run: pnpm test
 
       - name: Build
         if: steps.check.outputs.exists == 'true'

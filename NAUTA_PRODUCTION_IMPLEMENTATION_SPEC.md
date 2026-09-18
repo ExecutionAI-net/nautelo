@@ -2009,12 +2009,23 @@ Filter URL state must be shareable and back-button safe. Results return only act
 - Dialogs trap focus, close with Escape and restore focus.
 - Status color always paired with text.
 
+### 29.7 Listing sharing
+
+Added 2026-09-18 per project owner instruction.
+
+- Every published boat listing detail page (`/boats/<listing-slug>/`) exposes a share affordance: at minimum a WhatsApp share target and a "copy link" action, in addition to whatever other social targets or native share-sheet integration the implementation chooses.
+- The shared/copied URL is always the canonical public `/boats/<listing-slug>/` URL — never an internal, draft, staff-only, or session/tracking-parameter-carrying URL.
+- Copying the link gives a real, accessible confirmation (a visible/announced "Link copied" state), not a silent clipboard write.
+- No backend model change is required — this is a frontend affordance over an already-public URL. If a later phase wants share-click analytics, it must be a real backend-recorded event (§2.1); do not fabricate a share count.
+- Applies to the boat listing detail page as the primary surface. Extending the same share/copy-link affordance to broker or professional profile pages is a natural follow-on, not required by this entry.
+
 ### Definition of done
 
 - Visual regression snapshots exist for key breakpoints.
 - No backend-dependent UI uses fixture/demo data in production build.
 - All conditional content is confirmed against API policy flags.
 - Keyboard-only completion works for inquiry, listing creation, purchase entry and staff moderation.
+- Listing sharing (§29.7): the WhatsApp/social share target(s) and the copy-link action are present and functional on the boat listing detail page, and the copied/shared URL is verified to be the canonical public URL.
 
 ---
 

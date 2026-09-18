@@ -22,14 +22,22 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "channels",
     "storages",
     "common",
     "accounts",
+    "brokers",
+    "professionals",
+    "services_catalog",
     "audit",
     "finance",
     "taxonomy",
+    "listings",
+    "analytics",
+    "entitlements",
+    "messaging",
     "platform_settings",
 ]
 
@@ -119,7 +127,28 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "taxonomy_search": "60/min",
+        # Public listing reads (spec §30.1). Deliberately looser than
+        # `taxonomy_search`: that bucket guards a type-ahead search box, where 60
+        # requests a minute already exceeds any human typing session, while this
+        # one guards ordinary page loads — a browse page plus its detail pages,
+        # each with its own client-side prefetches, is a normal handful of
+        # requests per view. 300/min leaves real browsing untouched while still
+        # putting a ceiling on bulk scraping of the public catalogue.
+        "public_listing_read": "300/min",
         "auth": "10/min",
+        # Silent refresh runs on every fresh page load and requires an already-valid
+        # HttpOnly cookie, so it is not a credential-guessing surface. Sharing the
+        # stricter `auth` bucket would let a handful of reloads lock real people out
+        # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
+        "auth-refresh": "30/min",
+        "services_directory": "60/min",
+        # Spec §30.4 lists finance quote logging among the rate-limited
+        # surfaces while allowing "the calculation itself [to] remain
+        # reasonably accessible". The finance page recalculates on every
+        # assumption change and each boat card's details disclosure fires one
+        # request when it is opened, so the bucket is well above a browsing
+        # session and well below scripted enumeration of the catalogue.
+        "finance_quote": "120/min",
     },
     "EXCEPTION_HANDLER": "common.exceptions.nauta_exception_handler",
 }
@@ -131,6 +160,9 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(
         days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7)
     ),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
 }
 
 STORAGES = {
@@ -155,7 +187,46 @@ STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
 
 CONTACT_HASH_SECRET = env("CONTACT_HASH_SECRET")
+
+# Shared secret proving a request genuinely originates from this project's own
+# Next.js server (server-to-server, never exposed to the browser) rather than
+# the public internet. See common.ip.get_client_ip.
+INTERNAL_SERVICE_SECRET = env("INTERNAL_SERVICE_SECRET")
+
+# Spec §11.7 / §30.4: "Proxy headers are trusted only from configured reverse
+# proxies." The number of reverse proxies WE operate in front of Django. 0 means
+# none, so `X-Forwarded-For` is ignored entirely and `REMOTE_ADDR` is the client
+# — correct for the current deployment, where Django is reached directly. Set it
+# to 1 behind a single nginx/CDN edge, 2 behind two, and so on. Read by
+# common.ip.get_client_ip(); never infer it from request contents. Note this is
+# independent of INTERNAL_SERVICE_SECRET above: that path authenticates our own
+# Next.js hop, this one describes untrusted network proxies.
+TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=0)
+
+# Optional IPv6 prefix truncation before an address becomes an identity. 0 = off,
+# which is the shipped default and changes nothing. A single residential IPv6 /64
+# is 2**64 usable addresses, so an untruncated hash lets one subscriber generate
+# an unbounded number of apparently-unique viewers (and an unbounded number of
+# throttle buckets). Setting this to 64 collapses each /64 into one identity, at
+# the cost of merging everyone behind that prefix. Off by default because the
+# right value depends on real traffic; see Known Limitation 13 in the Phase 10
+# plan. IPv4 is never truncated. Read by common.ip.get_client_ip().
+IPV6_HASH_PREFIX_BITS = env.int("IPV6_HASH_PREFIX_BITS", default=0)
+
 PUBLIC_BASE_URL = env("PUBLIC_BASE_URL")
+
+# Secure-by-default: only the dev settings module opts out, and it does so out loud.
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=True)
+
+# The frontend is a separate origin from this API (no reverse proxy unifies them -
+# see docker-compose.yml) and it calls us with `credentials: "include"`, so every
+# login/refresh/session/logout call is a credentialed cross-origin request. Without
+# both of these the browser blocks the response and the client sees an opaque
+# network error. Empty by default so a misconfigured deployment fails closed and
+# loudly rather than silently allowing an origin nobody intended; dev.py pins its
+# own localhost list instead of reading the environment.
+CORS_ALLOWED_ORIGINS = env.list("DJANGO_CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_CREDENTIALS = True
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
