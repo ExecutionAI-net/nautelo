@@ -26,6 +26,7 @@ const QUOTE: FinanceQuote = {
   principal: "367200.00",
   annual_rate_percent: "5.0000",
   term_months: 48,
+  down_payment_percent: "20.0000",
   monthly_payment: "8456.36",
   total_payment: "405905.12",
   total_interest: "38705.12",
