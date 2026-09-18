@@ -10,6 +10,7 @@ from .pagination import ProfessionalDirectoryPagination
 from .permissions import CombinedDirectoryEnabled
 from .serializers import (
     ProfessionalCardSerializer,
+    ProfessionalDetailSerializer,
     ServiceCategoryDetailSerializer,
     ServiceCategorySerializer,
 )
@@ -101,3 +102,23 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
             ordering = ("-active_service_count", "display_name", "id")
 
         return queryset.order_by(*ordering).distinct()
+
+
+class ProfessionalDetailView(LocalizedContextMixin, RetrieveAPIView):
+    serializer_class = ProfessionalDetailSerializer
+    permission_classes = [AllowAny, CombinedDirectoryEnabled]
+    lookup_field = "slug"
+    throttle_scope = "services_directory"
+
+    def get_queryset(self):
+        # Only ACTIVE profiles are public: DRAFT/PENDING/SUSPENDED 404 rather
+        # than 403, so a hidden profile's existence is never disclosed.
+        return (
+            ProfessionalProfile.objects.filter(status=ProfessionalProfileStatus.ACTIVE)
+            .prefetch_related("services__category")
+            .annotate(
+                active_service_count=Count(
+                    "services", filter=Q(services__is_active=True), distinct=True
+                )
+            )
+        )
