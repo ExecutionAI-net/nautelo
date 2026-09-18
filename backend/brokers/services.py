@@ -8,6 +8,8 @@ from audit.models import AuditEvent
 from audit.services import record_audit_event
 from brokers.models import BrokerOrganization
 
+POLICY_REASON_MAX_LENGTH = 500
+
 
 @dataclass(frozen=True)
 class PolicyChange:
@@ -37,6 +39,17 @@ def clean_policy_reason(reason: str | None) -> str:
                     ErrorDetail(
                         "Explain why this broker's auto-approval policy is changing.",
                         code="policy_reason_required",
+                    )
+                ]
+            }
+        )
+    if len(cleaned) > POLICY_REASON_MAX_LENGTH:
+        raise ValidationError(
+            {
+                "reason": [
+                    ErrorDetail(
+                        f"Keep the reason to {POLICY_REASON_MAX_LENGTH} characters or fewer.",
+                        code="policy_reason_too_long",
                     )
                 ]
             }
