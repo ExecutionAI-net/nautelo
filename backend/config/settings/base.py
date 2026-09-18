@@ -177,6 +177,10 @@ STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
 
 CONTACT_HASH_SECRET = env("CONTACT_HASH_SECRET")
+# Shared secret proving a request genuinely originates from this project's own
+# Next.js server (server-to-server, never exposed to the browser) rather than
+# the public internet. See common.throttling.HashedIPScopedRateThrottle.
+INTERNAL_SERVICE_SECRET = env("INTERNAL_SERVICE_SECRET")
 PUBLIC_BASE_URL = env("PUBLIC_BASE_URL")
 
 # Secure-by-default: only the dev settings module opts out, and it does so out loud.

@@ -2,10 +2,18 @@
 // Deliberately separate from src/lib/api/client.ts, which is the browser
 // client (access token, credentials, refresh retry) and throws on every
 // non-2xx. Here a 404 is a meaningful answer, not an error.
+import { forwardedClientIp } from "./internal-headers";
+
 export const DIRECTORY_API_BASE_URL =
   // 127.0.0.1, not localhost: this runs in Node during SSR and this machine
   // resolves localhost to IPv6 ::1 (Phase 0/1 retrospective).
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8020";
+
+// Server-only: never NEXT_PUBLIC_-prefixed, so Next.js never inlines this
+// into a client bundle. Proves a services_directory request genuinely came
+// from this project's own Next.js server - see
+// common.throttling.HashedIPScopedRateThrottle.
+const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET ?? "";
 
 // The single source of truth for the locale union in the whole frontend: it is
 // the API contract's ?locale= parameter. lib/i18n/directory.ts imports and
@@ -90,8 +98,13 @@ export interface Paginated<T> {
 }
 
 export async function directoryFetch<T>(path: string): Promise<T | null> {
+  const clientIp = await forwardedClientIp();
   const response = await fetch(`${DIRECTORY_API_BASE_URL}${path}`, {
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "X-Internal-Service-Secret": INTERNAL_SERVICE_SECRET,
+      ...(clientIp ? { "X-Internal-Client-IP": clientIp } : {}),
+    },
     // Directory content is staff-edited and provider-edited; never serve a
     // stale grid from the build cache.
     cache: "no-store",
