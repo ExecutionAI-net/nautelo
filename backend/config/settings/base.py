@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "entitlements",
     "messaging",
     "platform_settings",
+    "payments",
 ]
 
 MIDDLEWARE = [
