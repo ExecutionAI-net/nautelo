@@ -1,10 +1,5 @@
-import stripe
-from django.conf import settings
 from django.core.cache import cache
 from django.db import connection
-from django.http import HttpResponse
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -50,19 +45,3 @@ class HealthCheckView(APIView):
         except Exception:
             return "unavailable"
 
-
-@method_decorator(csrf_exempt, name="dispatch")
-class StripeWebhookView(APIView):
-    permission_classes = [AllowAny]
-    authentication_classes = []
-
-    def post(self, request):
-        payload = request.body
-        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
-        try:
-            stripe.Webhook.construct_event(
-                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
-            )
-        except (ValueError, stripe.error.SignatureVerificationError):
-            return HttpResponse(status=400)
-        return HttpResponse(status=200)
