@@ -172,6 +172,16 @@ PUBLIC_BASE_URL = env("PUBLIC_BASE_URL")
 # Secure-by-default: only the dev settings module opts out, and it does so out loud.
 REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=True)
 
+# The frontend is a separate origin from this API (no reverse proxy unifies them -
+# see docker-compose.yml) and it calls us with `credentials: "include"`, so every
+# login/refresh/session/logout call is a credentialed cross-origin request. Without
+# both of these the browser blocks the response and the client sees an opaque
+# network error. Empty by default so a misconfigured deployment fails closed and
+# loudly rather than silently allowing an origin nobody intended; dev.py pins its
+# own localhost list instead of reading the environment.
+CORS_ALLOWED_ORIGINS = env.list("DJANGO_CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_CREDENTIALS = True
+
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 
