@@ -3,6 +3,7 @@ from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from common.throttling import HashedIPScopedRateThrottle
+from conftest import clear_own_cache_keys
 from taxonomy.models import BoatBrand
 
 
@@ -45,7 +46,7 @@ def test_boat_brand_search_is_rate_limited(monkeypatch):
     # not retroactively update that already-bound dict on the throttle
     # class. Monkeypatching the scope entry directly is the reliable way to
     # exercise the throttle in a test.
-    cache.clear()
+    clear_own_cache_keys()
     monkeypatch.setitem(
         HashedIPScopedRateThrottle.THROTTLE_RATES, "taxonomy_search", "2/min"
     )
