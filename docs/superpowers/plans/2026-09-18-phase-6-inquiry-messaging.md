@@ -16,6 +16,7 @@
 - [`2026-09-17-phase-3-identity-organizations-permissions.md`](./2026-09-17-phase-3-identity-organizations-permissions.md) — **hard dependency, fully merged.** Supplies `User`, `User.is_email_verified`, `IsActiveUser`/`IsEmailVerified`, `accounts.services.can_read_broker_messages`, `active_broker_membership`, `BrokerOrganization`/`BrokerMembership`, `ProfessionalProfile`, `HashedIPScopedRateThrottle` and `nauta_exception_handler`. Its contract rules 1, 2, 4, 5, 8 and 9 are binding here. Rule 4 names `CanReadBrokerMessages` for message access — see the ruling below for why this phase calls the service function underneath it instead.
 - [`2026-09-18-phase-5-directory-consolidation.md`](./2026-09-18-phase-5-directory-consolidation.md) — **hard dependency, fully merged.** Its contract rule 2 reserves the mount point this phase uses (`PHASE 6 SEAM` in the professional detail page) and rule 1 forbids widening the directory serializers with contact fields. Its `DIRECTORY_MESSAGES`/`Locale` pattern is the template for this phase's message dictionary.
 - [`2026-09-18-phase-11-listing-workflow.md`](./2026-09-18-phase-11-listing-workflow.md) — supplies `listings.views.published_listings_queryset()`, which is the **only** definition of "a listing a stranger may inquire about" (its contract rule 1). This plan reads it and modifies nothing in `listings/`.
+- [`2026-09-18-phase-10-listing-analytics.md`](./2026-09-18-phase-10-listing-analytics.md) and [`2026-09-18-services-directory-throttle-ip-forwarding.md`](./2026-09-18-services-directory-throttle-ip-forwarding.md) — **merged**, and load-bearing here. Between them they produced `backend/common/ip.py` (`get_client_ip`, honouring `X-Internal-Client-IP` only behind a matching `X-Internal-Service-Secret`) and `frontend/src/lib/api/internal-headers.ts` + `directoryFetch`'s forwarding. `fetchInquiryConfig` goes through `directoryFetch` for exactly that reason (Task 11).
 - [`2026-09-17-phase-2-shared-types-platform-settings.md`](./2026-09-17-phase-2-shared-types-platform-settings.md) — `common.models.UUIDTimeStampedModel`, `audit.services.record_audit_event()`, `platform_settings.services.is_feature_enabled()`/`set_feature_flag()` and the in-consuming-app feature-flag seed-migration pattern.
 - [`2026-09-18-phase-13-quota-entitlement.md`](./2026-09-18-phase-13-quota-entitlement.md) — not a dependency, but read its Global Constraints note on `ValidationError`: **every** DRF `ValidationError` collapses to `code: "validation_error"` in this project's envelope, so a field-level error code never reaches the wire. This plan depends on that fact and says where.
 
@@ -79,7 +80,7 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 
 - **`validation_error` is the only code a field error can produce.** `common.exceptions.nauta_exception_handler` maps **every** `ValidationError` — subclass or not — to `code: "validation_error"` with `fields` built by `_field_map`, which flattens each item with `str()`. `str(ErrorDetail)` is the **message**, never the code. So a wire-level test asserts `response.data["error"]["fields"]["email"] == ["<message>"]`; an assertion looking for a field-level code string in the JSON body will always fail. Every code in the table above that must surface as `error.code` is therefore an `APIException` subclass with a `default_code`, **not** a `ValidationError`.
 - **Error envelope:** spec §30.2, produced by `common.exceptions.nauta_exception_handler`. `rate_limited` additionally carries `error.meta = {"retry_after_seconds": <int>}` through the handler's existing `meta` passthrough, alongside DRF's own `Retry-After` header (spec §30.4: "Return 429 with retry information").
-- **Feature flag for this phase:** `unified_inquiries` (spec §35.1), seeded **enabled**, mirroring Phase 5's `combined_services_professionals` rather than Phase 11's disabled `listing_revisions` — see the ruling. Flag off ⇒ every messaging endpoint returns `403 feature_disabled` **and** the form is not rendered, so §35.1's "do not leave an enabled API behind a disabled UI" holds in both directions.
+- **Feature flag for this phase:** `unified_inquiries` (spec §35.1), seeded **enabled**, mirroring Phase 5's `combined_services_professionals` rather than Phase 11's disabled `listing_revisions` — see the ruling. Flag off ⇒ every messaging endpoint returns `403 feature_disabled` **and** the form is not rendered, so §35.1's "do not leave an enabled API behind a disabled UI" holds in both directions. **One deliberate carve-out:** `GET /api/v1/inquiries/config/` still answers `200` with `{"enabled": false}`, because it *is* the mechanism that tells the page not to render the form — a `403` there would leave the server component unable to tell "switched off" from "API broken", and both would then have to fail the same way. It is the only messaging endpoint without `UnifiedInquiriesEnabled`; it exposes no user data and performs no mutation.
 - **Privacy policy version:** `"2026-09"` (spec §15.5's literal). A submission carrying any other value is refused with `consent_required`. It is a module constant, not a platform setting — see the ruling.
 - **Rate limits (spec §30.4).** New `DEFAULT_THROTTLE_RATES` scopes added by this plan, all served by the already-installed `common.throttling.HashedIPScopedRateThrottle`; views declare **only** `throttle_scope`, never `throttle_classes` (Phase 3 contract rule 9):
   - `inquiry_submit` = **`20/hour`**
@@ -113,7 +114,16 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 
 ## Cross-phase collision notice (read this first)
 
-Phases **9, 10, 12 and 13** are planned (three of them `ready`) and in flight against `backend/listings/`, `backend/platform_settings/` and `backend/common/throttling.py`. **This plan touches none of those files.** Its complete footprint in already-merged code is four files, every edit append-only:
+Phases **9, 10, 12 and 13** are actively landing against `backend/listings/`, `backend/platform_settings/`, `backend/finance/` and `backend/common/`. Some of their work is **already merged into `dev`** and this plan is written against that merged state, not against the state those plans described:
+
+- **`entitlements` is a real installed app**, sitting between `"listings"` and `"platform_settings"` in `INSTALLED_APPS` (`backend/config/settings/base.py`). Task 1's edit appends after it.
+- **`backend/common/ip.py` exists** (Phase 10 Task 1) and `common/throttling.py` now delegates its identity resolution to `common.ip.get_client_ip()`, which honours `X-Internal-Client-IP` when `X-Internal-Service-Secret` matches. `fetchInquiryConfig` relies on this; see Known Limitation 14.
+- **`frontend/src/lib/api/internal-headers.ts` exists** and `directoryFetch` already forwards both headers (PR #103).
+- **`listings/publication.py`** (Phase 12 Task 1), `finance/listing_quotes.py` and `finance/migrations/0003`, `platform_settings/migrations/0005` are merged.
+
+Migrations are still landing in those apps, so **generate this phase's migrations against the tree you are on, and read the real latest migration name before writing a `dependencies` entry.** This plan's two hand-written dependencies are on `("platform_settings", "0004_featureflag")` — the migration that creates the `FeatureFlag` model. That is deliberately the *earliest* node that provides what the migration needs rather than the current tip: migrations form a DAG, so depending on `0004` stays correct however far `platform_settings` advances, and it cannot conflict with another phase appending `0006`.
+
+**This plan touches no file under `listings/`, `platform_settings/`, `common/`, `brokers/`, `professionals/` or `accounts/`.** Its complete footprint in already-merged code is four files, every edit append-only:
 
 | Already-merged file | This plan's change | Task | Overlap risk |
 |---|---|---|---|
@@ -170,6 +180,13 @@ Spec §15.3 steps 5 and 6 put "Create recipient in-app notification" and "Regist
 
 **Note (ruling — the `unified_inquiries` flag is seeded enabled, and gates both surfaces).**
 Phase 11 and Phase 13 seed their flags **disabled** because they gate *refusal* of an existing working flow. This flag gates an entirely new capability that nothing depends on yet, exactly like Phase 5's `combined_services_professionals`, which is seeded **enabled**. A disabled flag would ship a professional detail page that renders no inquiry form, which is the state Phase 5 already shipped and this phase exists to end. Gate behaviour: `403 feature_disabled` from every messaging endpoint (the `listings.permissions.ListingWorkflowEnabled` pattern, not `services_catalog`'s 404 — these are private API surfaces, not public pages whose existence is itself a signal), and `GET /api/v1/inquiries/config/` reports `enabled: false` so the server component omits the form entirely. That is §35.1's "flags gate both frontend exposure and backend mutation" satisfied in one round trip the form already has to make.
+
+**Note (ruling — spec §34.5's browser end-to-end suite is Phase 23's, and this phase covers its scenario 1 at two lower levels).**
+Spec §34.5 scenario 1 is this phase's journey almost word for word: *"Guest opens professional, sees locked contact, fills form, authenticates, confirms send, sees contact unlock."* Two things make it not a deliverable here. First, §34.5 sits inside **§34, "Phase 23 — Test strategy and release acceptance"**, alongside the visual-regression and accessibility suites, and its ten scenarios span nine different phases — building one of them alone would mean standing up a browser harness for a tenth of a suite. Second, **there is no browser-test harness in this repository at all**: `frontend/package.json`'s dev dependencies are Vitest, jsdom and Testing Library, with no Playwright, Cypress or WebDriver, and `pnpm test` is `vitest run`. Adding one is a tooling decision with CI-runtime consequences that belongs to the phase that owns the suite.
+What this phase does instead is cover the same journey at the two levels it *can* prove, so Phase 23 inherits a working path rather than a hypothesis: **Task 12** drives guest → fill → save draft → redirect to `/login/?next=…` → return → restore → *confirm* Send as component tests with real user events, and **Task 14** proves the server half end to end over HTTP (Scenario A). The one step neither covers is scenario 1's last clause, "sees contact unlock" — that is Phase 7's panel, which does not exist. Recorded in Known Limitations.
+
+**Note (ruling — spec §15.1's phone "country selector" is not built; the field takes E.164 directly).**
+§15.1 asks for "E.164-compatible input and country selector". The input is built and validated (`E164_PATTERN`, server-side, in Task 7). The *selector* is not, for the reason §2.1 gives: a country/dial-code picker needs a list of countries and calling codes, and this project has no such table, no staff screen to curate one, and no other consumer for it — so the list would be invented data hard-coded into a component. It is also a presentation affordance, not a rule: the field accepts and the server enforces exactly the same values with or without it. The form ships a `type="tel"` input, an `autoComplete="tel"` hint and a localized format example (`inquiry.phone_hint`). Recorded in Known Limitations for Phase 20, which owns the public UI polish and is where a shared country dataset would first pay for itself.
 
 **Note (ruling — the messages *pages* are seams; this phase ships their backend and one mount point).**
 `frontend/src/app/` today contains `403`, `health`, `login`, `verify-email`, `page.tsx`, `sitemap.ts`, `professionals/profile/` (a redirect route) and the three `services/` routes. **There is no `/boats/`, no `/brokers/`, no `/dashboard/` and no `/messages/` route.** So of §15.4's four recipient inboxes and §15's four inquiry locations, exactly **one** page exists to mount on: the professional detail page, at the `PHASE 6 SEAM` Phase 5 reserved. This plan mounts `InquiryForm` there, and ships the complete backend for all four contexts plus the inbox/thread/reply API those pages will read. Building `/boats/<slug>/`, `/brokers/<slug>/`, `/dashboard/broker/messages/` or `/messages/` here would mean inventing pages Phases 19 and 20 own (spec §28, §29) and rebuilding them when those phases land. The component is written context-agnostic and takes `context={{ type, id, label }}`, so those phases mount the *same* component with no change to it — which is what §15's definition of done ("All inquiry locations render the same component/version") actually asks for. Recorded in Known Limitations.
@@ -245,7 +262,10 @@ nautelo/
 │           ├── test_inquiry_drafts_api.py                         (new: Task 8)
 │           ├── test_conversation_list_api.py                      (new: Task 9)
 │           ├── test_conversation_thread_api.py                    (new: Task 10)
-│           └── test_phase_6_acceptance.py                         (new: Task 14)
+│           ├── test_phase_6_acceptance.py                         (new: Task 14)
+│           └── test_concurrency.py                                (new: Task 14 — the
+│                                                                   ONE module carrying
+│                                                                   transaction=True)
 └── frontend/
     ├── src/lib/api/inquiries.ts                                   (new: Task 11)
     ├── src/lib/api/inquiries.test.ts                              (new: Task 11)
@@ -528,15 +548,20 @@ def conversation_url(conversation_id) -> str:
 
 - [ ] **Step 5: Register the app in `INSTALLED_APPS`**
 
-In `backend/config/settings/base.py`, append `"messaging",` to the `INSTALLED_APPS` list, immediately after `"listings",`. This is an **append only** — read the real file and add one line. Do not reorder or reformat the existing entries (the tracker's "Known cross-phase risk" section names this exact file).
+In `backend/config/settings/base.py`, append `"messaging",` to the `INSTALLED_APPS` list, immediately after `"entitlements",`. This is an **append only** — read the real file and add one line. Do not reorder or reformat the existing entries (the tracker's "Known cross-phase risk" section names this exact file).
+
+The tail of the list as it stands on `dev` — Phase 13's `entitlements` app is **already merged**, so `"listings"` is no longer the last local app:
 
 ```python
     "taxonomy",
     "listings",
+    "entitlements",
     "messaging",
     "platform_settings",
 ]
 ```
+
+**Read the file before editing.** Three other phases are landing apps in this window; if `INSTALLED_APPS` has grown again, append after whatever the last local app is and leave `"platform_settings"` last, exactly as every prior phase has.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
@@ -957,9 +982,12 @@ def make_conversation(
 
 ```python
 import pytest
+from django.contrib.auth.models import Group
 from django.core.cache import cache
 
+from accounts.enums import StaffGroup
 from messaging.enums import UNIFIED_INQUIRIES_FLAG
+from platform_settings.models import FeatureFlag
 from platform_settings.services import set_feature_flag
 
 #: Flags this app's tests toggle. Listed so the autouse fixture below clears
@@ -968,15 +996,58 @@ from platform_settings.services import set_feature_flag
 #: leak into the next.
 MESSAGING_FEATURE_FLAG_KEYS = [UNIFIED_INQUIRIES_FLAG]
 
+FLAG_TEST_DESCRIPTION = "Spec 35.1 rollout flag for the shared inquiry form."
+
 
 @pytest.fixture(autouse=True)
 def _clear_messaging_caches():
     """backend/conftest.py already clears the cache around every test; this
     mirrors listings/tests/conftest.py so the guarantee survives a change to the
-    root fixture's ordering."""
+    root fixture's ordering.
+
+    Defined FIRST so it runs before _messaging_reference_rows below: pytest
+    executes same-scope autouse fixtures in definition order, and the row-seeding
+    fixture writes a flag whose cached value must not be a stale one.
+    """
     cache.clear()
     yield
     cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _messaging_reference_rows(db):
+    """Guarantee the reference rows this app's tests assume, instead of trusting
+    a migration seed to still be there.
+
+    Two rows are at stake: the `unified_inquiries` FeatureFlag that
+    messaging/0002 seeds enabled, and the `staff_moderator`/`staff_admin` Groups
+    that accounts/0003 seeds. Both are created by RunPython data migrations, and
+    a `@pytest.mark.django_db(transaction=True)` test anywhere in the session
+    ends with a `flush`, which truncates every table and re-emits `post_migrate`
+    - and `post_migrate` restores content types and permissions, NOT rows a data
+    migration inserted. Whether that actually bites depends on collection order
+    and on Django/pytest-django internals; this fixture means it cannot bite
+    HERE regardless, which is cheaper than being right about the internals.
+
+    In-repo evidence that the concern is real rather than theoretical:
+    `brokers/tests/test_admin.py:35` already writes
+    `Group.objects.get_or_create(name=StaffGroup.MODERATOR)` where every other
+    call site writes `Group.objects.get(...)` - a defensive spelling somebody
+    adopted for exactly this class of problem.
+
+    `update_or_create`, not `get_or_create`, for the flag: the test's starting
+    state must be ENABLED whatever a previous run left behind. The
+    `unified_inquiries_disabled` fixture below is requested explicitly, so
+    pytest runs it AFTER this autouse one and its `False` wins where a test asks
+    for it.
+    """
+    FeatureFlag.objects.update_or_create(
+        key=UNIFIED_INQUIRIES_FLAG,
+        defaults={"is_enabled": True, "description": FLAG_TEST_DESCRIPTION},
+    )
+    for name in StaffGroup.ALL:
+        Group.objects.get_or_create(name=name)
+    yield
 
 
 @pytest.fixture
@@ -991,6 +1062,8 @@ def unified_inquiries_disabled(db):
     )
     yield
 ```
+
+**Why the autouse fixture requests `db`:** it makes every module in `messaging/tests/` a database test, including `test_enums.py`, which otherwise needs no database. That is a deliberate, cheap trade — nine pure-Python assertions gaining a transaction is invisible next to the guarantee that no messaging test depends on a migration seed surviving another module's `flush`.
 
 - [ ] **Step 3e: Generate the model migration**
 
@@ -1037,7 +1110,7 @@ class Migration(migrations.Migration):
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/ -v`
-Expected: PASS — 9 items from `test_enums.py` plus **10** from `test_conversation_model.py`.
+Expected: PASS — 9 items from `test_enums.py` plus **10** from `test_conversation_model.py` (19 in the package so far).
 
 Then prove the constraints exist in PostgreSQL rather than only in Python:
 
@@ -1299,7 +1372,14 @@ class Message(UUIDTimeStampedModel):
     # Beyond spec 11.8's list - see the note in this task. Both exist for the
     # same reason sender_email_snapshot does: they record what the sender stated
     # at send time, not a live join to a profile that may since have changed.
-    sender_name_snapshot = models.CharField(max_length=FULL_NAME_MAX_LENGTH)
+    #
+    # blank/default="": an INQUIRY always carries a name (spec 15.1 makes it
+    # required, 2-120 characters), but a REPLY has no name field, so it stores
+    # whatever the account's own `full_name` holds - which may be empty, and
+    # must NEVER fall back to the email address. See services._reply_display_name.
+    sender_name_snapshot = models.CharField(
+        max_length=FULL_NAME_MAX_LENGTH, blank=True, default=""
+    )
     sender_phone_snapshot = models.CharField(max_length=32, blank=True, default="")
     is_system = models.BooleanField(default=False)
     # Spec 33.2: "Obtain required consent/version on inquiry." A versioned
@@ -1496,9 +1576,9 @@ git commit -m "feat(messaging): Message and ContactAccessGrant models with activ
   - `notifications.enums.DeliveryChannel` — `IN_APP`, `WEBSOCKET`, `EMAIL`
   - `notifications.enums.DeliveryStatus` — `QUEUED`, `SENT`, `FAILED`, `SKIPPED`
   - `notifications.enums.EXCERPT_MAX_LENGTH: int = 200`
-  - `notifications.models.Notification` — `id`, `recipient`, `notification_type`, `title_key`, `body_key`, `payload`, `target_url`, `read_at`, `created_at`, `updated_at`; reverse accessor `user.notifications`
+  - `notifications.models.Notification` — `id`, `recipient`, `notification_type`, `title_key`, `body_key`, `payload`, `target_url`, `read_at`, `dedupe_key`, `created_at`, `updated_at`; partial unique index on `(recipient, notification_type, dedupe_key)` where the key is non-empty; reverse accessor `user.notifications`
   - `notifications.models.NotificationDelivery` — `notification`, `channel`, `status`, `attempt_count`, `provider_message_id`, `last_error_code`, `sent_at`; `unique(notification, channel)`; reverse accessor `notification.deliveries`
-  - `notifications.services.create_notification(*, recipient, notification_type, title_key, body_key, target_url, payload=None, email_to="") -> Notification`
+  - `notifications.services.create_notification(*, recipient, notification_type, title_key, body_key, target_url, payload=None, email_to="", dedupe_key="") -> Notification` — idempotent on `(recipient, notification_type, dedupe_key)` when the key is non-empty
   - `notifications.tasks.send_notification_email(notification_id: str, to_email: str) -> None`
   - `notifications.tests.factories.make_notification(...)`
 
@@ -1541,6 +1621,7 @@ from notifications.models import Notification, NotificationDelivery
 from notifications.services import create_notification
 
 pytestmark = pytest.mark.django_db
+
 
 
 def test_enum_values_match_spec_11_10_and_27_1():
@@ -1617,6 +1698,76 @@ def test_one_delivery_row_per_channel_is_enforced_by_the_database():
             NotificationDelivery.objects.create(
                 notification=notification, channel=DeliveryChannel.IN_APP
             )
+
+
+def test_a_repeated_dedupe_key_returns_the_same_row_and_adds_no_delivery():
+    """Spec 27.1 gives `inquiry.received` a deduplication key (the message ID)
+    and spec 27's acceptance tests require that "Retried task does not create
+    duplicate in-app notification/delivery"."""
+    recipient = make_user(email="dedupe@phase6.example")
+    kwargs = {
+        "recipient": recipient,
+        "notification_type": NotificationType.INQUIRY_RECEIVED,
+        "title_key": "notification.inquiry_received.title",
+        "body_key": "notification.inquiry_received.body",
+        "target_url": "/dashboard/messages/abc/",
+        "dedupe_key": "message-1",
+    }
+    first = create_notification(**kwargs)
+    second = create_notification(**kwargs)
+
+    assert second.pk == first.pk
+    assert Notification.objects.count() == 1
+    assert first.deliveries.count() == 1
+
+
+def test_a_repeated_dedupe_key_queues_no_second_email():
+    recipient = make_user(email="dedupe2@phase6.example")
+    kwargs = {
+        "recipient": recipient,
+        "notification_type": NotificationType.INQUIRY_RECEIVED,
+        "title_key": "notification.inquiry_received.title",
+        "body_key": "notification.inquiry_received.body",
+        "target_url": "/dashboard/messages/abc/",
+        "dedupe_key": "message-2",
+        "email_to": "office@phase6.example",
+    }
+    first = create_notification(**kwargs)
+    create_notification(**kwargs)
+
+    assert first.deliveries.filter(channel=DeliveryChannel.EMAIL).count() == 1
+
+
+def test_the_same_key_for_two_recipients_is_two_notifications():
+    """Spec 15.4: one message legitimately notifies every broker team member
+    with can_read_messages. The constraint is scoped per recipient for exactly
+    that reason."""
+    kwargs = {
+        "notification_type": NotificationType.INQUIRY_RECEIVED,
+        "title_key": "notification.inquiry_received.title",
+        "body_key": "notification.inquiry_received.body",
+        "target_url": "/dashboard/messages/abc/",
+        "dedupe_key": "message-3",
+    }
+    create_notification(recipient=make_user(email="dd-a@phase6.example"), **kwargs)
+    create_notification(recipient=make_user(email="dd-b@phase6.example"), **kwargs)
+
+    assert Notification.objects.filter(dedupe_key="message-3").count() == 2
+
+
+def test_a_blank_dedupe_key_is_never_deduplicated():
+    """An event type with no natural key must still be creatable more than once;
+    the unique index is partial and exempts the empty string."""
+    recipient = make_user(email="dedupe3@phase6.example")
+    for _ in range(2):
+        create_notification(
+            recipient=recipient,
+            notification_type=NotificationType.INQUIRY_RECEIVED,
+            title_key="notification.inquiry_received.title",
+            body_key="notification.inquiry_received.body",
+            target_url="/dashboard/messages/abc/",
+        )
+    assert Notification.objects.filter(recipient=recipient).count() == 2
 
 
 def test_notifications_are_ordered_newest_first():
@@ -1716,6 +1867,27 @@ def test_a_successful_send_marks_the_delivery_row_sent():
     delivery.refresh_from_db()
     assert delivery.status == DeliveryStatus.SENT
     assert delivery.sent_at is not None
+    assert delivery.attempt_count == 1
+
+
+def test_a_retried_task_does_not_send_the_email_twice():
+    """Spec 27's acceptance test, verbatim: "Retried task does not create
+    duplicate in-app notification/delivery."
+
+    Celery redelivers after a lost worker just as readily when the send already
+    succeeded as when it failed, and the broker cannot tell the two apart, so
+    the second run has to be a no-op.
+    """
+    recipient = make_user(email="retry@phase6.example")
+    notification = _notify(recipient, email_to="retry-office@phase6.example")
+    mail.outbox.clear()
+
+    send_notification_email(str(notification.pk), "retry-office@phase6.example")
+    send_notification_email(str(notification.pk), "retry-office@phase6.example")
+
+    assert len(mail.outbox) == 1
+    delivery = notification.deliveries.get(channel=DeliveryChannel.EMAIL)
+    assert delivery.status == DeliveryStatus.SENT
     assert delivery.attempt_count == 1
 
 
@@ -1824,12 +1996,29 @@ class Notification(UUIDTimeStampedModel):
     payload = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder)
     target_url = models.CharField(max_length=300)
     read_at = models.DateTimeField(null=True, blank=True)
+    # Spec 27.1's "Deduplication key" column, which every row of that table
+    # defines (`inquiry.received` -> message ID) but 11.10's field list omits.
+    # Recorded as an addition beyond 11.10 rather than presented as spec-literal.
+    # Blank means "not deduplicated" and is never constrained, so an event type
+    # that has no natural key can still be created.
+    dedupe_key = models.CharField(max_length=200, blank=True, default="")
 
     class Meta:
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=["recipient", "read_at"]),
             models.Index(fields=["recipient", "-created_at"]),
+        ]
+        constraints = [
+            # Spec 27's acceptance test: "Retried task does not create duplicate
+            # in-app notification/delivery." Partial, so the empty key is exempt.
+            # Scoped to the recipient because one message legitimately produces
+            # one notification per broker team member (spec 15.4).
+            models.UniqueConstraint(
+                fields=["recipient", "notification_type", "dedupe_key"],
+                condition=~models.Q(dedupe_key=""),
+                name="notifications_dedupe_key_unique_per_recipient",
+            ),
         ]
 
     def __str__(self):
@@ -1883,25 +2072,52 @@ def create_notification(
     target_url: str,
     payload: dict | None = None,
     email_to: str = "",
+    dedupe_key: str = "",
 ) -> Notification:
     """Create one in-app notification and, when an address is given, queue its
     email for AFTER the surrounding transaction commits (spec 27.3: "Queue only
     after commit"; spec 2.3: "Notifications are scheduled through
     transaction.on_commit()").
 
+    IDEMPOTENT on `dedupe_key` (spec 27.1's per-event "Deduplication key"; for
+    `inquiry.received` that key is the message ID). A second call with the same
+    (recipient, type, key) returns the EXISTING row and queues no second email -
+    which is what spec 27's acceptance test "Retried task does not create
+    duplicate in-app notification/delivery" asks for, and what makes a retried
+    or replayed caller safe. `get_or_create` plus a partial unique index, not a
+    bare existence check: two workers can race, and only the index settles it.
+
     Callers invoke this from INSIDE their own transaction.atomic() block, so a
     rolled-back business transaction leaves no notification and sends no email.
     No WEBSOCKET delivery row is written: Phase 18 owns spec 27.2 and adds the
     row in the same change that adds the consumer that drains it.
     """
-    notification = Notification.objects.create(
-        recipient=recipient,
-        notification_type=notification_type,
-        title_key=title_key,
-        body_key=body_key,
-        target_url=target_url,
-        payload=payload or {},
-    )
+    defaults = {
+        "title_key": title_key,
+        "body_key": body_key,
+        "target_url": target_url,
+        "payload": payload or {},
+    }
+    if dedupe_key:
+        notification, created = Notification.objects.get_or_create(
+            recipient=recipient,
+            notification_type=notification_type,
+            dedupe_key=dedupe_key,
+            defaults=defaults,
+        )
+        if not created:
+            # Already delivered once. Returning early is the whole point: no
+            # second IN_APP row (the unique(notification, channel) constraint
+            # would refuse it anyway) and, more importantly, no second email.
+            return notification
+    else:
+        notification = Notification.objects.create(
+            recipient=recipient,
+            notification_type=notification_type,
+            dedupe_key="",
+            **defaults,
+        )
+
     NotificationDelivery.objects.create(
         notification=notification,
         channel=DeliveryChannel.IN_APP,
@@ -1956,6 +2172,15 @@ SUBJECTS = {
     "IT": "Nuovo messaggio su NAUTA",
     "ES": "Nuevo mensaje en NAUTA",
 }
+# Used when the sender's account carries no name. Never their email address:
+# messaging._reply_display_name deliberately stores "" rather than letting
+# User.get_full_name()'s `full_name or email` fallback leak an address into a
+# message another party reads. Per-locale, not a concatenated literal (spec 37).
+SENDER_FALLBACK = {
+    "EN": "A NAUTA user",
+    "IT": "Un utente NAUTA",
+    "ES": "Un usuario de NAUTA",
+}
 BODIES = {
     "EN": (
         "{sender} sent you a message about {context} on NAUTA.\n\n"
@@ -1999,7 +2224,7 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
 
     payload = notification.payload or {}
     body = BODIES[locale].format(
-        sender=payload.get("sender_display_name", ""),
+        sender=payload.get("sender_display_name") or SENDER_FALLBACK[locale],
         context=payload.get("context_label", ""),
         excerpt=payload.get("excerpt", ""),
         url=f"{settings.PUBLIC_BASE_URL}{notification.target_url}",
@@ -2008,6 +2233,16 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
     delivery, _ = NotificationDelivery.objects.get_or_create(
         notification=notification, channel=DeliveryChannel.EMAIL
     )
+    if delivery.status == DeliveryStatus.SENT:
+        # Spec 27's acceptance test: a retried task must not duplicate a
+        # delivery. Celery redelivers on worker loss AFTER the send succeeded
+        # just as readily as after it failed, and the broker cannot tell the two
+        # apart - so the only safe answer is to make the second run a no-op.
+        logger.info(
+            "notification email already sent; skipping retry",
+            extra={"notification_id": str(notification.pk)},
+        )
+        return
     delivery.attempt_count += 1
     try:
         send_mail(
@@ -2115,10 +2350,11 @@ def make_notification(
 
 - [ ] **Step 4f: Register the app and its Celery route**
 
-In `backend/config/settings/base.py`, append `"notifications",` to `INSTALLED_APPS` immediately after `"messaging",`, and append one entry to the existing `CELERY_TASK_ROUTES` dict. Both are **append only** — read the real file:
+In `backend/config/settings/base.py`, append `"notifications",` to `INSTALLED_APPS` immediately after `"messaging",` (which Task 1 added after the merged `"entitlements"`), and append one entry to the existing `CELERY_TASK_ROUTES` dict. Both are **append only** — read the real file:
 
 ```python
     "listings",
+    "entitlements",
     "messaging",
     "notifications",
     "platform_settings",
@@ -2141,7 +2377,7 @@ Expected: `notifications/migrations/0001_initial.py` creating both models.
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `cd backend && uv run pytest notifications/tests/ -v`
-Expected: PASS — **5** items in `test_notification_models.py` and **5** in `test_notification_email.py`.
+Expected: PASS — **10** items in `test_notification_models.py` and **6** in `test_notification_email.py`.
 
 Run: `cd backend && uv run python manage.py check`
 Expected: `System check identified no issues`.
@@ -2797,7 +3033,8 @@ git commit -m "feat(messaging): server-side inquiry context resolution and recip
 - Produces:
   - `messaging.exceptions.ConsentRequired` — `APIException`, 400, `default_code="consent_required"`
   - `messaging.signals.inquiry_received` — `Signal`, sent inside `transaction.on_commit()` with kwargs `sender=Message` (the class), `conversation`, `message`, `notification_ids: list[str]`
-  - `messaging.permissions.UnifiedInquiriesEnabled` — `BasePermission`, `code="feature_disabled"`
+  - `messaging.exceptions.FeatureDisabled` — `APIException`, 403, `default_code="feature_disabled"`
+  - `messaging.permissions.UnifiedInquiriesEnabled` — `BasePermission` that **raises** `FeatureDisabled` (never returns `False`; see the class docstring)
   - `messaging.permissions.InquiryEmailVerified` — subclass of `accounts.permissions.IsEmailVerified`, `code="email_verification_required"`
   - `messaging.services.InquiryResult` — frozen dataclass: `conversation`, `message`, `contact_access: str`, `next_url: str`, `created_conversation: bool`, `created_grant: bool`
   - `messaging.services.submit_inquiry(*, actor, context_type, context_id, full_name, phone, subject, body, privacy_policy_version, marketing_consent=False, request_id=None) -> InquiryResult`
@@ -3125,9 +3362,25 @@ def test_a_long_body_is_excerpted_to_200_characters(asker, professional):
 Run: `cd backend && uv run pytest messaging/tests/test_submit_inquiry.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'messaging.services'`.
 
-- [ ] **Step 3a: Append `ConsentRequired` to `backend/messaging/exceptions.py`**
+- [ ] **Step 3a: Append `FeatureDisabled` and `ConsentRequired` to `backend/messaging/exceptions.py`**
 
 ```python
+class FeatureDisabled(APIException):
+    """Spec 35.1's flag, off.
+
+    Raised from UnifiedInquiriesEnabled.has_permission() rather than signalled by
+    returning False, because DRF's APIView.permission_denied() short-circuits to
+    `401 NotAuthenticated` for any request without credentials and never reaches
+    a permission class's `code`. On the AllowAny guest-draft route that would
+    have answered `401 authentication_required` to a flag-off request. See the
+    permission class's docstring.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Inquiries are temporarily unavailable."
+    default_code = "feature_disabled"
+
+
 class ConsentRequired(APIException):
     """Spec 15.1's required privacy consent, and spec 33.2's "Obtain required
     consent/version on inquiry". Raised both when the checkbox is missing and
@@ -3169,6 +3422,7 @@ from rest_framework.permissions import BasePermission
 
 from accounts.permissions import IsEmailVerified
 from messaging.enums import UNIFIED_INQUIRIES_FLAG
+from messaging.exceptions import FeatureDisabled
 from platform_settings.services import is_feature_enabled
 
 
@@ -3179,13 +3433,23 @@ class UnifiedInquiriesEnabled(BasePermission):
     uses: these are private API surfaces, not public pages whose very existence
     is the thing being hidden, and a client that already holds a session needs
     to distinguish "switched off" from "wrong URL".
+
+    It RAISES rather than returning False, and that is load-bearing, not style.
+    DRF's `APIView.permission_denied` answers `401 NotAuthenticated` whenever the
+    request carried no credentials - before it ever looks at WHICH permission
+    failed or at its `code`. On an AllowAny endpoint (the guest draft route) a
+    flag-off answer would therefore have been `401 authentication_required`,
+    which describes the wrong problem: the caller's credentials were never at
+    issue. Raising skips that branch entirely, so every endpoint answers `403
+    feature_disabled` for anonymous and authenticated callers alike. This is the
+    same technique the merged `services_catalog.permissions.CombinedDirectoryEnabled`
+    uses (it raises `NotFound()`), for the same underlying reason.
     """
 
-    message = "Inquiries are temporarily unavailable."
-    code = "feature_disabled"
-
     def has_permission(self, request, view):
-        return is_feature_enabled(UNIFIED_INQUIRIES_FLAG, default=False)
+        if not is_feature_enabled(UNIFIED_INQUIRIES_FLAG, default=False):
+            raise FeatureDisabled()
+        return True
 
 
 class InquiryEmailVerified(IsEmailVerified):
@@ -3530,7 +3794,7 @@ def submit_inquiry(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_submit_inquiry.py -v`
-Expected: PASS — **13 collected test items**.
+Expected: PASS — **12 collected test items**.
 
 Run the whole app plus the untouched neighbours, to prove nothing regressed:
 
@@ -3655,6 +3919,28 @@ def test_the_rollout_flag_off_returns_403_feature_disabled(
     api.force_authenticate(asker)
     response = api.post(
         reverse("inquiry-create"), _body(professional.pk, asker.email), format="json"
+    )
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "feature_disabled"
+
+
+def test_the_flag_off_answer_is_403_for_an_anonymous_caller_too(
+    api, professional, unified_inquiries_disabled
+):
+    """The reason UnifiedInquiriesEnabled RAISES instead of returning False.
+
+    DRF's APIView.permission_denied answers 401 NotAuthenticated for any request
+    without credentials before it ever looks at which permission failed - so a
+    permission class that merely returns False would make every anonymous
+    flag-off request read as `authentication_required`, which is a lie about
+    what went wrong. On this endpoint the anonymous caller is refused for
+    authentication anyway, which is why the guest-draft route (AllowAny) is the
+    one that really proves it - see test_inquiry_drafts_api.py.
+    """
+    response = api.post(
+        reverse("inquiry-create"),
+        _body(professional.pk, "nobody@phase6.example"),
+        format="json",
     )
     assert response.status_code == 403
     assert response.data["error"]["code"] == "feature_disabled"
@@ -4283,7 +4569,7 @@ urlpatterns = [
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_inquiry_api.py -v`
-Expected: PASS — **22 collected test items**.
+Expected: PASS — **25 collected test items**.
 
 Then confirm the URL names resolve and nothing else broke:
 
@@ -4482,11 +4768,28 @@ def test_a_half_typed_draft_is_accepted(api, professional):
 def test_the_flag_gates_both_draft_endpoints(
     api, professional, unified_inquiries_disabled
 ):
-    response = api.post(
+    """The decisive test for UnifiedInquiriesEnabled raising rather than
+    returning False.
+
+    inquiry-draft-create is AllowAny, so an anonymous caller reaches the
+    permission stack with no credentials. Had the permission class returned
+    False, DRF's permission_denied() would have answered `401
+    authentication_required` - describing a problem the caller does not have,
+    on the one route whose entire purpose is to serve people who are not signed
+    in yet. Raising FeatureDisabled skips that branch.
+    """
+    anonymous = api.post(
         reverse("inquiry-draft-create"), _draft_body(professional), format="json"
     )
-    assert response.status_code == 403
-    assert response.data["error"]["code"] == "feature_disabled"
+    assert anonymous.status_code == 403
+    assert anonymous.data["error"]["code"] == "feature_disabled"
+
+    api.force_authenticate(make_user(email="draft-flagoff@phase6.example"))
+    resolve = api.post(
+        reverse("inquiry-draft-resolve"), {"draft_token": "anything"}, format="json"
+    )
+    assert resolve.status_code == 403
+    assert resolve.data["error"]["code"] == "feature_disabled"
 
 
 def test_a_resolved_draft_does_not_send_anything(api, professional):
@@ -4731,7 +5034,8 @@ git commit -m "feat(messaging): signed guest inquiry drafts for the spec 15.2 re
 - Produces:
   - `messaging.selectors.conversations_visible_to(user) -> QuerySet[Conversation]`
   - `messaging.selectors.can_view_conversation(user, conversation) -> bool`
-  - `messaging.selectors.annotate_unread(queryset, user) -> QuerySet[Conversation]` (adds `unread_count`)
+  - `messaging.selectors.annotate_unread(queryset, user) -> QuerySet[Conversation]` (adds `unread_count`, as a correlated `Subquery` — not a `Count` aggregate, so the outer query stays ungrouped)
+  - `messaging.selectors.annotate_last_message(queryset) -> QuerySet[Conversation]` (adds `first_sender_name`, `last_message_body`)
   - `messaging.pagination.ConversationPagination` — `page_size=20`, `page_size_query_param="page_size"`, `max_page_size=100`
   - `messaging.serializers.ConversationSerializer`
   - `messaging.views.ConversationListView` (route name `conversation-list`)
@@ -4747,6 +5051,9 @@ git commit -m "feat(messaging): signed guest inquiry drafts for the spec 15.2 re
 (the backend source Phase 19's broker Messages screen reads)."""
 
 import pytest
+from django.contrib.auth.models import Group
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -4754,7 +5061,6 @@ from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
 from brokers.enums import BrokerMembershipRole
 from brokers.tests.factories import make_broker, make_membership
-from django.contrib.auth.models import Group
 from messaging.enums import ConversationStatus, ConversationType
 from messaging.tests.factories import make_conversation, make_message
 from professionals.tests.factories import make_professional
@@ -4819,6 +5125,19 @@ def test_a_guest_gets_401_authentication_required(api):
     assert response.data["error"]["code"] == "authentication_required"
 
 
+def test_the_flag_off_answer_is_403_for_both_anonymous_and_authenticated(
+    api, scene, unified_inquiries_disabled
+):
+    anonymous = api.get(reverse("conversation-list"))
+    assert anonymous.status_code == 403
+    assert anonymous.data["error"]["code"] == "feature_disabled"
+
+    api.force_authenticate(scene["asker"])
+    signed_in = api.get(reverse("conversation-list"))
+    assert signed_in.status_code == 403
+    assert signed_in.data["error"]["code"] == "feature_disabled"
+
+
 def test_the_initiator_sees_both_of_their_threads(api, scene):
     api.force_authenticate(scene["asker"])
     response = api.get(reverse("conversation-list"))
@@ -4863,7 +5182,10 @@ def test_an_unrelated_user_sees_nothing(api, scene):
 def test_a_staff_moderator_sees_nothing_either(api, scene):
     """See this task's ruling: Phase 6 ships no staff messaging surface."""
     moderator = make_user(email="inbox-moderator@phase6.example", role=UserRole.STAFF)
-    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    # get_or_create, not get: the same defensive spelling brokers/tests/test_admin.py:35
+    # uses. messaging/tests/conftest.py's autouse fixture already guarantees the
+    # row, and this keeps the test true even if that fixture is ever narrowed.
+    moderator.groups.add(Group.objects.get_or_create(name=StaffGroup.MODERATOR)[0])
     api.force_authenticate(moderator)
     response = api.get(reverse("conversation-list"))
     assert response.data["results"] == []
@@ -4970,23 +5292,40 @@ def test_the_list_is_paginated_and_newest_first(api, scene):
     assert stamps == sorted(stamps, reverse=True)
 
 
-def test_the_inbox_query_count_does_not_grow_per_extra_row(
-    api, scene, django_assert_max_num_queries
-):
+def test_the_inbox_query_count_is_constant_in_the_number_of_rows(api, scene):
     """Spec 33.3: "Avoid N+1 queries in cards/directories; verify with
     query-count tests."
 
-    `conversations_visible_to` already select_relateds broker, professional and
-    the listing's snapshot, so the only per-row cost is spec 28's own row shape:
-    the first message (sender name) and the last one (excerpt). The budget below
-    is a fixed overhead plus exactly two per row - if a change pushes it over,
-    add the missing select_related/prefetch to `conversations_visible_to`, never
-    a per-row query to the serializer.
+    An absolute budget that scales with the row count (`max_num_queries(k + 2 *
+    rows)`) cannot fail on an N+1 - it BUDGETS for one. This compares two real
+    inboxes instead: 2 rows and 7 rows must cost the SAME number of queries.
+    `conversations_visible_to` select_relateds the three context objects, and
+    `annotate_last_message`/`annotate_unread` fold the first sender, the last
+    body and the unread tally into the list query as correlated subqueries, so
+    the total is fixed. If this fails, the fix is an annotation or a
+    select_related in the selector, never a per-row query in the serializer.
     """
     api.force_authenticate(scene["asker"])
-    rows = 2  # the fixture's two threads
-    with django_assert_max_num_queries(6 + 2 * rows):
-        api.get(reverse("conversation-list"))
+    with CaptureQueriesContext(connection) as small:
+        first = api.get(reverse("conversation-list"))
+    assert len(first.data["results"]) == 2
+
+    for index in range(5):
+        broker = make_broker(
+            name=f"Phase6 Bulk {index}", slug=f"phase6-bulk-{index}"
+        )
+        conversation = make_conversation(
+            initiator=scene["asker"],
+            conversation_type=ConversationType.BROKER_INQUIRY,
+            broker=broker,
+        )
+        make_message(conversation=conversation, sender=scene["asker"])
+
+    with CaptureQueriesContext(connection) as large:
+        second = api.get(reverse("conversation-list"))
+
+    assert len(second.data["results"]) == 7
+    assert len(large) == len(small), [entry["sql"] for entry in large]
 
 
 def test_no_contact_value_appears_in_any_row(api, scene):
@@ -5010,10 +5349,11 @@ Expected: FAIL — `NoReverseMatch: Reverse for 'conversation-list' not found`.
 Consolidate the new imports at the top of the module:
 
 ```python
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 
 from brokers.models import BrokerMembership
-from messaging.models import Conversation
+from messaging.models import Conversation, Message
 ```
 
 ```python
@@ -5082,13 +5422,49 @@ def annotate_unread(queryset, user):
     Spec 11.8 puts ONE nullable read_at on Message, so for a broker team this
     counts "unread by the recipient side", not "unread by this member". That is
     what the spec's data model supports; see the plan's Known Limitations.
+
+    A correlated Subquery rather than `Count("messages", filter=...)`: the
+    aggregate form puts a GROUP BY on the outer query, which then has to
+    co-exist with `.distinct()` (needed because the visibility filter ORs across
+    two joins) and with pagination's `.count()`. A scalar subquery keeps the
+    outer query ungrouped, so the row count, the ordering and the LIMIT all stay
+    exactly what they look like. Coalesce because a conversation with no
+    matching messages yields NULL, and the API must report 0.
     """
+    unread = (
+        Message.objects.filter(conversation=OuterRef("pk"), read_at__isnull=True)
+        .exclude(sender=user)
+        .order_by()
+        .values("conversation")
+        .annotate(total=Count("pk"))
+        .values("total")
+    )
     return queryset.annotate(
-        unread_count=Count(
-            "messages",
-            filter=Q(messages__read_at__isnull=True) & ~Q(messages__sender=user),
-            distinct=True,
+        unread_count=Coalesce(
+            Subquery(unread, output_field=IntegerField()), Value(0)
         )
+    )
+
+
+def annotate_last_message(queryset):
+    """The two per-row fields spec 28's conversation row needs, as annotations.
+
+    Spec 33.3: "Avoid N+1 queries in cards/directories; verify with query-count
+    tests." Reading `conversation.messages.first()` and `.last()` from the
+    serializer costs TWO queries per row, which is the textbook N+1 - twenty
+    inbox rows would issue forty-one queries. Two correlated subqueries move
+    both into the single list query, so the cost is constant in the number of
+    rows. `is_system=False` matches the serializer's own rule: a system note is
+    never the "sender display name" and never the excerpt.
+    """
+    visible = Message.objects.filter(conversation=OuterRef("pk"), is_system=False)
+    return queryset.annotate(
+        first_sender_name=Subquery(
+            visible.order_by("created_at").values("sender_name_snapshot")[:1]
+        ),
+        last_message_body=Subquery(
+            visible.order_by("-created_at").values("body")[:1]
+        ),
     )
 ```
 
@@ -5176,15 +5552,22 @@ class ConversationSerializer(serializers.Serializer):
         not what a grant reveals either. For the recipient it is the name the
         sender stated on their first message (spec 15.1's Full name), read from
         the snapshot rather than joined to a live profile.
+
+        `first_sender_name` is an annotation from selectors.annotate_last_message();
+        reading `conversation.messages.first()` here instead would be one query
+        per row (spec 33.3). It may legitimately be the empty string - see
+        services._reply_display_name - and the client renders the localized
+        `inquiry.sender_unnamed` string for that case rather than showing an
+        email address.
         """
         if conversation.initiator_id == self._viewer().pk:
             return self.get_context(conversation)["label"]
-        first = conversation.messages.filter(is_system=False).first()
-        return first.sender_name_snapshot if first is not None else ""
+        return getattr(conversation, "first_sender_name", None) or ""
 
     def get_last_message_excerpt(self, conversation) -> str:
-        last = conversation.messages.filter(is_system=False).last()
-        return "" if last is None else message_excerpt(last.body)
+        # Annotation, not a per-row query - same reason as above.
+        body = getattr(conversation, "last_message_body", None) or ""
+        return message_excerpt(body) if body else ""
 ```
 
 - [ ] **Step 3d: Append to `backend/messaging/views.py`**
@@ -5194,7 +5577,11 @@ from rest_framework.generics import ListAPIView
 
 from messaging.enums import ConversationStatus, ConversationType
 from messaging.pagination import ConversationPagination
-from messaging.selectors import annotate_unread, conversations_visible_to
+from messaging.selectors import (
+    annotate_last_message,
+    annotate_unread,
+    conversations_visible_to,
+)
 from messaging.serializers import ConversationSerializer
 ```
 
@@ -5215,8 +5602,10 @@ class ConversationListView(MessagingAPIView, ListAPIView):
 
     def get_queryset(self):
         params = self.request.query_params
-        queryset = annotate_unread(
-            conversations_visible_to(self.request.user), self.request.user
+        queryset = annotate_last_message(
+            annotate_unread(
+                conversations_visible_to(self.request.user), self.request.user
+            )
         )
 
         status_filter = params.get("status", ConversationStatus.OPEN).upper()
@@ -5253,7 +5642,7 @@ class ConversationListView(MessagingAPIView, ListAPIView):
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_conversation_list_api.py -v`
-Expected: PASS — **17 collected test items**.
+Expected: PASS — **19 collected test items**.
 
 Run the whole app to prove nothing earlier regressed:
 
@@ -5314,6 +5703,9 @@ from messaging.models import Message
 from messaging.tests.factories import make_conversation, make_message
 from notifications.models import Notification
 from professionals.tests.factories import make_professional
+
+# `reverse("conversation-list")` is used by the display-name regression test
+# below, which checks the inbox payload as well as the thread payload.
 
 pytestmark = pytest.mark.django_db
 
@@ -5498,6 +5890,36 @@ def test_replying_to_a_blocked_thread_is_refused(api, thread):
     assert response.data["error"]["code"] == "conversation_closed"
 
 
+def test_a_blank_named_replier_never_leaks_their_email_address(api, thread):
+    """Regression guard.
+
+    `User.get_full_name()` is `self.full_name or self.email` and
+    `accounts.services.register_user` defaults `full_name=""`, so ANY use of it
+    to derive a display name puts an email address in front of the other party.
+    services._reply_display_name reads `actor.full_name` only and stores "".
+    """
+    nameless = make_user(email="thr-nameless@phase6.example", full_name="")
+    # Give them a seat at this thread: they own the professional profile.
+    thread["professional"].owner_user = nameless
+    thread["professional"].save(update_fields=["owner_user", "updated_at"])
+
+    api.force_authenticate(nameless)
+    response = api.post(
+        _messages_url(thread["conversation"]), {"message": REPLY}, format="json"
+    )
+
+    assert response.status_code == 201
+    reply = Message.objects.latest("created_at")
+    assert reply.sender_name_snapshot == ""
+    assert nameless.email not in reply.sender_name_snapshot
+
+    api.force_authenticate(thread["asker"])
+    thread_body = api.get(_messages_url(thread["conversation"])).content.decode()
+    inbox_body = api.get(reverse("conversation-list")).content.decode()
+    assert nameless.email not in thread_body
+    assert nameless.email not in inbox_body
+
+
 def test_a_short_reply_is_a_field_error(api, thread):
     api.force_authenticate(thread["owner"])
     response = api.post(
@@ -5537,6 +5959,15 @@ def test_a_stranger_cannot_mark_a_thread_read(api, thread):
 
 
 def test_the_flag_gates_the_thread_endpoints(api, thread, unified_inquiries_disabled):
+    # Anonymous first: the answer must be feature_disabled, not the
+    # authentication_required DRF would produce from a permission class that
+    # returned False instead of raising.
+    assert api.get(_messages_url(thread["conversation"])).status_code == 403
+    assert (
+        api.get(_messages_url(thread["conversation"])).data["error"]["code"]
+        == "feature_disabled"
+    )
+
     api.force_authenticate(thread["asker"])
     assert api.get(_messages_url(thread["conversation"])).status_code == 403
     assert (
@@ -5668,6 +6099,10 @@ def _dispatch_notifications(
             target_url=conversation_url(conversation.pk),
             payload=payload,
             email_to=email_to if index == email_index and email_to else "",
+            # Spec 27.1's deduplication key for `inquiry.received` is the
+            # message ID. Scoped per recipient by the model's constraint, so a
+            # broker team still gets one notification each.
+            dedupe_key=str(message.pk),
         )
         notification_ids.append(str(notification.pk))
     return notification_ids
@@ -5696,10 +6131,25 @@ from messaging.selectors import conversation_context, conversation_recipients
 
 ```python
 def _reply_display_name(actor) -> str:
-    """Spec 15.1's Full name is collected on the inquiry form; a reply composer
-    has no such field, so the name comes from the account. get_short_name() is
-    the fallback for an account with no full name set."""
-    return actor.get_full_name() or actor.get_short_name()
+    """The replier's stated name, or the empty string - NEVER their email.
+
+    `actor.full_name` and nothing else. Do not reach for `User.get_full_name()`
+    or `get_short_name()`: both are `self.full_name or self.email`
+    (accounts/models.py), so an account that never set a name would put its
+    EMAIL ADDRESS into `Message.sender_name_snapshot`, which
+    `MessageSerializer.get_sender()["display_name"]` and
+    `ConversationSerializer.get_counterparty_name()` hand straight to the other
+    party. `accounts.services.register_user` defaults `full_name=""`, so this is
+    the common case, not an edge one - and spec 15.1's Full name field exists on
+    the inquiry form precisely because an account name is not guaranteed.
+
+    An empty string is returned rather than a fabricated English placeholder:
+    backend-generated user-visible text must be a translation key, not a
+    concatenated literal (spec 37). The thread UI renders
+    `inquiry.sender_unnamed` for a blank name (Phase 19), and the notification
+    email substitutes its own per-locale fallback in notifications/tasks.py.
+    """
+    return (actor.full_name or "").strip()
 
 
 @transaction.atomic
@@ -5789,6 +6239,11 @@ class MessageSerializer(serializers.Serializer):
     sender = serializers.SerializerMethodField()
 
     def get_sender(self, message) -> dict:
+        """`display_name` may be the empty string, and that is the correct
+        answer for a replier whose account has no name: the alternative -
+        User.get_full_name()'s `full_name or email` - would publish an email
+        address to the other party. The client renders the localized
+        `inquiry.sender_unnamed` string for a blank name (spec 37)."""
         viewer = self.context["request"].user
         return {
             "display_name": message.sender_name_snapshot,
@@ -5817,6 +6272,7 @@ from rest_framework.exceptions import NotAuthenticated, NotFound
 from messaging.models import Conversation
 from messaging.pagination import ConversationPagination, MessagePagination
 from messaging.selectors import (
+    annotate_last_message,
     annotate_unread,
     can_view_conversation,
     conversations_visible_to,
@@ -5957,7 +6413,7 @@ class MessagePagination(PageNumberPagination):
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_conversation_thread_api.py -v`
-Expected: PASS — **15 collected test items**.
+Expected: PASS — **16 collected test items**.
 
 Then the whole backend, to prove nothing in another app regressed:
 
@@ -5983,7 +6439,7 @@ git commit -m "feat(messaging): conversation thread, reply and mark-read endpoin
 - Test: the three `.test.ts` files above
 
 **Interfaces:**
-- Consumes: `@/lib/api/client`'s `apiFetch` and `ApiError` (Phase 3); `@/lib/api/directory`'s `DIRECTORY_API_BASE_URL` and `type Locale` (Phase 5 contract rules 12 and its export list). **`Locale` is imported, never redeclared** (Phase 5 contract rule 12).
+- Consumes: `@/lib/api/client`'s `apiFetch` and `ApiError` (Phase 3); `@/lib/api/directory`'s **`directoryFetch`** (Phase 5's contract, extended by the merged PR #103 to forward `X-Internal-Service-Secret` + `X-Internal-Client-IP`); `DEFAULT_LOCALE` and `type Locale` from **`@/lib/i18n/directory`** — that module is where `DEFAULT_LOCALE` is declared, and it re-exports `Locale` from `@/lib/api/directory`, which remains the single declaration site (Phase 5 contract rule 12). **`Locale` is imported, never redeclared.**
 - Produces:
   - `@/lib/api/inquiries`: `INQUIRY_CONTEXT_TYPES`, types `InquiryContextType`, `InquiryContextRef`, `InquiryConfig`, `InquiryResult`, `InquiryDraftFields`, `InquirySubmission`; functions `fetchInquiryConfig()`, `submitInquiry(payload)`, `createInquiryDraft(fields)`, `resolveInquiryDraft(token)`
   - `@/lib/i18n/inquiry`: `INQUIRY_MESSAGES`, `tInquiry(locale, key)`, `formatInquiryMessage(template, values)`
@@ -5994,52 +6450,62 @@ git commit -m "feat(messaging): conversation thread, reply and mark-read endpoin
 `frontend/src/lib/api/inquiries.test.ts`:
 
 ```ts
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchInquiryConfig } from "@/lib/api/inquiries";
 
-afterEach(() => {
-  vi.unstubAllGlobals();
+const directoryFetch = vi.fn();
+vi.mock("@/lib/api/directory", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/directory")>();
+  return { ...actual, directoryFetch: (...args: unknown[]) => directoryFetch(...args) };
+});
+
+const CONFIG = {
+  enabled: true,
+  privacy_policy_version: "2026-09",
+  honeypot_field: "company_website",
+  limits: {
+    full_name: { min: 2, max: 120 },
+    subject: { min: 3, max: 150 },
+    message: { min: 20, max: 4000 },
+    phone_max: 32,
+  },
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
 });
 
 describe("fetchInquiryConfig", () => {
   it("reads the config from the API", async () => {
-    const payload = {
-      enabled: true,
-      privacy_policy_version: "2026-09",
-      honeypot_field: "company_website",
-      limits: {
-        full_name: { min: 2, max: 120 },
-        subject: { min: 3, max: 150 },
-        message: { min: 20, max: 4000 },
-        phone_max: 32,
-      },
-    };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(JSON.stringify(payload), { status: 200 })),
-    );
+    directoryFetch.mockResolvedValue(CONFIG);
+    await expect(fetchInquiryConfig()).resolves.toEqual(CONFIG);
+  });
 
-    await expect(fetchInquiryConfig()).resolves.toEqual(payload);
+  it("goes through directoryFetch, which is what forwards the visitor IP", async () => {
+    // Not an implementation detail: directoryFetch attaches
+    // X-Internal-Service-Secret and X-Internal-Client-IP (PR #103), without
+    // which every server-rendered visitor shares one `messaging_read` throttle
+    // bucket and a 429 makes the inquiry form disappear from the page. A plain
+    // `fetch()` here would compile, pass a happy-path test, and reintroduce
+    // exactly that - so the delegation is asserted, not assumed.
+    directoryFetch.mockResolvedValue(CONFIG);
+    await fetchInquiryConfig();
+    expect(directoryFetch).toHaveBeenCalledWith("/api/v1/inquiries/config/");
   });
 
   it("returns null when the API is unreachable, so the page fails closed", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("ECONNREFUSED");
-      }),
-    );
-
+    directoryFetch.mockRejectedValue(new Error("ECONNREFUSED"));
     await expect(fetchInquiryConfig()).resolves.toBeNull();
   });
 
   it("returns null on a non-2xx rather than throwing during SSR", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("{}", { status: 503 })),
-    );
+    directoryFetch.mockRejectedValue(new Error("Directory API failed: 503"));
+    await expect(fetchInquiryConfig()).resolves.toBeNull();
+  });
 
+  it("returns null on a 404, which directoryFetch reports as null", async () => {
+    directoryFetch.mockResolvedValue(null);
     await expect(fetchInquiryConfig()).resolves.toBeNull();
   });
 });
@@ -6150,7 +6616,7 @@ Expected: FAIL — `Failed to resolve import "@/lib/api/inquiries"`.
 // The shared inquiry API (spec 15.5, 30.1). One module for all three contexts,
 // because there is one endpoint and one form (spec 15.1, spec 39).
 import { apiFetch } from "@/lib/api/client";
-import { DIRECTORY_API_BASE_URL } from "@/lib/api/directory";
+import { directoryFetch } from "@/lib/api/directory";
 
 export const INQUIRY_CONTEXT_TYPES = ["LISTING", "BROKER", "PROFESSIONAL"] as const;
 export type InquiryContextType = (typeof INQUIRY_CONTEXT_TYPES)[number];
@@ -6208,18 +6674,29 @@ export interface InquiryDraftFields {
 }
 
 /**
- * Public, unauthenticated read. Runs during SSR, so it uses
- * DIRECTORY_API_BASE_URL (127.0.0.1, not localhost - this machine resolves
- * localhost to IPv6 ::1, per the Phase 0/1 retrospective) and never throws: a
- * page that cannot reach the API must render without the form rather than 500.
+ * Public, unauthenticated read, executed during SSR.
+ *
+ * It delegates to `directoryFetch` rather than calling `fetch` itself, and that
+ * is the whole point: `directoryFetch` (merged with PR #103) attaches
+ * `X-Internal-Service-Secret` and the visitor's `X-Internal-Client-IP`, which
+ * `backend/common/ip.py` verifies with `hmac.compare_digest` before believing
+ * the forwarded address. Without it every server-rendered visitor shares one
+ * throttle bucket, and the `messaging_read` limit (120/min) would be consumed
+ * platform-wide by ordinary traffic - at which point this call 429s, returns
+ * null, and the professional page silently renders with NO inquiry form. It
+ * also supplies the right base URL (127.0.0.1, not localhost, because this
+ * machine resolves localhost to IPv6 ::1 - Phase 0/1 retrospective) and
+ * `cache: "no-store"`.
+ *
+ * `directoryFetch` returns null on 404 and throws on any other non-2xx; both
+ * become null here, because a page that cannot reach the API must render
+ * without the form rather than 500. The config endpoint never 404s in practice
+ * (it is AllowAny and reports the flag state in its body), so a null answer
+ * means "API unreachable" and the page fails closed.
  */
 export async function fetchInquiryConfig(): Promise<InquiryConfig | null> {
   try {
-    const response = await fetch(`${DIRECTORY_API_BASE_URL}/api/v1/inquiries/config/`, {
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as InquiryConfig;
+    return await directoryFetch<InquiryConfig>("/api/v1/inquiries/config/");
   } catch {
     return null;
   }
@@ -6282,9 +6759,11 @@ export const INQUIRY_MESSAGES: Record<string, Translations> = {
   },
   "inquiry.full_name": { en: "Full name", it: "Nome completo", es: "Nombre completo" },
   "inquiry.email_hint": {
-    en: "Update in account",
-    it: "Modifica nell'account",
-    es: "Actualizar en la cuenta",
+    // Spec 15.1's "Update in account". Rendered as text, not a link, until an
+    // /account/ page exists - see the comment at its render site.
+    en: "Messages are sent from your account email. Change it in your account settings.",
+    it: "I messaggi vengono inviati dall'email del tuo account. Modificala nelle impostazioni.",
+    es: "Los mensajes se envían desde el correo de tu cuenta. Cámbialo en los ajustes.",
   },
   "inquiry.phone": {
     en: "Phone (optional)",
@@ -6314,6 +6793,14 @@ export const INQUIRY_MESSAGES: Record<string, Translations> = {
     es: "Enviarme novedades ocasionales de NAUTA.",
   },
   "inquiry.sending": { en: "Sending…", it: "Invio…", es: "Enviando…" },
+  // Rendered wherever a message's `sender.display_name` is the empty string -
+  // which is what the backend stores for a replier whose account has no name,
+  // rather than leaking their email address. Phase 19's thread UI consumes it.
+  "inquiry.sender_unnamed": {
+    en: "A NAUTA user",
+    it: "Un utente NAUTA",
+    es: "Un usuario de NAUTA",
+  },
   "inquiry.sign_in_to_send": {
     en: "Sign in to send",
     it: "Accedi per inviare",
@@ -6437,7 +6924,7 @@ export function clearDraftToken(context: InquiryContextRef): void {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run src/lib/api/inquiries.test.ts src/lib/i18n/inquiry.test.ts src/lib/inquiry/draft-storage.test.ts`
-Expected: PASS — 3 + 6 + 4 = **13 tests**.
+Expected: PASS — 5 + 6 + 4 = **15 tests**.
 
 Run: `cd frontend && pnpm lint`
 Expected: no errors.
@@ -6579,7 +7066,14 @@ describe("InquiryForm", () => {
     const email = screen.getByLabelText("Email");
     expect(email).toHaveValue("ada@phase6.example");
     expect(email).toHaveAttribute("readonly");
-    expect(screen.getByRole("link", { name: "Update in account" })).toBeInTheDocument();
+    // Text, not a link: there is no /account/ page yet and a 404 would be worse
+    // than an explanation. See the component comment and Known Limitation 15.
+    expect(
+      screen.getByText(
+        "Messages are sent from your account email. Change it in your account settings.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /account/i })).toBeNull();
   });
 
   it("derives the default subject from the context and lets it be edited", async () => {
@@ -6823,7 +7317,7 @@ Expected: FAIL — `Failed to resolve import "@/components/inquiry/InquiryForm"`
 // copies"). It is context-agnostic on purpose: Phases 19 and 20 mount this same
 // file on /boats/<slug>/ and /brokers/<slug>/ with a different `context` prop.
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/lib/api/client";
 import {
@@ -6875,9 +7369,21 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   const isSignedIn = Boolean(session?.authenticated && user);
   const isVerified = Boolean(user?.email_verified);
 
+  // `context` arrives as an object literal from the page (Task 13), so it is a
+  // NEW object on every render. Depending on it directly would make the restore
+  // effect's dependency array change every render - which eslint's
+  // react-hooks/exhaustive-deps correctly flags, and which would re-run the
+  // effect forever but for the `restored` ref guard. Memoising on the three
+  // primitives gives a genuinely stable reference, so the guard is a belt and
+  // the deps are honest.
+  const contextRef = useMemo(
+    () => ({ type: context.type, id: context.id, label: context.label }),
+    [context.type, context.id, context.label],
+  );
+
   const defaultSubject = formatInquiryMessage(
     tInquiry(locale, "inquiry.subject_default"),
-    { context: context.label },
+    { context: contextRef.label },
   );
 
   const [fullName, setFullName] = useState("");
@@ -6891,6 +7397,25 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   const [sent, setSent] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Declared BEFORE the effects that call it. A `const` is in the temporal dead
+  // zone until its initialiser runs, and although an effect body executes after
+  // render (so this would work at runtime), eslint's no-use-before-define and
+  // exhaustive-deps both object - and `pnpm lint` is a gate on this task.
+  const messageFor = useCallback(
+    (caught: unknown): string => {
+      if (caught instanceof ApiError) {
+        const fieldMessages = Object.values(caught.fields).flat();
+        if (caught.code === "validation_error" && fieldMessages.length > 0) {
+          return fieldMessages.join(" ");
+        }
+        const key = ERROR_MESSAGE_KEYS[caught.code];
+        if (key) return tInquiry(locale, key);
+      }
+      return tInquiry(locale, "inquiry.error.generic");
+    },
+    [locale],
+  );
 
   // Prefill the name from the profile once the session resolves, without
   // clobbering something the person has already typed (spec 15.1: "prefilled
@@ -6907,7 +7432,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current || loading || !isSignedIn || !isVerified) return;
-    const token = readDraftToken(context);
+    const token = readDraftToken(contextRef);
     if (!token) return;
     restored.current = true;
     void (async () => {
@@ -6921,39 +7446,32 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
       } catch (caught) {
         setError(messageFor(caught));
       } finally {
-        clearDraftToken(context);
+        clearDraftToken(contextRef);
       }
     })();
-  }, [context, defaultSubject, isSignedIn, isVerified, loading, locale]);
-
-  const messageFor = useCallback(
-    (caught: unknown): string => {
-      if (caught instanceof ApiError) {
-        const fieldMessages = Object.values(caught.fields).flat();
-        if (caught.code === "validation_error" && fieldMessages.length > 0) {
-          return fieldMessages.join(" ");
-        }
-        const key = ERROR_MESSAGE_KEYS[caught.code];
-        if (key) return tInquiry(locale, key);
-      }
-      return tInquiry(locale, "inquiry.error.generic");
-    },
-    [locale],
-  );
+  }, [
+    contextRef,
+    defaultSubject,
+    isSignedIn,
+    isVerified,
+    loading,
+    locale,
+    messageFor,
+  ]);
 
   async function handleGuestSubmit() {
     setBusy(true);
     setError(null);
     try {
       const { draft_token } = await createInquiryDraft({
-        context_type: context.type,
-        context_id: context.id,
+        context_type: contextRef.type,
+        context_id: contextRef.id,
         full_name: fullName,
         phone,
         subject,
         message,
       });
-      storeDraftToken(context, draft_token);
+      storeDraftToken(contextRef, draft_token);
     } catch (caught) {
       // A draft that could not be saved is not a reason to block sign-in; the
       // person retypes. Surfacing the failure would be noise at the exact
@@ -6989,8 +7507,8 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
     setBusy(true);
     try {
       await submitInquiry({
-        context_type: context.type,
-        context_id: context.id,
+        context_type: contextRef.type,
+        context_id: contextRef.id,
         full_name: fullName,
         email: user!.email,
         phone,
@@ -7055,9 +7573,16 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
             className={`${FIELD_CLASS} bg-surface-container`}
           />
         </label>
-        <a href="/account/" className="font-body-sm text-primary underline">
+        {/* Spec 15.1 asks for an "Update in account" affordance beside the
+            read-only email. There is no /account/ PAGE yet - frontend/src/app
+            holds only 403, health, login, professionals, services and
+            verify-email - and linking to a 404 would be worse than explaining
+            the rule in place, so this is text until Phase 16 or 20 builds the
+            account screen. Recorded in Known Limitations. `GET|PATCH
+            /api/v1/account/` (Phase 3) already exists behind it. */}
+        <p className="font-body-sm text-on-surface-variant">
           {tInquiry(locale, "inquiry.email_hint")}
-        </a>
+        </p>
 
         <label className="block font-label-md text-label-md" htmlFor="inquiry-phone">
           {tInquiry(locale, "inquiry.phone")}
@@ -7169,8 +7694,6 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
 }
 ```
 
-**One ordering note for the implementer:** `messageFor` is referenced by the draft-restore `useEffect` above its own declaration. `useCallback` assigns at render time, so move the `const messageFor = useCallback(...)` block **above** both `useEffect`s when you write the file — the block is shown in reading order here, not in file order.
-
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd frontend && pnpm vitest run src/components/inquiry/InquiryForm.test.tsx`
@@ -7276,7 +7799,8 @@ Expected: **`1`**.
 Run: `curl -s http://127.0.0.1:3020/services/professionals/seam-surveyors/ | grep -c "PHASE 7 SEAM"`
 Expected: **`0`** — a JSX comment is never emitted to HTML; this only confirms the page still renders. Re-read the source to confirm the Phase 7 comment is still in the file:
 
-Run: `grep -c "PHASE 7 SEAM" frontend/src/app/services/professionals/[slug]/page.tsx`
+Run: `grep -c "PHASE 7 SEAM" "frontend/src/app/services/professionals/[slug]/page.tsx"`
+(the quotes are required: unquoted, the shell treats `[slug]` as a character class and the path matches nothing)
 Expected: **`1`**.
 
 Confirm the flag gate really hides it — turn the flag off, reload, turn it back on:
@@ -7323,29 +7847,38 @@ git commit -m "feat(inquiry): mount the shared InquiryForm at the professional d
 ### Task 14: Phase acceptance tests and full regression
 
 **Files:**
-- Create: `backend/messaging/tests/test_phase_6_acceptance.py`
+- Create: `backend/messaging/tests/test_phase_6_acceptance.py`, `backend/messaging/tests/test_concurrency.py`
 
 **Interfaces:**
 - Consumes: everything Tasks 1–13 produced. Adds no production code.
 - Produces: the evidence spec §39 step 9 requires ("Demonstrate the phase definition of done with verifiable test output").
+
+**Note (ruling — the transactional test lives in its own module, and nothing else in the plan depends on it being harmless).**
+Spec §34.2 requires a real concurrency test against PostgreSQL, which means `@pytest.mark.django_db(transaction=True)`. That marker gives the test `TransactionTestCase` semantics, and its teardown is a **`flush`**: every table is truncated and `post_migrate` is re-emitted. `post_migrate` restores content types and permissions; it does **not** restore rows a `RunPython` data migration inserted — in this repository that means the `unified_inquiries` `FeatureFlag` (messaging/0002), the `staff_moderator`/`staff_admin` `Group`s (accounts/0003), the twelve `PlatformSetting` rows (platform_settings/0002), the six SEO `ServiceCategory` rows (services_catalog/0002) and the seeded `FinanceConfigurationVersion` (finance/0002).
+
+The evidence already in the repository points both ways, which is precisely why this plan does not bet on one reading:
+- **Against the hazard biting here:** `listings/tests/test_auto_approval.py:271` and `:301`, `listings/tests/test_publication.py:206`, and `taxonomy/tests/test_boat_model_model.py:54` and `:81` all carry the marker today — and `platform_settings/tests/test_admin.py:24`, which collects *after* `listings` in alphabetical order and does a bare `PlatformSetting.objects.get(key="individual.free_listing_count")` against a migration-seeded row, is green in CI.
+- **For it:** `brokers/tests/test_admin.py:35` writes `Group.objects.get_or_create(name=StaffGroup.MODERATOR)` where every other call site in the repository writes `Group.objects.get(...)`. Somebody adopted a defensive spelling there for a reason.
+
+So the plan makes the messaging suite **immune either way** instead of arguing the internals: Task 2's `messaging/tests/conftest.py` carries an autouse fixture that `update_or_create`s the flag and `get_or_create`s both groups before every test in the package, and the transactional test sits alone in `test_concurrency.py` where a reviewer can see it. Step 4 below then *measures* the answer, and Step 5's commit message records which mechanism turned out to be needed.
+
+**If Step 4's ordering experiment fails**, the fallback ladder is, in order: (1) add `serialized_rollback=True` to the marker and set `DATABASES["default"]["TEST"]["SERIALIZE"] = True` in `backend/config/settings/test.py` — a settings edit, so call it out in the PR body (it is permitted: the standing prohibition on touching `test.py` is specifically about downgrading `DATABASES`/`CACHES` to SQLite/LocMemCache, which this does not do); (2) give the affected app's own `tests/conftest.py` the same re-seeding fixture this plan gives `messaging`; (3) only as a last resort, drop the two-thread test and prove §34.2 from Task 3's `IntegrityError`-under-`transaction.atomic()` assertions plus Task 6's double-call test, recording the reduced coverage as a Known Limitation. Do not reach for (3) before trying (1) and (2).
 
 - [ ] **Step 1: Write the failing test**
 
 `backend/messaging/tests/test_phase_6_acceptance.py`:
 
 ```python
-"""Spec 15's definition of done, spec 40 Scenarios A and B, spec 16's four
-acceptance tests that concern the WRITE side, and spec 34.2's concurrency
-requirement.
+"""Spec 15's definition of done, spec 40 Scenarios A and B, and the four spec 16
+acceptance tests that concern the WRITE side.
 
-Everything here goes through the real HTTP API, not the service layer.
+Everything here goes through the real HTTP API, not the service layer. Spec
+34.2's two-thread concurrency requirement lives in its own module,
+test_concurrency.py - see the note in this task for why it may not share a file.
 """
-
-import threading
 
 import pytest
 from django.core import mail
-from django.db import connection
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -7357,7 +7890,6 @@ from listings.enums import ListingStatus
 from listings.tests.factories import make_broker_listing, make_snapshot
 from messaging.enums import CURRENT_PRIVACY_POLICY_VERSION, ContactTargetType
 from messaging.models import ContactAccessGrant, Conversation, Message
-from messaging.services import submit_inquiry
 from notifications.models import Notification
 from professionals.tests.factories import make_professional
 
@@ -7500,57 +8032,6 @@ def test_sending_to_broker_a_does_not_unlock_broker_b():
     assert ContactAccessGrant.objects.filter(viewer=asker, broker=broker_b).count() == 0
 
 
-@pytest.mark.django_db(transaction=True)
-def test_concurrent_duplicate_submissions_create_exactly_one_grant():
-    """Spec 16: "A successful transaction creates exactly one grant despite
-    concurrent duplicate requests." Spec 34.2 requires this against real
-    PostgreSQL - the partial unique index is what makes it true, not the Python.
-
-    Two threads, two connections. Whichever loses the race on either partial
-    index recovers through the savepoint in _get_or_create_open_conversation /
-    grant_contact_access rather than failing, so BOTH submissions succeed and
-    land in the same thread - which is the correct behaviour for a message.
-    """
-    asker = make_user(email="acc-race@phase6.example")
-    owner = make_user(email="acc-race-owner@phase6.example")
-    professional = make_professional(
-        owner, display_name="Phase6 Race Pro", slug="phase6-race-pro"
-    )
-    outcomes: list[str] = []
-
-    def attempt(body):
-        try:
-            submit_inquiry(
-                actor=asker,
-                context_type="PROFESSIONAL",
-                context_id=professional.pk,
-                full_name="Ada Rossi",
-                phone="",
-                subject="Race",
-                body=body,
-                privacy_policy_version=CURRENT_PRIVACY_POLICY_VERSION,
-            )
-            outcomes.append("ok")
-        except Exception as exc:  # noqa: BLE001 - recorded, then asserted on
-            outcomes.append(type(exc).__name__)
-        finally:
-            connection.close()
-
-    threads = [
-        threading.Thread(target=attempt, args=(f"Concurrent body number {index}.",))
-        for index in range(2)
-    ]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    assert outcomes == ["ok", "ok"], outcomes
-    assert Conversation.objects.filter(initiator=asker).count() == 1
-    assert Message.objects.count() == 2
-    assert ContactAccessGrant.objects.filter(viewer=asker, revoked_at__isnull=True).count() == 1
-
-
 def test_definition_of_done_one_service_handles_every_context(
     django_capture_on_commit_callbacks,
 ):
@@ -7633,19 +8114,124 @@ def test_definition_of_done_the_email_cannot_be_forged():
     assert Message.objects.count() == 0
 ```
 
-- [ ] **Step 2: Run it**
+
+Then create `backend/messaging/tests/test_concurrency.py` — the one module in this phase that carries `transaction=True`:
+
+```python
+"""Spec 34.2's database/concurrency requirement, against real PostgreSQL.
+
+ONE module, ONE test, on purpose. `@pytest.mark.django_db(transaction=True)`
+ends in a `flush` that truncates every table and does not restore rows inserted
+by RunPython data migrations, so a transactional test is a global event in a
+pytest session, not a local one. Keeping it alone makes that visible, and
+messaging/tests/conftest.py's autouse fixture re-seeds this package's reference
+rows before every test so nothing here is load-bearing on a migration seed.
+"""
+
+import threading
+
+import pytest
+from django.db import connection
+
+from accounts.tests.factories import make_user
+from messaging.enums import CURRENT_PRIVACY_POLICY_VERSION
+from messaging.models import ContactAccessGrant, Conversation, Message
+from messaging.services import submit_inquiry
+from professionals.tests.factories import make_professional
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_duplicate_submissions_create_exactly_one_grant():
+    """Spec 16: "A successful transaction creates exactly one grant despite
+    concurrent duplicate requests."
+
+    Two threads, two connections. Whichever loses the race on either partial
+    unique index recovers through the savepoint in
+    _get_or_create_open_conversation / grant_contact_access rather than failing,
+    so BOTH submissions succeed and land in the same thread - which is the
+    correct behaviour for a message. What must NOT happen is two conversations
+    or two active grants.
+    """
+    asker = make_user(email="race-asker@phase6.example")
+    owner = make_user(email="race-owner@phase6.example")
+    professional = make_professional(
+        owner, display_name="Phase6 Race Pro", slug="phase6-race-pro"
+    )
+    outcomes: list[str] = []
+
+    def attempt(body):
+        try:
+            submit_inquiry(
+                actor=asker,
+                context_type="PROFESSIONAL",
+                context_id=professional.pk,
+                full_name="Ada Rossi",
+                phone="",
+                subject="Race",
+                body=body,
+                privacy_policy_version=CURRENT_PRIVACY_POLICY_VERSION,
+            )
+            outcomes.append("ok")
+        except Exception as exc:  # noqa: BLE001 - recorded, then asserted on
+            outcomes.append(type(exc).__name__)
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=attempt, args=(f"Concurrent body number {index}.",))
+        for index in range(2)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert outcomes == ["ok", "ok"], outcomes
+    assert Conversation.objects.filter(initiator=asker).count() == 1
+    assert Message.objects.count() == 2
+    assert (
+        ContactAccessGrant.objects.filter(
+            viewer=asker, revoked_at__isnull=True
+        ).count()
+        == 1
+    )
+```
+
+- [ ] **Step 2: Run them**
 
 This task adds **no production code**, so there is no red step to manufacture: it is an acceptance suite over behaviour Tasks 1–13 already built, and it is supposed to pass first time. That is the point of running it — spec §39 step 9 asks the phase to "demonstrate the phase definition of done with verifiable test output", and a suite written after the fact either confirms the phase or finds a real defect.
 
-Run: `cd backend && uv run pytest messaging/tests/test_phase_6_acceptance.py -v`
-Expected: PASS — **7 collected test items**.
+Run: `cd backend && uv run pytest messaging/tests/test_phase_6_acceptance.py messaging/tests/test_concurrency.py -v`
+Expected: PASS — **6** items in `test_phase_6_acceptance.py` and **1** in `test_concurrency.py`.
 
 **If any assertion fails, the defect is in the production code from Tasks 1–13, not in this file.** Fix it there and re-run; do not weaken an assertion to make this suite green. Each test names the spec clause it proves, so a failure tells you which clause is unmet.
 
-- [ ] **Step 4: Full regression, both projects**
+- [ ] **Step 4: Full regression, both projects — including the ordering experiment**
+
+First the plain run:
 
 Run: `cd backend && uv run pytest -q`
 Expected: every test passes, 0 failures. Record the exact count for the handoff note.
+
+Then the experiment that decides the ruling above. The question is whether the
+transactional test's `flush` breaks anything that collects after it, so run it
+in the two positions that matter and compare:
+
+Run: `cd backend && uv run pytest -q messaging/tests/test_concurrency.py platform_settings accounts services_catalog finance messaging notifications`
+Expected: all pass. This puts the transactional test **first**, ahead of every
+suite that reads a migration-seeded row (`platform_settings/tests/test_admin.py`'s
+`PlatformSetting.objects.get(...)`, `accounts/tests/test_permissions.py`'s
+`Group.objects.get(...)`, `services_catalog`'s seeded categories, `finance`'s
+seeded configuration). **This is the run that fails if the hazard is real.**
+
+Run: `cd backend && uv run pytest -q accounts platform_settings messaging/tests/test_concurrency.py messaging notifications`
+Expected: all pass. The same modules with the transactional test in the middle.
+
+If both are green, the ruling's fallback ladder is not needed and Step 5's commit
+message says so. If the first is red and the second green, the hazard is real and
+ordering-dependent: apply ladder step (1), re-run both, and record it. **Paste the
+tail of both runs into the task's PR body either way** — spec §39 step 9 wants
+verifiable output, and "it passed on my machine in the default order" is not that.
 
 Run: `cd frontend && pnpm lint && pnpm test && pnpm build`
 Expected: no lint errors, every Vitest test passes, a successful build. Record the exact count.
@@ -7659,9 +8245,12 @@ Expected: **zero deletions on both files** (the second column of every row is `0
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/messaging/tests/test_phase_6_acceptance.py
+git add backend/messaging/tests/test_phase_6_acceptance.py backend/messaging/tests/test_concurrency.py
 git commit -m "test(messaging): phase 6 acceptance suite for spec 15 DoD, spec 40 A/B and spec 34.2"
 ```
+
+The commit body records the Step 4 outcome in one line — which of the two
+ordering runs was green, and whether any fallback-ladder step was applied.
 
 ---
 
@@ -7736,7 +8325,11 @@ git commit -m "docs(phase-6): handoff note and tracker update for the shared inq
 11. **`CURRENT_PRIVACY_POLICY_VERSION` is a module constant, not a platform setting**, because `platform_settings.registry.SettingValueType` has only `BOOLEAN`, `INTEGER` and `DECIMAL` members — there is no string setting type. Changing the policy version currently requires a deployment. Whoever next extends the registry with a `STRING` type should move it, along with the four length limits and the duplicate-message window.
 12. **`spam_detected` tells a bot it was caught**, and `GET /api/v1/inquiries/config/` names the honeypot field. Both are deliberate (a fake 201 would be the faked state §2.1 and §39 forbid, and the form needs a backend source for the field name), and both are recorded here rather than treated as secure-by-obscurity that works. Spec §15.1's escalation path — "CAPTCHA may be introduced only behind a risk threshold" — remains available and unbuilt.
 13. **API error messages are English only.** `common.exceptions.nauta_exception_handler` and every permission class in the project return English strings; spec §30.2 asks for a "localized/user-safe message". This phase does not fix a project-wide gap, and works around it the way the frontend must anyway: the client maps `error.code` to its own EN/IT/ES copy (`ERROR_MESSAGE_KEYS` in `InquiryForm`), so the backend string is a developer-facing fallback, never what a person reads.
-14. **Carried forward from Phase 5, untouched here:** the SSR client-IP forwarding gap (all server-rendered visitors share one throttle bucket). `GET /api/v1/inquiries/config/` is fetched during SSR and therefore sits in the same bucket. It is a public, user-data-free, 120/min read, so the blast radius is one shared counter on a harmless endpoint — but it is the same underlying defect, and it is Phase 10's `common.ip` work that fixes it.
+14. **SSR client-IP forwarding is solved, and this phase uses it rather than carrying the old gap forward.** `backend/common/ip.py` is merged (Phase 10 Task 1) and honours `X-Internal-Client-IP` only when `X-Internal-Service-Secret` matches, compared with `hmac.compare_digest`; `frontend/src/lib/api/internal-headers.ts` and `directoryFetch` (PR #103) are the sending half. `fetchInquiryConfig` delegates to `directoryFetch`, so each server-rendered visitor lands in their own `messaging_read` bucket. What remains genuinely open is Phase 10's own Known Limitation 13 — `IPV6_HASH_PREFIX_BITS` defaults to 0, so one residential IPv6 /64 can still mint a fresh bucket per address. That is a platform-wide setting, not this phase's to flip, and it makes the throttle weaker rather than the form disappear.
+
+15. **The "Update in account" affordance is text, not a link.** Spec §15.1 asks for it beside the read-only email. `frontend/src/app/` has no `/account/` route — only `403`, `health`, `login`, `professionals`, `services` and `verify-email` — and linking to a 404 would be worse than explaining the rule in place. The backend behind it, `GET|PATCH /api/v1/account/`, already exists (Phase 3). Phase 16 or 20 builds the screen and turns the sentence into a link.
+16. **No phone country selector.** Spec §15.1 asks for "E.164-compatible input and country selector". The input and its server-side validation are built; the selector is not, because a country/dial-code picker needs a country list this project does not have, has no staff screen to curate one, and no other consumer — so it would be invented data hard-coded into a component (spec §2.1). The field accepts exactly the same values either way. Assigned to Phase 20, which owns public UI polish and is where a shared country dataset would first pay for itself.
+17. **No browser end-to-end test.** Spec §34.5 scenario 1 is this phase's journey, but §34.5 lives inside §34 — **Phase 23** — its ten scenarios span nine phases, and `frontend/package.json` has no Playwright, Cypress or WebDriver at all (`pnpm test` is `vitest run`). Task 12 covers the guest → draft → sign-in → restore → confirm-send sequence as component tests and Task 14 covers the server half over HTTP; the uncovered clause is scenario 1's last one, "sees contact unlock", which is Phase 7's panel.
 
 ---
 
@@ -7773,6 +8366,7 @@ from messaging.enums import (
 from messaging.exceptions import (
     ConsentRequired,
     ConversationClosed,
+    FeatureDisabled,
     InquiryDraftExpired,
     InvalidInquiryContext,
     InvalidInquiryDraft,
@@ -7786,6 +8380,7 @@ from messaging.pagination import ConversationPagination, MessagePagination
 from messaging.permissions import InquiryEmailVerified, UnifiedInquiriesEnabled
 from messaging.selectors import (
     active_contact_grant,
+    annotate_last_message,
     annotate_unread,
     broker_message_readers,
     can_view_conversation,
@@ -7875,12 +8470,14 @@ broker_message_readers(broker) -> QuerySet[User]          # ordered by pk, disti
 conversations_visible_to(user) -> QuerySet[Conversation]  # select_related, distinct
 can_view_conversation(user, conversation) -> bool
 annotate_unread(queryset, user) -> QuerySet               # adds `unread_count`
+annotate_last_message(queryset) -> QuerySet               # adds `first_sender_name`, `last_message_body`
 conversation_recipients(conversation) -> tuple[list[User], str]
 conversation_context(conversation) -> tuple[str, str]     # (context type, label)
 
 create_notification(
     *, recipient, notification_type: str, title_key: str, body_key: str,
     target_url: str, payload: dict | None = None, email_to: str = "",
+    dedupe_key: str = "",            # spec 27.1's key; idempotent when non-empty
 ) -> Notification
 send_notification_email(notification_id: str, to_email: str) -> None   # Celery task
 ```
@@ -7897,7 +8494,9 @@ send_notification_email(notification_id: str, to_email: str) -> None   # Celery 
 | `POST /api/v1/inquiry-drafts/resolve/` | **addition** | `inquiry-draft-resolve` |
 | `POST /api/v1/conversations/<id>/read/` | **addition** | `conversation-read` |
 
-The four additions are deliberate and flagged here rather than presented as spec-literal: the two draft routes are what spec §15.2 requires and §30.1 has no row for; `config/` is what makes §35.1's frontend gate and §2.1's "every visible state has a backend source" true for the form's own limits; and `read/` is what spec §28's "Mark-read and reply endpoints enforce broker organization membership" and its unread counts require. §30.1's own closing sentence grants the latitude: "Exact URL naming may follow an established API convention, but semantics, authorization and errors must remain equivalent." A later phase publishing an API inventory should list these as Phase 6 additions.
+**Request fields beyond spec §15.5's example body**, flagged for the same reason: `privacy_consent` (a boolean; §15.1 requires the checkbox and §33.2 requires the consent be obtained, but §15.5's worked payload shows only `privacy_policy_version`, which records *which* policy without recording that it was *accepted*), `marketing_consent` (§15.1's optional second checkbox, likewise absent from §15.5's example) and `company_website` (§15.1's mandated honeypot, which by its nature cannot appear in a documented payload). A client that omits `privacy_consent` gets `400 consent_required`.
+
+The four endpoint additions are deliberate and flagged here rather than presented as spec-literal: the two draft routes are what spec §15.2 requires and §30.1 has no row for; `config/` is what makes §35.1's frontend gate and §2.1's "every visible state has a backend source" true for the form's own limits; and `read/` is what spec §28's "Mark-read and reply endpoints enforce broker organization membership" and its unread counts require. §30.1's own closing sentence grants the latitude: "Exact URL naming may follow an established API convention, but semantics, authorization and errors must remain equivalent." A later phase publishing an API inventory should list these as Phase 6 additions.
 
 **Rules a later phase must follow:**
 
@@ -7914,7 +8513,7 @@ The four additions are deliberate and flagged here rather than presented as spec
 11. **Views extend `messaging.views.MessagingAPIView`**, which turns DRF's anonymous `not_authenticated` into spec §15.5's `authentication_required` and DRF's `throttled` into `rate_limited`. A messaging view that extends `APIView` directly will silently answer in a vocabulary spec §15.5 does not define.
 12. **New UI strings go in `INQUIRY_MESSAGES` with all three languages** (spec §37); the dictionary test fails on any key missing a locale. `Locale` is still declared once, in `frontend/src/lib/api/directory.ts` (Phase 5 contract rule 12) — import it, never redeclare it.
 13. **§37 keys reserved by this phase and not yet translated anywhere:** `notification.inquiry_received.title` and `notification.inquiry_received.body`. They are written into `Notification.title_key`/`body_key` today and have **no** frontend dictionary entry, because no notification UI exists. Phase 18 adds them to its own dictionary with EN/IT/ES.
-14. **The `unified_inquiries` flag gates both surfaces.** Backend: `403 feature_disabled` from every messaging endpoint. Frontend: `GET /api/v1/inquiries/config/` reports `enabled`, and a page must not render `InquiryForm` when it is false. Adding a messaging endpoint means adding `UnifiedInquiriesEnabled` to its `permission_classes`.
+14. **The `unified_inquiries` flag gates both surfaces.** Backend: `403 feature_disabled` from every messaging endpoint **except `GET /api/v1/inquiries/config/`**, which answers `200 {"enabled": false}` because it is the mechanism that tells the page not to render the form. Frontend: a page must not render `InquiryForm` when `config.enabled` is false. Adding a messaging endpoint means adding `UnifiedInquiriesEnabled` to its `permission_classes` — and that class **raises** `FeatureDisabled`; do not "simplify" it to `return is_feature_enabled(...)`, which would make every anonymous flag-off request answer `401 authentication_required` instead.
 15. **Throttle scopes owned by this phase:** `inquiry_submit` (20/hour), `message_send` (60/hour), `messaging_read` (120/min), `inquiry_draft` (30/hour). Views declare **only** `throttle_scope`, never `throttle_classes` (Phase 3 contract rule 9). A view that needs two rates for two methods sets `self.throttle_scope` in `initial()` before calling `super()`, as `ConversationMessagesView` does.
 
 ---
@@ -7927,7 +8526,7 @@ The four additions are deliberate and flagged here rather than presented as spec
 |---|---|
 | §15.1 — one component equivalent to `InquiryForm`, no per-context copies | Task 12 (one file, `context` prop), Task 13 (its only mount today), Contract rule 1 |
 | §15.1 — Full name required, prefilled, 2–120 | Tasks 1 (constants), 7 (serializer), 12 (prefill from session) |
-| §15.1 — Email required, verified account email, read-only + "Update in account" | Tasks 7 (`validate_email` mismatch refusal), 12 (`readOnly` + the link) |
+| §15.1 — Email required, verified account email, read-only + "Update in account" | Tasks 7 (`validate_email` mismatch refusal), 12 (`readOnly` + the explanatory line; a link once an `/account/` page exists — Known Limitation 15) |
 | §15.1 — Phone optional, E.164-compatible | Task 7 (`E164_PATTERN`, normalisation), Task 12 (`type="tel"` + hint) |
 | §15.1 — Subject context-derived default, editable, 3–150 | Tasks 11 (`inquiry.subject_default`), 12 (default + editable), 7 (length) |
 | §15.1 — Message required, 20–4000 | Tasks 1, 7, 10 (replies too), 12 |
@@ -7958,12 +8557,16 @@ The four additions are deliberate and flagged here rather than presented as spec
 | DoD — email exists in every variant, cannot be forged | Task 7 (`validate_email`), Task 14 |
 | DoD — one backend service handles all types | Task 6; Task 14's three-context test |
 | DoD — messages appear in the correct recipient inbox and sender list | Task 9; Task 14's inbox assertions from three seats |
+| §27.1 — `inquiry.received` recipients, channels and **deduplication key** (message ID) | Task 4 (`Notification.dedupe_key` + its partial unique index, `create_notification`'s idempotency), Task 6/10 (`dedupe_key=str(message.pk)` at the one call site) |
+| §27 acceptance — "Retried task does not create duplicate in-app notification/delivery" | Task 4 (`create_notification` returns the existing row; `send_notification_email` short-circuits on an already-`SENT` delivery), four tests |
+| §34.5 — browser end-to-end, scenario 1 | Ruled to Phase 23 (no browser harness exists); covered at component level by Task 12 and at API level by Task 14 — ruling + Known Limitation 17 |
+| §15.1 — phone "country selector" | Ruled out of scope (no country dataset, no staff screen, no other consumer — spec §2.1); input + validation + format hint shipped — ruling + Known Limitation 16 |
 
 **Spec coverage — §11.8 and §11.10 (data model):** `Conversation` — every listed field (`id`, `conversation_type`, `initiator`, `broker`, `professional`, `listing`, `status`, `last_message_at`, `created_at`) plus the ruled `subject`, and §11.8's prose rule "exactly one valid context combination" as a real `CheckConstraint` (Task 2). `Message` — every listed field (`id`, `conversation`, `sender`, `body`, `sender_email_snapshot`, `is_system`, `created_at`, `read_at`) plus the four ruled columns (Task 3). `ContactAccessGrant` — every listed field (`id`, `viewer`, `target_type`, `broker`, `professional`, `source_conversation`, `granted_at`, `revoked_at`) and its prose rule "unique active grant per viewer and target" as two partial unique indexes (Task 3). `Notification` and `NotificationDelivery` — every listed field including `unique(notification, channel)` (Task 4).
 
 **Spec coverage — other sections touched:** §1's fixed decisions (one shared form/serializer/service, verified-email requirement, contact reveal scoped and audited) are in Global Constraints and each has a task. §2.1–§2.5 → the config endpoint (no client-side rule without a backend source), the permission classes and `resolve_inquiry_context` (server authority), `@transaction.atomic` + partial unique indexes + `on_commit` (atomicity), the two audit actions (auditability); §2.5 does not apply (no finance copy here). §5's "Submit inquiry: — for Guest, ✓ for everyone else" → the 401 test; "Reveal recipient contact after inquiry: own access" → the per-viewer grant. §11.8/§11.10 as above. §16 (Phase 7) is a documented seam with four of its acceptance tests proved on the write side in Task 14 and the read side explicitly left to Phase 7. §27.1's `inquiry.received` event, recipients and channels → Task 4 and Task 6; §27.3's rules (queue after commit, localized with EN fallback, safe summary, bounded retries, failure visible without rollback) → Task 4, one test each. §28's backend paragraph and row/filter list → Task 9. §30.1's three rows plus four flagged additions → the Contract summary's table. §30.2's envelope, decimal/ISO rules (no money or dates are returned by this phase beyond ISO timestamps), one pagination shape and `X-Request-ID` echo → Task 7's tests. §30.3's `Idempotency-Key` → ruled not applicable, with the structural guard that replaces it. §30.4's "inquiry submission" and "message sending" rows → four throttle scopes, with 429 + `Retry-After` + `meta.retry_after_seconds`. §31's three inquiry-form rows and its "Broker messages" row → Tasks 6, 9, 12, 13. §33.1 (object authorization, local-URL allowlist, no IDOR) → Task 10's 404-not-403 rule and Task 12's `pathname`-only `next`. §33.2 (consent and version recorded, no fingerprinting, snapshots follow retention) → Task 3's two consent columns. §33.3's "paginate every unbounded collection" and "avoid N+1, verify with query-count tests" → Tasks 9 and 10's paginators and Task 9's query-budget test. §33.5's "never log message bodies" → the two `logger.warning` calls carry ids only, and Task 6 asserts the body is absent from the audit row. §34.1–§34.3's named classes → Tasks 5–10; §34.2's concurrency requirement → Task 14's two-thread test; §34.4's "Inquiry → conversation → grant → notification → email task" integration → Task 14 Scenario A. §35.1's flag → Task 2's migration and Tasks 7–10's permission class, both surfaces. §36.6's four bullets → empty/short content is refused before any grant (Task 7), blocking prevents new messages (Task 10), the "entity changing public contact" bullet is Phase 7's read side by construction (a grant stores no contact value), and non-transferability is a DB-level `viewer` scope with its own test. §37's three named `inquiry.*` keys plus the reserved notification keys → Task 11 and Contract rule 13. §39's protocol → the per-task TDD structure, the HTTP-level red-to-green in Task 13, the "no partial implementations" rulings, and Task 15's handoff note. §40 Scenarios A and B → Task 14.
 
-**Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere in this plan. Every code step carries the actual code; every test step carries the actual test. The `<N>`/`<M>` tokens in Task 15's handoff note are counts the executor reads off their own test output in Task 14, with an explicit instruction to substitute them; they are not unresolved decisions. Task 12's "one ordering note" is an instruction about where to place a `useCallback` in the file, not a gap in the code — the code is complete.
+**Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere in this plan. Every code step carries the actual code; every test step carries the actual test. The `<N>`/`<M>` tokens in Task 15's handoff note are counts the executor reads off their own test output in Task 14, with an explicit instruction to substitute them; they are not unresolved decisions. Task 14's fallback ladder is a decision procedure with a named experiment and three ordered outcomes, not a deferral: Step 4's two commands decide it, and Step 5's commit message records which branch was taken.
 
 **Type consistency:** `Conversation`, `Message`, `ContactAccessGrant`, `Notification` and `NotificationDelivery` are each defined once and referenced by the same name everywhere, including in the File Structure and the Contract summary. `InquiryContext`'s nine fields are read by name in Tasks 6 and 10 exactly as Task 5 defines them (`contact_target_type`, `recipient_users`, `recipient_email`, `context_label` — never `target_type`, `recipients`, `email` or `label`). `submit_inquiry`'s parameter is `body`, and the HTTP field is `message`; Task 7's view is the single place the two names meet, and it maps `data["message"] -> body=` explicitly. `message_excerpt` is defined once in `services.py` and imported by `serializers.py`; `EXCERPT_MAX_LENGTH` lives in `notifications.enums` because it bounds a notification payload, and is the only place the number 200 appears. `ContactAccessOutcome.GRANTED` / `.NOT_APPLICABLE` are the only two values `InquiryResult.contact_access` can hold, and the TypeScript `InquiryResult["contact_access"]` union lists exactly those two. `conversation_url()` is the single producer of `/dashboard/messages/<id>/` and is used for both `next_url` and `Notification.target_url`, so the two can never disagree. `HONEYPOT_FIELD_NAME` is defined once and reaches the browser through the config endpoint, so the serializer field, the rendered input's `name` and the client payload key are one string. `_dispatch_notifications` is introduced in Task 10 and Task 6's `_notify_recipients` is rewritten to call it in the same task, so there is never a moment where two fan-out implementations exist. On the frontend, `Locale` is imported from `@/lib/i18n/directory` (which re-exports Phase 5's single declaration) and never redeclared; `InquiryContextRef` is declared once in `lib/api/inquiries.ts` and consumed by both the component and `draft-storage.ts`.
 
@@ -7975,4 +8578,9 @@ The four additions are deliberate and flagged here rather than presented as spec
 4. The email recipient was originally "every broker member with `can_read_messages`", which spec §15.4 forbids in as many words ("not every member by default"). Split into two channels: in-app to every reader, email to one configured organization address.
 5. A `test_the_email_job_is_queued_only_after_the_transaction_commits` drafted with a bare `with transaction.atomic():` would have failed on its last line — pytest-django's `django_db` never commits, so `on_commit` never fires. Rewritten around `django_capture_on_commit_callbacks`, with the reason spelled out in the docstring so nobody "fixes" it back.
 6. The broker-profile partial unique index initially omitted `listing__isnull=True`, which would have made a second inquiry about a second boat from the same broker impossible. Caught by writing `test_a_broker_listing_thread_does_not_collide_with_the_broker_profile_thread` first; the same clause is repeated in `_open_thread_lookup` so the query and the index agree.
-7. Fixture slugs and emails were checked against the real merged seeds rather than assumed: `blue-marine-brokers`, `marine-survey-co`, `user@example.com`, the six `services_catalog` SEO category slugs and `Beneteau` are all real and unique, so every fixture in this plan uses `phase6-*` slugs and `@phase6.example` addresses.
+7. **(Fix round 1)** `UnifiedInquiriesEnabled` originally returned `False`. DRF's `APIView.permission_denied` answers `401 NotAuthenticated` for any credential-less request *before* it consults which permission failed, so on the `AllowAny` guest-draft route a flag-off request would have answered `401 authentication_required` — and this plan's own test asserted `403 feature_disabled`, so it could never have passed. The class now raises `FeatureDisabled`, mirroring the merged `services_catalog.permissions.CombinedDirectoryEnabled`, and every endpoint has an anonymous flag-off assertion.
+8. **(Fix round 1)** `_reply_display_name` was `actor.get_full_name() or actor.get_short_name()`. Both are `self.full_name or self.email` in `accounts/models.py`, and `register_user` defaults `full_name=""` — so a nameless replier's **email address** would have been stored in `Message.sender_name_snapshot` and returned by both the thread and the inbox serializers. It now reads `actor.full_name` only, stores `""`, and the localized `inquiry.sender_unnamed` / per-locale `SENDER_FALLBACK` cover the display. A regression test asserts the address appears in neither payload.
+9. **(Fix round 1)** The inbox's N+1 guard was `django_assert_max_num_queries(6 + 2 * rows)` — a budget that scales with the row count cannot fail on an N+1, it funds one. Replaced with a 2-row-vs-7-row comparison that requires an *equal* query count, and the two per-row lookups became `Subquery` annotations (`annotate_last_message`). `annotate_unread` also moved from a `Count` aggregate to a subquery so the outer query stays ungrouped alongside `.distinct()` and pagination.
+10. **(Fix round 1)** `fetchInquiryConfig` called `fetch` directly, so every server-rendered visitor shared one `messaging_read` bucket and a 429 would have made the form vanish from the page. It now goes through the merged `directoryFetch`, which forwards `X-Internal-Client-IP` behind `X-Internal-Service-Secret` (PR #103) — and a test asserts the delegation, because a plain `fetch` would pass every happy-path assertion while reintroducing the bug.
+11. **(Fix round 1)** Every "Expected: PASS — N collected items" line was recounted from the real test bodies; five were wrong.
+12. Fixture slugs and emails were checked against the real merged seeds rather than assumed: `blue-marine-brokers`, `marine-survey-co`, `user@example.com`, the six `services_catalog` SEO category slugs and `Beneteau` are all real and unique, so every fixture in this plan uses `phase6-*` slugs and `@phase6.example` addresses.
