@@ -89,6 +89,16 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 10 listing view analytics complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-10-listing-analytics.md` (8 tasks: PRs #107, #112, #127, #146, #150, #157, #158 plus this acceptance PR).
+- **What exists:** `common.ip` (canonical client IP) and the throttle fix below; the `analytics` app with `ListingView` (identity by user id or HMAC of the client IP, never a raw IP), a staff-admin-only read-only admin with a masked hash; `analytics.policies` (owner / broker-colleague / staff / bot / HEAD / prefetch exclusions); `analytics.recording.record_listing_view` (unique row + counter increment, race-safe, propagates faults by design); the public listing detail endpoint now records the view (`OptionalJWTAuthentication`, containment in the view, `Cache-Control: private, no-store`, `Vary: Authorization`); `reconcile_listing_view_counts` task + `reconcile_listing_views` command (audited, keyset-batched); `docs/privacy/listing-view-analytics.md` (spec 19.4 purpose/retention); compact view-count formatting (`formatViewCount`, >9,999) on the shared `BoatCard`.
+- **Security fix inherited by every endpoint:** `common.throttling.HashedIPScopedRateThrottle` no longer uses DRF's `BaseThrottle.get_ident()`. With `NUM_PROXIES` unset (this project's state and DRF's default) that method uses the entire client-supplied `X-Forwarded-For` header as the throttle identity - there is no selection of an entry - so a caller sending a different arbitrary header value per request got a fresh bucket each time: a complete bypass of every rate limit in spec 30.4. Identity now comes from `common.ip.get_client_ip` (internal-secret SSR forwarding first, then `TRUSTED_PROXY_COUNT` right-counted XFF, default `REMOTE_ADDR`). `IPV6_HASH_PREFIX_BITS` (default 0, off) can collapse an IPv6 prefix into one identity.
+- **Feature flag:** `unique_listing_views` ships DISABLED; `view_count` stays 0 until spec 35.2 step 9 enables it.
+- **Deviation recorded:** the plan's separate `ViewCount` component and `lib/listings`/`lib/i18n/listings` modules were NOT created; Phase 9 had already shipped the card, and a second formatter/dictionary would violate spec 29.1. Compact formatting lives in `lib/i18n/finance.ts`.
+- **Not done here:** the plan's manual curl walk-through (Step 6) was not run; the twelve acceptance tests in `backend/analytics/tests/test_phase_acceptance.py` cover the same rules over real HTTP. Verify against a running stack when enabling the flag.
+- **Known limitations:** UA-policy bot detection (no reverse DNS); no separate beacon endpoint so the detail response is uncacheable in shared caches (split before adding a CDN); flag disabled at ship; anonymous-then-signed-in counts twice by design; household NAT counts once.
+
 ### 2026-09-19 — Phase 9 finance card UI and broker listing toggle complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-9-finance-ui.md` (12 tasks, PRs #111-#155 range).
