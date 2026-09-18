@@ -132,5 +132,15 @@ def nauta_exception_handler(exc, context):
     if isinstance(meta, dict) and meta:
         response.data["error"]["meta"] = meta
 
+    # Optional, exception-supplied next step. Spec 30.2's worked example for
+    # `listing_entitlement_required` carries
+    # {"type": "PURCHASE", "product_code": "INDIVIDUAL_LISTING_RIGHT"} at the
+    # error level, and the envelope had no slot for it. Same contract as `meta`
+    # above: only an exception that defines a non-empty dict `action`
+    # contributes one, so the key is absent otherwise.
+    action = getattr(exc, "action", None)
+    if isinstance(action, dict) and action:
+        response.data["error"]["action"] = action
+
     response["X-Request-ID"] = request_id
     return response
