@@ -116,7 +116,15 @@ class BrokerMembership(UUIDTimeStampedModel):
             for field, value in forced.items():
                 setattr(self, field, value)
             if kwargs.get("update_fields") is not None:
-                kwargs["update_fields"] = set(kwargs["update_fields"]) | set(forced)
+                # "role" joins the forced flags: the flags were forced to match
+                # self.role, so a partial save that persists them without also
+                # persisting the role would write a row whose capabilities
+                # belong to a rank it does not hold - e.g. a VIEWER left
+                # carrying can_manage_team=True, the exact privilege-retention
+                # shape this reset exists to prevent.
+                kwargs["update_fields"] = (
+                    set(kwargs["update_fields"]) | set(forced) | {"role"}
+                )
 
         result = super().save(*args, **kwargs)
         self._loaded_role = self.role

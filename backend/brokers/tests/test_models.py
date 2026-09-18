@@ -145,6 +145,40 @@ def test_flags_stay_individually_tunable_within_a_role():
 
 
 @pytest.mark.django_db
+def test_a_partial_save_persists_the_new_role_alongside_the_flags_it_forced():
+    """A role change saved with update_fields must persist the role itself.
+
+    The capability flags are forced to match self.role, so persisting them
+    without persisting the role writes a row whose flags belong to a rank the
+    row does not hold - e.g. a VIEWER carrying can_manage_team=True. Task 9's
+    role-change endpoint is exactly the kind of caller that passes
+    update_fields, and it depends on this save() closing that gap.
+    """
+    user = make_user("partial@example.com", role=UserRole.BROKER)
+    membership = make_membership(
+        user, make_broker(), role=BrokerMembershipRole.VIEWER
+    )
+
+    membership.role = BrokerMembershipRole.ADMIN
+    membership.save(update_fields=["is_active"])
+
+    membership.refresh_from_db()
+    assert membership.role == BrokerMembershipRole.ADMIN
+    assert membership.can_edit_listings is True
+    assert membership.can_manage_team is True
+    assert membership.can_read_messages is True
+
+    membership.role = BrokerMembershipRole.VIEWER
+    membership.save(update_fields=["is_active"])
+
+    membership.refresh_from_db()
+    assert membership.role == BrokerMembershipRole.VIEWER
+    assert membership.can_edit_listings is False
+    assert membership.can_manage_team is False
+    assert membership.can_read_messages is False
+
+
+@pytest.mark.django_db
 def test_an_admin_membership_cannot_be_stripped_of_permissions_behind_the_orm():
     user = make_user("strip@example.com", role=UserRole.BROKER)
     membership = make_membership(user, make_broker(), role=BrokerMembershipRole.ADMIN)
