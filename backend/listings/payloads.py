@@ -156,7 +156,7 @@ def _clean_price(errors, value):
     return f"{amount.quantize(Decimal('0.01')):f}"
 
 
-def _clean_percent(errors, field, value):
+def _clean_percent(errors, field, value, *, max_value: Decimal = Decimal(100)):
     if not isinstance(value, str):
         errors[field] = _error(
             'Send the percentage as a decimal string, e.g. "4.7500".', "invalid_percent"
@@ -167,9 +167,10 @@ def _clean_percent(errors, field, value):
     except InvalidOperation:
         errors[field] = _error("Enter a valid percentage.", "invalid_percent")
         return None
-    if not (Decimal(0) <= amount <= Decimal(100)) or amount.as_tuple().exponent < -4:
+    if not (Decimal(0) <= amount <= max_value) or amount.as_tuple().exponent < -4:
         errors[field] = _error(
-            "Enter a percentage between 0 and 100 with at most four decimal places.",
+            f"Enter a percentage between 0 and {max_value} with at most four "
+            "decimal places.",
             "invalid_percent",
         )
         return None
@@ -348,12 +349,15 @@ def validate_revision_payload(
                 "Send true or false.", "invalid_boolean"
             )
 
-    for field in (
-        "finance_down_payment_override_percent",
-        "finance_rate_override_percent",
+    # Spec §17.3: annual rate override allows the full 0-100% range, but a
+    # 100% down payment override would leave zero principal, so its ceiling
+    # is 99.99% — matching finance.models / finance.serializers.
+    for field, max_value in (
+        ("finance_down_payment_override_percent", Decimal("99.99")),
+        ("finance_rate_override_percent", Decimal(100)),
     ):
         if present(field):
-            value = _clean_percent(errors, field, payload[field])
+            value = _clean_percent(errors, field, payload[field], max_value=max_value)
             if value is not None:
                 cleaned[field] = value
 

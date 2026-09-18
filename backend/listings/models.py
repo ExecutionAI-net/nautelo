@@ -146,6 +146,26 @@ class BoatListing(UUIDTimeStampedModel):
                 ),
                 name="listings_custom_model_name_length_2_to_100",
             ),
+            # Spec §17.3: a 100% down payment leaves zero principal, so this
+            # override's ceiling is 99.99%, unlike the rate override below
+            # which allows the full 0-100% range. Mirrors the application-level
+            # bound enforced in listings.payloads._clean_percent.
+            models.CheckConstraint(
+                condition=Q(finance_down_payment_override_percent__isnull=True)
+                | (
+                    Q(finance_down_payment_override_percent__gte=0)
+                    & Q(finance_down_payment_override_percent__lte=99.99)
+                ),
+                name="listings_finance_down_payment_override_percent_0_to_99_99",
+            ),
+            models.CheckConstraint(
+                condition=Q(finance_rate_override_percent__isnull=True)
+                | (
+                    Q(finance_rate_override_percent__gte=0)
+                    & Q(finance_rate_override_percent__lte=100)
+                ),
+                name="listings_finance_rate_override_percent_0_to_100",
+            ),
         ]
 
     def __str__(self):
@@ -330,6 +350,21 @@ class ListingSnapshot(UUIDModel):
     location_city = models.CharField(max_length=120)
     currency = models.CharField(max_length=3)
     price = models.DecimalField(max_digits=14, decimal_places=2)
+    # Spec §18.2 reads these four as "listing.show_finance_estimate" etc. They
+    # are snapshotted rather than read off the BoatListing row because those
+    # columns are draft state (listings.drafts._apply_payload_to_listing writes
+    # them on every draft save) and spec §36.1 requires that "draft broker
+    # finance settings do not leak before publication". Written only by
+    # listings.snapshots.create_snapshot_from_revision; read only by
+    # finance.listing_quotes.
+    show_finance_estimate = models.BooleanField(default=False)
+    finance_down_payment_override_percent = models.DecimalField(
+        max_digits=7, decimal_places=4, null=True, blank=True
+    )
+    finance_rate_override_percent = models.DecimalField(
+        max_digits=7, decimal_places=4, null=True, blank=True
+    )
+    finance_term_override_months = models.PositiveIntegerField(null=True, blank=True)
     media_manifest = models.JSONField(default=list, encoder=DjangoJSONEncoder)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"

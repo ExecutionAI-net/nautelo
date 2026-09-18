@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from accounts.enums import SellerType
 from platform_settings.services import get_setting_value
 
-from .enums import MediaType, PublicationSource
+from .enums import ListingStatus, MediaType, PublicationSource
 from .models import BoatListing, ListingMedia
 
 
@@ -60,16 +60,49 @@ class ListingEntitlementGate:
         return int(get_setting_value("individual.free_publish_days"))
 
 
-def requires_staff_approval(listing: BoatListing) -> bool:
-    """Whether a submission must wait for a moderator.
+# Spec §21 rule 2: auto-approval "does not bypass validation, moderation,
+# suspension, media limits or abuse controls". A listing outside the owner's
+# ordinary edit loop always goes to a human, whatever the organization's policy
+# says: SUSPENDED / EXPIRED / ARCHIVED are moderation outcomes, and
+# PENDING_APPROVAL is a submission a moderator already owns (spec §21 rule 5 —
+# enabling the policy must not retro-approve it). The set is deliberately
+# identical to the one listings.drafts.update_listing_draft uses to decide who
+# may open a new revision at all.
+AUTO_APPROVABLE_LISTING_STATES: frozenset[str] = frozenset(
+    {ListingStatus.DRAFT, ListingStatus.REJECTED, ListingStatus.PUBLISHED}
+)
 
-    Always True in Phase 11. Spec §6.1 allows a broker initial publication to go
-    straight to PUBLISHED when `BrokerOrganization.auto_approve_listings` is
-    true, but the surrounding policy (staff-admin-only toggle with a mandatory
-    reason, future-only effect, bulk approval of the pending backlog) is spec
-    Phase 12 (§21). Phase 12 swaps this body for the real check.
+
+def requires_staff_approval(listing: BoatListing) -> bool:
+    """Whether a submission must wait for a moderator (spec §21, §20.4, §6.1).
+
+    Returns False in exactly one case: a broker listing, inside the ordinary
+    edit loop, belonging to an ACTIVE organization whose staff-admin-enabled
+    `auto_approve_listings` policy is on. Everything else still goes through
+    moderation — every private seller, a broker listing with no organization
+    row, an organization that is DRAFT/PENDING/SUSPENDED, and any listing state
+    outside AUTO_APPROVABLE_LISTING_STATES.
+
+    Read at submit time only, which is what makes spec §21 rules 5 and 6 true:
+    the policy governs *future* submissions, so a revision already sitting in
+    PENDING_APPROVAL is never retro-approved by enabling it, and a published
+    listing is never unpublished by disabling it.
+
+    `listing.broker` is dereferenced rather than imported: `listings` must never
+    import `brokers` at module level — that arrow belongs to `brokers`, which
+    imports `listings` for the staff screen. On a listing loaded without
+    `select_related("broker")` this costs one query; `submit_listing_revision`
+    selects it, and `ListingWorkflowSerializer` pays it once per broker listing
+    it renders.
     """
-    return True
+    if listing.seller_type != SellerType.BROKER:
+        return True
+    if listing.status not in AUTO_APPROVABLE_LISTING_STATES:
+        return True
+    broker = listing.broker
+    if broker is None or not broker.is_active:
+        return True
+    return not broker.auto_approve_listings
 
 
 def effective_media_allowance(listing: BoatListing) -> MediaAllowance:

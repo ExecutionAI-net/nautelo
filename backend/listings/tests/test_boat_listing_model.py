@@ -135,6 +135,50 @@ def test_a_draft_may_have_no_price_yet():
 
 
 @pytest.mark.django_db
+def test_finance_down_payment_override_of_100_percent_is_rejected_by_the_database():
+    broker = make_broker()
+    actor = make_user()
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            make_broker_listing(
+                broker=broker,
+                actor=actor,
+                show_finance_estimate=True,
+                finance_down_payment_override_percent=Decimal("100"),
+            )
+
+
+@pytest.mark.django_db
+def test_finance_down_payment_override_of_99_99_percent_is_accepted_by_the_database():
+    broker = make_broker()
+    actor = make_user()
+    listing = make_broker_listing(
+        broker=broker,
+        actor=actor,
+        show_finance_estimate=True,
+        finance_down_payment_override_percent=Decimal("99.99"),
+    )
+
+    assert listing.finance_down_payment_override_percent == Decimal("99.99")
+
+
+@pytest.mark.django_db
+def test_finance_rate_override_of_100_percent_is_still_accepted_by_the_database():
+    # Regression guard: unlike the down-payment override, the rate override's
+    # database ceiling stays at 100%.
+    broker = make_broker()
+    actor = make_user()
+    listing = make_broker_listing(
+        broker=broker,
+        actor=actor,
+        show_finance_estimate=True,
+        finance_rate_override_percent=Decimal("100"),
+    )
+
+    assert listing.finance_rate_override_percent == Decimal("100")
+
+
+@pytest.mark.django_db
 def test_custom_model_name_shorter_than_two_characters_is_rejected_by_the_database():
     owner = make_user()
     brand = make_brand()

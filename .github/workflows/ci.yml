@@ -47,6 +47,7 @@ jobs:
       OBJECT_STORAGE_BUCKET_NAME: nautelo-media
       OBJECT_STORAGE_REGION: us-east-1
       CONTACT_HASH_SECRET: ci-test-secret
+      INTERNAL_SERVICE_SECRET: ci-test-secret
       PUBLIC_BASE_URL: http://localhost:3020
     steps:
       - uses: actions/checkout@v4

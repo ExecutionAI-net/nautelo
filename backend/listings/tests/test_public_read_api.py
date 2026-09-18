@@ -161,12 +161,19 @@ def test_the_public_payload_carries_no_owner_or_internal_columns(api):
 
 
 @pytest.mark.django_db
-def test_the_response_never_exposes_a_finance_block_in_this_phase(api):
+def test_the_response_carries_a_finance_block_that_is_closed_for_a_private_seller(api):
+    """Replaces Phase 11's test_the_response_never_exposes_a_finance_block_in_
+    this_phase, which asserted the block's absence. Phase 9 (spec §18.5) adds
+    it, so the contract this file pins changes here deliberately: the block
+    exists on every public response and says exactly "not visible" for a
+    private seller. The `forbidden` key set in the test above is unchanged —
+    the four finance columns must still never appear as top-level keys.
+    """
     listing, _ = _published()
 
     response = api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk}))
 
-    assert "finance" not in response.data
+    assert response.data["finance"] == {"visible": False}
 
 
 @pytest.mark.django_db
@@ -383,11 +390,12 @@ def test_the_public_read_endpoints_are_rate_limited(api, monkeypatch):
     setting_changed signal does not retroactively update it. Monkeypatching the
     scope entry is the reliable way to exercise the throttle in a test.
     """
-    from django.core.cache import cache
     from rest_framework.throttling import ScopedRateThrottle
 
+    from conftest import clear_own_cache_keys
+
     listing, _ = _published()
-    cache.clear()
+    clear_own_cache_keys()
     monkeypatch.setitem(ScopedRateThrottle.THROTTLE_RATES, "public_listing_read", "2/min")
 
     assert api.get(reverse("listing-list")).status_code == 200

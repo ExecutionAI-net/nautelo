@@ -1,5 +1,8 @@
+import logging
+
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
+from django.utils.cache import patch_vary_headers
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -13,6 +16,8 @@ from accounts.permissions import (
     IsOwnerOrBrokerEditor,
     IsStaffModerator,
 )
+from analytics.recording import record_listing_view
+from common.authentication import OptionalJWTAuthentication
 
 from .decisions import approve_revision, reject_revision, request_revision_changes
 from .drafts import create_listing_draft, update_listing_draft
@@ -29,6 +34,8 @@ from .serializers import (
     StaffRevisionSerializer,
 )
 from .submissions import submit_listing_revision, withdraw_listing_revision
+
+logger = logging.getLogger(__name__)
 
 
 class ListingDraftCreateView(APIView):
@@ -244,10 +251,50 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
 
 
 class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
-    """GET /api/v1/listings/<id>/ — public detail (spec §30.1).
+    """GET /api/v1/listings/<id>/ — public detail and counted view (spec §30.1).
 
     Returns 404 for anything not published, including to the listing's owner:
     the owner's view of their own work comes from the workflow endpoints.
+
+    Two deliberate departures from the shared PublicListingReadView config:
+
+    1. `authentication_classes` is OptionalJWTAuthentication, which never 401s
+       (an expired or malformed Authorization header still yields a public page)
+       but populates `request.user` so spec §19.1's owner / broker-colleague /
+       staff exclusions are decidable. `permission_classes` stays AllowAny.
+    2. `retrieve()` records the view. The list view records nothing (spec §19.1:
+       card impressions do not count).
+
+    Recording is contained HERE, not in the recorder: `record_listing_view`
+    propagates faults by design (a silent swallow would produce fake counts), so
+    this caller decides that an analytics fault must not take down a public page.
+    The log line carries the listing id and exception class only — never the IP,
+    user agent or viewer key.
+
+    The body varies by viewer (an excluded viewer sees the unincremented count,
+    a first-time viewer sees N+1), so the response is never shared-cacheable:
+    `Cache-Control: private, no-store` plus `Vary: Authorization`, set on every
+    response so cacheability never depends on the request.
     """
 
     lookup_url_kwarg = "listing_id"
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def retrieve(self, request, *args, **kwargs):
+        listing = self.get_object()
+        try:
+            counted = record_listing_view(listing=listing, request=request).counted
+            if counted:
+                listing.refresh_from_db(fields=["view_count_cached"])
+        except Exception as exc:
+            # ATOMIC_REQUESTS is off and the recorder opens its own atomic, so
+            # the connection remains usable for the response below.
+            logger.error(
+                "listing view recording failed listing_id=%s error=%s",
+                listing.pk,
+                type(exc).__name__,
+            )
+        response = Response(self.get_serializer(listing).data)
+        response["Cache-Control"] = "private, no-store"
+        patch_vary_headers(response, ("Authorization",))
+        return response

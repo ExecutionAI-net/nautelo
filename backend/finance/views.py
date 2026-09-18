@@ -4,7 +4,16 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from listings.views import published_listings_queryset
+
 from .calculations import calculate_finance_quote
+from .listing_quotes import (
+    REQUESTED,
+    FinancePolicy,
+    FinanceQuoteService,
+    format_percent,
+    resolve_effective_assumptions,
+)
 from .serializers import FinanceQuoteRequestSerializer
 
 DISCLAIMER_KEY = "finance.illustrative_disclaimer"
@@ -19,57 +28,167 @@ def _error_code_from_serializer_errors(errors):
     return "validation_error"
 
 
-class FinanceQuoteView(APIView):
-    """Manual finance-quote calculation (spec §17.4, context 2 only).
+def _envelope(request, *, code, message, fields=None):
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "fields": fields or {},
+            "request_id": request.headers.get("X-Request-ID", ""),
+        }
+    }
 
-    Listing-linked quotes (context 1: `listing_id`) are out of scope for this
-    phase — see this plan's Task 7 ruling note.
+
+class FinanceQuoteView(APIView):
+    """Spec §17.4's quote endpoint, both contexts.
+
+    Context 1 (`listing_id`) is Phase 9's: the listing is the authority for
+    price and currency, and spec §18.3 requires that a tampered query price
+    cannot change the answer. Context 2 (explicit values) is Phase 8's manual
+    calculator and is deliberately unchanged, including its null
+    `configuration_version`.
     """
 
     permission_classes = [AllowAny]
+    # Spec §30.4 asks for a user/IP-aware limit here while keeping "the
+    # calculation itself reasonably accessible". The scope alone is enough:
+    # Phase 3 installs common.throttling.HashedIPScopedRateThrottle as the
+    # default class, which hashes the client IP before building the cache key.
+    throttle_scope = "finance_quote"
 
     def post(self, request):
         serializer = FinanceQuoteRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
-                {
-                    "error": {
-                        "code": _error_code_from_serializer_errors(serializer.errors),
-                        "message": "One or more finance quote fields are invalid.",
-                        "fields": serializer.errors,
-                        "request_id": request.headers.get("X-Request-ID", ""),
-                    }
-                },
+                _envelope(
+                    request,
+                    code=_error_code_from_serializer_errors(serializer.errors),
+                    message="One or more finance quote fields are invalid.",
+                    fields=serializer.errors,
+                ),
                 status=400,
             )
 
         data = serializer.validated_data
-        result = calculate_finance_quote(
-            price=data["price"],
-            down_payment_percent=data["down_payment_percent"],
-            annual_rate_percent=data["annual_rate_percent"],
-            term_months=data["term_months"],
+        if data.get("listing_id") is not None:
+            return self._listing_quote(request, data)
+        return self._manual_quote(request, data)
+
+    def _listing_quote(self, request, data):
+        listing = (
+            published_listings_queryset().filter(pk=data["listing_id"]).first()
         )
+        if listing is None:
+            return Response(
+                _envelope(
+                    request,
+                    code="listing_not_found",
+                    message="This listing is not available.",
+                ),
+                status=404,
+            )
+
+        policy = FinancePolicy.load()
+        if not FinanceQuoteService.is_visible(listing, policy=policy):
+            return Response(
+                _envelope(
+                    request,
+                    code="finance_not_available_for_listing",
+                    message="This listing does not show a financing estimate.",
+                ),
+                status=400,
+            )
+
+        snapshot = listing.current_public_snapshot
+        if (
+            data.get("price") is not None
+            and data["price"] != snapshot.price
+        ):
+            return Response(
+                _envelope(
+                    request,
+                    code="price_mismatch",
+                    message="The price does not match this listing.",
+                    fields={"price": ["The price does not match this listing."]},
+                ),
+                status=400,
+            )
+
+        assumptions = resolve_effective_assumptions(snapshot=snapshot, policy=policy)
+        values = {
+            "annual_rate_percent": assumptions.annual_rate_percent,
+            "term_months": assumptions.term_months,
+            "down_payment_percent": assumptions.down_payment_percent,
+        }
+        sources = dict(assumptions.sources)
+        # Spec §36.1: the finance page may explore alternative values. Anything
+        # the viewer supplied is reported as REQUESTED so a response can never
+        # present a viewer's own input as a platform assumption (spec §17.2's
+        # two sources are GLOBAL and LISTING_OVERRIDE).
+        for field in values:
+            if data.get(field) is not None:
+                values[field] = data[field]
+                sources[field] = REQUESTED
 
         return Response(
-            {
-                "currency": data["currency"],
-                "price": str(data["price"].quantize(Decimal("0.01"))),
-                "down_payment_amount": str(result.down_payment_amount),
-                "principal": str(result.principal),
-                "annual_rate_percent": str(data["annual_rate_percent"].quantize(Decimal("0.0001"))),
-                "term_months": data["term_months"],
-                "monthly_payment": str(result.monthly_payment),
-                "total_payment": str(result.total_payment),
-                "total_interest": str(result.total_interest),
-                # This is a manual quote (client-supplied inputs only) — it
-                # never reads the stored active configuration, so there is no
-                # configuration version that actually produced these numbers.
-                # Reporting the currently-active version here would misleadingly
-                # imply a relationship that doesn't exist (see Task 7's ruling
-                # note above).
-                "configuration_version": None,
-                "disclaimer_key": DISCLAIMER_KEY,
-            },
+            self._quote_response(
+                currency=snapshot.currency,
+                price=snapshot.price,
+                values=values,
+                configuration_version=assumptions.configuration_version,
+                sources=sources,
+            ),
             status=200,
         )
+
+    def _manual_quote(self, request, data):
+        return Response(
+            self._quote_response(
+                currency=data["currency"],
+                price=data["price"],
+                values={
+                    "annual_rate_percent": data["annual_rate_percent"],
+                    "term_months": data["term_months"],
+                    "down_payment_percent": data["down_payment_percent"],
+                },
+                # A manual quote reads no stored configuration, so naming one
+                # would imply a relationship that does not exist (Phase 8's
+                # Task 7 ruling, unchanged).
+                configuration_version=None,
+                sources=None,
+            ),
+            status=200,
+        )
+
+    @staticmethod
+    def _quote_response(*, currency, price, values, configuration_version, sources):
+        """One response shape for both of spec §17.4's contexts.
+
+        `configuration_version` and `assumption_sources` are always present and
+        are None on a manual quote, rather than being omitted there: two shapes
+        behind one endpoint would force every client into a presence check and
+        would need a second frontend type. Phase 8's
+        test_finance_quote_endpoint_matches_spec_worked_example is widened by
+        one key in this same commit because of this (see Task 5's ruling).
+        """
+        result = calculate_finance_quote(
+            price=price,
+            down_payment_percent=values["down_payment_percent"],
+            annual_rate_percent=values["annual_rate_percent"],
+            term_months=values["term_months"],
+        )
+        return {
+            "currency": currency,
+            "price": str(price.quantize(Decimal("0.01"))),
+            "down_payment_amount": str(result.down_payment_amount),
+            "principal": str(result.principal),
+            "annual_rate_percent": format_percent(values["annual_rate_percent"]),
+            "term_months": values["term_months"],
+            "down_payment_percent": format_percent(values["down_payment_percent"]),
+            "monthly_payment": str(result.monthly_payment),
+            "total_payment": str(result.total_payment),
+            "total_interest": str(result.total_interest),
+            "configuration_version": configuration_version,
+            "disclaimer_key": DISCLAIMER_KEY,
+            "assumption_sources": sources,
+        }

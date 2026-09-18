@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
 
+from finance.listing_quotes import FinancePolicy, FinanceQuoteService
+
 from .drafts import open_revision_for
 from .payloads import IMMUTABLE_FIELD_NAMES, is_locked_for_owner
 from .policies import effective_media_allowance, requires_staff_approval
@@ -148,16 +150,33 @@ class PublicListingSerializer(serializers.Serializer):
     facts *about the publication*, not about the content: `seller_type` (spec
     §29.1's private/broker badge, immutable for the owner per §20.3) and the
     publication timestamps. Everything a seller can edit comes from the
-    snapshot, so a pending edit cannot reach this response.
+    snapshot, so a pending edit cannot reach this response — including the
+    broker finance settings, which Phase 9 snapshots for exactly that reason
+    (spec §36.1: "Draft broker finance settings do not leak before
+    publication").
 
-    Deliberately absent: the `finance` block (spec §18.5 — Phase 9) and CDN media
-    URLs (spec §24 — Phase 15). Those phases extend this serializer; they do not
-    add a second public representation (spec §29.1).
+    The `finance` block is spec §18.5's, computed by finance.listing_quotes
+    from the snapshot plus the live global configuration (spec §17.5). Still
+    deliberately absent: CDN media URLs (spec §24 — Phase 15). That phase
+    extends this serializer; it does not add a second public representation
+    (spec §29.1).
 
     This serializer must only ever be fed rows from
     listings.views.published_listings_queryset(): it reads
     `current_public_snapshot` unconditionally and has no status gate of its own.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # One policy per serializer instance, not per row: DRF builds one
+        # serializer per request and reuses a single `child` for every row of a
+        # list, and FinancePolicy.load() costs two Postgres reads.
+        self._finance_policy = None
+
+    def finance_policy(self) -> FinancePolicy:
+        if self._finance_policy is None:
+            self._finance_policy = FinancePolicy.load()
+        return self._finance_policy
 
     def to_representation(self, listing):
         snapshot = listing.current_public_snapshot
@@ -198,4 +217,9 @@ class PublicListingSerializer(serializers.Serializer):
             },
             "media": snapshot.media_manifest,
             "view_count": listing.view_count_cached,
+            # Spec §18.5. Six keys when eligible, exactly {"visible": False}
+            # when not — never zeros or a disabled placeholder (spec §18.2).
+            "finance": FinanceQuoteService.card_block(
+                listing, policy=self.finance_policy()
+            ),
         }
