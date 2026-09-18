@@ -8,8 +8,10 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.cookies import REFRESH_COOKIE_NAME, clear_refresh_cookie, set_refresh_cookie
 from accounts.models import User
+from accounts.permissions import IsActiveUser
 from accounts.selectors import build_session_payload
 from accounts.serializers import (
+    AccountUpdateSerializer,
     EmailTokenObtainPairSerializer,
     RegistrationSerializer,
     ResendVerificationSerializer,
@@ -169,3 +171,20 @@ class SessionView(APIView):
     def get(self, request):
         user = request.user if request.user.is_authenticated else None
         return Response(build_session_payload(user), status=status.HTTP_200_OK)
+
+
+class AccountView(APIView):
+    """The caller's own account. Identity and privilege fields are read-only."""
+
+    permission_classes = [IsActiveUser]
+
+    def get(self, request):
+        return Response(UserSummarySerializer(request.user).data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        serializer = AccountUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            UserSummarySerializer(request.user).data, status=status.HTTP_200_OK
+        )
