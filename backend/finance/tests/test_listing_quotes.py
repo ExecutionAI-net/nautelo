@@ -360,7 +360,7 @@ def test_down_payment_override_boundary_is_accepted_and_just_above_is_ignored(
     assert above.down_payment_percent == Decimal("20.0000")
     assert above.sources["down_payment_percent"] == GLOBAL
 
-    snapshot.finance_down_payment_override_percent = Decimal("100")
+    snapshot.finance_down_payment_override_percent = Decimal(100)
     assert _assumptions_for(eligible_listing).sources["down_payment_percent"] == GLOBAL
 
 
@@ -375,7 +375,7 @@ def test_price_boundaries(eligible_listing):
         snapshot.price = price
         assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is True
 
-    for price in (Decimal("0"), Decimal("0.00"), Decimal("0.009"), Decimal("-1")):
+    for price in (Decimal(0), Decimal("0.00"), Decimal("0.009"), Decimal(-1)):
         snapshot.price = price
         assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is False
         assert FinanceQuoteService.card_block(
