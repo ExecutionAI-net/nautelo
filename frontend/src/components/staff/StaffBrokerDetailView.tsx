@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 import AutoApprovalPanel from "@/components/staff/AutoApprovalPanel";
+import BrokerAuditHistory from "@/components/staff/BrokerAuditHistory";
 import BrokerOverviewPanel from "@/components/staff/BrokerOverviewPanel";
+import BulkApprovePanel from "@/components/staff/BulkApprovePanel";
 import { ApiError } from "@/lib/api/client";
 import {
   fetchStaffBrokerDetail,
@@ -141,6 +143,8 @@ export default function StaffBrokerDetailView({
         // screen refreshes from the response with no second GET (spec §30.2).
         onUpdated={setBroker}
       />
+      <BulkApprovePanel locale={locale} broker={broker} onUpdated={setBroker} />
+      <BrokerAuditHistory locale={locale} entries={broker.audit_history} />
     </div>
   );
 }

@@ -196,6 +196,66 @@ export const STAFF_BROKER_MESSAGES: Record<string, Translations> = {
     it: "La politica era già in questo stato. Nessuna modifica.",
     es: "La política ya estaba en ese estado. No ha cambiado nada.",
   },
+  "staff.broker.audit_history": {
+    en: "Policy audit history",
+    it: "Cronologia delle modifiche alla politica",
+    es: "Historial de auditoría de la política",
+  },
+  "staff.broker.audit_empty": {
+    en: "No policy changes recorded yet.",
+    it: "Nessuna modifica registrata.",
+    es: "Todavía no hay cambios registrados.",
+  },
+  "staff.broker.audit.broker.auto_approval_changed": {
+    en: "Automatic approval changed",
+    it: "Approvazione automatica modificata",
+    es: "Aprobación automática modificada",
+  },
+  "staff.broker.audit.broker.pending_revisions_bulk_approved": {
+    en: "Pending submissions approved in bulk",
+    it: "Invii in attesa approvati in blocco",
+    es: "Envíos pendientes aprobados en bloque",
+  },
+  "staff.broker.bulk.title": {
+    en: "Pending submissions",
+    it: "Invii in attesa",
+    es: "Envíos pendientes",
+  },
+  "staff.broker.bulk.count": {
+    en: "Submissions waiting for a decision",
+    it: "Invii in attesa di una decisione",
+    es: "Envíos a la espera de una decisión",
+  },
+  "staff.broker.bulk.none": {
+    en: "There is nothing waiting for a decision.",
+    it: "Non c'è nulla in attesa di una decisione.",
+    es: "No hay nada a la espera de una decisión.",
+  },
+  "staff.broker.bulk.action": {
+    en: "Approve all pending submissions",
+    it: "Approva tutti gli invii in attesa",
+    es: "Aprobar todos los envíos pendientes",
+  },
+  "staff.broker.bulk.confirm_title": {
+    en: "Approve every pending submission",
+    it: "Approva ogni invio in attesa",
+    es: "Aprobar todos los envíos pendientes",
+  },
+  "staff.broker.bulk.confirm_body": {
+    en: "Every pending submission that still passes validation is published immediately. Anything that no longer validates is left for a moderator.",
+    it: "Ogni invio in attesa che supera ancora la validazione viene pubblicato subito. Tutto ciò che non la supera più resta a un moderatore.",
+    es: "Todos los envíos pendientes que sigan superando la validación se publican de inmediato. Lo que ya no la supere se deja para un moderador.",
+  },
+  "staff.broker.bulk.approved": {
+    en: "Approved",
+    it: "Approvati",
+    es: "Aprobados",
+  },
+  "staff.broker.bulk.failed": {
+    en: "Left for a moderator",
+    it: "Lasciati a un moderatore",
+    es: "Dejados para un moderador",
+  },
 };
 
 export function tStaffBroker(locale: Locale, key: string): string {
