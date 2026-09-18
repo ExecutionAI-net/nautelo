@@ -39,7 +39,7 @@ class BoatListingAdmin(admin.ModelAdmin):
         "published_at",
         "expires_at",
         "publication_source",
-        "consumed_entitlement_id",
+        "consumed_entitlement",
         "view_count_cached",
         "created_at",
         "updated_at",
