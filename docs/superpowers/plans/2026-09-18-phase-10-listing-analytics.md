@@ -4,7 +4,7 @@
 
 **Goal:** Count each viewer of a published boat listing exactly once for the lifetime of that listing — writing the already-existing, already-serialized `BoatListing.view_count_cached` for the first time — with owner/broker/staff/bot/prefetch views excluded, no raw IP ever stored, and a reconciliation task that can recompute the cached number from the underlying rows.
 
-**Architecture:** A new Django app, `analytics`, owns spec §11.7's `ListingView` table, the eligibility/identity policy and the write path. It depends one-directionally on `listings` (FK to `BoatListing`, read-only use of `ListingStatus`) and never mutates listing workflow state. The only change inside `listings/` is a five-line hook on the public detail view, which spec §30.1 already designates as the "counted-view integration" point. A shared `common.ip` module supplies spec §11.7's `canonical_client_ip` and the single HMAC used to pseudonymize it, replacing a spoofable left-most `X-Forwarded-For` read that the existing throttle inherited from DRF. The frontend contribution is the localized, accessible view-count formatter and component that spec §19.5 requires; mounting it on a boat card is Phase 20's job because no boat card exists yet.
+**Architecture:** A new Django app, `analytics`, owns spec §11.7's `ListingView` table, the eligibility/identity policy and the write path. It depends one-directionally on `listings` (FK to `BoatListing`, read-only use of `ListingStatus`) and never mutates listing workflow state. The only change inside `listings/` is a five-line hook on the public detail view, which spec §30.1 already designates as the "counted-view integration" point. A shared `common.ip` module supplies spec §11.7's `canonical_client_ip` and the single HMAC used to pseudonymize it, replacing an unconfigured, entirely client-controllable `X-Forwarded-For` read that the existing throttle inherited from DRF. The frontend contribution is the localized, accessible view-count formatter and component that spec §19.5 requires; mounting it on a boat card is Phase 20's job because no boat card exists yet.
 
 **Tech Stack:** Python 3.13 + `uv`, Django 5.2 LTS, Django REST Framework, PostgreSQL 16, Redis (cache + throttle counters), Celery (existing `maintenance` queue); **Next.js 16.3.5** (App Router, TypeScript), **Tailwind CSS v4**, `pnpm`, Vitest + Testing Library. No new third-party dependencies in either project.
 
@@ -74,11 +74,38 @@ A defensive `try/except Exception: pass` around the write would convert a broken
 **Note (ruling — the `unique_listing_views` flag gates the write, not the read).**
 Spec §35.1: "Flags gate both frontend exposure and backend mutation. Do not leave an enabled API behind a disabled UI unintentionally." The mutation here is the `ListingView` insert and the counter increment, so the flag is checked at the top of `record_listing_view()`. It is emphatically **not** checked on the detail endpoint itself: gating a public read behind a rollout flag would 403 the public catalogue, which is Phase 11's shipped, flag-free behaviour. While the flag is off, `view_count` serializes the honest value `0` for every listing and no row is written — exactly the "code ships ahead of the feature" posture §35.2 step 4 asks for, with step 9 flipping it on.
 
-**Note (ruling — "canonical client IP" means the right-most trusted hop, and this phase fixes a real spoofing bug on the way).**
-Spec §11.7: "Proxy headers are trusted only from configured reverse proxies." No such configuration exists today. DRF's stock `BaseThrottle.get_ident()` — which `HashedIPScopedRateThrottle` inherits — reads `X-Forwarded-For` and takes `addrs[0]`, the **left-most** entry, whenever `NUM_PROXIES` is unset, and `NUM_PROXIES` is unset in `config/settings/base.py`. The left-most entry is whatever the client typed, so today every IP-derived identifier in this project is attacker-controlled. For a throttle that means a trivial bypass; for `viewer_hash` it would mean unlimited view inflation from one machine. Task 1 therefore introduces `common.ip.canonical_client_ip()`, which counts `settings.TRUSTED_PROXY_COUNT` hops from the **right** and falls back to `REMOTE_ADDR`, and repoints the existing throttle at it. `TRUSTED_PROXY_COUNT` defaults to `0` — meaning `X-Forwarded-For` is ignored entirely, which is the correct and safe value for the current deployment, where Django is reached directly.
+**Note (ruling — "canonical client IP" means the right-most trusted hop, and this phase fixes a real rate-limit-bypass bug on the way).**
+Spec §11.7: "Proxy headers are trusted only from configured reverse proxies." No such configuration exists today. The relevant DRF behaviour is not what a summary of "DRF takes the wrong XFF entry" would suggest, so it is quoted here from the installed source (`rest_framework/throttling.py`, DRF 3.18.1) rather than paraphrased:
 
-**Note (ruling — IPv6 addresses are canonicalized but not truncated to a subnet).**
-Spec §19.2 says "HMAC hash of canonical client IP" and separately accepts that "a household sharing an IP may count as one anonymous viewer". It does not ask for subnet aggregation, and truncating IPv6 to a `/64` would be a different, unrequested privacy/accuracy trade (it merges more households, and silently changes what a "viewer" is). `canonical_client_ip()` therefore normalizes the *representation* — strips ports and brackets, collapses IPv4-mapped IPv6 (`::ffff:198.51.100.9` → `198.51.100.9`) so one host is one identity rather than one per transport, and emits `ipaddress`'s compressed form so `2001:db8:0:0:0:0:0:1` and `2001:db8::1` hash identically — and changes nothing else. A privacy review that later wants `/64` truncation changes one function.
+```python
+    def get_ident(self, request):
+        xff = request.headers.get('x-forwarded-for')
+        remote_addr = request.META.get('REMOTE_ADDR')
+        num_proxies = api_settings.NUM_PROXIES
+
+        if num_proxies is not None:
+            if num_proxies == 0 or xff is None:
+                return remote_addr
+            addrs = xff.split(',')
+            client_addr = addrs[-min(num_proxies, len(addrs))]
+            return client_addr.strip()
+
+        return ''.join(xff.split()) if xff else remote_addr
+```
+
+Two things follow, and both are the opposite of the intuitive reading:
+
+1. **When `NUM_PROXIES` *is* configured, DRF already counts from the right** (`addrs[-min(num_proxies, len(addrs))]`) — the same direction `common.ip.canonical_client_ip()` counts. This phase is not reversing DRF's direction; the two agree once configured.
+2. **When `NUM_PROXIES` is `None`, DRF uses the ENTIRE `X-Forwarded-For` header as the identity** — `''.join(xff.split())` is the whole header with whitespace stripped out, not its left-most entry. `NUM_PROXIES` is `None` in this project (`grep -rn NUM_PROXIES backend/` returns nothing outside the installed DRF package; it is unset in `config/settings/base.py` and in every settings module). So the throttle bucket today is keyed on a string the caller writes in full. An attacker does not need to guess or spoof one address: sending a *different* arbitrary `X-Forwarded-For` value on every request yields a brand-new, never-before-seen bucket every time. That is a **complete rate-limit bypass**, not a partial spoofing risk — spec §30.4's limits currently bind only clients that choose to send a stable header or none at all.
+
+The same header would become the input to `viewer_hash` if it were reused there, which would mean unbounded view inflation from one machine. Task 1 therefore introduces `common.ip.canonical_client_ip()`, which counts `settings.TRUSTED_PROXY_COUNT` hops from the **right** and falls back to `REMOTE_ADDR`, and repoints the existing throttle at it. The real disagreement with DRF is not about direction: it is that DRF's *unconfigured* default trusts the client completely, whereas `TRUSTED_PROXY_COUNT` defaults to `0` — meaning `X-Forwarded-For` is ignored entirely, which is the correct and safe value for the current deployment, where Django is reached directly. Safe by default, opt in to trust.
+
+**Note (ruling — IPv6 addresses are canonicalized, and truncation to a subnet is built but ships disabled).**
+`canonical_client_ip()` normalizes the *representation* unconditionally: it strips ports and brackets, collapses IPv4-mapped IPv6 (`::ffff:198.51.100.9` → `198.51.100.9`) so one host is one identity rather than one per transport, and emits `ipaddress`'s compressed form so `2001:db8:0:0:0:0:0:1` and `2001:db8::1` hash identically.
+
+Truncating an IPv6 address to a prefix is a separate question, and it is **not** merely a privacy preference. A residential or mobile IPv6 allocation is normally a `/64` — 2^64 addresses, all usable outbound by one subscriber — so hashing the full address means one subscriber can mint an unbounded number of distinct `viewer_hash` values, each indistinguishable from a genuine first-time viewer. That is a direct attack on spec §11.7's "practical uniqueness control", and no throttle blunts it, because a fresh source address is also a fresh throttle bucket. Spec §19.2 does not ask for subnet aggregation, but it does not license an inflation vector either.
+
+The ruling is therefore: build the mitigation, ship it off. `settings.IPV6_HASH_PREFIX_BITS` (Task 1) defaults to `0`, which changes nothing, and a deployment sets it to `64` once real traffic justifies the accuracy cost — enabling it merges every viewer behind a prefix into one identity, and the correct prefix length is not knowable before launch. This is the same "safe default, override later" shape as `TRUSTED_PROXY_COUNT`, and it means turning the mitigation on is a config change rather than a code change under pressure. IPv4 is never truncated. Recorded as Known Limitation 13.
 
 **Note (ruling — "viewer is staff" means the STAFF primary role or a superuser, which is broader than `is_staff_moderator()`).**
 `accounts.services.is_staff_moderator()` additionally requires membership of the `staff_moderator`/`staff_admin` Django group, because it authorizes an action. Exclusion is the opposite kind of decision: a staff account that has not been put in a group yet is still a staff member browsing the catalogue, and counting them would corrupt a seller's metric. `analytics.policies.viewer_is_staff()` therefore checks `user.is_superuser or user.primary_role == UserRole.STAFF` and does not consult groups. Both helpers keep their own meaning; neither is changed.
@@ -99,7 +126,11 @@ Spec §19's acceptance test 1 is "First eligible view increments from 0 to 1", w
 `BoatListing.version` is Phase 11's optimistic-locking column (spec §20.5) and `updated_at` is `auto_now`. A view is not an edit: bumping either would hand sellers spurious `409 stale_version` errors while a page was merely being browsed, and would forge an edit timestamp. The increment is therefore `BoatListing.objects.filter(pk=...).update(view_count_cached=F("view_count_cached") + 1)` — `QuerySet.update()` writes exactly the named column and does not fire `auto_now`. This is also why the increment does **not** go through `listings.locking.bump_version` (Phase 11 contract rule 4, which governs state-changing endpoints — this is not one).
 
 **Note (ruling — `viewer_user` cascades on account deletion; lifetime counts may legitimately go down).**
-Spec §19.4 requires deleting view identity rows when the listing is permanently deleted (hence `listing` → `CASCADE`) but says nothing about account erasure. A GDPR erasure request must be satisfiable without leaving an orphan row, and the "exactly one of viewer user and viewer hash" constraint forbids `SET_NULL`, so `viewer_user` is `CASCADE` too. The consequence is stated rather than hidden: after an account is erased, reconciliation lowers that listing's `view_count_cached`. That is the correct behaviour for a "unique viewers" metric whose viewer no longer exists, and it is documented in the retention note Task 6 writes.
+Spec §19.4 requires deleting view identity rows when the listing is permanently deleted (hence `listing` → `CASCADE`) but says nothing about account erasure. The applicable case is the **viewer**, not the seller: a `ListingView.viewer_user` is typically a browsing buyer who owns no listings at all, and nothing else in the project holds their rows, so a `PROTECT` here would make their account undeletable and a `SET_NULL` is forbidden by the "exactly one of viewer user and viewer hash" constraint (a NULL-user row would then need a hash it does not have). `CASCADE` is the only option that leaves the table consistent, and it means a viewer's erasure request needs no per-table special handling.
+
+Note that this reasoning deliberately does **not** rest on sellers: `BoatListing.owner_user` is `on_delete=PROTECT` (Phase 11), so an account that still owns a listing cannot be deleted at all today, and "erasure must always be satisfiable" is therefore not yet a true statement about sellers. Whichever phase makes seller erasure possible has to solve that for `BoatListing` first; this ruling is only about the viewer side.
+
+The consequence is stated rather than hidden: after a viewer's account is erased, reconciliation lowers the affected listings' `view_count_cached`. That is the correct behaviour for a "unique viewers" metric whose viewer no longer exists, and it is documented in the retention note Task 6 writes.
 
 **Note (ruling — spec §19.5's card is a formatter and a component here, not a mounted card).**
 "All published boat cards show eye icon + localized integer" presupposes a boat card. None exists: `frontend/src/components/` holds `auth/`, `directory/` and `layout/` only, there is no `/boats` route, and spec §7 assigns "Public card/profile integration and responsive QA" to **Phase 20** (depends on 5–10) with the role-aware listing UI in **Phase 16**. Building a speculative card here would be the invented UI spec §2.1 forbids and would be rewritten by Phase 20 anyway. What this phase *can* deliver completely and test properly is the part §19.5 actually specifies numerically — the localized integer, the "compact only above 9,999" threshold, the exact value in the accessible label/title, and the zero case — so Task 7 ships `formatViewCount`/`formatExactViewCount` and a self-contained `<ViewCount>` component with EN/IT/ES strings and Vitest coverage. Phase 20 imports the component into the card; it does not reimplement the rule. Recorded in Known Limitations and in the Contract summary.
@@ -115,8 +146,8 @@ nautelo/
 │   ├── privacy/listing-view-analytics.md                    (new: Task 6 — spec §19.4 "document the purpose/retention")
 │   └── superpowers/plans/2026-09-18-phase-10-listing-analytics.md   (this file)
 ├── backend/
-│   ├── .env.example                                         (modify: Task 1 — TRUSTED_PROXY_COUNT)
-│   ├── config/settings/base.py                              (modify: Task 1 — TRUSTED_PROXY_COUNT; Task 2 — INSTALLED_APPS; Task 6 — CELERY_TASK_ROUTES)
+│   ├── .env.example                                         (modify: Task 1 — TRUSTED_PROXY_COUNT, IPV6_HASH_PREFIX_BITS)
+│   ├── config/settings/base.py                              (modify: Task 1 — TRUSTED_PROXY_COUNT, IPV6_HASH_PREFIX_BITS; Task 2 — INSTALLED_APPS; Task 6 — CELERY_TASK_ROUTES)
 │   ├── common/
 │   │   ├── ip.py                                            (new: Task 1 — canonical_client_ip, hash_client_ip)
 │   │   ├── throttling.py                                    (modify: Task 1 — delegate to common.ip)
@@ -142,6 +173,7 @@ nautelo/
 │           ├── __init__.py, factories.py                    (Task 2)
 │           ├── test_listing_view_model.py                   (Task 2)
 │           ├── test_policies.py                             (Task 3)
+│           ├── conftest.py                                  (Task 4 — the view_counting_enabled flag fixture ONLY; cache isolation is the root backend/conftest.py's job)
 │           ├── test_recording.py                            (Task 4)
 │           ├── test_detail_view_counting.py                 (Task 5)
 │           ├── test_reconciliation.py                       (Task 6)
@@ -162,14 +194,16 @@ nautelo/
 
 ### Task 1: Canonical client IP and the single IP-pseudonymization helper
 
-Spec §11.7 names `canonical_client_ip` as an input to `viewer_hash` but nothing in the repository produces one, and the function DRF supplies in its place trusts a client-supplied header. This task builds the real thing, repoints the existing throttle at it so the project keeps exactly one IP secret and one IP parser, and leaves `TRUSTED_PROXY_COUNT=0` — which ignores `X-Forwarded-For` entirely — as the default.
+Spec §11.7 names `canonical_client_ip` as an input to `viewer_hash` but nothing in the repository produces one, and the function DRF supplies in its place uses the entire client-supplied `X-Forwarded-For` header verbatim whenever `NUM_PROXIES` is unset — which it is here — making every current rate limit bypassable by simply varying that header. This task builds the real thing, repoints the existing throttle at it so the project keeps exactly one IP secret and one IP parser, and leaves `TRUSTED_PROXY_COUNT=0` — which ignores `X-Forwarded-For` entirely — as the default.
+
+Before starting, confirm the two facts this task rests on: `grep -rn NUM_PROXIES backend/ --include='*.py' | grep -v '\.venv'` must return **nothing** (the setting is unset, so DRF takes its unconfigured branch), and `backend/.venv/Lib/site-packages/rest_framework/throttling.py`'s `BaseThrottle.get_ident` must end in `return ''.join(xff.split()) if xff else remote_addr` (DRF 3.18.1). If either has changed, re-derive the rationale before writing the tests.
 
 **Files:**
 - Create: `backend/common/ip.py`
 - Create: `backend/common/tests/test_ip.py`
 - Modify: `backend/common/throttling.py` (whole file — 31 lines today)
-- Modify: `backend/config/settings/base.py` (one addition beside `CONTACT_HASH_SECRET`, around line 179)
-- Modify: `backend/.env.example` (one addition beside `CONTACT_HASH_SECRET`, line 32)
+- Modify: `backend/config/settings/base.py` (two additions beside `CONTACT_HASH_SECRET`, around line 179)
+- Modify: `backend/.env.example` (two additions beside `CONTACT_HASH_SECRET`, line 32)
 
 **Interfaces:**
 - Consumes: `settings.CONTACT_HASH_SECRET` (Phase 0/1), `rest_framework.throttling.ScopedRateThrottle`.
@@ -178,6 +212,7 @@ Spec §11.7 names `canonical_client_ip` as an input to `viewer_hash` but nothing
   - `common.ip.hash_client_ip(value: str) -> str` — 64-char lowercase hex HMAC-SHA256 of `value` under `CONTACT_HASH_SECRET`.
   - `common.ip.XFF_HEADER` — the `"HTTP_X_FORWARDED_FOR"` META key, exported so tests never retype it.
   - `settings.TRUSTED_PROXY_COUNT: int` — number of reverse proxies **we operate** in front of Django. `0` means none.
+  - `settings.IPV6_HASH_PREFIX_BITS: int` — optional IPv6 prefix length to collapse into one identity before hashing. `0` (the default) disables truncation; IPv4 is never truncated. See Known Limitation 13.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -187,9 +222,14 @@ Create `backend/common/tests/test_ip.py`:
 """Spec §11.7 ("Proxy headers are trusted only from configured reverse proxies")
 and §30.4 ("Rate limiting must not store raw IP beyond approved security systems").
 
-The spoofing tests below are the reason this module exists: DRF's stock
-BaseThrottle.get_ident() takes the LEFT-most X-Forwarded-For entry when
-NUM_PROXIES is unset, and the left-most entry is whatever the caller typed.
+The forged-header tests below are the reason this module exists. DRF's stock
+BaseThrottle.get_ident() ends in `return ''.join(xff.split()) if xff else
+remote_addr` — so when NUM_PROXIES is unset (it is unset in this project) the
+identity is the ENTIRE X-Forwarded-For header, verbatim, as the caller wrote it.
+Not its left-most entry: the whole string. A caller who varies that header on
+every request gets a fresh identity on every request. canonical_client_ip()
+instead derives the identity only from evidence we produced ourselves —
+REMOTE_ADDR, or the hop written by a proxy we actually operate.
 """
 
 import pytest
@@ -223,7 +263,10 @@ def test_with_one_trusted_proxy_the_right_most_hop_wins_not_the_spoofable_first(
     factory, settings
 ):
     # Our own proxy appended "198.51.100.9"; "203.0.113.7" is the attacker's
-    # hand-written prefix. DRF's stock get_ident() would return the latter.
+    # hand-written prefix. DRF's stock get_ident() with NUM_PROXIES unset would
+    # return the whole header, "203.0.113.7,198.51.100.9" — an identity the
+    # attacker can change at will. (With NUM_PROXIES=1 DRF would agree with us
+    # and return "198.51.100.9"; the disagreement is only about the default.)
     settings.TRUSTED_PROXY_COUNT = 1
     request = _get(factory, remote_addr="10.0.0.1", xff="203.0.113.7, 198.51.100.9")
 
@@ -291,6 +334,41 @@ def test_an_unparseable_address_yields_none_rather_than_a_bogus_identity(
     assert canonical_client_ip(request) is None
 
 
+def test_ipv6_is_not_truncated_by_default(factory, settings):
+    """Safe default: the setting changes nothing until a deployment sets it."""
+    settings.TRUSTED_PROXY_COUNT = 0
+    settings.IPV6_HASH_PREFIX_BITS = 0
+    request = _get(factory, remote_addr="2001:db8::dead:beef")
+
+    assert canonical_client_ip(request) == "2001:db8::dead:beef"
+
+
+@pytest.mark.parametrize(
+    "raw", ["2001:db8:0:1::1", "2001:db8:0:1:aaaa:bbbb:cccc:dddd", "2001:db8:0:1::"]
+)
+def test_when_enabled_every_address_in_one_ipv6_prefix_is_one_identity(
+    factory, settings, raw
+):
+    """The counter-inflation mitigation: 2**64 addresses, one viewer identity.
+
+    Without this, one residential /64 allocation can mint 2**64 distinct
+    viewer_hash values that each look like a legitimate first-time viewer.
+    """
+    settings.TRUSTED_PROXY_COUNT = 0
+    settings.IPV6_HASH_PREFIX_BITS = 64
+
+    assert canonical_client_ip(_get(factory, remote_addr=raw)) == "2001:db8:0:1::"
+
+
+def test_ipv4_is_never_truncated_even_when_the_setting_is_on(factory, settings):
+    """An IPv4 address is already one host; masking it would merge strangers."""
+    settings.TRUSTED_PROXY_COUNT = 0
+    settings.IPV6_HASH_PREFIX_BITS = 64
+    request = _get(factory, remote_addr="198.51.100.9")
+
+    assert canonical_client_ip(request) == "198.51.100.9"
+
+
 def test_the_hash_is_a_stable_64_character_hex_digest_that_hides_the_address():
     digest = hash_client_ip("198.51.100.9")
 
@@ -322,13 +400,33 @@ configured reverse proxies."
 itself: a request arriving with `X-Forwarded-For: 203.0.113.7` when no proxy is
 deployed is simply a header someone typed. The only entry that cannot be forged is
 the one written by the outermost proxy *we operate*, so this module counts
-`settings.TRUSTED_PROXY_COUNT` hops from the RIGHT-hand end of the chain. That is
-the opposite of DRF's stock `BaseThrottle.get_ident()`, which takes the left-most
-entry whenever `NUM_PROXIES` is unset — as it is in this project.
+`settings.TRUSTED_PROXY_COUNT` hops from the RIGHT-hand end of the chain.
+
+Counting from the right is also what DRF's `BaseThrottle.get_ident()` does *once
+`NUM_PROXIES` is configured* (`addrs[-min(num_proxies, len(addrs))]`). The problem
+this module exists to fix is DRF's behaviour when `NUM_PROXIES` is NOT configured,
+which is this project's state: its final line is
+
+    return ''.join(xff.split()) if xff else remote_addr
+
+— the identity becomes the ENTIRE client-supplied header, verbatim. That is not
+merely "the wrong entry"; there is no entry selection at all. A caller who sends a
+different arbitrary `X-Forwarded-For` value on each request lands in a different
+throttle bucket on each request, which is a complete bypass of every rate limit in
+spec §30.4 rather than a way to impersonate one other address. This module has no
+unconfigured-and-trusting mode: absent configuration it trusts nothing but the
+socket.
 
 `TRUSTED_PROXY_COUNT` defaults to 0, which ignores the header completely and uses
 `REMOTE_ADDR`. That is the correct value for the current deployment, where Django
 is reached directly; raise it to the number of proxies actually in front of it.
+
+`IPV6_HASH_PREFIX_BITS` defaults to 0 (off). See `_truncate_ipv6` below: it exists
+because a single residential IPv6 /64 allocation is 2**64 addresses, every one of
+which would otherwise hash to a distinct `viewer_hash` and look like a distinct
+unique viewer. It is off by default because turning it on merges more households
+into one identity, and that trade should be made against observed traffic rather
+than guessed at now. Known Limitation 13 records the gap.
 """
 
 import hashlib
@@ -367,7 +465,33 @@ def _normalize(candidate: str) -> str | None:
     mapped = getattr(address, "ipv4_mapped", None)
     if mapped is not None:
         address = mapped
-    return str(address)
+    return str(_truncate_ipv6(address))
+
+
+def _truncate_ipv6(address):
+    """Optionally reduce an IPv6 address to its network prefix. Off by default.
+
+    Spec §11.7 calls `viewer_hash` "a practical uniqueness control, not a perfect
+    identity claim". A /64 is the standard allocation handed to one residential
+    or mobile subscriber, and every one of its 2**64 addresses is usable for
+    outbound traffic — so an unmodified full-address hash lets one subscriber
+    mint an unbounded number of "unique viewers", and no throttle catches it
+    either (a fresh source address is also a fresh throttle bucket). Truncation
+    is the standard mitigation.
+
+    It is nonetheless OFF by default (`IPV6_HASH_PREFIX_BITS = 0`), for the same
+    reason `TRUSTED_PROXY_COUNT` is 0: the safe-by-default value is the one that
+    changes nothing until a deployment knowingly configures it. Enabling it
+    merges every viewer sharing a prefix into one identity, which is a real
+    accuracy cost, and the right prefix length depends on traffic nobody has
+    seen yet. Set it to 64 once that traffic exists. IPv4 is never truncated —
+    an IPv4 address is already one host, and masking it would merge unrelated
+    subscribers.
+    """
+    bits = int(getattr(settings, "IPV6_HASH_PREFIX_BITS", 0) or 0)
+    if bits <= 0 or bits >= 128 or address.version != 6:
+        return address
+    return ipaddress.ip_network(f"{address}/{bits}", strict=False).network_address
 
 
 def canonical_client_ip(request) -> str | None:
@@ -412,6 +536,16 @@ In `backend/config/settings/base.py`, directly **below** the existing `CONTACT_H
 # to 1 behind a single nginx/CDN edge, 2 behind two, and so on. Read by
 # common.ip.canonical_client_ip(); never infer it from request contents.
 TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=0)
+
+# Optional IPv6 prefix truncation before an address becomes an identity. 0 = off,
+# which is the shipped default and changes nothing. A single residential IPv6 /64
+# is 2**64 usable addresses, so an untruncated hash lets one subscriber generate
+# an unbounded number of apparently-unique viewers (and an unbounded number of
+# throttle buckets). Setting this to 64 collapses each /64 into one identity, at
+# the cost of merging everyone behind that prefix. Off by default because the
+# right value depends on real traffic; see Known Limitation 13 in the Phase 10
+# plan. IPv4 is never truncated. Read by common.ip.canonical_client_ip().
+IPV6_HASH_PREFIX_BITS = env.int("IPV6_HASH_PREFIX_BITS", default=0)
 ```
 
 In `backend/.env.example`, directly below the existing `CONTACT_HASH_SECRET=change-me-in-dev` line (line 32), add:
@@ -421,14 +555,19 @@ In `backend/.env.example`, directly below the existing `CONTACT_HASH_SECRET=chan
 # X-Forwarded-For header is then ignored. Only raise this to a number of proxies
 # you actually operate - every hop you claim is a hop a client can forge.
 TRUSTED_PROXY_COUNT=0
+
+# Optional: collapse each IPv6 /N prefix into one viewer/throttle identity.
+# 0 = off (default). 64 is the usual value if view-count inflation from IPv6
+# address rotation is ever observed. IPv4 is never truncated.
+IPV6_HASH_PREFIX_BITS=0
 ```
 
-No CI change is needed: `env.int(..., default=0)` means an unset variable is valid, so `.github/workflows/ci.yml` keeps working unmodified.
+No CI change is needed: `env.int(..., default=0)` means an unset variable is valid for both, so `.github/workflows/ci.yml` keeps working unmodified.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest common/tests/test_ip.py -v`
-Expected: PASS — 16 tests (the two parametrized cases expand to 4 and 5).
+Expected: PASS — 21 tests (the three parametrized cases expand to 4, 5 and 3).
 
 - [ ] **Step 6: Write the failing throttle tests**
 
@@ -471,13 +610,67 @@ def test_a_forged_forwarded_header_cannot_move_a_caller_to_a_fresh_bucket(settin
     )
 
     assert throttle.get_ident(forged) == throttle.get_ident(honest)
+
+
+def test_rotating_the_forwarded_header_cannot_mint_endless_fresh_buckets(settings):
+    """The actual pre-fix defect, stated precisely.
+
+    DRF's unconfigured `get_ident()` returns `''.join(xff.split())` — the WHOLE
+    header. So the bypass is not "impersonate one other address", it is "send a
+    different header each time and never reuse a bucket". Three requests from one
+    socket with three different headers must produce one identity, not three.
+    """
+    settings.TRUSTED_PROXY_COUNT = 0
+    factory = APIRequestFactory()
+    throttle = HashedIPScopedRateThrottle()
+
+    idents = {
+        throttle.get_ident(
+            factory.post(
+                "/api/v1/auth/register/",
+                REMOTE_ADDR="198.51.100.9",
+                **{XFF_HEADER: chain},
+            )
+        )
+        for chain in ("203.0.113.7", "203.0.113.8, 10.0.0.1", "1.1.1.1, 2.2.2.2")
+    }
+
+    assert len(idents) == 1
+
+
+def test_an_unresolvable_address_never_falls_back_to_drfs_header_trusting_logic(
+    settings,
+):
+    """The fallback must not re-open the hole this class exists to close.
+
+    When `canonical_client_ip()` cannot parse an address (no REMOTE_ADDR at all
+    under some ASGI/unix-socket/proxy-protocol setups), delegating to
+    `super().get_ident()` would hand identity back to the raw X-Forwarded-For
+    header — the exact behaviour being replaced, reachable by simply omitting
+    REMOTE_ADDR. The fallback is `REMOTE_ADDR` read directly, so an absent
+    address yields an empty, header-independent ident instead.
+    """
+    settings.TRUSTED_PROXY_COUNT = 0
+    throttle = HashedIPScopedRateThrottle()
+    request = APIRequestFactory().post("/api/v1/auth/register/")
+    request.META.pop("REMOTE_ADDR", None)
+    request.META[XFF_HEADER] = "203.0.113.7"
+
+    assert throttle.get_ident(request) == ""
+
+    request.META[XFF_HEADER] = "198.51.100.9, 10.0.0.1"
+    assert throttle.get_ident(request) == ""
 ```
 
-- [ ] **Step 7: Run them to verify the spoofing test fails**
+- [ ] **Step 7: Run them to verify the forged-header tests fail**
 
 Run: `cd backend && uv run pytest common/tests/test_throttling.py -v`
 
-Expected: `test_a_forged_forwarded_header_cannot_move_a_caller_to_a_fresh_bucket` FAILS — DRF's inherited `get_ident()` returns the forged `203.0.113.7`, so the two idents differ. `test_the_throttle_bucket_is_derived_from_the_canonical_ip` passes already (no header is present in it); that is expected — it is the regression pin, not the bug demonstration.
+Expected: `test_a_forged_forwarded_header_cannot_move_a_caller_to_a_fresh_bucket`, `test_rotating_the_forwarded_header_cannot_mint_endless_fresh_buckets` and `test_an_unresolvable_address_never_falls_back_to_drfs_header_trusting_logic` all FAIL.
+
+Be precise about *why* the first one fails, because the obvious explanation is wrong. With `NUM_PROXIES` unset, DRF's inherited `get_ident()` does not select an entry at all — its last line is `return ''.join(xff.split()) if xff else remote_addr`, so it returns the whole header with whitespace removed. For `forged` that is the string `"203.0.113.7"`, which happens to look like a single address only because this test sends a single-entry chain; for `honest` there is no header, so it returns `REMOTE_ADDR`, `"198.51.100.9"`. The two idents therefore differ and the assertion fails — but the mechanism is "the entire client-supplied header became the identity", not "the left-most entry was selected". The second test makes that unambiguous by sending multi-entry chains that no address-selection reading could explain.
+
+`test_the_throttle_bucket_is_derived_from_the_canonical_ip` passes already (no header is present in it); that is expected — it is the regression pin, not the bug demonstration.
 
 - [ ] **Step 8: Repoint the throttle at `common.ip`**
 
@@ -501,21 +694,37 @@ class HashedIPScopedRateThrottle(ScopedRateThrottle):
     Two things changed in Phase 10 and both matter:
 
     1. The address now comes from `common.ip.canonical_client_ip()`, which counts
-       `settings.TRUSTED_PROXY_COUNT` hops from the RIGHT of `X-Forwarded-For`.
-       DRF's inherited `get_ident()` takes the LEFT-most entry when `NUM_PROXIES`
-       is unset — and it is unset here — so before this change any caller could
-       reset their own rate-limit bucket by inventing a header.
+       `settings.TRUSTED_PROXY_COUNT` hops from the RIGHT of `X-Forwarded-For`
+       and, at the default of 0, ignores that header entirely.
+
+       What this replaced is worse than "DRF picks the wrong entry". DRF's
+       inherited `get_ident()` ends in
+       `return ''.join(xff.split()) if xff else remote_addr`, so with
+       `NUM_PROXIES` unset — and it is unset in this project — the identity IS
+       the entire client-supplied header. No entry is selected. A caller who
+       varied `X-Forwarded-For` on every request got a brand-new throttle bucket
+       on every request: not bucket-sharing or impersonation, but an unlimited
+       supply of buckets, i.e. no rate limit at all. (Note that once
+       `NUM_PROXIES` IS set DRF counts from the right just as we do — the defect
+       is entirely in its unconfigured default, which trusts the client.)
     2. The HMAC lives in `common.ip.hash_client_ip()` rather than inline, so the
        throttle and spec §11.7's `ListingView.viewer_hash` derive identities with
        one implementation and one secret (CONTACT_HASH_SECRET). Rotating that
        secret rotates both at once.
 
-    The `super().get_ident()` fallback covers the case where no address can be
-    parsed at all; hashing it is still correct, it is simply a coarser identity.
+    There is deliberately NO `super().get_ident()` fallback. `super()` is the
+    header-trusting method above; falling back to it when
+    `canonical_client_ip()` returns None would re-open the whole vulnerability
+    behind a condition an attacker can often arrange (an absent or unparseable
+    REMOTE_ADDR happens under some ASGI/daphne, unix-socket and proxy-protocol
+    setups). The fallback is `REMOTE_ADDR` read directly, which is the same
+    evidence `canonical_client_ip()` uses and never consults a client header. If
+    even that is absent the ident is empty — a single shared bucket for such
+    requests, which is coarse but fails CLOSED rather than open.
     """
 
     def get_ident(self, request):
-        ident = canonical_client_ip(request) or super().get_ident(request)
+        ident = canonical_client_ip(request) or request.META.get("REMOTE_ADDR", "")
         if not ident:
             return ident
         return hash_client_ip(ident)
@@ -524,7 +733,7 @@ class HashedIPScopedRateThrottle(ScopedRateThrottle):
 - [ ] **Step 9: Run the whole `common` suite**
 
 Run: `cd backend && uv run pytest common/tests/ -v`
-Expected: PASS — the original `test_the_cache_key_never_contains_the_raw_ip` still passes unchanged, plus the two new throttle tests and the 16 IP tests.
+Expected: PASS — the original `test_the_cache_key_never_contains_the_raw_ip` still passes unchanged, plus the four new throttle tests and the 21 IP tests.
 
 - [ ] **Step 10: Run the full backend suite for regressions**
 
@@ -567,7 +776,9 @@ Everything spec §11.7 lists, with every constraint it names enforced in the dat
   - `analytics.tests.factories.make_anonymous_view(listing, *, viewer_hash=None, **kwargs) -> ListingView`
   - `analytics.tests.factories.fake_hash(seed: str) -> str` — a deterministic 64-char lowercase hex string for tests that need a well-formed hash without an IP.
 
-**Note (ruling — `ListingView` inherits `UUIDModel`, not `UUIDTimeStampedModel`).** Spec §11.7's field list names `first_viewed_at` and `last_seen_at` and no others. Adding `created_at`/`updated_at` alongside them would give the row four timestamps, two of which mean exactly what the other two mean — the same reasoning `common.models.TimeStampedModel`'s own docstring gives, and the same choice `audit.AuditEvent` and `listings.ListingSnapshot` already made. `first_viewed_at` uses `auto_now_add`; `last_seen_at` is a plain `DateTimeField` written explicitly by the recorder, because the conflict path updates it through `QuerySet.update()`, which never fires `auto_now`.
+**Note (ruling — `ListingView` inherits `UUIDModel`, not `UUIDTimeStampedModel`).** Spec §11.7's field list names `first_viewed_at` and `last_seen_at` and no others. Adding `created_at`/`updated_at` alongside them would give the row four timestamps, two of which mean exactly what the other two mean — the same reasoning `common.models.TimeStampedModel`'s own docstring gives, and the same choice `audit.AuditEvent` and `listings.ListingSnapshot` already made.
+
+**Note (ruling — BOTH timestamps are plain `DateTimeField`s written explicitly from one captured `now`; `first_viewed_at` must NOT use `auto_now_add`).** This is the single most load-bearing mechanical detail in the model, so it is ruled rather than left to taste. `auto_now_add=True` generates its value at the moment the `INSERT` statement is executed, which is strictly *after* any `now = timezone.now()` the caller captured beforehand. Every insert path in this plan captures `now` first and passes it as `last_seen_at` — so with `auto_now_add` the row would be written with `last_seen_at < first_viewed_at` and the `analytics_view_last_seen_not_before_first_viewed` CHECK constraint would reject **every single first insert**, deterministically. That failure would not even be loud: `_insert_or_touch` (Task 4) catches `IntegrityError` as the expected uniqueness race, so it would fall through to an `UPDATE` matching zero rows and return `counted=False` with no row written and no error raised — precisely the silent-undercount outcome the "recording failures are not swallowed" ruling forbids. Therefore: `first_viewed_at` and `last_seen_at` are both plain `DateTimeField()`s, and **every** code path that creates a `ListingView` (Task 2's factories, Task 4's `_insert_or_touch`, and any inline `ListingView.objects.create(...)` in a test) passes the **same** captured `now` value to both. `last_seen_at` additionally could not be `auto_now` anyway, because the conflict path updates it through `QuerySet.update()`, which never fires `auto_now`.
 
 - [ ] **Step 1: Scaffold the app and register it**
 
@@ -605,6 +816,11 @@ def fake_hash(seed: str) -> str:
     return hashlib.sha256(seed.encode()).hexdigest()
 
 
+# Both timestamps are written explicitly, from ONE captured `now`. Neither field
+# auto-generates: `first_viewed_at` is a plain DateTimeField precisely so that a
+# value generated at INSERT time cannot end up later than the `last_seen_at` the
+# caller captured a moment earlier, which would violate the
+# `analytics_view_last_seen_not_before_first_viewed` CHECK on every first row.
 def make_user_view(listing, *, user, **kwargs):
     now = timezone.now()
     defaults = {
@@ -612,6 +828,7 @@ def make_user_view(listing, *, user, **kwargs):
         "viewer_type": ViewerType.USER,
         "viewer_user": user,
         "viewer_hash": None,
+        "first_viewed_at": now,
         "last_seen_at": now,
         "user_agent_class": UserAgentClass.HUMAN,
     }
@@ -626,6 +843,7 @@ def make_anonymous_view(listing, *, viewer_hash=None, **kwargs):
         "viewer_type": ViewerType.ANONYMOUS,
         "viewer_user": None,
         "viewer_hash": viewer_hash or fake_hash(f"anon-{listing.pk}"),
+        "first_viewed_at": now,
         "last_seen_at": now,
         "user_agent_class": UserAgentClass.HUMAN,
     }
@@ -725,6 +943,7 @@ def test_the_same_viewer_may_be_recorded_on_a_different_listing(owner, listing):
 
 
 def test_a_row_with_neither_a_user_nor_a_hash_is_rejected(listing):
+    now = timezone.now()
     with pytest.raises(IntegrityError):
         with transaction.atomic():
             ListingView.objects.create(
@@ -732,11 +951,13 @@ def test_a_row_with_neither_a_user_nor_a_hash_is_rejected(listing):
                 viewer_type=ViewerType.ANONYMOUS,
                 viewer_user=None,
                 viewer_hash=None,
-                last_seen_at=timezone.now(),
+                first_viewed_at=now,
+                last_seen_at=now,
             )
 
 
 def test_a_row_with_both_a_user_and_a_hash_is_rejected(listing):
+    now = timezone.now()
     with pytest.raises(IntegrityError):
         with transaction.atomic():
             ListingView.objects.create(
@@ -744,12 +965,14 @@ def test_a_row_with_both_a_user_and_a_hash_is_rejected(listing):
                 viewer_type=ViewerType.USER,
                 viewer_user=_viewer("buyer@example.com"),
                 viewer_hash=fake_hash("both"),
-                last_seen_at=timezone.now(),
+                first_viewed_at=now,
+                last_seen_at=now,
             )
 
 
 def test_the_viewer_type_must_agree_with_which_identity_column_is_set(listing):
     """A USER row pointing at no user would make every aggregate a guess."""
+    now = timezone.now()
     with pytest.raises(IntegrityError):
         with transaction.atomic():
             ListingView.objects.create(
@@ -757,7 +980,8 @@ def test_the_viewer_type_must_agree_with_which_identity_column_is_set(listing):
                 viewer_type=ViewerType.USER,
                 viewer_user=None,
                 viewer_hash=fake_hash("mislabelled"),
-                last_seen_at=timezone.now(),
+                first_viewed_at=now,
+                last_seen_at=now,
             )
 
 
@@ -774,6 +998,21 @@ def test_a_malformed_hash_is_rejected(listing, bad_hash):
     with pytest.raises(IntegrityError):
         with transaction.atomic():
             make_anonymous_view(listing, viewer_hash=bad_hash)
+
+
+def test_the_very_first_insert_satisfies_the_timestamp_constraint(listing):
+    """Regression pin for the `auto_now_add` trap.
+
+    If `first_viewed_at` were `auto_now_add=True`, it would be stamped at INSERT
+    time — after the `now` the caller already passed as `last_seen_at` — and this
+    row, the simplest possible one, would be rejected by
+    `analytics_view_last_seen_not_before_first_viewed`. Both columns are written
+    explicitly from one captured value, so they are equal on a fresh row.
+    """
+    view = make_anonymous_view(listing)
+    view.refresh_from_db()
+
+    assert view.first_viewed_at == view.last_seen_at
 
 
 def test_last_seen_at_may_not_predate_first_viewed_at(listing):
@@ -909,7 +1148,12 @@ class ListingView(UUIDModel):
     viewer_hash = models.CharField(
         max_length=VIEWER_HASH_LENGTH, null=True, blank=True, db_index=False
     )
-    first_viewed_at = models.DateTimeField(auto_now_add=True)
+    # NOT auto_now_add. auto_now_add stamps the row at the moment the INSERT
+    # executes, which is strictly AFTER the `now` every caller captures before
+    # building the row — so `last_seen_at` (that captured `now`) would be earlier
+    # than `first_viewed_at` and the CHECK below would reject every first insert.
+    # Both timestamps are therefore written explicitly, from one captured value.
+    first_viewed_at = models.DateTimeField()
     # Written explicitly, never auto_now: the conflict path in
     # analytics.recording touches this column with QuerySet.update(), which does
     # not fire auto_now, and an auto_now field would additionally be rewritten by
@@ -988,7 +1232,13 @@ class ListingView(UUIDModel):
 
 Run: `cd backend && uv run python manage.py makemigrations analytics --name listingview`
 
-Expected: creates `backend/analytics/migrations/0001_listingview.py` with one `CreateModel` plus the index and six constraints. Open the generated file and confirm all six `constraints` are present and that `dependencies` includes `("listings", "0004_seed_listing_revisions_flag")` (or whatever the current `listings` leaf is) and the `AUTH_USER_MODEL` swappable dependency. Do not hand-edit it.
+Expected: creates `backend/analytics/migrations/0001_listingview.py` with one `CreateModel` plus the index and six constraints. Open the generated file and confirm:
+
+- all six `constraints` are present;
+- `dependencies` includes `("listings", "0004_seed_listing_revisions_flag")` (or whatever the current `listings` leaf is) and the `AUTH_USER_MODEL` swappable dependency;
+- **`first_viewed_at` is `models.DateTimeField()` with no `auto_now_add=True`**, exactly like `last_seen_at`. If `auto_now_add` appears in the generated file, the model was written wrong — go back and fix `models.py`, then delete and regenerate the migration. Do not hand-edit it. (A generated `auto_now_add` here would make every first insert violate `analytics_view_last_seen_not_before_first_viewed`; see the ruling above.)
+
+Do not hand-edit the generated file for any reason.
 
 Then confirm the app state is clean:
 
@@ -998,7 +1248,7 @@ Expected: exit 0, "No changes detected".
 - [ ] **Step 7: Run the model test to verify it passes**
 
 Run: `cd backend && uv run pytest analytics/tests/test_listing_view_model.py -v`
-Expected: PASS — 16 tests (the `bad_hash` parametrization expands to 4).
+Expected: PASS — 16 tests (13 test functions; the `bad_hash` parametrization expands to 4).
 
 - [ ] **Step 8: Write the failing admin test**
 
@@ -1207,7 +1457,7 @@ import pytest
 from django.contrib.auth.models import Group
 from rest_framework.test import APIRequestFactory
 
-from accounts.enums import SellerType, StaffGroup, UserRole
+from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
 from analytics.enums import UserAgentClass, ViewerType
 from analytics.policies import (
@@ -1770,7 +2020,8 @@ def resolve_viewer_identity(*, request, listing) -> ViewerIdentity | None:
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest analytics/tests/test_policies.py -v`
-Expected: PASS — 45 tests after parametrization expands.
+
+Expected: PASS — **51** tests after parametrization expands: 18 user-agent classification (3 + 11 + 3 + 1), 6 prefetch (5 + 1), 4 staff, 5 insider, and 18 `resolve_viewer_identity` (7 plain + 5 `only_a_get` + 4 `unpublished` + 2 plain).
 
 - [ ] **Step 5: Run the analytics suite**
 
@@ -1805,41 +2056,40 @@ Spec §19.3 steps 1–3, in one short transaction, plus the §35.1 rollout flag 
 
 **Note (ruling — `create` + narrow `IntegrityError` rather than a literal `ON CONFLICT`).** Spec §19.3 step 2 asks for "`INSERT ... ON CONFLICT DO UPDATE last_seen_at` **or equivalent**". Django's only supported way to emit a literal `ON CONFLICT DO UPDATE` is `bulk_create(update_conflicts=True, ...)`, which does not report which rows were inserted versus updated — and step 3 ("increment only when a new unique row is inserted") depends on exactly that distinction. The equivalent used here is a `create()` inside a savepoint, with the `IntegrityError` the unique index raises caught narrowly and converted into the `UPDATE last_seen_at`. It is the same two outcomes with the same guarantee under concurrency (the unique index is what serialises the race, in both designs), it is what `get_or_create()` does internally, and it yields the insert/update signal step 3 needs. The savepoint (`with transaction.atomic()`) matters: without it, the `IntegrityError` would poison any surrounding transaction and the follow-up `UPDATE` would itself fail.
 
-- [ ] **Step 1: Add the cache-isolation fixture**
+- [ ] **Step 1: Add the flag fixture**
 
 Create `backend/analytics/tests/conftest.py`:
 
 ```python
+"""Package-local fixtures for analytics tests.
+
+There is deliberately NO cache-clearing fixture here. `backend/conftest.py`
+already carries a root autouse `clear_redis_cache` fixture that calls
+`cache.clear()` before and after EVERY test in the project, which flushes the
+whole logical Redis DB — including this phase's feature-flag cache key. A second,
+narrower fixture doing the same job here would be redundant and would imply the
+root one cannot be relied on. (Phase 5's Task 6 made the same consolidation for
+`services_catalog/tests/`: one fixture, at the outermost level that owns the
+problem, and no per-file duplicates.)
+"""
+
 import pytest
-from django.core.cache import cache
-
-from platform_settings.services import feature_flag_cache_key
-
-from analytics.recording import UNIQUE_LISTING_VIEWS_FLAG
-
-# This project's cache is a real, shared Redis instance, not an in-memory backend
-# that resets between runs (see backend/conftest.py), so every test in this
-# package starts from and leaves behind a clean flag cache. Same pattern as
-# listings/tests/conftest.py.
-ANALYTICS_FEATURE_FLAG_KEYS = [UNIQUE_LISTING_VIEWS_FLAG]
-
-
-@pytest.fixture(autouse=True)
-def _clear_analytics_caches():
-    def _clear():
-        for key in ANALYTICS_FEATURE_FLAG_KEYS:
-            cache.delete(feature_flag_cache_key(key))
-
-    _clear()
-    yield
-    _clear()
 
 
 @pytest.fixture
 def view_counting_enabled(db):
     """Spec §35.2 step 9. The flag ships disabled, so every test that expects a
-    row to be written must turn it on explicitly."""
+    row to be written must turn it on explicitly.
+
+    Both imports are function-local on purpose: this conftest is collected for
+    the whole `analytics/tests/` package, and `analytics.recording` does not
+    exist until Step 4 of this task. A module-level import would fail collection
+    for every test file in the package — including the Task 2 and Task 3 suites
+    that are already green — rather than only for the file under construction.
+    """
     from platform_settings.services import set_feature_flag
+
+    from analytics.recording import UNIQUE_LISTING_VIEWS_FLAG
 
     set_feature_flag(key=UNIQUE_LISTING_VIEWS_FLAG, is_enabled=True, actor=None)
 ```
@@ -1858,13 +2108,15 @@ proved for both identity kinds and under a simulated race.
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
+from django.db import IntegrityError
+from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
 from analytics.enums import UserAgentClass, ViewerType
 from analytics.models import ListingView
-from analytics.policies import resolve_viewer_identity
+from analytics.policies import ViewerIdentity, resolve_viewer_identity
 from analytics.recording import record_listing_view
 from common.ip import hash_client_ip
 from listings.enums import ListingStatus
@@ -2042,12 +2294,14 @@ def test_a_concurrent_duplicate_yields_one_row_and_one_increment(
     request = _request(factory)
     identity = resolve_viewer_identity(request=request, listing=listing)
     # The "winner": the row is in place before the loser's call runs.
+    now = timezone.now()
     ListingView.objects.create(
         listing=listing,
         viewer_type=identity.viewer_type,
         viewer_user=identity.viewer_user,
         viewer_hash=identity.viewer_hash,
-        last_seen_at=timezone.now(),
+        first_viewed_at=now,
+        last_seen_at=now,
         user_agent_class=identity.user_agent_class,
     )
     BoatListing.objects.filter(pk=listing.pk).update(view_count_cached=1)
@@ -2057,6 +2311,39 @@ def test_a_concurrent_duplicate_yields_one_row_and_one_increment(
     assert result.counted is False
     assert ListingView.objects.count() == 1
     assert _count(listing) == 1
+
+
+def test_a_non_uniqueness_integrity_error_propagates_instead_of_being_swallowed(
+    factory, listing, view_counting_enabled, settings, monkeypatch
+):
+    """The `except IntegrityError` branch must not absorb real bugs.
+
+    Every constraint on ListingView raises IntegrityError, not just the unique
+    indexes. Here the hash-format constraint is violated (uppercase hex), which
+    is a bug in the caller, not a race: no row exists, so the fallback UPDATE
+    matches nothing. The function must re-raise rather than report "already
+    counted, nothing to do" — spec §39 and the plan's "recording failures are not
+    swallowed" ruling. Without the affected-row check this test fails by
+    returning ViewRecordResult(counted=False) with an empty table.
+    """
+    settings.TRUSTED_PROXY_COUNT = 0
+    import analytics.recording as recording
+
+    broken = ViewerIdentity(
+        viewer_type=ViewerType.ANONYMOUS,
+        viewer_user=None,
+        viewer_hash="A" * 64,  # uppercase: rejected by the hash-format CHECK
+        user_agent_class=UserAgentClass.HUMAN,
+    )
+    monkeypatch.setattr(
+        recording, "resolve_viewer_identity", lambda **kwargs: broken
+    )
+
+    with pytest.raises(IntegrityError):
+        record_listing_view(listing=listing, request=_request(factory))
+
+    assert ListingView.objects.count() == 0
+    assert _count(listing) == 0
 
 
 def test_the_increment_does_not_bump_the_optimistic_locking_version_or_updated_at(
@@ -2091,12 +2378,11 @@ def test_views_of_one_listing_do_not_affect_another(
     assert _count(other) == 0
 ```
 
-Add `from django.utils import timezone` to that file's import section.
-
 - [ ] **Step 3: Run it to verify it fails**
 
 Run: `cd backend && uv run pytest analytics/tests/test_recording.py -v`
-Expected: FAIL — collection error, `ModuleNotFoundError: No module named 'analytics.recording'`.
+
+Expected: FAIL — collection error, `ModuleNotFoundError: No module named 'analytics.recording'`. Note that `analytics/tests/conftest.py` (Step 1) imports `analytics.recording` only *inside* its fixture, so the rest of the `analytics/tests/` package still collects and passes at this point; only this one file errors.
 
 - [ ] **Step 4: Write the recorder**
 
@@ -2158,6 +2444,11 @@ def _insert_or_touch(*, listing, identity: ViewerIdentity, now) -> bool:
     surrounding transaction unusable in Postgres, so without `atomic()` here the
     UPDATE in the except branch would itself fail with InFailedSqlTransaction.
     This is the same shape `QuerySet.get_or_create()` uses internally.
+
+    `first_viewed_at` and `last_seen_at` both receive the SAME captured `now`.
+    Neither column auto-generates (see analytics/models.py): an `auto_now_add`
+    `first_viewed_at` would be stamped after this `now` and every first insert
+    would violate the `last_seen_at >= first_viewed_at` CHECK.
     """
     try:
         with transaction.atomic():
@@ -2166,15 +2457,27 @@ def _insert_or_touch(*, listing, identity: ViewerIdentity, now) -> bool:
                 viewer_type=identity.viewer_type,
                 viewer_user=identity.viewer_user,
                 viewer_hash=identity.viewer_hash,
+                first_viewed_at=now,
                 last_seen_at=now,
                 user_agent_class=identity.user_agent_class,
             )
     except IntegrityError:
-        # Someone — this same viewer a moment ago, or the winner of a genuine
-        # race — already holds the unique (listing, identity) row. Touch it.
-        ListingView.objects.filter(listing=listing, **identity.lookup()).update(
-            last_seen_at=now
-        )
+        # `IntegrityError` is the exception class for EVERY constraint on this
+        # table, not just the unique indexes: a malformed hash, a viewer_type
+        # that disagrees with the identity column, or a timestamp inversion all
+        # raise it too. Only ONE of those is a legitimate, expected outcome — the
+        # uniqueness race — and the difference is observable: if the row this
+        # error implies already exists really does exist, the UPDATE below finds
+        # it. When it matches zero rows, the IntegrityError was NOT a uniqueness
+        # race, there is no row, and nothing was recorded. Swallowing that and
+        # returning False would be exactly the silent, permanent undercount the
+        # "recording failures are not swallowed" ruling forbids, so it is
+        # re-raised with its original traceback.
+        touched = ListingView.objects.filter(
+            listing=listing, **identity.lookup()
+        ).update(last_seen_at=now)
+        if not touched:
+            raise
         return False
     return True
 
@@ -2266,7 +2569,7 @@ If the name differs, use the actual one — the dependency must point at the mig
 - [ ] **Step 6: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest analytics/tests/test_recording.py -v`
-Expected: PASS — 11 tests.
+Expected: PASS — 12 tests.
 
 - [ ] **Step 7: Verify the flag really was seeded, and seeded off**
 
@@ -2648,6 +2951,27 @@ def test_nothing_is_recorded_while_the_flag_is_off(api, listing, settings):
     assert ListingView.objects.count() == 0
 
 
+def test_the_detail_response_is_never_cacheable_by_a_shared_cache(
+    api, listing, view_counting_enabled, settings
+):
+    """Spec §36.2 anticipates CDN/page caching in front of this endpoint.
+
+    Since Task 5 the body varies by Authorization and by client IP, so a shared
+    cache storing one visitor's copy would serve that visitor's personalised
+    `view_count` to everyone behind it. The header must be present on every
+    response, counted or not — a response that is only sometimes uncacheable is
+    a response whose cacheable copy gets stored and replayed.
+    """
+    settings.TRUSTED_PROXY_COUNT = 0
+
+    counted = api.get(_detail_url(listing))  # first view: increments
+    repeat = api.get(_detail_url(listing))  # second view: does not
+
+    for response in (counted, repeat):
+        assert response["Cache-Control"] == "private, no-store"
+        assert "Authorization" in response["Vary"]
+
+
 def test_no_viewer_identity_appears_anywhere_in_the_public_payload(
     api, listing, view_counting_enabled, settings
 ):
@@ -2671,13 +2995,14 @@ def test_no_viewer_identity_appears_anywhere_in_the_public_payload(
 - [ ] **Step 6: Run it to verify it fails**
 
 Run: `cd backend && uv run pytest analytics/tests/test_detail_view_counting.py -v`
-Expected: FAIL — the counting tests fail with `view_count == 0` and zero rows (nothing is wired up yet); the owner/staff/broker tests pass vacuously for now.
+Expected: FAIL — the counting tests fail with `view_count == 0` and zero rows (nothing is wired up yet), and `test_the_detail_response_is_never_cacheable_by_a_shared_cache` fails with a missing `Cache-Control` header; the owner/staff/broker tests pass vacuously for now.
 
 - [ ] **Step 7: Wire the hook into the detail view**
 
 In `backend/listings/views.py`, add to the module's import section:
 
 ```python
+from django.utils.cache import patch_vary_headers
 from rest_framework.generics import ListAPIView, RetrieveAPIView  # already present
 
 from analytics.recording import record_listing_view
@@ -2714,6 +3039,21 @@ class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
     became view number one is not served a zero, and it is a re-read rather than
     an in-memory increment so the number stays right when others are viewing
     concurrently.
+
+    That re-read is also why this response is no longer cacheable by a SHARED
+    cache. Before this phase the body was identical for every caller. It now
+    varies by `Authorization` (an owner/staff/broker viewer is excluded and sees
+    the unincremented number) and by client IP (a first-time anonymous viewer
+    sees N+1 where a returning one sees N) — so a CDN or reverse-proxy cache that
+    stored one visitor's copy would serve that visitor's personalised
+    `view_count` to everybody behind it. Spec §36.2 explicitly anticipates
+    CDN/page caching in front of this endpoint, so the guard is set here rather
+    than assumed: `Cache-Control: private, no-store` on the response, plus a
+    `Vary: Authorization` for any intermediary that honours `Vary` but not
+    `private`. `private, no-store` is the right pair here rather than a max-age —
+    a per-browser copy of a counter that changed the instant it was read has no
+    value, and `no-store` also keeps the identity-dependent body out of
+    intermediary disk caches.
     """
 
     lookup_url_kwarg = "listing_id"
@@ -2723,15 +3063,26 @@ class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
         listing = self.get_object()
         if record_listing_view(listing=listing, request=request).counted:
             listing.refresh_from_db(fields=["view_count_cached"])
-        return Response(self.get_serializer(listing).data)
+        response = Response(self.get_serializer(listing).data)
+        # This body depends on who is asking (see the class docstring). A shared
+        # cache must never hand one viewer's copy to another.
+        response["Cache-Control"] = "private, no-store"
+        # patch_vary_headers, not `response["Vary"] = ...`: Django's own
+        # middleware appends Cookie / Accept-Language to this header after the
+        # view returns, and a direct assignment would be clobbered or would
+        # clobber them depending on order. patch_vary_headers merges.
+        patch_vary_headers(response, ("Authorization",))
+        return response
 ```
 
-`Response` is already imported at the top of the file; do not add a second import.
+`Response` is already imported at the top of the file; do not add a second import. `patch_vary_headers` is new — add `from django.utils.cache import patch_vary_headers` to the module's import section alongside the two imports in the block above.
+
+**Note:** the header is set unconditionally, not only when a view was counted. A response that is cacheable on some requests and not on others is a response whose first cacheable copy gets stored and replayed for the rest — the condition must not depend on the request. `PublicListingListView` is deliberately untouched: it records nothing and its body is still identity-independent.
 
 - [ ] **Step 8: Run the endpoint test to verify it passes**
 
 Run: `cd backend && uv run pytest analytics/tests/test_detail_view_counting.py -v`
-Expected: PASS — 14 tests.
+Expected: PASS — 15 tests.
 
 - [ ] **Step 9: Re-run Phase 11's own public read suite for regressions**
 
@@ -3180,6 +3531,11 @@ makes "count each viewer once" true.
 - Bot exclusion is by explicit User-Agent policy, not reverse-DNS verification, so
   a crawler that disguises itself as a browser is counted (spec §36.2: "uncertain
   clients may count and are labeled operational limitation").
+- An anonymous viewer on IPv6 is identified by their **full** address unless
+  `IPV6_HASH_PREFIX_BITS` is configured (it ships at `0`, off). One subscriber
+  holding a `/64` can therefore appear as many distinct anonymous viewers. Set
+  `IPV6_HASH_PREFIX_BITS=64` to collapse each prefix into one identity; the trade
+  is that everyone behind that prefix then counts once.
 ```
 
 - [ ] **Step 8: Run the analytics suite and the full backend suite**
@@ -3987,13 +4343,20 @@ Then, against a listing you have published through the Phase 11 workflow (draft 
 5. Sign in as the owner and repeat with `Authorization: Bearer <access>` → still `1`.
 6. Sign in as an unrelated buyer and repeat → `2`.
 7. In Django admin as a **staff moderator**, confirm "Listing views" is absent from the index; as a **staff admin**, confirm it is present, read-only, and shows a masked hash.
-8. `uv run python manage.py reconcile_listing_views` → `checked=N corrected=0 drift=0`.
+8. `curl -s -D- -o/dev/null -H 'User-Agent: Mozilla/5.0' http://127.0.0.1:8020/api/v1/listings/<id>/ | grep -i 'cache-control\|vary'` → `Cache-Control: private, no-store` and a `Vary` containing `Authorization`. This must hold on a repeat (uncounted) request too.
+9. `uv run python manage.py reconcile_listing_views` → `checked=N corrected=0 drift=0`.
 
 Record the actual observed output in the ACTIVITY.md entry in the next step. Do not write "verified" without the numbers.
 
 - [ ] **Step 7: Append the handoff entry to `ACTIVITY.md`**
 
-Append one entry to `ACTIVITY.md`'s Log, in the same shape as the existing Phase 11 entry, covering: the eight tasks and their PRs; the `analytics` app and `ListingView`; the `common.ip` throttle fix (call it out explicitly — it is a security fix that other phases inherit); the `unique_listing_views` flag and the fact that it ships **disabled**; the `OptionalJWTAuthentication` change to `PublicListingDetailView`; the reconciliation task and management command; `docs/privacy/listing-view-analytics.md`; the frontend formatter/component and the fact that no card mounts it yet; and the Known Limitations list from this plan, verbatim in summary form.
+Append one entry to `ACTIVITY.md`'s Log, in the same shape as the existing Phase 11 entry, covering: the eight tasks and their PRs; the `analytics` app and `ListingView`; the `common.ip` throttle fix; the `unique_listing_views` flag and the fact that it ships **disabled**; the `OptionalJWTAuthentication` change to `PublicListingDetailView` and its `Cache-Control: private, no-store` guard; the reconciliation task and management command; `docs/privacy/listing-view-analytics.md`; the frontend formatter/component and the fact that no card mounts it yet; and the Known Limitations list from this plan, verbatim in summary form.
+
+The throttle fix must be called out explicitly and **described accurately**, because every other phase inherits it and because the obvious one-line summary of it is wrong. Use this wording, or wording that says the same thing:
+
+> **Security fix inherited by every endpoint:** `common.throttling.HashedIPScopedRateThrottle` no longer uses DRF's `BaseThrottle.get_ident()`. With `NUM_PROXIES` unset — its state in this project, and DRF's default — that method's final line is `return ''.join(xff.split()) if xff else remote_addr`, i.e. it uses the **entire client-supplied `X-Forwarded-For` header** as the throttle identity. It does not select the left-most entry or any entry; there is no selection. The consequence was a **complete bypass of every rate limit in spec §30.4**: a caller sending a different arbitrary header value on each request received a brand-new, never-before-seen bucket each time. (Note that when `NUM_PROXIES` *is* configured DRF counts hops from the right, exactly as the new parser does — the defect was entirely in the unconfigured default, which trusts the client.) Identity now comes from `common.ip.canonical_client_ip()`, which uses `REMOTE_ADDR` unless `settings.TRUSTED_PROXY_COUNT` (default `0`) says how many proxies we actually operate, and falls back to `REMOTE_ADDR` directly — never to DRF's header-trusting method — when no address can be parsed. `settings.IPV6_HASH_PREFIX_BITS` (default `0`, off) is available to collapse an IPv6 prefix into one identity; see Known Limitation 13.
+
+Do not shorten this to "fixed a left-most X-Forwarded-For spoofing bug" — that understates the severity and misdescribes the mechanism, and a future reader would draw the wrong conclusion about what DRF does.
 
 - [ ] **Step 8: Commit**
 
@@ -4009,7 +4372,7 @@ git commit -m "test(analytics): spec 19 acceptance suite, 40 Scenario E and 36.2
 Each item names the phase that closes it. None breaks a MUST requirement *of this phase* (spec §39: "Any known limitation that breaks a MUST requirement prevents completion").
 
 1. **Bot detection is a User-Agent policy, not verified-bot reverse DNS.** Spec §19.1 says "known verified bot"; §36.2 immediately qualifies it as "explicit detection policy" with "uncertain clients may count and are labeled operational limitation". A crawler that presents a browser User-Agent is counted, and is recorded as `HUMAN`. Forward-confirmed reverse DNS needs a DNS round-trip in the request path and a per-operator allowlist the spec configures nowhere. → **Phase 22** (spec §33, security/observability hardening), if the inflation ever proves material.
-2. **No separate view-record beacon endpoint.** Spec §36.2 requires that "CDN/page caching must still call a controlled view-record endpoint or server event". There is no CDN, no page cache and no boat detail page yet, so the uncached `GET /api/v1/listings/<id>/` *is* the controlled record point. `analytics.recording.record_listing_view()` is a one-line mount for whoever introduces caching. → **Phase 20/21**.
+2. **No separate view-record beacon endpoint, and the detail endpoint is consequently uncacheable in a shared cache.** Spec §36.2 requires that "CDN/page caching must still call a controlled view-record endpoint or server event". There is no CDN, no page cache and no boat detail page yet, so the uncached `GET /api/v1/listings/<id>/` *is* the controlled record point. The cost of that choice is that the detail body now varies by caller identity and IP, so Task 5 marks it `Cache-Control: private, no-store` / `Vary: Authorization` — a correctness guard, not a performance decision, since a shared cache would otherwise serve one visitor's `view_count` to another. Whoever introduces edge caching must split the identity-independent content from the counted view rather than deleting that header; `analytics.recording.record_listing_view()` is a one-line mount on the beacon route when it exists. → **Phase 20/21** (Contract rule 12).
 3. **`unique_listing_views` is seeded disabled.** Nothing is counted until spec §35.2 step 9 turns it on, so `view_count` is honestly `0` everywhere until then. Intentional, per §35.2 step 4. → **deployment**, not a phase.
 4. **No boat card, boat detail page or owner dashboard mounts `<ViewCount>`.** Spec §19.5 says "All published boat cards show eye icon + localized integer" and "Boat detail and owner dashboards use the same aggregate"; none of those surfaces exists (`frontend/src/components/` has `auth/`, `directory/` and `layout/` only). The component and its rules are complete and tested; the surfaces are → **Phase 16** (create/edit and seller dashboard) and **Phase 20** (public cards and detail).
 5. **Recording is synchronous and its failures are not swallowed.** An unexpected exception in the write path fails the public detail response rather than degrading to an uncounted-but-served page. Deliberate (see the ruling), but it is an availability trade worth revisiting with a real error budget and a durable event pipeline. → **Phase 22**.
@@ -4020,6 +4383,7 @@ Each item names the phase that closes it. None breaks a MUST requirement *of thi
 10. **Account erasure lowers lifetime counts.** `viewer_user` cascades, so reconciliation reduces the affected listings' numbers afterwards. Correct for a "unique viewers" metric, documented in `docs/privacy/listing-view-analytics.md`, but a seller could notice a count going down. → **no phase**; it is a product fact.
 11. **No per-listing analytics for the seller beyond the total.** Spec §19.4 permits only the aggregate, and this phase ships exactly that. Views-over-time, referrers and conversion are a different product with different privacy consequences. → **no phase** as specified.
 12. **`ListingView` has no `BOT` rows.** Spec §11.7's `user_agent_class` includes `BOT`, and the enum member exists, but the request path refuses a bot before any identity is resolved, so no `BOT` row is ever written. Writing bot rows would mean storing an identity for traffic the spec says must not count. The member is retained because spec §11.7 names it and a verified-bot pipeline (item 1) would populate it. → **Phase 22**, with item 1.
+13. **IPv6 address-space enumeration can inflate a view count, and the mitigation ships off.** This is a counting-integrity gap, not a privacy nicety, and it is listed here because the plan's IPv6 ruling on its own frames truncation as only a privacy/accuracy trade. A typical residential or mobile IPv6 allocation is a **/64 — 2^64 addresses**, all usable for outbound traffic by one subscriber. Because `viewer_hash` is taken over the full address, one such subscriber can present a fresh, never-before-seen "unique viewer" on every request, directly defeating spec §11.7's stated purpose ("a practical uniqueness control"). No throttle catches it either: a fresh source address is also a fresh throttle bucket, so per-IP rate limiting is exactly as bypassable as the counter is. `settings.IPV6_HASH_PREFIX_BITS` (Task 1) implements the standard mitigation — collapse each /N into one identity — but ships at `0` (**off**), following the same "safe default, configure later" pattern as `TRUSTED_PROXY_COUNT`: enabling it merges every viewer behind a prefix into one, which is a real accuracy cost, and the right prefix length is a question about traffic nobody has observed yet. Contrast with IPv4, where the address space makes the same attack expensive. **Action:** set `IPV6_HASH_PREFIX_BITS=64` when the flag is enabled in production and any listing shows implausible view growth. → **deployment**, with **Phase 22** owning any stronger anti-abuse work.
 
 ---
 
@@ -4060,7 +4424,7 @@ import {
 } from "@/lib/listings/view-count";
 ```
 
-**Endpoints shipped by this phase: none.** No route is added, renamed or removed. `GET /api/v1/listings/<id>/` gains a side effect that spec §30.1's own table already anticipates ("public detail and counted-view integration"), and its response body is unchanged in shape — `view_count` was already there, serialized from `BoatListing.view_count_cached` by Phase 11; it simply stops always being `0`.
+**Endpoints shipped by this phase: none.** No route is added, renamed or removed. `GET /api/v1/listings/<id>/` gains a side effect that spec §30.1's own table already anticipates ("public detail and counted-view integration"), and its response body is unchanged in shape — `view_count` was already there, serialized from `BoatListing.view_count_cached` by Phase 11; it simply stops always being `0`. Two response **headers** are new on that one endpoint: `Cache-Control: private, no-store` and `Vary: Authorization`, because the body is now identity-dependent (rule 12 below).
 
 Rules a later phase must follow:
 
@@ -4075,6 +4439,7 @@ Rules a later phase must follow:
 9. **Phase 20/21's boat detail page and sitemap** must not fetch `GET /api/v1/listings/<id>/` speculatively on behalf of a user who is not looking at that listing — a prefetch that omits the standard prefetch headers is indistinguishable from a view. If a build-time or revalidation fetch is needed, send `Sec-Purpose: prefetch`, which `analytics.policies.is_prefetch_request()` already honours.
 10. **Adding a bot marker to `BOT_USER_AGENT_MARKERS` is a normal code change; removing one is not.** Every entry is a decision that some traffic does not count. Removals retroactively change nothing (rows already exist or do not), but they change the metric's meaning going forward — say so in the PR.
 11. **`OptionalJWTAuthentication` grants nothing.** It populates `request.user` when a credential is valid and stays silent otherwise. Any endpoint using it still needs its own `permission_classes`; do not read it as "authentication optional, therefore access optional".
+12. **`GET /api/v1/listings/<id>/` is no longer safe to cache in a shared cache, and its `Cache-Control: private, no-store` header must not be removed or weakened.** Before this phase the detail body was identical for every caller; it now varies by `Authorization` (insiders are excluded and see the unincremented number) and by client IP (a first-time viewer sees N+1, a returning one N). A CDN, reverse proxy or Next.js data cache that stores one response and replays it therefore leaks one visitor's personalised `view_count` to others and — worse — serves a body whose number nobody's own request produced. If Phase 20/21 wants this endpoint cached at the edge, the correct move is spec §36.2's separate "controlled view-record endpoint": split the cacheable, identity-independent listing content from the counted view, rather than dropping the header. `PublicListingListView` is unaffected and stays cacheable.
 
 ---
 
@@ -4099,7 +4464,7 @@ Rules a later phase must follow:
 | §19.2 anonymous-then-logged-in counts separately, no merging | Task 3 (explicit comment + no lookup), Task 4 (`test_the_same_person_anonymously_then_signed_in...`) |
 | §19.2 household on one IP counts as one; copy says "views" not "people" | Task 4 (`test_a_second_browser_on_the_same_address...`), Task 7 (`listings.test.ts` forbidden-wording test) |
 | §19.3.1 resolve viewer identity | Task 3 |
-| §19.3.2 `INSERT ... ON CONFLICT DO UPDATE last_seen_at` or equivalent | Task 4 (`_insert_or_touch`, ruled equivalence) |
+| §19.3.2 `INSERT ... ON CONFLICT DO UPDATE last_seen_at` or equivalent | Task 4 (`_insert_or_touch`, ruled equivalence; the `except IntegrityError` branch re-raises when the fallback UPDATE matches zero rows, so only a genuine uniqueness conflict is absorbed — `test_a_non_uniqueness_integrity_error_propagates_instead_of_being_swallowed`) |
 | §19.3.3 increment only when a new unique row is inserted | Task 4 (`_increment` guarded by `inserted`) |
 | §19.3.4 short transaction; do not delay rendering if an async durable pipeline exists | Task 4 (one `atomic()` around two statements; ruled — no such pipeline exists) |
 | §19.3.5 reconciliation task recomputing cached counts from rows | Task 6 (`reconcile_listing_view_counts` + management command) |
@@ -4119,7 +4484,7 @@ Rules a later phase must follow:
 | §19 Acceptance 4 — owner/staff/bot do not count | Task 8 (plus 4b for the broker colleague) |
 | §19 Acceptance 5 — concurrent identical requests → one row, one increment | Task 8 (deterministic realisation, ruled and explained) |
 
-**2. Spec coverage — cross-referenced sections:** §11.7's `ListingView` (all eight listed fields and all three listed constraints, plus three additional integrity constraints that are refinements, not additions: viewer-type/identity agreement, lowercase-hex hash format, `last_seen_at >= first_viewed_at`) → Task 2; §11.7's hash formula and "proxy headers are trusted only from configured reverse proxies" → Task 1. §29.1's "Unique view count" required card field and its "Hard-coded view counts" prohibition → Task 7 + Task 8's payload test. §30.1's `GET /api/v1/listings/<id>/` "public detail and counted-view integration" → Task 5; no endpoint added or renamed. §30.2's envelope and "mutations return updated resource/version" → untouched; this phase adds no error code and no mutation endpoint. §30.4's enumerated rate-limited paths → unchanged (no new scope); its "Rate limiting must not store raw IP" → Task 1 strengthens the existing compliance. §34.7's checklist line "View counts are unique under the defined identity rule and owner/staff/bot excluded" → Task 8's acceptance 2, 4, 4b and 5. §35.1's `unique_listing_views` → Task 4's seed migration and flag check; §35.2 step 9 → the same flag, shipped off. §36.2's four view rules → Task 8 (republication, identity-by-ID), Known Limitation 2 (CDN beacon), Task 3 + Known Limitation 1 (bot policy, uncertain clients labelled `UNKNOWN` and counted). §37's EN/IT/ES keys → Task 7. §39's "no partial implementations, no TODO placeholders for backend enforcement" → every exclusion is enforced in code and tested; the two things not built (verified-bot DNS, the beacon endpoint) are ruled and assigned, not stubbed. §40 Scenario E → Task 8.
+**2. Spec coverage — cross-referenced sections:** §11.7's `ListingView` (all eight listed fields and all three listed constraints, plus three additional integrity constraints that are refinements, not additions: viewer-type/identity agreement, lowercase-hex hash format, `last_seen_at >= first_viewed_at`) → Task 2; §11.7's hash formula and "proxy headers are trusted only from configured reverse proxies" → Task 1. §29.1's "Unique view count" required card field and its "Hard-coded view counts" prohibition → Task 7 + Task 8's payload test. §30.1's `GET /api/v1/listings/<id>/` "public detail and counted-view integration" → Task 5; no endpoint added or renamed. §30.2's envelope and "mutations return updated resource/version" → untouched; this phase adds no error code and no mutation endpoint. §30.4's enumerated rate-limited paths → unchanged (no new scope); its "Rate limiting must not store raw IP" → Task 1 keeps the existing compliance and additionally **closes a complete rate-limit bypass**, since DRF's unconfigured `get_ident()` keyed every bucket on the entire client-supplied `X-Forwarded-For` header (Task 1's `test_rotating_the_forwarded_header_cannot_mint_endless_fresh_buckets`). §36.2's "CDN/page caching" sentence → Task 5 additionally sets `Cache-Control: private, no-store` and `Vary: Authorization` on the detail response, because after this phase that body varies by caller identity and IP and a shared cache would otherwise replay one visitor's `view_count` to another (`test_the_detail_response_is_never_cacheable_by_a_shared_cache`). §34.7's checklist line "View counts are unique under the defined identity rule and owner/staff/bot excluded" → Task 8's acceptance 2, 4, 4b and 5. §35.1's `unique_listing_views` → Task 4's seed migration and flag check; §35.2 step 9 → the same flag, shipped off. §36.2's four view rules → Task 8 (republication, identity-by-ID), Known Limitation 2 (CDN beacon), Task 3 + Known Limitation 1 (bot policy, uncertain clients labelled `UNKNOWN` and counted). §37's EN/IT/ES keys → Task 7. §39's "no partial implementations, no TODO placeholders for backend enforcement" → every exclusion is enforced in code and tested; the two things not built (verified-bot DNS, the beacon endpoint) are ruled and assigned, not stubbed. §40 Scenario E → Task 8.
 
 **Gaps deliberately left, with the owning phase named:** §19.5's actual card/detail/dashboard surfaces (Phases 16 and 20 — no boat card exists, and inventing one is forbidden by §2.1); §36.2's CDN beacon endpoint (Phase 20/21, when a cache exists to need it); verified-bot reverse DNS (Phase 22); a Celery Beat schedule for the reconciliation task (whichever phase introduces Beat — Phase 13 is the next consumer). Everything else in §19 is accounted for above.
 
@@ -4128,8 +4493,9 @@ Rules a later phase must follow:
 **4. Type and name consistency (checked across every task's Interfaces block):**
 - `canonical_client_ip(request) -> str | None` and `hash_client_ip(value: str) -> str` — defined in Task 1, imported unchanged by Task 1's own throttle rewrite and by Task 3's `resolve_viewer_identity`; the test helpers in Tasks 3, 4 and 5 assert against `hash_client_ip("198.51.100.9")` with that exact spelling.
 - `XFF_HEADER` — defined in Task 1, used by Task 1's tests only; no other module hard-codes `"HTTP_X_FORWARDED_FOR"`.
+- `settings.TRUSTED_PROXY_COUNT` and `settings.IPV6_HASH_PREFIX_BITS` — both read only inside `common/ip.py`, both via `getattr(settings, ..., 0) or 0` so an absent setting is valid, both defaulting to `0` = "change nothing", both declared in `base.py` and `.env.example` in Task 1 Step 4. Spelled identically in the settings block, the env example, `common/ip.py`, the test `settings` fixtures and Known Limitation 13.
 - `ViewerType.USER` / `ViewerType.ANONYMOUS` and `UserAgentClass.HUMAN` / `.BOT` / `.UNKNOWN` — defined once in Task 2, identical in Tasks 2, 3, 4, 5 and the factories.
-- `ListingView` field names — `listing`, `viewer_type`, `viewer_user`, `viewer_hash`, `first_viewed_at`, `last_seen_at`, `user_agent_class` — identical in Task 2's model, Task 2's factories, Task 4's `_insert_or_touch` `create()` call, Task 6's `Count("views")` (the `related_name`) and every test.
+- `ListingView` field names — `listing`, `viewer_type`, `viewer_user`, `viewer_hash`, `first_viewed_at`, `last_seen_at`, `user_agent_class` — identical in Task 2's model, Task 2's factories, Task 4's `_insert_or_touch` `create()` call, Task 6's `Count("views")` (the `related_name`) and every test. **Neither timestamp auto-generates**, and every construction site — `make_user_view`, `make_anonymous_view`, `_insert_or_touch`, and the four inline `ListingView.objects.create(...)` calls in Tasks 2 and 4 — passes one captured `now` to *both* `first_viewed_at` and `last_seen_at`. This was checked call by call: an `auto_now_add` on `first_viewed_at` plus a pre-captured `last_seen_at` violates the `analytics_view_last_seen_not_before_first_viewed` CHECK on every first insert, and `_insert_or_touch` would then mask it as a uniqueness race.
 - `ViewerIdentity(viewer_type, viewer_user, viewer_hash, user_agent_class)` with `.lookup()` — defined in Task 3; constructed only there; consumed in Task 4 by exactly those four attribute names plus `lookup()`, which returns the key the `filter()` in `_insert_or_touch` uses.
 - `record_listing_view(*, listing, request) -> ViewRecordResult` — one signature, in Task 4's definition, Task 4's tests, Task 5's view hook and the Contract summary. `ViewRecordResult.counted` is the only attribute Task 5 reads.
 - `UNIQUE_LISTING_VIEWS_FLAG = "unique_listing_views"` — defined in Task 4's `recording.py`, imported by Task 4's `conftest.py`, and the same literal string appears in Task 4's seed migration (which cannot import it: migrations must not depend on live code) and in Task 8's manual-verification shell command. Those four spellings are identical.
@@ -4149,4 +4515,4 @@ Plan complete and saved to `docs/superpowers/plans/2026-09-18-phase-10-listing-a
 
 **2. Inline Execution** — execute tasks in one session using `superpowers:executing-plans`, batching with checkpoints for review.
 
-Recommended order of attention for the reviewer before execution starts: the Task 1 throttle change (it touches every endpoint in the project), the Task 5 authentication change (it touches the public read path Phase 11 hardened), and the privacy rulings in "Phase boundaries and rulings" — particularly the `viewer_user` CASCADE decision, which makes lifetime counts able to decrease.
+Recommended order of attention for the reviewer before execution starts: the Task 1 throttle change (it touches every endpoint in the project, and closes a complete rate-limit bypass rather than a partial spoofing risk — read the quoted DRF source in the rulings section, not a summary of it); the Task 2 timestamp ruling (`first_viewed_at` must **not** be `auto_now_add`, or every first insert violates a CHECK constraint and `_insert_or_touch` silently absorbs the failure); the Task 4 `except IntegrityError` branch (it re-raises when the fallback UPDATE matches zero rows, which is what keeps "recording failures are not swallowed" true); the Task 5 authentication change and its `Cache-Control` guard (they touch the public read path Phase 11 hardened); and the privacy rulings in "Phase boundaries and rulings" — particularly the `viewer_user` CASCADE decision, which makes lifetime counts able to decrease.
