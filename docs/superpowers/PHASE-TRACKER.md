@@ -39,7 +39,7 @@ never merge a PR without green CI and a clean/conflict-free merge state.
 | 17 | Staff products, moderation and taxonomy UI | 12-16 | idea | — | |
 | 18 | WebSocket, email and in-app notifications | 6, 11-17 | idea | — | |
 | 19 | Broker dashboard simplification and messages | 6, 12 | idea | — | |
-| 20 | Public card/profile integration and responsive QA | 5-10 | idea | — | |
+| 20 | Public card/profile integration and responsive QA | 5-10 | idea | — | **New requirement added 2026-09-18 (project owner instruction):** spec §29.7 "Listing sharing" — the boat listing detail page needs a share affordance (at minimum WhatsApp + copy-link) using the canonical public URL. Not yet planned; bring it into this phase's plan when Phase 20 is scoped. |
 | 21 | Data migration, redirects and SEO | 5, 11, 20 | idea | — | |
 | 22 | Security, privacy, performance and observability | all features | idea | — | wsgi.py fail-secure gap already flagged here, see Phase 0/1 plan's Known Limitations. |
 | 23 | Automated QA and UAT | all prior | idea | — | |
