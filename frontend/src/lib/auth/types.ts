@@ -42,6 +42,8 @@ export interface BrokerMembershipSummary {
   broker_name: string;
   broker_slug: string;
   broker_status: EntityStatus;
+  /** Spec §11.1: visible to broker members, changeable only by staff admin. */
+  broker_auto_approve_listings: boolean;
   role: BrokerMembershipRole;
   can_edit_listings: boolean;
   can_manage_team: boolean;

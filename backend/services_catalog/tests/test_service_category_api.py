@@ -8,8 +8,8 @@ from platform_settings.services import feature_flag_cache_key
 from services_catalog.permissions import COMBINED_DIRECTORY_FLAG
 from services_catalog.tests.factories import make_service_category
 
-# No autouse cache fixture here: tests/conftest.py clears the cache around
-# every test in this package (flag values and throttle counters alike).
+# No autouse cache fixture here: the project-root backend/conftest.py clears the
+# cache around every test in the suite (flag values and throttle counters alike).
 
 
 @pytest.mark.django_db
@@ -116,3 +116,33 @@ def test_category_list_is_rate_limited(monkeypatch):
     client.get("/api/v1/service-categories/")
 
     assert client.get("/api/v1/service-categories/").status_code == 429
+
+
+@pytest.mark.django_db
+def test_two_visitors_behind_the_shared_next_js_server_get_independent_budgets(
+    monkeypatch, settings
+):
+    # Regression test for the SSR throttle-sharing gap: two different SSR page
+    # loads from the same Next.js server (same REMOTE_ADDR as far as Django is
+    # concerned) must not share one throttle budget once each carries its own
+    # visitor's forwarded IP.
+    monkeypatch.setitem(
+        HashedIPScopedRateThrottle.THROTTLE_RATES, "services_directory", "1/min"
+    )
+    settings.INTERNAL_SERVICE_SECRET = "test-internal-secret"
+    client = APIClient()
+    secret_header = {"HTTP_X_INTERNAL_SERVICE_SECRET": "test-internal-secret"}
+
+    first_visitor = client.get(
+        "/api/v1/service-categories/", **secret_header, HTTP_X_INTERNAL_CLIENT_IP="198.51.100.1"
+    )
+    second_visitor = client.get(
+        "/api/v1/service-categories/", **secret_header, HTTP_X_INTERNAL_CLIENT_IP="198.51.100.2"
+    )
+    first_visitor_again = client.get(
+        "/api/v1/service-categories/", **secret_header, HTTP_X_INTERNAL_CLIENT_IP="198.51.100.1"
+    )
+
+    assert first_visitor.status_code == 200
+    assert second_visitor.status_code == 200
+    assert first_visitor_again.status_code == 429

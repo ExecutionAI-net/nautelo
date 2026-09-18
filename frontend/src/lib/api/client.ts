@@ -81,11 +81,46 @@ async function rawFetch(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+// Backend rotates and blacklists the refresh token on every use
+// (ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION). Two concurrent refresh
+// calls sharing the same cookie would otherwise race: the loser hits the
+// already-rotated token, gets a 401, and nulls out the token the winner just
+// set. `refreshPromise` collapses concurrent same-tab callers onto a single
+// request; the Web Lock below serializes callers across tabs so a second
+// tab's request only fires once the first tab's cookie rotation has landed.
+const REFRESH_LOCK_NAME = "nauta:refresh-access-token";
+
+// A stalled refresh request would otherwise hold the cross-tab lock forever,
+// freezing every other tab's session refresh along with it.
+export const REFRESH_TIMEOUT_MS = 15_000;
+
+let refreshPromise: Promise<boolean> | null = null;
+
 /**
  * Exchange the HttpOnly refresh cookie for a fresh access token.
  * Returns false (without throwing) when there is no usable session.
  */
 export async function tryRefreshAccessToken(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = runRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function runRefresh(): Promise<boolean> {
+  const locks =
+    typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (!locks) {
+    return performRefresh();
+  }
+  return locks.request(REFRESH_LOCK_NAME, () => performRefresh());
+}
+
+async function performRefresh(): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${REFRESH_PATH}`, {
@@ -93,10 +128,13 @@ export async function tryRefreshAccessToken(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: "{}",
+      signal: controller.signal,
     });
   } catch {
     accessToken = null;
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
   if (!response.ok) {
     accessToken = null;

@@ -198,3 +198,34 @@ def test_session_query_count_is_stable_with_many_memberships(api, django_assert_
 
     with django_assert_max_num_queries(8):
         api.get(SESSION_URL)
+
+
+@pytest.mark.django_db
+def test_a_broker_member_sees_the_current_auto_approval_policy(api):
+    """Spec §11.1: "Broker users may see the current policy but cannot change
+    it." Seeing it is a read-only key on the membership summary; changing it is
+    PATCH /api/v1/staff/brokers/<id>/approval-policy/, which is staff-admin."""
+    user = make_user("policy-viewer@example.com", role=UserRole.BROKER, verified=True)
+    broker = make_broker(
+        name="Policy Viewer", slug="policy-viewer", auto_approve_listings=True
+    )
+    make_membership(user, broker, role=BrokerMembershipRole.AGENT)
+    _authenticate(api, user)
+
+    response = api.get(SESSION_URL)
+
+    membership = response.data["broker_memberships"][0]
+    assert membership["broker_auto_approve_listings"] is True
+    assert response.data["permissions"]["configure_broker_auto_approval"] is False
+
+
+@pytest.mark.django_db
+def test_a_broker_member_sees_a_disabled_policy_as_false(api):
+    user = make_user("policy-off@example.com", role=UserRole.BROKER, verified=True)
+    broker = make_broker(name="Policy Off", slug="policy-off")
+    make_membership(user, broker, role=BrokerMembershipRole.AGENT)
+    _authenticate(api, user)
+
+    membership = api.get(SESSION_URL).data["broker_memberships"][0]
+
+    assert membership["broker_auto_approve_listings"] is False
