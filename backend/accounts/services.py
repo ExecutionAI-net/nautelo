@@ -159,7 +159,11 @@ def can_edit_owned_object(user, *, owner_user_id, broker_id) -> bool:
         return False
     if is_staff_admin(user):
         return True
-    if owner_user_id is not None and owner_user_id == user.pk:
+    # str() on both sides: owner_user_id is a plain identifier, so it may reach
+    # this function as a string (a URL path kwarg, or a JSON-decoded body) while
+    # user.pk is always a UUID object. UUID(x) == str(x) is False, which would
+    # deny the real owner access to their own record.
+    if owner_user_id is not None and str(owner_user_id) == str(user.pk):
         return True
     if broker_id is not None:
         membership = active_broker_membership(user, broker_id)

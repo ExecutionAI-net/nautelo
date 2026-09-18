@@ -167,6 +167,24 @@ def test_a_staff_admin_can_edit_on_behalf_but_a_moderator_cannot():
 
 
 @pytest.mark.django_db
+def test_ownership_survives_a_string_uuid_arriving_from_the_request_layer():
+    """Regression: comparing a str UUID to a UUID pk with == is always False.
+
+    owner_user_id is a plain identifier, so it can reach this function as a
+    string - a URL path kwarg before DRF coerces it, or a JSON-decoded request
+    body. Untyped, the real owner of their own listing would be denied edit
+    access. Both sides are normalised to str before comparing.
+    """
+    owner = make_user("strpk@example.com", role=UserRole.PRIVATE_SELLER)
+    stranger = make_user("strother@example.com", role=UserRole.PRIVATE_SELLER)
+
+    assert can_edit_owned_object(owner, owner_user_id=str(owner.pk), broker_id=None) is True
+    # ...and a non-matching string is still refused, in both directions.
+    assert can_edit_owned_object(stranger, owner_user_id=str(owner.pk), broker_id=None) is False
+    assert can_edit_owned_object(owner, owner_user_id=str(stranger.pk), broker_id=None) is False
+
+
+@pytest.mark.django_db
 def test_an_inactive_user_can_edit_nothing():
     owner = make_user("frozen@example.com", role=UserRole.PRIVATE_SELLER, is_active=False)
     assert can_edit_owned_object(owner, owner_user_id=owner.pk, broker_id=None) is False
