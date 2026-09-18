@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BoatListing, ListingMedia
+from .models import BoatListing, ListingMedia, ListingRevision, ListingSnapshot
 
 
 @admin.register(BoatListing)
@@ -39,3 +39,38 @@ class ListingMediaAdmin(admin.ModelAdmin):
     list_filter = ("media_type", "status")
     search_fields = ("id", "storage_key", "checksum_sha256")
     raw_id_fields = ("listing", "created_by")
+
+
+@admin.register(ListingSnapshot)
+class ListingSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("id", "listing", "version", "price", "approved_by", "approved_at")
+    search_fields = ("id", "listing__id", "title_en")
+    raw_id_fields = ("listing", "approved_revision", "approved_by")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ListingRevision)
+class ListingRevisionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "listing",
+        "revision_number",
+        "state",
+        "origin",
+        "submitted_at",
+        "decided_by",
+        "decided_at",
+        "version",
+    )
+    list_filter = ("state", "origin")
+    search_fields = ("id", "listing__id")
+    raw_id_fields = ("listing", "base_snapshot", "submitted_by", "decided_by")
+    readonly_fields = ("version", "created_at", "updated_at")

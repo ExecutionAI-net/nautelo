@@ -6,14 +6,22 @@ mutable draft columns below (spec §11.4).
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
 from accounts.enums import SellerType
-from common.models import UUIDTimeStampedModel
+from common.models import UUIDModel, UUIDTimeStampedModel
 
-from .enums import ListingStatus, MediaStatus, MediaType, PublicationSource
+from .enums import (
+    ListingStatus,
+    MediaStatus,
+    MediaType,
+    PublicationSource,
+    RevisionOrigin,
+    RevisionStatus,
+)
 
 MIN_MANUFACTURE_YEAR = 1900
 CUSTOM_MODEL_NAME_MIN_LENGTH = 2
@@ -71,6 +79,13 @@ class BoatListing(UUIDTimeStampedModel):
     consumed_entitlement_id = models.UUIDField(null=True, blank=True)
     published_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
+    current_public_snapshot = models.ForeignKey(
+        "listings.ListingSnapshot",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
     view_count_cached = models.BigIntegerField(default=0)
     # Optimistic locking (spec §20.5); bumped by listings.locking.bump_version().
     version = models.PositiveIntegerField(default=1)
@@ -245,3 +260,190 @@ class ListingMedia(UUIDTimeStampedModel):
 
     def __str__(self):
         return f"{self.media_type} {self.storage_key} ({self.status})"
+
+
+# Ordered tuples for use inside CheckConstraints. frozenset iteration order is
+# not stable across processes, so embedding listings.enums' frozensets directly
+# would make `makemigrations` emit a spurious migration at random. The test
+# `test_constraint_state_tuples_match_the_enum_groupings` pins these to the
+# canonical groupings so they cannot drift apart.
+CONSTRAINT_OPEN_STATES = (RevisionStatus.DRAFT, RevisionStatus.SUBMITTED)
+CONSTRAINT_DECIDED_STATES = (
+    RevisionStatus.APPROVED,
+    RevisionStatus.CHANGES_REQUESTED,
+    RevisionStatus.REJECTED,
+)
+CONSTRAINT_NOTE_REQUIRED_STATES = (
+    RevisionStatus.CHANGES_REQUESTED,
+    RevisionStatus.REJECTED,
+)
+
+
+class ListingSnapshotQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValueError(
+            "ListingSnapshot rows are immutable public content; "
+            "bulk update is not permitted."
+        )
+
+
+class ListingSnapshot(UUIDModel):
+    """Immutable, versioned public content (spec §11.4).
+
+    Public pages read this, never BoatListing's mutable draft columns. Rows are
+    written only by listings.snapshots.create_snapshot_from_revision() and are
+    never rewritten: a taxonomy correction or a later edit creates the *next*
+    version and leaves history intact (spec §11.4, §20.3).
+
+    Inherits UUIDModel rather than UUIDTimeStampedModel deliberately: an
+    `updated_at` column on an immutable row would be a lie (see the docstring on
+    common.models.TimeStampedModel and the same decision in audit.AuditEvent).
+    """
+
+    listing = models.ForeignKey(
+        BoatListing, on_delete=models.CASCADE, related_name="snapshots"
+    )
+    version = models.PositiveIntegerField()
+    approved_revision = models.ForeignKey(
+        "listings.ListingRevision",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="approved_snapshots",
+    )
+    brand_name_snapshot = models.CharField(max_length=150)
+    model_name_snapshot = models.CharField(max_length=150)
+    custom_model_name_snapshot = models.CharField(
+        max_length=CUSTOM_MODEL_NAME_MAX_LENGTH, blank=True, default=""
+    )
+    manufacture_year_snapshot = models.PositiveSmallIntegerField()
+    title_en = models.CharField(max_length=200)
+    title_it = models.CharField(max_length=200, blank=True, default="")
+    title_es = models.CharField(max_length=200, blank=True, default="")
+    description_en = models.TextField()
+    description_it = models.TextField(blank=True, default="")
+    description_es = models.TextField(blank=True, default="")
+    specifications = models.JSONField(default=dict, encoder=DjangoJSONEncoder)
+    specifications_schema_version = models.PositiveIntegerField(default=1)
+    location_country = models.CharField(max_length=2)
+    location_region = models.CharField(max_length=120, blank=True, default="")
+    location_city = models.CharField(max_length=120)
+    currency = models.CharField(max_length=3)
+    price = models.DecimalField(max_digits=14, decimal_places=2)
+    media_manifest = models.JSONField(default=list, encoder=DjangoJSONEncoder)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    approved_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ListingSnapshotQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["listing", "-version"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["listing", "version"],
+                name="listings_snapshot_unique_version_per_listing",
+            ),
+            models.CheckConstraint(
+                condition=Q(version__gte=1),
+                name="listings_snapshot_version_is_positive",
+            ),
+            models.CheckConstraint(
+                condition=Q(price__gt=0), name="listings_snapshot_price_is_positive"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.listing_id} v{self.version}"
+
+    def save(self, *args, **kwargs):
+        # `_state.adding` rather than `pk is None`: UUIDModel assigns the pk at
+        # instantiation, so a brand-new unsaved row already has one.
+        if not self._state.adding:
+            raise ValueError("ListingSnapshot rows are immutable once created.")
+        super().save(*args, **kwargs)
+
+
+class ListingRevision(UUIDTimeStampedModel):
+    """A proposed change to a listing (spec §11.4, §6.2).
+
+    `payload` is the single write surface for editable content and is validated
+    against the explicit schema in listings.payloads before it is ever stored.
+    """
+
+    listing = models.ForeignKey(
+        BoatListing, on_delete=models.CASCADE, related_name="revisions"
+    )
+    revision_number = models.PositiveIntegerField()
+    base_snapshot = models.ForeignKey(
+        ListingSnapshot,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="based_revisions",
+    )
+    state = models.CharField(
+        max_length=17, choices=RevisionStatus.choices, default=RevisionStatus.DRAFT
+    )
+    origin = models.CharField(
+        max_length=16, choices=RevisionOrigin.choices, default=RevisionOrigin.OWNER
+    )
+    payload = models.JSONField(default=dict, encoder=DjangoJSONEncoder)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="submitted_listing_revisions",
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="decided_listing_revisions",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True, default="")
+    # Optimistic locking (spec §20.5); bumped by listings.locking.bump_version().
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ["listing", "-revision_number"]
+        indexes = [models.Index(fields=["state", "submitted_at"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["listing", "revision_number"],
+                name="listings_revision_unique_number_per_listing",
+            ),
+            models.UniqueConstraint(
+                fields=["listing"],
+                condition=Q(state__in=CONSTRAINT_OPEN_STATES),
+                name="listings_revision_one_open_per_listing",
+            ),
+            models.CheckConstraint(
+                condition=Q(state=RevisionStatus.DRAFT)
+                | (Q(submitted_by__isnull=False) & Q(submitted_at__isnull=False)),
+                name="listings_revision_non_draft_requires_submission_stamps",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state__in=CONSTRAINT_DECIDED_STATES)
+                | (Q(decided_by__isnull=False) & Q(decided_at__isnull=False)),
+                name="listings_revision_decided_requires_decision_stamps",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state__in=CONSTRAINT_NOTE_REQUIRED_STATES)
+                | ~Q(decision_note=""),
+                name="listings_revision_refusal_requires_a_note",
+            ),
+            models.CheckConstraint(
+                condition=Q(revision_number__gte=1),
+                name="listings_revision_number_is_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.listing_id} r{self.revision_number} ({self.state})"
