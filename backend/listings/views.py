@@ -1,6 +1,9 @@
+from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -13,6 +16,7 @@ from accounts.permissions import (
 
 from .decisions import approve_revision, reject_revision, request_revision_changes
 from .drafts import create_listing_draft, update_listing_draft
+from .enums import ListingStatus
 from .models import BoatListing, ListingRevision
 from .permissions import ListingWorkflowEnabled
 from .serializers import (
@@ -20,6 +24,7 @@ from .serializers import (
     ListingDraftUpdateSerializer,
     ListingVersionSerializer,
     ListingWorkflowSerializer,
+    PublicListingSerializer,
     RevisionDecisionSerializer,
     StaffRevisionSerializer,
 )
@@ -166,3 +171,69 @@ class StaffRevisionDecisionView(APIView):
         revision.refresh_from_db()
         revision.listing.refresh_from_db()
         return Response(StaffRevisionSerializer().to_representation(revision))
+
+
+def published_listings_queryset() -> QuerySet[BoatListing]:
+    """The single definition of "publicly visible" (spec §20 definition of done).
+
+    Both conditions are required: a listing is public only when staff moved it to
+    PUBLISHED *and* an approved snapshot exists to serve. Neither implies the
+    other — a PUBLISHED row keeps `current_public_snapshot` after suspension,
+    expiry and archival, and a corrupt or half-written PUBLISHED row could carry
+    no snapshot at all — so status is never trusted on its own.
+
+    Later phases (search, sitemap, view counting, the public detail page) must
+    reuse this helper rather than re-deriving the filter; spec §20's definition
+    of done is only provable if "publicly visible" has exactly one definition.
+
+    Note what is deliberately absent: the requesting user. There is no
+    owner/staff escape hatch here, so an authenticated owner sees precisely what
+    a guest sees — their own pending work is 404 on this path, and the workflow
+    endpoints are where they read it instead.
+    """
+    return (
+        BoatListing.objects.filter(
+            status=ListingStatus.PUBLISHED, current_public_snapshot__isnull=False
+        )
+        .select_related("current_public_snapshot")
+        .order_by("-published_at", "-created_at")
+    )
+
+
+class PublicListingPagination(PageNumberPagination):
+    page_size = 24
+    page_size_query_param = "page_size"
+    max_page_size = 96
+
+
+class PublicListingReadView:
+    """Shared configuration for the two public read endpoints.
+
+    `authentication_classes = []` is deliberate and is not the access control:
+    the queryset is. Dropping authentication only means an expired or malformed
+    Authorization header cannot turn a public page into a 401, and that no
+    credential is parsed on an anonymous read path.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = PublicListingSerializer
+
+    def get_queryset(self):
+        return published_listings_queryset()
+
+
+class PublicListingListView(PublicListingReadView, ListAPIView):
+    """GET /api/v1/listings/ — public listing cards (spec §30.1)."""
+
+    pagination_class = PublicListingPagination
+
+
+class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
+    """GET /api/v1/listings/<id>/ — public detail (spec §30.1).
+
+    Returns 404 for anything not published, including to the listing's owner:
+    the owner's view of their own work comes from the workflow endpoints.
+    """
+
+    lookup_url_kwarg = "listing_id"
