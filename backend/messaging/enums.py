@@ -70,6 +70,11 @@ class ContactAccessOutcome:
 # Spec 35.1's rollout flag for this phase.
 UNIFIED_INQUIRIES_FLAG = "unified_inquiries"
 
+#: Spec 35.1's rollout flag for Phase 7 (contact privacy and reveal). Lives
+#: here rather than in contact_access.py so tests/conftest.py can import the
+#: string without importing the service and its whole dependency fan-out.
+CONTACT_UNLOCK_FLAG = "contact_unlock"
+
 # Spec 15.5's literal. A module constant rather than a platform setting because
 # platform_settings.registry.SettingValueType has only BOOLEAN/INTEGER/DECIMAL
 # members - there is no string setting type to put it in. See the plan's ruling.
