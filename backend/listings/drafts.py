@@ -187,7 +187,7 @@ class InvalidWorkflowState(APIException):
         super().__init__(detail=detail, code=code or self.default_code)
 
 
-def _payload_from_snapshot(snapshot) -> dict:
+def payload_from_snapshot(snapshot) -> dict:
     """Seed a new revision with the live public content it is proposing to change.
 
     A revision is a complete proposed document, not a sparse patch: approving a
@@ -255,7 +255,7 @@ def update_listing_draft(
             base_snapshot=listing.current_public_snapshot,
             state=RevisionStatus.DRAFT,
             origin=RevisionOrigin.OWNER,
-            payload=_payload_from_snapshot(listing.current_public_snapshot),
+            payload=payload_from_snapshot(listing.current_public_snapshot),
         )
         revision_expected_version = revision.version
     else:
