@@ -29,6 +29,14 @@ socket.
 `REMOTE_ADDR`. That is the correct value for the current deployment, where Django
 is reached directly; raise it to the number of proxies actually in front of it.
 
+There is exactly one other way a forwarded address is believed, merged in from PR
+#103: our own Next.js server proves itself with `INTERNAL_SERVICE_SECRET` and names
+the visitor in `X-Internal-Client-IP` (see `_internal_forwarded_ip`). That path is
+authenticated, which is precisely what `X-Forwarded-For` is not. Both PRs reached
+the same conclusion from different directions — #103 that SSR needs a trustworthy
+way to forward a visitor IP, this one that nothing unauthenticated may set identity
+— so the two live here together rather than as two competing resolvers.
+
 `IPV6_HASH_PREFIX_BITS` defaults to 0 (off). See `_truncate_ipv6` below: it exists
 because a single residential IPv6 /64 allocation is 2**64 addresses, every one of
 which would otherwise hash to a distinct `viewer_hash` and look like a distinct
@@ -44,6 +52,13 @@ import ipaddress
 from django.conf import settings
 
 XFF_HEADER = "HTTP_X_FORWARDED_FOR"
+
+# Set only by this project's own Next.js server on the SSR-to-API hop, where
+# REMOTE_ADDR is the Next.js server's address rather than the visitor's. These
+# live here, next to the resolver that is the only thing allowed to honour them,
+# and are re-exported from common.throttling for its original importers.
+INTERNAL_CLIENT_IP_HEADER = "HTTP_X_INTERNAL_CLIENT_IP"
+INTERNAL_SERVICE_SECRET_HEADER = "HTTP_X_INTERNAL_SERVICE_SECRET"
 
 
 def _normalize(candidate: str) -> str | None:
@@ -102,8 +117,54 @@ def _truncate_ipv6(address):
     return ipaddress.ip_network(f"{address}/{bits}", strict=False).network_address
 
 
-def canonical_client_ip(request) -> str | None:
-    """The trusted client address for `request`, or None when none can be trusted."""
+def _internal_forwarded_ip(request) -> str | None:
+    """The visitor IP our own Next.js server forwarded, if it proved who it is.
+
+    Merged in from PR #103. On the SSR-to-API hop `REMOTE_ADDR` is the Next.js
+    server's own address, so every server-rendered visitor would otherwise share
+    one throttle bucket and one `viewer_hash`. Next.js therefore sends the real
+    visitor address alongside a shared secret.
+
+    The secret is what makes this safe, and it is the only reason a forwarded
+    address is ever believed here: `X-Internal-Client-IP` on its own is exactly as
+    forgeable as `X-Forwarded-For`. Compared with `hmac.compare_digest` so the
+    comparison is not a timing oracle for the secret. An empty provided secret is
+    rejected before comparing, so a deployment that somehow left
+    INTERNAL_SERVICE_SECRET blank cannot be matched by sending no secret at all.
+    """
+    provided = request.META.get(INTERNAL_SERVICE_SECRET_HEADER, "")
+    if not provided:
+        return None
+    expected = getattr(settings, "INTERNAL_SERVICE_SECRET", "") or ""
+    if not expected or not hmac.compare_digest(provided.encode(), expected.encode()):
+        return None
+    # Authenticated, but still validated: a caller holding the secret is trusted
+    # to name a visitor, not to inject an arbitrary string into a cache key.
+    return _normalize(request.META.get(INTERNAL_CLIENT_IP_HEADER, ""))
+
+
+def get_client_ip(request) -> str | None:
+    """The trusted client address for `request`, or None when none can be trusted.
+
+    The single client-IP resolver for this project: the throttle (spec §30.4) and
+    `ListingView.viewer_hash` (spec §11.7) must agree on who a caller is, and two
+    resolvers would eventually disagree.
+
+    Order matters and is narrowest-evidence-first:
+
+    1. A visitor address forwarded by our own Next.js server, accepted only on a
+       valid `INTERNAL_SERVICE_SECRET`. This outranks `REMOTE_ADDR` because on
+       that hop `REMOTE_ADDR` is known to be the wrong answer (it is Next.js).
+    2. Otherwise `TRUSTED_PROXY_COUNT` hops counted from the RIGHT of
+       `X-Forwarded-For`, which at the default of 0 means the header is ignored
+       entirely and the socket address is used.
+
+    An unauthenticated `X-Forwarded-For` is never trusted in either branch.
+    """
+    internal = _internal_forwarded_ip(request)
+    if internal is not None:
+        return internal
+
     trusted = int(getattr(settings, "TRUSTED_PROXY_COUNT", 0) or 0)
     remote_addr = _normalize(request.META.get("REMOTE_ADDR", ""))
     if trusted <= 0:
@@ -119,6 +180,11 @@ def canonical_client_ip(request) -> str | None:
         # proxy chain, so none of it is evidence. Fall back to the socket.
         return remote_addr
     return _normalize(chain[-trusted])
+
+
+# Spec §11.7 names this concept `canonical_client_ip`, and Phase 10's later tasks
+# import it under that name. One implementation, two spellings.
+canonical_client_ip = get_client_ip
 
 
 def hash_client_ip(value: str) -> str:

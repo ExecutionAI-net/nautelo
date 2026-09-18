@@ -44,11 +44,14 @@ def create_snapshot_from_revision(
 
     Two sources, deliberately: free-text content comes from `cleaned_payload`
     (the revision's own re-validated document), while the four taxonomy fields
-    come from the **listing columns**, which are where spec §11.4 puts them.
-    Those columns are kept in step with every accepted payload by
-    `listings.drafts._apply_payload_to_listing`, which every service that
-    accepts a payload calls — including a §20.3 staff correction of a locked
-    field, so such a correction really does reach this snapshot.
+    and the four broker finance settings come from the **listing columns**,
+    which are where spec §11.4 puts them. Those columns are kept in step with
+    every accepted payload by `listings.drafts._apply_payload_to_listing`,
+    which every service that accepts a payload calls — including a §20.3 staff
+    correction of a locked field, so such a correction really does reach this
+    snapshot. Copying the finance settings here is what makes spec §36.1's
+    "draft broker finance settings do not leak before publication" true: the
+    public card reads this snapshot, never the draft column.
     """
     previous_version = (
         ListingSnapshot.objects.filter(listing=listing)
@@ -78,6 +81,12 @@ def create_snapshot_from_revision(
         location_city=cleaned_payload["location_city"],
         currency=cleaned_payload.get("currency", listing.currency),
         price=Decimal(cleaned_payload["price"]),
+        show_finance_estimate=listing.show_finance_estimate,
+        finance_down_payment_override_percent=(
+            listing.finance_down_payment_override_percent
+        ),
+        finance_rate_override_percent=listing.finance_rate_override_percent,
+        finance_term_override_months=listing.finance_term_override_months,
         media_manifest=build_media_manifest(listing, cleaned_payload["media_ids"]),
         approved_by=approved_by,
         approved_at=approved_at,

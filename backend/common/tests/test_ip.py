@@ -16,7 +16,14 @@ import hashlib
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from common.ip import XFF_HEADER, canonical_client_ip, hash_client_ip
+from common.ip import (
+    INTERNAL_CLIENT_IP_HEADER,
+    INTERNAL_SERVICE_SECRET_HEADER,
+    XFF_HEADER,
+    canonical_client_ip,
+    get_client_ip,
+    hash_client_ip,
+)
 
 
 @pytest.fixture
@@ -187,3 +194,114 @@ def test_the_hash_is_keyed_by_the_secret_and_is_not_a_bare_digest(settings):
     unkeyed = hashlib.sha256(b"198.51.100.9").hexdigest()
     assert first != unkeyed
     assert second != unkeyed
+
+
+# --------------------------------------------------------------------------
+# The PR #103 / Phase 10 combination: two ways a client identity can be set,
+# one authenticated and one not. These pin how they interact, which is where a
+# merge of two independent fixes is most likely to go wrong.
+# --------------------------------------------------------------------------
+
+SECRET = "test-internal-secret"
+
+
+def _internal(factory, *, secret, client_ip, remote_addr="10.0.0.5", xff=None):
+    extra = {
+        "REMOTE_ADDR": remote_addr,
+        INTERNAL_SERVICE_SECRET_HEADER: secret,
+        INTERNAL_CLIENT_IP_HEADER: client_ip,
+    }
+    if xff is not None:
+        extra[XFF_HEADER] = xff
+    return factory.get("/api/v1/service-categories/", **extra)
+
+
+def test_the_public_alias_and_the_resolver_are_one_function():
+    """Later Phase 10 tasks import `canonical_client_ip`; #103's name is
+    `get_client_ip`. They must never drift into two resolvers."""
+    assert canonical_client_ip is get_client_ip
+
+
+def test_an_authenticated_forwarded_ip_beats_remote_addr(factory, settings):
+    """The SSR case: REMOTE_ADDR is our own Next.js box, not the visitor."""
+    settings.INTERNAL_SERVICE_SECRET = SECRET
+    settings.TRUSTED_PROXY_COUNT = 0
+    request = _internal(
+        factory, secret=SECRET, client_ip="198.51.100.42", remote_addr="10.0.0.5"
+    )
+
+    assert get_client_ip(request) == "198.51.100.42"
+
+
+def test_an_authenticated_forwarded_ip_beats_a_spoofed_forwarded_for(factory, settings):
+    """Both headers present: the authenticated one wins, the forgeable one loses."""
+    settings.INTERNAL_SERVICE_SECRET = SECRET
+    settings.TRUSTED_PROXY_COUNT = 1
+    request = _internal(
+        factory,
+        secret=SECRET,
+        client_ip="198.51.100.42",
+        remote_addr="10.0.0.5",
+        xff="203.0.113.7, 203.0.113.8",
+    )
+
+    assert get_client_ip(request) == "198.51.100.42"
+
+
+@pytest.mark.parametrize(
+    "bad_secret", ["", "not-the-real-secret", "test-internal-secre"]
+)
+def test_a_wrong_or_missing_secret_makes_the_forwarded_ip_worthless(
+    factory, settings, bad_secret
+):
+    """Without the secret, X-Internal-Client-IP is just another forgeable header."""
+    settings.INTERNAL_SERVICE_SECRET = SECRET
+    settings.TRUSTED_PROXY_COUNT = 0
+    request = _internal(
+        factory, secret=bad_secret, client_ip="198.51.100.42", remote_addr="10.0.0.5"
+    )
+
+    assert get_client_ip(request) == "10.0.0.5"
+
+
+@pytest.mark.parametrize("junk", ["not-an-ip", "999.1.1.1", "   ", ""])
+def test_an_authenticated_but_unparseable_forwarded_ip_falls_through(
+    factory, settings, junk
+):
+    """Holding the secret buys the right to name a visitor, not to inject a string.
+
+    An unparseable value is not evidence, so resolution falls through to the
+    socket rather than letting an arbitrary string become a cache key.
+    """
+    settings.INTERNAL_SERVICE_SECRET = SECRET
+    settings.TRUSTED_PROXY_COUNT = 0
+    request = _internal(factory, secret=SECRET, client_ip=junk, remote_addr="10.0.0.5")
+
+    assert get_client_ip(request) == "10.0.0.5"
+
+
+def test_with_a_trusted_proxy_but_no_secret_the_right_counted_hop_still_wins(
+    factory, settings
+):
+    """The two mechanisms are independent: #103's path must not disable ours."""
+    settings.INTERNAL_SERVICE_SECRET = SECRET
+    settings.TRUSTED_PROXY_COUNT = 1
+    request = _get(factory, remote_addr="10.0.0.1", xff="203.0.113.7, 198.51.100.9")
+
+    assert get_client_ip(request) == "198.51.100.9"
+
+
+def test_rotating_the_forwarded_header_still_yields_one_identity_by_default(
+    factory, settings
+):
+    """Default posture, restated after the merge: no secret, no trusted proxies,
+    so nothing a caller sends can change who they are."""
+    settings.INTERNAL_SERVICE_SECRET = SECRET
+    settings.TRUSTED_PROXY_COUNT = 0
+
+    identities = {
+        get_client_ip(_get(factory, remote_addr="198.51.100.9", xff=chain))
+        for chain in ("203.0.113.7", "203.0.113.8, 10.0.0.1", "1.1.1.1, 2.2.2.2")
+    }
+
+    assert identities == {"198.51.100.9"}
