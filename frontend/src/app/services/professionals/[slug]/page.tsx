@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import ProfileMonogram from "@/components/directory/ProfileMonogram";
-import { fetchProfessional } from "@/lib/api/directory";
+import { fetchProfessional, formatProfessionalLocation } from "@/lib/api/directory";
 import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
     notFound();
   }
 
-  const location = [professional.city, professional.region].filter(Boolean).join(", ");
+  const location = formatProfessionalLocation(professional);
 
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
