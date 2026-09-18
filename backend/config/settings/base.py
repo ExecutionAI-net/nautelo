@@ -123,6 +123,14 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "taxonomy_search": "60/min",
+        # Public listing reads (spec §30.1). Deliberately looser than
+        # `taxonomy_search`: that bucket guards a type-ahead search box, where 60
+        # requests a minute already exceeds any human typing session, while this
+        # one guards ordinary page loads — a browse page plus its detail pages,
+        # each with its own client-side prefetches, is a normal handful of
+        # requests per view. 300/min leaves real browsing untouched while still
+        # putting a ceiling on bulk scraping of the public catalogue.
+        "public_listing_read": "300/min",
         "auth": "10/min",
         # Silent refresh runs on every fresh page load and requires an already-valid
         # HttpOnly cookie, so it is not a credential-guessing surface. Sharing the

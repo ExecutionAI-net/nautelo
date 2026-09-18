@@ -370,3 +370,30 @@ def test_the_list_is_paginated_and_page_size_is_capped(api):
     assert len(small_page.data["results"]) == 2
     assert small_page.data["next"] is not None
     assert len(oversized.data["results"]) == 3  # capped at max_page_size, not 5000
+
+
+@pytest.mark.django_db
+def test_the_public_read_endpoints_are_rate_limited(api, monkeypatch):
+    """Both public endpoints share one throttle bucket and do return 429.
+
+    Mirrors taxonomy's `test_boat_brand_search_is_rate_limited`: overriding
+    settings.REST_FRAMEWORK would not work, because DRF's
+    SimpleRateThrottle.THROTTLE_RATES is a class attribute bound once from
+    api_settings.DEFAULT_THROTTLE_RATES at import time and Django's
+    setting_changed signal does not retroactively update it. Monkeypatching the
+    scope entry is the reliable way to exercise the throttle in a test.
+    """
+    from django.core.cache import cache
+    from rest_framework.throttling import ScopedRateThrottle
+
+    listing, _ = _published()
+    cache.clear()
+    monkeypatch.setitem(ScopedRateThrottle.THROTTLE_RATES, "public_listing_read", "2/min")
+
+    assert api.get(reverse("listing-list")).status_code == 200
+    # The detail view shares the scope, so it draws from the same bucket.
+    detail_url = reverse("listing-detail", kwargs={"listing_id": listing.pk})
+    assert api.get(detail_url).status_code == 200
+
+    assert api.get(reverse("listing-list")).status_code == 429
+    assert api.get(detail_url).status_code == 429

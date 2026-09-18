@@ -218,6 +218,11 @@ class PublicListingReadView:
     permission_classes = [AllowAny]
     authentication_classes = []
     serializer_class = PublicListingSerializer
+    # The project's default throttle class is a ScopedRateThrottle subclass, and
+    # a scoped throttle without a scope is a silent no-op — so an AllowAny view
+    # that omits this is completely unthrottled. Set here rather than on each
+    # view so the two public endpoints share one bucket and cannot drift apart.
+    throttle_scope = "public_listing_read"
 
     def get_queryset(self):
         return published_listings_queryset()
