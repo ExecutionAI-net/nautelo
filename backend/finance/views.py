@@ -184,6 +184,7 @@ class FinanceQuoteView(APIView):
             "principal": str(result.principal),
             "annual_rate_percent": format_percent(values["annual_rate_percent"]),
             "term_months": values["term_months"],
+            "down_payment_percent": format_percent(values["down_payment_percent"]),
             "monthly_payment": str(result.monthly_payment),
             "total_payment": str(result.total_payment),
             "total_interest": str(result.total_interest),

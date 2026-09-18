@@ -87,6 +87,7 @@ def test_a_listing_quote_needs_nothing_but_the_listing_id(api, eligible):
     assert response.data["monthly_payment"] == "8456.36"
     assert response.data["term_months"] == 48
     assert response.data["annual_rate_percent"] == "5.0000"
+    assert response.data["down_payment_percent"] == "20.0000"
     assert response.data["configuration_version"] == 1
     assert response.data["disclaimer_key"] == "finance.illustrative_disclaimer"
     assert response.data["assumption_sources"] == {
@@ -347,6 +348,8 @@ def test_the_quote_uses_the_published_snapshot_never_live_draft_columns(
     before = api.post(QUOTE_URL, {"listing_id": str(listing.pk)}, format="json")
     assert before.status_code == 200
     assert before.data["price"] == "459000.00"
+    # The override itself reaches the client, so the finance page's form shows it.
+    assert before.data["down_payment_percent"] == "10.0000"
     assert before.data["assumption_sources"] == {
         "annual_rate_percent": "LISTING_OVERRIDE",
         "term_months": "LISTING_OVERRIDE",

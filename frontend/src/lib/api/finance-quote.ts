@@ -22,6 +22,7 @@ export interface FinanceQuote {
   principal: string;
   annual_rate_percent: string;
   term_months: number;
+  down_payment_percent: string;
   monthly_payment: string;
   total_payment: string;
   total_interest: string;

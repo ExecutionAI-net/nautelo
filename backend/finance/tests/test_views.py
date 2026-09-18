@@ -26,6 +26,11 @@ def test_finance_quote_endpoint_matches_spec_worked_example():
         "principal": "367200.00",
         "annual_rate_percent": "5.0000",
         "term_months": 48,
+        # Added with Phase 9 Task 10: the effective down-payment percentage must
+        # travel with the quote, otherwise a listing's own override (spec §17.3)
+        # could never reach the finance page's form and Recalculate would send
+        # the platform default in its place.
+        "down_payment_percent": "20.0000",
         "monthly_payment": "8456.36",
         "total_payment": "405905.12",
         "total_interest": "38705.12",
