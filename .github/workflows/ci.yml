@@ -116,7 +116,11 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.check.outputs.exists == 'true'
         with:
-          node-version: 20
+          # 22, not 20: jsdom 30 (via undici 8) calls worker_threads.markAsUncloneable,
+          # which landed in Node 22.10.0 and was never backported to the 20.x line —
+          # the final 20.20.2 release still lacks it. vitest 5 and jsdom 30 both
+          # declare Node 20 unsupported in their `engines` fields.
+          node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
