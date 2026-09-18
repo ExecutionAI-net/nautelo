@@ -34,6 +34,14 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
     it: "Stima puramente indicativa. Non è un'offerta di credito. Imposte, commissioni e condizioni del finanziatore non sono incluse.",
     es: "Estimación meramente ilustrativa. No es una oferta de crédito. No se incluyen impuestos, comisiones ni condiciones de la entidad financiera.",
   },
+  // WCAG 2.4.4: the card's disclaimer asterisk is a link, and "*" is not a
+  // purpose a link text can convey. The mark stays visible; this is the name
+  // assistive technology announces for it.
+  "finance.disclaimer_link": {
+    en: "See the financing disclaimer",
+    it: "Vedi le avvertenze sul finanziamento",
+    es: "Ver el aviso sobre la financiación",
+  },
   "finance.months": { en: "{count} months", it: "{count} mesi", es: "{count} meses" },
   "finance.details.show": {
     en: "Show assumptions",
