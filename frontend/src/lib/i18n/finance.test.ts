@@ -1,11 +1,69 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/directory";
-import { FINANCE_MESSAGES, formatCount, formatMoney, tf } from "@/lib/i18n/finance";
+import {
+  FINANCE_MESSAGES,
+  formatCount,
+  formatMoney,
+  isDecimalString,
+  tf,
+  translate,
+} from "@/lib/i18n/finance";
 
-// ICU puts a no-break space (U+00A0) between the amount and the euro sign in
-// it-IT / es-ES. Asserted exactly; the output is never post-processed.
-const NBSP = " ";
+// ICU (it-IT / es-ES) puts a no-break space (U+00A0, or U+202F in some
+// versions) before the euro sign. Different ICU builds (CI runs Node 22, local
+// may be newer) disagree on which, so outputs are compared after normalising
+// those to a plain space; symbol placement, separators and fraction digits are
+// still pinned exactly.
+const norm = (s: string) => s.replace(/[  ]/g, " ");
+const fm = (locale: Locale, amount: string, currency = "EUR") =>
+  norm(formatMoney(locale, amount, currency));
+
+// Spec 2.5 (approved, pre-approved, guaranteed, offer, your rate) plus their
+// Italian / Spanish stems. The one sentence the spec itself mandates contains
+// "offer", so exactly that sentence is removed from the disclaimer key before
+// scanning; every other key, and any extra text in the disclaimer, is scanned.
+const FORBIDDEN: Record<Locale, RegExp> = {
+  en: /(approv|guarante|pre-?qualif|offer|your rate)/i,
+  it: /(approvat|approvazione|garant|offert|sicur|il tuo tasso)/i,
+  es: /(aprobad|aprobación|garant|oferta|segur|tu (tasa|tipo))/i,
+};
+const MANDATED_SENTENCE: Record<Locale, string> = {
+  en: "Not a credit offer.",
+  it: "Non è un'offerta di credito.",
+  es: "No es una oferta de crédito.",
+};
+const DISCLAIMER_KEY = "finance.illustrative_disclaimer";
+function forbiddenHit(locale: Locale, key: string, text: string): boolean {
+  const scanned =
+    key === DISCLAIMER_KEY ? text.replace(MANDATED_SENTENCE[locale], "") : text;
+  return FORBIDDEN[locale].test(scanned);
+}
+
+const HOSTILE: Record<Locale, string[]> = {
+  en: [
+    "You are approved",
+    "Pre-approved financing",
+    "Pre-qualified offers, guarantee your rates",
+    "Guaranteed monthly payment",
+    "Special offer for you",
+    "Check your rate",
+  ],
+  it: [
+    "Finanziamento approvato",
+    "Preapprovazione immediata",
+    "Finanziamento sicuro e la tua offerte",
+    "Rata garantita",
+    "Scopri il tuo tasso",
+  ],
+  es: [
+    "Financiación aprobada",
+    "Calcula tus ofertas de financiación segura con tu tasa",
+    "Cuota garantizada",
+    "Tu tipo de interés",
+    "Aprobación inmediata",
+  ],
+};
 
 describe("FINANCE_MESSAGES", () => {
   it("is not empty", () => {
@@ -50,35 +108,82 @@ describe("FINANCE_MESSAGES", () => {
     expect(FINANCE_MESSAGES["listing.finance_group_title"].en).toBe("Financing estimate");
   });
 
+  it("pins the spec 18.1 and 18.4 strings", () => {
+    expect(FINANCE_MESSAGES["finance.per_month"].en).toBe("/month");
+    expect(FINANCE_MESSAGES["listing.finance_toggle"].en).toBe(
+      "Show an estimated monthly payment on this listing",
+    );
+  });
+
   it("never presents the estimate as a lender decision (spec 2.5), in any locale", () => {
-    const forbidden = /\b(approved|pre-approved|guaranteed|offer|your rate)\b/i;
-    const forbiddenIt = /\b(approvat[oaie]|preapprovat[oaie]|garantit[oaie]|offerta)\b/i;
-    const forbiddenEs = /\b(aprobad[oa]s?|preaprobad[oa]s?|garantizad[oa]s?|oferta)\b/i;
     for (const [key, translations] of Object.entries(FINANCE_MESSAGES)) {
-      expect(forbidden.test(translations.en), `${key}.en`).toBe(false);
-      expect(forbiddenIt.test(translations.it), `${key}.it`).toBe(false);
-      expect(forbiddenEs.test(translations.es), `${key}.es`).toBe(false);
+      for (const locale of SUPPORTED_LOCALES) {
+        expect(forbiddenHit(locale, key, translations[locale]), `${key}.${locale}`).toBe(false);
+      }
     }
   });
 
-  it("states in every locale that the estimate is not a credit application or bank commitment", () => {
-    const d = FINANCE_MESSAGES["finance.illustrative_disclaimer"];
-    expect(d.en).toMatch(/not a credit application/);
-    expect(d.it).toMatch(/Non è una richiesta di credito/);
-    expect(d.es).toMatch(/No es una solicitud de crédito/);
+  it("the forbidden-language scan rejects hostile samples in every language", () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const sample of HOSTILE[locale]) {
+        expect(forbiddenHit(locale, "some.key", sample), `${locale}: ${sample}`).toBe(true);
+      }
+    }
+  });
+
+  it("exempts only the spec-mandated sentence, and only in the disclaimer key", () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      const sentence = MANDATED_SENTENCE[locale];
+      expect(forbiddenHit(locale, DISCLAIMER_KEY, sentence)).toBe(false);
+      expect(forbiddenHit(locale, "finance.calculate", sentence)).toBe(true);
+    }
+    expect(forbiddenHit("en", DISCLAIMER_KEY, "Not a credit offer. Best offer.")).toBe(true);
+    expect(forbiddenHit("it", DISCLAIMER_KEY, "Non è un'offerta di credito. Sicuro.")).toBe(true);
+    expect(forbiddenHit("es", DISCLAIMER_KEY, "No es una oferta de crédito. Segura.")).toBe(true);
+  });
+
+  it("carries the spec 2.5 disclaimer verbatim in English", () => {
+    expect(FINANCE_MESSAGES[DISCLAIMER_KEY].en).toBe(
+      "Illustrative estimate only. Not a credit offer. Taxes, fees and lender conditions are not included.",
+    );
+  });
+
+  it("carries the three disclaimer ideas in Italian and Spanish", () => {
+    const d = FINANCE_MESSAGES[DISCLAIMER_KEY];
+    expect(d.it).toMatch(/indicativa/);
+    expect(d.it).toContain(MANDATED_SENTENCE.it);
+    expect(d.it).toMatch(/Imposte/);
+    expect(d.it).toMatch(/commissioni/);
+    expect(d.it).toMatch(/condizioni del finanziatore/);
+    expect(d.it).toMatch(/non sono incluse/);
+    expect(d.es).toMatch(/ilustrativa/);
+    expect(d.es).toContain(MANDATED_SENTENCE.es);
+    expect(d.es).toMatch(/No se incluyen impuestos/);
+    expect(d.es).toMatch(/comisiones/);
+    expect(d.es).toMatch(/condiciones de la entidad financiera/);
+  });
+
+  it("uses the agreed Spanish terminology", () => {
+    expect(FINANCE_MESSAGES["finance.annual_rate"].es).toBe("Tipo de interés anual");
+    expect(FINANCE_MESSAGES["listing.views"].es).toBe("visualizaciones");
+    expect(FINANCE_MESSAGES["listing.views_label"].es).toBe("{count} visualizaciones");
+    expect(FINANCE_MESSAGES["finance.details.show"].es).toBe("Mostrar los supuestos");
+    expect(FINANCE_MESSAGES["finance.details.hide"].es).toBe("Ocultar los supuestos");
   });
 });
 
 describe("tf", () => {
   it("throws on an unknown key rather than rendering it", () => {
-    expect(() => tf("en", "finance.nope")).toThrow(/finance.nope/);
-    expect(() => tf("it", "")).toThrow();
+    expect(() => tf("en", "finance.nope")).toThrow(
+      /Unknown finance message key: finance.nope/,
+    );
+    expect(() => tf("it", "")).toThrow(/Unknown finance message key/);
   });
 
   it("does not resolve inherited object keys as messages", () => {
-    expect(() => tf("en", "toString")).toThrow();
-    expect(() => tf("en", "constructor")).toThrow();
-    expect(() => tf("en", "__proto__")).toThrow();
+    expect(() => tf("en", "toString")).toThrow(/Unknown finance message key/);
+    expect(() => tf("en", "constructor")).toThrow(/Unknown finance message key/);
+    expect(() => tf("en", "__proto__")).toThrow(/Unknown finance message key/);
   });
 
   it("substitutes named parameters in each locale", () => {
@@ -115,13 +220,14 @@ describe("tf", () => {
   });
 
   it("never expands a placeholder that appears inside another param's value", () => {
-    FINANCE_MESSAGES["test.two"] = { en: "{a} / {b}", it: "{a} / {b}", es: "{a} / {b}" };
-    try {
-      expect(tf("en", "test.two", { a: "{b}", b: "B" })).toBe("{b} / B");
-      expect(tf("en", "test.two", { b: "{a}", a: "A" })).toBe("A / {a}");
-    } finally {
-      delete FINANCE_MESSAGES["test.two"];
-    }
+    const dict = { "t.two": { en: "{a} / {b}", it: "{a} / {b}", es: "{a} / {b}" } };
+    expect(translate(dict, "en", "t.two", { a: "{b}", b: "B" })).toBe("{b} / B");
+    expect(translate(dict, "en", "t.two", { b: "{a}", a: "A" })).toBe("A / {a}");
+  });
+
+  it("only substitutes own properties of params, not inherited ones", () => {
+    const params = Object.create({ count: "1" }) as Record<string, string>;
+    expect(tf("en", "finance.months", params)).toBe("{count} months");
   });
 
   it("ignores param names with regex metacharacters that are not placeholders", () => {
@@ -129,56 +235,84 @@ describe("tf", () => {
   });
 
   it("falls back to the default locale for a locale missing from a message", () => {
-    const original = FINANCE_MESSAGES["finance.term"];
-    FINANCE_MESSAGES["finance.term"] = { en: "Term" } as Record<Locale, string>;
-    try {
-      expect(tf("it", "finance.term")).toBe("Term");
-      expect(DEFAULT_LOCALE).toBe("en");
-    } finally {
-      FINANCE_MESSAGES["finance.term"] = original;
+    const dict = { "t.term": { en: "Term" } as Record<Locale, string> };
+    expect(translate(dict, "it", "t.term")).toBe("Term");
+    expect(DEFAULT_LOCALE).toBe("en");
+  });
+
+  it("translate works on any dictionary and tf uses the shared one", () => {
+    const dict = { "finance.months": { en: "X {count}", it: "Y {count}", es: "Z {count}" } };
+    expect(translate(dict, "es", "finance.months", { count: 1 })).toBe("Z 1");
+    expect(tf("es", "finance.months", { count: 1 })).toBe("1 meses");
+  });
+});
+
+describe("isDecimalString", () => {
+  it("accepts plain decimal strings", () => {
+    for (const ok of ["0", "12", "12.5", "1234567.89", "0.00", "-3.20"]) {
+      expect(isDecimalString(ok), ok).toBe(true);
+    }
+  });
+
+  it("rejects everything else", () => {
+    const bad = ["", " ", "1e5", "0x10", "abc", "1,5", "-", "+1", "1.", ".5", "NaN", "1 2"];
+    for (const value of bad) {
+      expect(isDecimalString(value), JSON.stringify(value)).toBe(false);
     }
   });
 });
 
 describe("formatMoney", () => {
   it("formats a decimal string as euro for the interface language", () => {
-    expect(formatMoney("en", "8456.36", "EUR")).toBe("€8,456.36");
-    expect(formatMoney("it", "8456.36", "EUR")).toBe(`8456,36${NBSP}€`);
-    expect(formatMoney("es", "8456.36", "EUR")).toBe(`8456,36${NBSP}€`);
+    expect(fm("en", "8456.36")).toBe("€8,456.36");
+    // it/es: 4-digit numbers are not grouped by newer ICU, grouped by older.
+    expect(fm("it", "8456.36")).toMatch(/^8\.?456,36 €$/);
+    expect(fm("es", "8456.36")).toMatch(/^8\.?456,36 €$/);
   });
 
   it("keeps both decimals on a round amount", () => {
-    expect(formatMoney("en", "459000.00", "EUR")).toBe("€459,000.00");
-    expect(formatMoney("it", "459000.00", "EUR")).toBe(`459.000,00${NBSP}€`);
-    expect(formatMoney("es", "459000.00", "EUR")).toBe(`459.000,00${NBSP}€`);
-    expect(formatMoney("en", "1234.5", "EUR")).toBe("€1,234.50");
-    expect(formatMoney("en", "7", "EUR")).toBe("€7.00");
+    expect(fm("en", "459000.00")).toBe("€459,000.00");
+    expect(fm("it", "459000.00")).toBe("459.000,00 €");
+    expect(fm("es", "459000.00")).toBe("459.000,00 €");
+    expect(fm("en", "1234.5")).toBe("€1,234.50");
+    expect(fm("en", "7")).toBe("€7.00");
+    expect(fm("en", "5")).toBe("€5.00");
+    expect(fm("it", "5")).toBe("5,00 €");
+  });
+
+  it("uses two fraction digits for every currency, including zero-decimal ones", () => {
+    expect(fm("en", "5", "JPY")).toMatch(/5\.00$/);
+    expect(fm("en", "5.129", "EUR")).toBe("€5.13");
   });
 
   it("formats zero and negatives", () => {
-    expect(formatMoney("en", "0", "EUR")).toBe("€0.00");
-    expect(formatMoney("en", "0.00", "EUR")).toBe("€0.00");
-    expect(formatMoney("it", "0.00", "EUR")).toBe(`0,00${NBSP}€`);
-    expect(formatMoney("en", "-8456.36", "EUR")).toBe("-€8,456.36");
-    expect(formatMoney("es", "-8456.36", "EUR")).toBe(`-8456,36${NBSP}€`);
+    expect(fm("en", "0")).toBe("€0.00");
+    expect(fm("en", "0.00")).toBe("€0.00");
+    expect(fm("it", "0.00")).toBe("0,00 €");
+    expect(fm("en", "-8456.36")).toBe("-€8,456.36");
+    expect(fm("es", "-8456.36")).toMatch(/^-8\.?456,36 €$/);
   });
 
   it("formats the spec 17.3 ceiling exactly", () => {
-    expect(formatMoney("en", "999999999.99", "EUR")).toBe("€999,999,999.99");
-    expect(formatMoney("it", "999999999.99", "EUR")).toBe(`999.999.999,99${NBSP}€`);
+    expect(fm("en", "999999999.99")).toBe("€999,999,999.99");
+    expect(fm("it", "999999999.99")).toBe("999.999.999,99 €");
   });
 
   it("never routes the decimal string through a float", () => {
     // 2^53 + 1 and a 17-digit cent amount are not representable as doubles.
-    expect(formatMoney("en", "9007199254740993.00", "EUR")).toBe("€9,007,199,254,740,993.00");
-    expect(formatMoney("en", "12345678901234567.89", "EUR")).toBe("€12,345,678,901,234,567.89");
-    expect(formatMoney("es", "12345678901234567.89", "EUR")).toBe(
-      `12.345.678.901.234.567,89${NBSP}€`,
-    );
+    expect(fm("en", "9007199254740993.00")).toBe("€9,007,199,254,740,993.00");
+    expect(fm("en", "12345678901234567.89")).toBe("€12,345,678,901,234,567.89");
+    expect(fm("es", "12345678901234567.89")).toBe("12.345.678.901.234.567,89 €");
+  });
+
+  it("puts the currency symbol and decimal separator where each locale expects them", () => {
+    expect(fm("en", "1.50")).toBe("€1.50");
+    expect(fm("it", "1.50")).toBe("1,50 €");
+    expect(fm("es", "1.50")).toBe("1,50 €");
   });
 
   it("uses the currency code it is given", () => {
-    expect(formatMoney("en", "1", "USD")).toBe("US$1.00");
+    expect(fm("en", "1", "USD")).toBe("US$1.00");
   });
 
   it("accepts a lowercase currency code, formatted like the uppercase one", () => {
@@ -192,7 +326,10 @@ describe("formatMoney", () => {
   });
 
   it("rejects amounts that are not plain decimal strings instead of rendering NaN", () => {
-    const bad = ["", " ", "abc", "NaN", "Infinity", "1e5", "0x10", "1,234.50", "12.", ".5", "--1", "1 2", "€5"];
+    const bad = [
+      "", " ", "abc", "NaN", "Infinity", "1e5", "0x10", "1,234.50", "12.", ".5", "--1", "1 2",
+      "€5", "+1", "-",
+    ];
     for (const amount of bad) {
       expect(() => formatMoney("en", amount, "EUR"), JSON.stringify(amount)).toThrow(RangeError);
     }

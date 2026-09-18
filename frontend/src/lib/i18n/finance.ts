@@ -25,16 +25,19 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
     it: "Calcola il tuo finanziamento",
     es: "Calcula tu financiación",
   },
+  // Spec §2.5 mandates this sentence on every result; the English is verbatim.
+  // The IT/ES lines carry the same three ideas: illustrative, not a credit
+  // offer, taxes/fees/lender conditions excluded.
   "finance.illustrative_disclaimer": {
-    en: "Illustrative estimate only, calculated from platform settings. It is not a credit application, a lending decision or a commitment from any bank.",
-    it: "Stima puramente indicativa, calcolata in base alle impostazioni della piattaforma. Non è una richiesta di credito, una decisione di finanziamento né un impegno da parte di alcuna banca.",
-    es: "Estimación meramente ilustrativa, calculada a partir de la configuración de la plataforma. No es una solicitud de crédito, una decisión de financiación ni un compromiso de ningún banco.",
+    en: "Illustrative estimate only. Not a credit offer. Taxes, fees and lender conditions are not included.",
+    it: "Stima puramente indicativa. Non è un'offerta di credito. Imposte, commissioni e condizioni del finanziatore non sono incluse.",
+    es: "Estimación meramente ilustrativa. No es una oferta de crédito. No se incluyen impuestos, comisiones ni condiciones de la entidad financiera.",
   },
   "finance.months": { en: "{count} months", it: "{count} mesi", es: "{count} meses" },
   "finance.details.show": {
     en: "Show assumptions",
     it: "Mostra le ipotesi",
-    es: "Ver los supuestos",
+    es: "Mostrar los supuestos",
   },
   "finance.details.hide": {
     en: "Hide assumptions",
@@ -58,7 +61,7 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
     es: "Importe financiado",
   },
   "finance.term": { en: "Term", it: "Durata", es: "Plazo" },
-  "finance.annual_rate": { en: "Annual rate", it: "Tasso annuo", es: "Tasa anual" },
+  "finance.annual_rate": { en: "Annual rate", it: "Tasso annuo", es: "Tipo de interés anual" },
   "finance.total_installments": {
     en: "Total installments",
     it: "Totale delle rate",
@@ -112,11 +115,11 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
   // listing.views_label, so the standalone noun is the one a labelled count
   // uses — Phase 10's owner dashboards and any "N views" column (spec §19.5).
   // It is kept here, in all three languages, so that phase does not re-coin it.
-  "listing.views": { en: "views", it: "visualizzazioni", es: "visitas" },
+  "listing.views": { en: "views", it: "visualizzazioni", es: "visualizaciones" },
   "listing.views_label": {
     en: "{count} views",
     it: "{count} visualizzazioni",
-    es: "{count} visitas",
+    es: "{count} visualizaciones",
   },
   // Spec §18.4 fixes the English field-group title and toggle label.
   "listing.finance_group_title": {
@@ -164,21 +167,30 @@ const PLACEHOLDER = /\{(\w+)\}/g;
 
 // One pass over the template: a parameter value is inserted verbatim and is
 // never re-scanned, so a value such as "{count}" or "$&" cannot be expanded or
-// interpreted as a replacement pattern. A placeholder with no matching
+// interpreted as a replacement pattern. A placeholder with no matching own
 // parameter is left visible rather than silently blanked.
+export function translate(
+  messages: Record<string, Translations>,
+  locale: Locale,
+  key: string,
+  params: Record<string, string | number> = {},
+): string {
+  if (!Object.hasOwn(messages, key)) {
+    throw new Error(`Unknown finance message key: ${key}`);
+  }
+  const translations = messages[key];
+  const template = translations[locale] || translations[DEFAULT_LOCALE];
+  return template.replace(PLACEHOLDER, (placeholder, name: string) =>
+    Object.hasOwn(params, name) ? String(params[name]) : placeholder,
+  );
+}
+
 export function tf(
   locale: Locale,
   key: string,
   params: Record<string, string | number> = {},
 ): string {
-  if (!Object.hasOwn(FINANCE_MESSAGES, key)) {
-    throw new Error(`Unknown finance message key: ${key}`);
-  }
-  const translations = FINANCE_MESSAGES[key];
-  const template = translations[locale] || translations[DEFAULT_LOCALE];
-  return template.replace(PLACEHOLDER, (placeholder, name: string) =>
-    Object.hasOwn(params, name) ? String(params[name]) : placeholder,
-  );
+  return translate(FINANCE_MESSAGES, locale, key, params);
 }
 
 // Spec §36.1: "Currency symbol/format is localized; calculation uses numeric
@@ -195,6 +207,15 @@ const INTL_LOCALES: Record<Locale, string> = {
 const DECIMAL_STRING = /^-?\d+(\.\d+)?$/;
 
 /**
+ * True for a plain decimal string ("0", "12.5", "-3.20"). formatMoney throws on
+ * anything else, so a caller holding user-controlled input (for example a
+ * tampered ?price= query parameter, spec 18.3) must check this first.
+ */
+export function isDecimalString(value: string): boolean {
+  return DECIMAL_STRING.test(value);
+}
+
+/**
  * Format a decimal string from the API for display.
  *
  * The string is handed to Intl as a string (ES2023 NumberFormat accepts exact
@@ -202,12 +223,12 @@ const DECIMAL_STRING = /^-?\d+(\.\d+)?$/;
  * lost; the server value is authoritative (spec §17 definition of done). No
  * arithmetic is performed. Anything that is not a plain decimal string throws a
  * RangeError instead of rendering "NaN". A malformed currency code also throws
- * a RangeError (from Intl); a lowercase code is normalised by Intl. Output is
+ * a RangeError (from Intl); a lowercase code is normalised by Intl. Fraction digits are fixed at two for every currency (the platform is euro); a zero-decimal currency such as JPY is shown with .00. Output is
  * ICU's own, including the no-break space in it-IT / es-ES, and is not
  * post-processed.
  */
 export function formatMoney(locale: Locale, amount: string, currency: string): string {
-  if (!DECIMAL_STRING.test(amount)) {
+  if (!isDecimalString(amount)) {
     throw new RangeError(`Invalid decimal amount: ${JSON.stringify(amount)}`);
   }
   // amount is validated above, so the `${number}` cast the lib typing asks for holds.
