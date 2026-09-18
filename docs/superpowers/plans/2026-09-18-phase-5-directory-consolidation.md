@@ -5734,7 +5734,7 @@ Rules a later phase must follow:
 | §14.1 — Professionals directory is the structural base | Task 14 (one page at the canonical URL; no `/services/` or `/professionals/` page exists) |
 | §14.1 — approved service-category introductions carried over | Tasks 2, 4 (`description_*` on `ServiceCategory`, rendered by Tasks 14 and 16 when non-empty) |
 | §14.1 — links to the six SEO service pages | Task 14 (SEO links section) + Task 16 (the pages themselves) |
-| §14.1 — category discovery/filter controls | Tasks 7, 12 (`?category=` filter, category grid links, select control) |
+| §14.1 — category discovery/filter controls | Tasks 7, 14 (`?category=` filter, category grid links, select control) |
 | §14.1 — existing approved service-request CTA | **Not carried over** — the service-request flow is the shared inquiry form, Phase 6. Recorded as a seam and a Known Limitation, not silently dropped |
 | §14.1 — no duplicated category across separate sections | Task 14 (one grid, one result list; `get_categories` dedupes per provider) |
 | §14.1 item 1 — hero with title, explanation, category/location search | Task 14 |
@@ -5757,7 +5757,7 @@ Rules a later phase must follow:
 | §14.3 step 3 — copy missing descriptions/categories | Task 10 (copy-only-when-empty, tested both ways) |
 | §14.3 step 4 — preserve unique slugs, deterministic redirects for changed ones | Tasks 9 (resolver + slug fallback), 10 (`slugs_preserved`/`slugs_changed` counts) |
 | §14.3 step 5 — canonical tags and sitemap | Task 16 (generated sitemap + per-page canonicals); Task 10 reports it as a structural no-op |
-| §14.3 step 6 — six SEO records stay independent but linked | Tasks 4, 10 (never deactivated/reparented), 12 (linked from the directory) |
+| §14.3 step 6 — six SEO records stay independent but linked | Tasks 4, 10 (never deactivated/reparented), 14 (linked from the directory) |
 | DoD — one combined directory, no duplicate index content | Task 17 Step 4.1 |
 | DoD — both retired URLs return a single-hop 301 | Tasks 11, 17 Step 4.2 (`curl -sIL` hop count) |
 | DoD — every displayed category/provider is database-backed | Task 17 Step 4.3 (grep for literals + deactivate-and-reload) |
