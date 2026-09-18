@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13 + `uv`, Django 5.2 LTS, Django REST Framework, PostgreSQL 16, Redis (cache + DRF throttle counters); **Next.js 16.3.5** (App Router, TypeScript), **Tailwind CSS v4**, `pnpm`, Vitest + Testing Library (introduced by Phase 3's Task 10). No new third-party dependencies in either project.
 
-**Version-drift check (do this before writing any App Router code):** the scaffolded frontend is Next.js **16.3.5** with Tailwind **v4**, not the 15.x a model's training data is likely to assume — `frontend/AGENTS.md` flags this explicitly. Before using any App Router API in Tasks 11–14 (`redirects()` in `next.config.ts`, `trailingSlash`, Route Handlers, `NextResponse.redirect`, the `params`/`searchParams` shapes, `generateMetadata`, `MetadataRoute.Sitemap`, `notFound()`), verify the signature against the installed version in `frontend/node_modules/next/dist/docs/` or `frontend/node_modules/next/package.json` rather than from memory. `params` and `searchParams` became **Promises** in Next 15/16 and every page in this plan awaits them.
+**Version-drift check (do this before writing any App Router code):** the scaffolded frontend is Next.js **16.3.5** with Tailwind **v4**, not the 15.x a model's training data is likely to assume — `frontend/AGENTS.md` flags this explicitly. Before using any App Router API in Tasks 11–16 (`redirects()` in `next.config.ts`, `trailingSlash`, Route Handlers, `NextResponse.redirect`, the `params`/`searchParams` shapes, `generateMetadata`, `MetadataRoute.Sitemap`, `notFound()`), verify the signature against the installed version in `frontend/node_modules/next/dist/docs/` or `frontend/node_modules/next/package.json` rather than from memory. `params` and `searchParams` became **Promises** in Next 15/16 and every page in this plan awaits them.
 
 **Spec:** [`NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md`](../../../NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md) — primarily §14 (Phase 5), §11.2 (service catalog data model), §1 and §4.1/§4.3 (fixed URLs and redirects), §29.3/§29.4 (professional profile and combined directory requirements), §30.1/§30.2/§30.4 (API inventory, response conventions, rate limits), §31 (UI-to-backend traceability), §32.2 (SEO), §35.1 (feature flags), §37 (localization keys), §38 (seed data), §39 (developer execution protocol).
 
@@ -21,7 +21,7 @@
 
 ## Execution Model
 
-Per the standing project convention recorded in `ACTIVITY.md`: each task is implemented on its own branch off the current tip of `dev` (`git checkout -b task-N-<slug> dev`), run through `subagent-driven-development`'s implementer → task-reviewer → fix-loop cycle, opened as a PR (`gh pr create`), and merged by the controller only when CI is green and the branch is cleanly mergeable. Tasks run strictly sequentially — never two branches in flight at once — and each new task branches from the just-merged `dev` tip. Task 1 is pure scaffolding and may be pushed straight to `dev` by the controller, matching how Phases 0/1 and 4 handled their own Task 1.
+Per the standing project convention recorded in `ACTIVITY.md`: each task is implemented on its own branch off the current tip of `dev` (`git checkout -b task-N-<slug> dev`), run through `subagent-driven-development`'s implementer → task-reviewer → fix-loop cycle, opened as a PR (`gh pr create`), and merged by the controller only when CI is green and the branch is cleanly mergeable. Tasks run strictly sequentially — never two branches in flight at once — and each new task branches from the just-merged `dev` tip. **This includes Task 1**: `ACTIVITY.md`'s Log shows one PR per task for every prior phase, with no exception for scaffolding, so Task 1 gets its own branch and its own PR like every other task. It is simply the smallest one.
 
 ## Global Constraints
 
@@ -62,7 +62,7 @@ Spec §3's suggested app list names `professionals` and `services_catalog` as tw
 `ProfessionalService` is the join between the two and could defensibly sit on either side; it goes in `services_catalog` because spec §11.2 puts it there and because the directory queries that read it (Tasks 7 and 8) live there too — files that change together live together.
 
 **Note (ruling): the §14.3 legacy migration is a mechanism, not a run.**
-Spec §14.3 prescribes a six-step migration from "old service/provider records." **There are no such records.** Per `ACTIVITY.md`'s "Design Decisions"/design-reference section, the prior artefact is a Google Stitch export of 51 **static HTML/Tailwind mockups** — "no backend, no shared components", "throwaway static mockups (inline Tailwind config per file, no component reuse, no real data)". There is no legacy database, no legacy service or provider table, no legacy slug that ever resolved for a real user. Tasks 9 and 10 therefore build the *mechanism* the spec mandates — the mapping table, the dedup rules, the slug/redirect preservation, the reconciliation report — and run it against **zero** input rows. This is recorded as a Known Limitation, not hidden: the mechanism becomes load-bearing only if real legacy data ever materialises, which for a project this new it will not. It is built anyway because spec §14.3 and §32.1 step 7 mandate that it exist, and because `/professionals/profile/?id=<legacy>` (spec §4.3) needs a real resolver behind it either way. What this explicitly does **not** mean: inventing sample legacy rows, seeding demo mappings, or importing "prototype sample numbers as real analytics" (spec §32 definition of done).
+Spec §14.3 prescribes a six-step migration from "old service/provider records." **There are no such records.** Per `ACTIVITY.md`'s `## Architecture Decisions` section and its `### Design reference summary` subsection, the prior artefact is a Google Stitch export of 51 **static HTML/Tailwind mockups** — "no backend, no shared components", "throwaway static mockups (inline Tailwind config per file, no component reuse, no real data)". There is no legacy database, no legacy service or provider table, no legacy slug that ever resolved for a real user. Tasks 9 and 10 therefore build the *mechanism* the spec mandates — the mapping table, the dedup rules, the slug/redirect preservation, the reconciliation report — and run it against **zero** input rows. This is recorded as a Known Limitation, not hidden: the mechanism becomes load-bearing only if real legacy data ever materialises, which for a project this new it will not. It is built anyway because spec §14.3 and §32.1 step 7 mandate that it exist, and because `/professionals/profile/?id=<legacy>` (spec §4.3) needs a real resolver behind it either way. What this explicitly does **not** mean: inventing sample legacy rows, seeding demo mappings, or importing "prototype sample numbers as real analytics" (spec §32 definition of done).
 
 **Note (ruling): the contact panel is a seam, not a deliverable.**
 Spec §14.2 lists a "Blurred contact panel governed by `ContactAccessService`" among the professional detail sections. `ContactAccessService` is **Phase 7** ("Contact privacy and reveal access", spec §7/§16) and does not exist. This plan does not build it, does not fake it, and does not ship a CSS-blurred panel over real contact data — spec §39 explicitly forbids "hide prohibited fields only with CSS", and spec §1 requires that reveal "never makes contact data public." Consequently **`public_email`, `public_phone` and `website_url` are excluded from every public API payload in this phase** (Tasks 7 and 8), so locked contact data is never in the JSON, never in the SSR HTML and never in the DOM. The detail page carries a single commented insertion point naming the component Phase 7 will mount there. `website_url` is excluded alongside phone and email deliberately: a provider's own site is a contact channel, and deciding whether it is gated belongs to the phase that owns the gate.
@@ -71,7 +71,7 @@ Spec §14.2 lists a "Blurred contact panel governed by `ContactAccessService`" a
 Spec §14.2 also lists "Shared inquiry form." That is **Phase 6** (spec §15): one `InquiryForm` component and one backend `InquiryService`, explicitly forbidden from being copied per context ("do not create broker-, professional- and listing-specific copies", spec §15.1; "Do not … Add a separate inquiry form for a new context", spec §39). Building any professional-specific form here would violate that rule the moment Phase 6 lands. The detail page therefore renders no inquiry form and no non-functional stand-in, and carries a commented insertion point naming the Phase 6 component.
 
 **Note (ruling): the six SEO service pages are built here, because the combined page must link to them.**
-Spec §14.1 item 5 requires "SEO links to the six individual service pages" on the combined directory, and spec §32.2 requires they be "preserved" and linked. No phase in the spec builds them, because spec §11.2 says they are not pages to build — they are `ServiceCategory` rows with `has_seo_page=true` rendered by one shared template. Linking to six 404s would break spec §2.1 and Phase 3's rule 11 ("only add a nav link in the same commit that creates the page it points at"). Task 14 therefore adds **one** dynamic route, `/services/<category-slug>/`, that renders any `has_seo_page` category and 404s otherwise, and Task 4 seeds the six rows with factual category names in EN/IT/ES and **empty** descriptions/SEO text for staff to fill in — no invented marketing copy.
+Spec §14.1 item 5 requires "SEO links to the six individual service pages" on the combined directory, and spec §32.2 requires they be "preserved" and linked. No phase in the spec builds them, because spec §11.2 says they are not pages to build — they are `ServiceCategory` rows with `has_seo_page=true` rendered by one shared template. Linking to six 404s would break spec §2.1 and Phase 3's rule 11 ("only add a nav link in the same commit that creates the page it points at"). Task 16 therefore adds **one** dynamic route, `/services/<category-slug>/`, that renders any `has_seo_page` category and 404s otherwise, and Task 4 seeds the six rows with factual category names in EN/IT/ES and **empty** descriptions/SEO text for staff to fill in — no invented marketing copy.
 
 **Note (ruling): the advertisement interstitial is out of scope.**
 Spec §14.1 item 4 permits an "Optional approved advertisement interstitial only in its established public placement." No advertisement model, table or placement exists anywhere in this codebase, and the item is optional. Rendering a placeholder ad slot would be exactly the invented UI spec §2.1 forbids. Not built; recorded in Known Limitations for the advertising phase.
@@ -91,7 +91,7 @@ Phase 3's `PrimaryNav` already ships `{ href: "/services/professionals/", label:
 
 ```
 nautelo/
-├── ACTIVITY.md                                             (modify: Task 15)
+├── ACTIVITY.md                                             (modify: Task 17)
 ├── docs/superpowers/plans/2026-09-18-phase-5-directory-consolidation.md   (this file)
 ├── backend/
 │   ├── config/
@@ -119,6 +119,7 @@ nautelo/
 │       │   └── 0005_legacydirectorymapping.py              (generated: Task 9)
 │       └── tests/
 │           ├── __init__.py, factories.py                   (Task 2; factories extended Tasks 5, 9)
+│           ├── conftest.py                                 (new: Task 6 — autouse cache isolation)
 │           ├── test_service_category_model.py              (Task 2)
 │           ├── test_service_category_audit.py              (Task 3)
 │           ├── test_seed_seo_categories.py                 (Task 4)
@@ -132,26 +133,26 @@ nautelo/
     ├── next.config.ts                                      (modify: Task 11)
     ├── next.config.test.ts                                 (new: Task 11)
     ├── vitest.config.ts                                     (modify: Task 11 — include glob)
-    ├── .env.example                                         (modify: Task 14 — NEXT_PUBLIC_BASE_URL)
+    ├── .env.local.example                                  (modify: Task 16 — NEXT_PUBLIC_BASE_URL)
     └── src/
-        ├── lib/api/directory.ts                            (new: Task 11; extended Tasks 12, 13, 14)
-        ├── lib/i18n/directory.ts                           (new: Task 12)
-        ├── lib/i18n/directory.test.ts                      (new: Task 12)
-        ├── app/professionals/profile/route.ts              (new: Task 11)
-        ├── app/professionals/profile/route.test.ts         (new: Task 11)
-        ├── app/services/professionals/page.tsx             (new: Task 12)
-        ├── app/services/professionals/[slug]/page.tsx      (new: Task 13)
-        ├── app/services/[categorySlug]/page.tsx            (new: Task 14)
-        ├── app/sitemap.ts                                  (new: Task 14)
+        ├── lib/api/directory.ts                            (new: Task 12; extended Task 16 — page_size)
+        ├── lib/i18n/directory.ts                           (new: Task 13)
+        ├── lib/i18n/directory.test.ts                      (new: Task 13)
+        ├── app/professionals/profile/route.ts              (new: Task 12)
+        ├── app/professionals/profile/route.test.ts         (new: Task 12)
+        ├── app/services/professionals/page.tsx             (new: Task 14)
+        ├── app/services/professionals/[slug]/page.tsx      (new: Task 15)
+        ├── app/services/[categorySlug]/page.tsx            (new: Task 16)
+        ├── app/sitemap.ts                                  (new: Task 16)
         └── components/directory/
-            ├── DirectorySearchForm.tsx                     (Task 12)
-            ├── DirectorySearchForm.test.tsx                (Task 12)
-            ├── CategoryGrid.tsx                            (Task 12)
-            ├── CategoryGrid.test.tsx                       (Task 12)
-            ├── ProfessionalCard.tsx                        (Task 12)
-            ├── ProfessionalCard.test.tsx                   (Task 12)
-            ├── ProfileMonogram.tsx                         (Task 13)
-            └── ProfileMonogram.test.tsx                    (Task 13)
+            ├── DirectorySearchForm.tsx                     (Task 14)
+            ├── DirectorySearchForm.test.tsx                (Task 14)
+            ├── CategoryGrid.tsx                            (Task 14)
+            ├── CategoryGrid.test.tsx                       (Task 14)
+            ├── ProfessionalCard.tsx                        (Task 14)
+            ├── ProfessionalCard.test.tsx                   (Task 14)
+            ├── ProfileMonogram.tsx                         (Task 15)
+            └── ProfileMonogram.test.tsx                    (Task 15)
 ```
 
 Migration filenames are Django's default auto-numbering for a fresh app; the actual generated names are whatever `makemigrations` produces for the auto-generated ones (each task says to run it and commit the result). The two data migrations are hand-written and their filenames are exact.
@@ -496,14 +497,16 @@ git commit -m "feat(services_catalog): add ServiceCategory model with locale fal
 - Produces:
   - `services_catalog.services.CATEGORY_AUDIT_FIELDS` — the tuple of audited column names.
   - `services_catalog.services.category_audit_snapshot(category) -> dict`.
-  - `services_catalog.services.save_service_category(*, category, actor, source=AuditEvent.Source.ADMIN, request_id=None) -> ServiceCategory` — the only sanctioned write path.
-  - `services_catalog.services.delete_service_category(*, category, actor, source=AuditEvent.Source.ADMIN, request_id=None) -> None`.
+  - `services_catalog.services.save_service_category(*, category, actor, actor_type=AuditEvent.ActorType.USER, source=AuditEvent.Source.ADMIN, request_id=None) -> ServiceCategory` — the only sanctioned write path.
+  - `services_catalog.services.delete_service_category(*, category, actor, actor_type=AuditEvent.ActorType.USER, source=AuditEvent.Source.ADMIN, request_id=None) -> None`.
   - `services_catalog.admin.ServiceCategoryAdmin`.
   - Audit actions: `service_category.created`, `service_category.updated`, `service_category.deleted`; `target_type="services_catalog.ServiceCategory"`.
 
 **Note (why the service, not the admin, owns the audit):** spec §2.4 requires staff catalog CRUD to produce an immutable audit event with actor, action, target, before/after summary, timestamp, request ID and source. Putting that in `ServiceCategoryAdmin.save_model` alone would leave any future `/api/v1/staff/service-categories/` endpoint free to write unaudited rows. `platform_settings` already solved this exact problem the same way (`update_setting` / `set_feature_flag` called *from* the admin), so this follows the established project shape: the admin is a thin caller.
 
-**Note (`record_audit_event` signature — use the real one):** it is keyword-only and takes `actor_user`, `actor_type`, `action`, `target_type`, `target_id`, `source`, and optionally `before`, `after`, `request_id`, `metadata`, `ip_hash`. It stringifies `target_id` itself and generates a `request_id` when none is given. It must be called inside the same `transaction.atomic()` block as the change it describes, so a rolled-back mutation never leaves an orphaned audit row.
+**Note (`record_audit_event` signature — use the real one):** it is keyword-only and takes `actor_user`, `actor_type`, `action`, `target_type`, `target_id`, `source`, and optionally `before`, `after`, `request_id`, `metadata`, `ip_hash`. It stringifies `target_id` itself and generates a `request_id` when none is given. It must be called inside the same `transaction.atomic()` block as the change it describes, so a rolled-back mutation never leaves an orphaned audit row. `audit.models.AuditEvent` supplies both enums: `ActorType` is `USER`/`SYSTEM`/`STRIPE` and `Source` is `WEB`/`API`/`ADMIN`/`TASK`/`WEBHOOK`.
+
+**Note (why `actor_type` and `source` are parameters, not constants):** Django admin is not the only sanctioned caller. Task 10's `import_legacy_directory` management command also writes `ServiceCategory` rows, and it has no logged-in user — it passes `actor=None`, `actor_type=AuditEvent.ActorType.SYSTEM`, `source=AuditEvent.Source.TASK`, which are exactly the members `audit.models` already defines for a non-interactive actor. Keeping both as defaulted keyword arguments is what lets rule 5 of the Contract summary stay absolute: **every** write to `ServiceCategory` in this codebase, from any entry point, goes through these two functions and is audited. `actor_user` is `null=True` on `AuditEvent`, so a system actor records a real row with no user attached.
 
 **Note (detecting create without importing the model):** `save_service_category` decides create-vs-update from `category._state.adding`, captured **before** `save()` flips it. `audit.models.AuditEvent.save()` already uses `self._state.adding` for the same reason (a `UUIDModel` instance has a non-`None` pk before it is ever written, so `pk is None` is the wrong check). Reading the previous row via `type(category).objects.get(...)` avoids importing `ServiceCategory` into `services.py`, which would create a cycle with `models.py`'s import of `validate_category_slug`.
 
@@ -682,14 +685,17 @@ def save_service_category(
     *,
     category,
     actor,
+    actor_type: str = AuditEvent.ActorType.USER,
     source: str = AuditEvent.Source.ADMIN,
     request_id: str | None = None,
 ):
     """The only sanctioned way to create or change a ServiceCategory.
 
     Validates, persists and records one immutable audit event in a single
-    transaction, so no entry point (admin today, a staff API later) can write
-    an unaudited catalog change.
+    transaction, so no entry point (admin today, the legacy-import management
+    command in Task 10, a staff API later) can write an unaudited catalog
+    change. A non-interactive caller passes actor=None with
+    actor_type=AuditEvent.ActorType.SYSTEM and source=AuditEvent.Source.TASK.
     """
     # Capture before save() clears it: UUIDModel assigns a pk at instantiation,
     # so `pk is None` is not a usable "is this new?" test (same reasoning as
@@ -707,7 +713,7 @@ def save_service_category(
     actor_user = actor if getattr(actor, "is_authenticated", False) else None
     record_audit_event(
         actor_user=actor_user,
-        actor_type=AuditEvent.ActorType.USER,
+        actor_type=actor_type,
         action="service_category.created" if is_create else "service_category.updated",
         target_type="services_catalog.ServiceCategory",
         target_id=str(category.pk),
@@ -724,6 +730,7 @@ def delete_service_category(
     *,
     category,
     actor,
+    actor_type: str = AuditEvent.ActorType.USER,
     source: str = AuditEvent.Source.ADMIN,
     request_id: str | None = None,
 ) -> None:
@@ -742,7 +749,7 @@ def delete_service_category(
     actor_user = actor if getattr(actor, "is_authenticated", False) else None
     record_audit_event(
         actor_user=actor_user,
-        actor_type=AuditEvent.ActorType.USER,
+        actor_type=actor_type,
         action="service_category.deleted",
         target_type="services_catalog.ServiceCategory",
         target_id=target_id,
@@ -824,7 +831,7 @@ git commit -m "feat(services_catalog): audit every staff ServiceCategory create,
 - Consumes: `services_catalog.models.ServiceCategory` (Task 2).
 - Produces: six `ServiceCategory` rows with `has_seo_page=True`, `is_active=True` and slugs `full-brokerage`, `legal`, `insurance`, `engines-maintenance`, `transport-delivery`, `nautical-marketing`, in `display_order` 10–60.
 
-**Note (ruling — names are seeded, copy is not):** the six slugs are fixed by spec §4.1's route table and spec §1's "the six approved individual service pages remain indexable." Their *names* are factual category labels, so they are seeded in all three languages. Their `description_*`, `seo_title_*` and `seo_description_*` are seeded **empty** and left for staff to write in Django admin — inventing marketing copy for an approved public SEO page would be exactly the fabricated content spec §2.1 prohibits, and spec §38 forbids production setup from carrying decorative values. Every page and tile in Tasks 12 and 14 renders a description block only when it is non-empty, so an unwritten description is a missing paragraph, never a placeholder string.
+**Note (ruling — names are seeded, copy is not):** the six slugs are fixed by spec §4.1's route table and spec §1's "the six approved individual service pages remain indexable." Their *names* are factual category labels, so they are seeded in all three languages. Their `description_*`, `seo_title_*` and `seo_description_*` are seeded **empty** and left for staff to write in Django admin — inventing marketing copy for an approved public SEO page would be exactly the fabricated content spec §2.1 prohibits, and spec §38 forbids production setup from carrying decorative values. Every page and tile in Tasks 14 and 16 renders a description block only when it is non-empty, so an unwritten description is a missing paragraph, never a placeholder string.
 
 **Note (`icon_key`):** the prototype uses Material Symbols (`ACTIVITY.md`, design reference). The seeded keys are Material Symbols names: `handshake`, `gavel`, `shield`, `build`, `local_shipping`, `campaign`. `icon_key` is a plain string the frontend maps to an icon; an unknown or blank key renders no icon rather than a broken one.
 
@@ -1014,6 +1021,8 @@ git commit -m "feat(services_catalog): seed the six approved SEO service categor
 **Note (ruling — `on_delete` asymmetry):** `professional` cascades because a service offering has no meaning without the provider that offers it, and Phase 3 already cascades `ProfessionalProfile` from its owning user. `category` is `PROTECT` because a category in use is public IA that other rows and URLs depend on — the same rule spec §13.3 states for taxonomy ("Never delete a model referenced by listings; deactivate or merge it"). Staff deactivate a category (`is_active=False`, which hides it everywhere per spec §31) rather than deleting it; Task 3's `delete_service_category` surfaces the resulting `ProtectedError` in admin.
 
 **Note (ruling — reusing Phase 3's `service_area` validator):** spec §11.2 gives `ProfessionalService` a `service_area` and spec §11.1 gives `ProfessionalProfile` one too. Phase 3's Task 6 already fixed the shape — a JSON list of non-empty region-identifier strings — and shipped `professionals.models.validate_service_area`. This model imports and reuses that exact validator rather than defining a second, drifting copy: a service-level area that validated differently from a profile-level area would be a silent data bug the first time the directory filtered across both.
+
+**Heads-up (`validate_service_area` is present but unlisted in Phase 3's contract):** Phase 3's "Contract summary for later phases" export block names only `ProfessionalProfile` and `ProfessionalProfileStatus` from the `professionals` app. `validate_service_area` genuinely exists — it is a module-level function in Phase 3's `professionals/models.py` — but it was never added to that list of intentional exports, so nothing in Phase 3's own plan protects it from being renamed, made private or inlined by a later edit. This plan depends on it at import time in `services_catalog/models.py`. If Phase 3's plan is revised before it merges, add `validate_service_area` to its contract summary in the same edit; if the symbol has already moved by the time this task runs, **stop and reconcile the two plans** rather than quietly defining a local copy here, because two validators for one JSON shape is precisely the drift this ruling exists to prevent.
 
 **Note (ruling — `title_en` in the unique constraint):** spec §11.2 says `unique(professional, category, title_en) or an equivalent normalized constraint`. This plan takes the spec's literal first option. A normalized variant would need a stored normalized column and a rule for what "same title" means across three languages — complexity with no requirement behind it yet (YAGNI). `title_en` is the only required title, so the constraint is always fully populated.
 
@@ -1258,7 +1267,7 @@ git commit -m "feat(services_catalog): add ProfessionalService model linking pro
 - Create: `backend/services_catalog/permissions.py`, `backend/services_catalog/serializers.py`, `backend/services_catalog/views.py`, `backend/services_catalog/urls.py`
 - Create: `backend/services_catalog/migrations/0004_seed_combined_directory_flag.py`
 - Modify: `backend/config/urls.py`
-- Test: `backend/services_catalog/tests/test_service_category_api.py`
+- Test: `backend/services_catalog/tests/conftest.py`, `backend/services_catalog/tests/test_service_category_api.py`
 
 **Interfaces:**
 - Consumes: `services_catalog.models.ServiceCategory` (Task 2); `services_catalog.services.localized`, `resolve_locale` (Task 2); `platform_settings.services.is_feature_enabled`, `feature_flag_cache_key` (Phase 2).
@@ -1278,9 +1287,37 @@ git commit -m "feat(services_catalog): add ProfessionalService model linking pro
 
 **Note (ruling — the feature flag is enforced as 404, not 403):** spec §35.1 names `combined_services_professionals` and requires flags to "gate both frontend exposure and backend mutation … Do not leave an enabled API behind a disabled UI unintentionally." This phase exposes only public reads, so the gate goes on the read surface: with the flag off, all four directory endpoints behave exactly as if the feature did not exist (404), which is what spec §35.3's "if combined directory must be temporarily disabled" scenario needs and what the Next.js pages already handle, since they must `notFound()` on an unknown slug regardless. `is_feature_enabled` is called with `default=False` so a missing flag row fails closed; migration `0004` seeds the row enabled.
 
-**Note (flag caching in tests):** `is_feature_enabled` caches a persisted value in Redis indefinitely, and `set_feature_flag` busts that cache from `transaction.on_commit()` — which does **not** run inside pytest-django's per-test transaction. Any test that toggles the flag must delete the cache key itself with `cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))`, both after changing it and in teardown. The tests below do exactly that; copy the pattern rather than inventing another.
+**Note (flag caching in tests):** `is_feature_enabled` caches a persisted value in Redis indefinitely, and `set_feature_flag` busts that cache from `transaction.on_commit()` — which does **not** run inside pytest-django's per-test transaction. Any test that toggles the flag **mid-test** must delete the cache key itself with `cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))` right after changing it. Getting each test *started* from a clean cache is the package-wide conftest's job (Step 1 below), not each file's.
 
-- [ ] **Step 1: Write the failing tests**
+**Note (ruling — one autouse `cache.clear()` for the whole `services_catalog/tests/` package):** Redis is real in this project's test settings and is never swapped for `LocMemCache` (see Global Constraints), so cache state survives between tests and between runs. Two things leak. The first is the flag value above. The second is the DRF throttle counter: **every** endpoint in Tasks 6–9 shares one `services_directory` bucket rated `60/min`, keyed on one HMAC-hashed client IP, and the four API test files in this package together issue well over 60 requests. Clearing only inside the one dedicated rate-limit test — the shape the first draft of this plan had — leaves the suite order-dependent: each file passes alone, and an unrelated test 429s once the whole run shares the bucket. There is **no** `backend/conftest.py` in this repo to inherit from; `backend/platform_settings/tests/conftest.py` solves exactly this problem with its own package-local autouse fixture, so this app mirrors that established shape rather than adding a root conftest that would change every other app's test isolation.
+
+- [ ] **Step 1: Add the package-wide cache-isolation fixture**
+
+`backend/services_catalog/tests/conftest.py`:
+
+```python
+import pytest
+from django.core.cache import cache
+
+
+@pytest.fixture(autouse=True)
+def _clear_services_catalog_cache():
+    """Start and end every test in this package with an empty cache.
+
+    Redis is real here (config/settings/test.py must never downgrade CACHES to
+    LocMemCache), so both the feature-flag value cached by is_feature_enabled
+    and the DRF throttle counters for the shared `services_directory` scope
+    survive from one test to the next. A blanket clear is what
+    platform_settings/tests/conftest.py does for its own package; this is the
+    same fixture widened to the whole cache, because throttle keys are HMACs of
+    the client IP and cannot be enumerated to delete individually.
+    """
+    cache.clear()
+    yield
+    cache.clear()
+```
+
+- [ ] **Step 2: Write the failing tests**
 
 `backend/services_catalog/tests/test_service_category_api.py`:
 
@@ -1289,17 +1326,14 @@ import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
+from common.throttling import HashedIPScopedRateThrottle
 from platform_settings.models import FeatureFlag
 from platform_settings.services import feature_flag_cache_key
 from services_catalog.permissions import COMBINED_DIRECTORY_FLAG
 from services_catalog.tests.factories import make_service_category
 
-
-@pytest.fixture(autouse=True)
-def clear_flag_cache():
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-    yield
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
+# No autouse cache fixture here: tests/conftest.py clears the cache around
+# every test in this package (flag values and throttle counters alike).
 
 
 @pytest.mark.django_db
@@ -1391,15 +1425,16 @@ def test_both_category_endpoints_404_when_the_rollout_flag_is_off():
 
 
 @pytest.mark.django_db
-def test_category_list_is_rate_limited(settings):
-    cache.clear()
-    settings.REST_FRAMEWORK = {
-        **settings.REST_FRAMEWORK,
-        "DEFAULT_THROTTLE_RATES": {
-            **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
-            "services_directory": "2/min",
-        },
-    }
+def test_category_list_is_rate_limited(monkeypatch):
+    # Overriding settings.REST_FRAMEWORK would NOT work: DRF binds
+    # SimpleRateThrottle.THROTTLE_RATES once from api_settings at import time,
+    # and Django's setting_changed signal does not retroactively update that
+    # already-bound dict. Monkeypatching the scope entry is the reliable way,
+    # and is the pattern taxonomy/tests/test_boat_brand_search_api.py already
+    # established in this repo. conftest.py has already emptied the bucket.
+    monkeypatch.setitem(
+        HashedIPScopedRateThrottle.THROTTLE_RATES, "services_directory", "2/min"
+    )
     client = APIClient()
     client.get("/api/v1/service-categories/")
     client.get("/api/v1/service-categories/")
@@ -1407,7 +1442,7 @@ def test_category_list_is_rate_limited(settings):
     assert client.get("/api/v1/service-categories/").status_code == 429
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
 
 ```bash
 uv run pytest services_catalog/tests/test_service_category_api.py -v
@@ -1415,7 +1450,7 @@ uv run pytest services_catalog/tests/test_service_category_api.py -v
 
 Expected: `ModuleNotFoundError: No module named 'services_catalog.permissions'`.
 
-- [ ] **Step 3: Seed the rollout feature flag**
+- [ ] **Step 4: Seed the rollout feature flag**
 
 `backend/services_catalog/migrations/0004_seed_combined_directory_flag.py`:
 
@@ -1425,7 +1460,10 @@ from django.db import migrations
 FLAG_KEY = "combined_services_professionals"
 FLAG_DESCRIPTION = (
     "Spec 35.1 rollout flag. When off, the combined Services / Professionals "
-    "directory read endpoints return 404 and the public pages disappear."
+    "directory read endpoints return 404, and every public page built on them "
+    "returns 404 too: /services/professionals/, the professional detail pages "
+    "and the six /services/<slug>/ SEO pages. /sitemap.xml goes empty. The two "
+    "301 redirects in next.config.ts are static and are NOT affected."
 )
 
 
@@ -1452,7 +1490,7 @@ class Migration(migrations.Migration):
 
 **Note:** confirm the real name of `platform_settings`' feature-flag migration before committing — `ACTIVITY.md` records it as `0004_featureflag.py`, but list `backend/platform_settings/migrations/` and depend on whatever is actually there. A wrong dependency name fails loudly at `migrate` time, so Step 6's run is the check.
 
-- [ ] **Step 4: Write the permission gate**
+- [ ] **Step 5: Write the permission gate**
 
 `backend/services_catalog/permissions.py`:
 
@@ -1480,7 +1518,7 @@ class CombinedDirectoryEnabled(BasePermission):
         return True
 ```
 
-- [ ] **Step 5: Write the serializer, view and routes**
+- [ ] **Step 6: Write the serializer, view and routes**
 
 `backend/services_catalog/serializers.py`:
 
@@ -1609,7 +1647,7 @@ Add one line to the existing `urlpatterns` in `backend/config/urls.py`, keeping 
 
 **Note:** `permission_classes = [AllowAny, CombinedDirectoryEnabled]` is required because the project-wide DRF default is `IsAuthenticated`. The combined directory is public (spec §4.1; spec §5 grants guests "Browse public content"). `authentication_classes` is left at the project default so an authenticated request is still recognised — the endpoint just does not require one. DRF ANDs permission classes, so `AllowAny` short-circuits nothing: `CombinedDirectoryEnabled` still runs.
 
-- [ ] **Step 6: Migrate and run the tests**
+- [ ] **Step 7: Migrate and run the tests**
 
 ```bash
 uv run python manage.py migrate
@@ -1618,7 +1656,7 @@ uv run pytest services_catalog/tests/test_service_category_api.py -v
 
 Expected: all 10 tests `PASS`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add backend/services_catalog backend/config/urls.py
@@ -1669,13 +1707,9 @@ from professionals.tests.factories import make_professional
 from services_catalog.permissions import COMBINED_DIRECTORY_FLAG
 from services_catalog.tests.factories import make_professional_service, make_service_category
 
-
-@pytest.fixture(autouse=True)
-def clear_flag_cache():
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-    yield
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-
+# tests/conftest.py (Task 6) clears the whole cache around every test in this
+# package — both the feature-flag value and the shared `services_directory`
+# throttle bucket, which these API files would otherwise exhaust between them.
 
 def build_professional(
     email, *, slug, display_name, status=ProfessionalProfileStatus.ACTIVE, **extra
@@ -1691,6 +1725,12 @@ def build_professional(
 
 @pytest.mark.django_db
 def test_only_active_professionals_are_listed():
+    # `active-pro` deliberately has NO ProfessionalService rows. Listing is
+    # keyed on status == ACTIVE and nothing else, so a zero-service profile is
+    # public with active_service_count: 0 and no categories. This is the tested
+    # counterpart of the deferred publication gate (see Known Limitations):
+    # Phase 17 may change the rule, but it must update this test in the same
+    # commit rather than quietly filtering such profiles out of the queryset.
     build_professional("a@example.com", slug="active-pro", display_name="Active Pro")
     build_professional(
         "d@example.com",
@@ -1765,12 +1805,34 @@ def test_text_search_matches_display_name_and_service_titles():
 
 @pytest.mark.django_db
 def test_location_matches_city_region_or_an_exact_service_area_entry():
-    build_professional("c1@example.com", slug="in-city", display_name="In City", city="Livorno")
-    build_professional("r1@example.com", slug="in-region", display_name="In Region", region="Toscana")
+    # Phase 3's make_professional defaults service_area to ["IT-52"]. Three of
+    # these four fixtures must therefore pass service_area=[] explicitly, or
+    # every one of them matches slugs_for("IT-52") and the last assertion below
+    # silently tests nothing.
+    build_professional(
+        "c1@example.com",
+        slug="in-city",
+        display_name="In City",
+        city="Livorno",
+        service_area=[],
+    )
+    build_professional(
+        "r1@example.com",
+        slug="in-region",
+        display_name="In Region",
+        region="Toscana",
+        service_area=[],
+    )
     build_professional(
         "a1@example.com", slug="in-area", display_name="In Area", service_area=["IT-52"]
     )
-    build_professional("n1@example.com", slug="elsewhere", display_name="Elsewhere", city="Palma")
+    build_professional(
+        "n1@example.com",
+        slug="elsewhere",
+        display_name="Elsewhere",
+        city="Palma",
+        service_area=[],
+    )
     client = APIClient()
 
     def slugs_for(location):
@@ -2071,13 +2133,9 @@ from professionals.tests.factories import make_professional
 from services_catalog.permissions import COMBINED_DIRECTORY_FLAG
 from services_catalog.tests.factories import make_professional_service, make_service_category
 
-
-@pytest.fixture(autouse=True)
-def clear_flag_cache():
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-    yield
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-
+# tests/conftest.py (Task 6) clears the whole cache around every test in this
+# package — both the feature-flag value and the shared `services_directory`
+# throttle bucket, which these API files would otherwise exhaust between them.
 
 def build_professional(
     email, *, slug, display_name, status=ProfessionalProfileStatus.ACTIVE, **extra
@@ -2366,7 +2424,7 @@ git commit -m "feat(services_catalog): add public professional detail endpoint w
 
 **Note (ruling — the slug fallback):** the resolver first looks for a `MAPPED` row, then falls back to treating the supplied `id` as a current professional slug. That fallback implements spec §14.3 step 4's "Preserve professional slugs where unique" from the read side: when a legacy URL already carries a slug that survived the migration unchanged, no mapping row is needed for it to resolve, and the redirect still lands in one hop on the canonical URL. A suspended, draft or pending target resolves to nothing (404), matching Task 8's rule that non-ACTIVE profiles are not public.
 
-**Note (ruling — 400 vs 404):** a missing or blank `id` is a malformed request (400, spec §30.2's error envelope); a well-formed `id` that resolves to nothing is 404, exactly as spec §4.3's table states. The distinction matters because the Next.js route handler in Task 11 maps anything that is not a 200 to a 404 page — the 400 exists for API clients and logs, not for the redirect flow.
+**Note (ruling — 400 vs 404):** a missing or blank `id` is a malformed request (400, spec §30.2's error envelope); a well-formed `id` that resolves to nothing is 404, exactly as spec §4.3's table states. The distinction matters because the Next.js route handler in Task 12 maps anything that is not a 200 to a 404 page — the 400 exists for API clients and logs, not for the redirect flow.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2412,13 +2470,9 @@ from services_catalog.tests.factories import make_legacy_mapping
 
 ENDPOINT = "/api/v1/legacy/professional-redirect/"
 
-
-@pytest.fixture(autouse=True)
-def clear_flag_cache():
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-    yield
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
-
+# tests/conftest.py (Task 6) clears the whole cache around every test in this
+# package — both the feature-flag value and the shared `services_directory`
+# throttle bucket, which these API files would otherwise exhaust between them.
 
 def build_professional(email, *, slug, status=ProfessionalProfileStatus.ACTIVE):
     return make_professional(
@@ -2694,7 +2748,7 @@ git commit -m "feat(services_catalog): add legacy directory mapping table and pr
 - Test: `backend/services_catalog/tests/test_import_legacy_directory.py`
 
 **Interfaces:**
-- Consumes: `services_catalog.models.LegacyDirectoryMapping`, `ServiceCategory`, `ProfessionalService` (Tasks 2, 5, 9); `professionals.models.ProfessionalProfile`.
+- Consumes: `services_catalog.models.LegacyDirectoryMapping`, `ServiceCategory`, `ProfessionalService` (Tasks 2, 5, 9); `services_catalog.services.save_service_category` (Task 3); `audit.models.AuditEvent` (Phase 2); `professionals.models.ProfessionalProfile`.
 - Produces:
   - `common.text.normalize_comparison_text(value: str) -> str` — casefolded, accent-stripped, whitespace-collapsed comparison key.
   - `services_catalog.services.legacy_dedup_key(name: str, address: str) -> tuple[str, str]`.
@@ -2702,11 +2756,13 @@ git commit -m "feat(services_catalog): add legacy directory mapping table and pr
 
 **Note (ruling — the command exists, the data does not):** this is the mechanism half of the "Scope rulings" decision. Every step of spec §14.3 is implemented and tested against synthetic fixtures in `tmp_path`; **no legacy fixture is committed, no sample rows are seeded, and the command is never run in any environment.** Spec §32's definition of done — "Prototype sample numbers are not imported as real analytics" — is satisfied trivially, because nothing is imported. If real legacy data ever appears, this command is the sanctioned path for it and its reconciliation report is the evidence spec §32's "Migration reconciliation report matches record counts" asks for.
 
-**Note (ruling — step 5 "generate canonical tags and update sitemap" is a structural no-op):** there is no static sitemap file to regenerate. Task 14 generates `/sitemap.xml` from the live database on every request via Next.js's `MetadataRoute.Sitemap`, and every page emits its own canonical tag from its own record. A mapping import therefore updates both the moment it commits, with no second step to run and nothing to forget. The command prints this as an explicit report line rather than silently skipping a numbered spec step.
+**Note (ruling — step 5 "generate canonical tags and update sitemap" is a structural no-op):** there is no static sitemap file to regenerate. Task 16 generates `/sitemap.xml` from the live database on every request via Next.js's `MetadataRoute.Sitemap`, and every page emits its own canonical tag from its own record. A mapping import therefore updates both the moment it commits, with no second step to run and nothing to forget. The command prints this as an explicit report line rather than silently skipping a numbered spec step.
 
 **Note (ruling — dedup never merges on a display name alone):** spec §14.3 step 2 is emphatic: "Deduplicate by explicit IDs and normalized name/address; never merge solely on display name without review." The command therefore resolves in three tiers — exact `legacy_identifier` match; then normalized **name *and* address** match; then, when only the name matches, it writes `resolution=DUPLICATE_REVIEW` with a note naming the conflicting row and touches nothing. A human resolves those in Django admin (Task 9's admin keeps `resolution`/`notes` editable).
 
 **Note (ruling — `common.text` rather than importing from `taxonomy`):** `taxonomy.services.normalize_taxonomy_name` already does exactly this casefold/accent-strip. Importing it here would give `services_catalog` a dependency on the boat-brand app for a pure string utility, which is the wrong shape. The function moves to `common.text.normalize_comparison_text`, which `services_catalog` uses. The already-merged `taxonomy` copy is deliberately left alone — this plan does not modify merged apps — and collapsing the duplicate belongs to the same cleanup pass Phase 3 already queued for `taxonomy`'s throttle classes. Recorded in Known Limitations.
+
+**Note (ruling — the command's `ServiceCategory` write is audited like any other):** step 3 copies a legacy description onto a `ServiceCategory`, which is a catalog write, and Task 3 made `save_service_category` the **only** sanctioned write path for that model (Contract summary rule 5). A management command is not a carve-out from that rule: a plain `category.save(update_fields=...)` here would be the one unaudited `ServiceCategory` mutation in the codebase, and it would be the one that runs unattended with no human to ask afterwards what changed. The command therefore calls `save_service_category(category=..., actor=None, actor_type=AuditEvent.ActorType.SYSTEM, source=AuditEvent.Source.TASK)`. `AuditEvent.ActorType.SYSTEM` and `AuditEvent.Source.TASK` are existing members of Phase 2's enums, and `AuditEvent.actor_user` is nullable, so a system actor needs no synthetic user row. Writes to `ProfessionalProfile` and `ProfessionalService` in `_import_provider` stay plain `save()`/`get_or_create()` calls: neither model has an audited service layer in this phase (spec §2.4 scopes the requirement to staff *catalog* CRUD), and `LegacyDirectoryMapping` is itself the audit trail for the import.
 
 **Note (idempotency):** spec §38 requires commands to be idempotent. Every write is an `update_or_create`/`get_or_create` keyed on `(legacy_kind, legacy_identifier)`, and step 3 copies a description or category **only when the target's field is empty** — a second run never overwrites staff edits made after the first. A test runs the command twice and asserts identical counts.
 
@@ -2971,12 +3027,24 @@ def test_a_legacy_service_record_maps_to_a_category_and_never_deactivates_an_seo
     assert mapping.resolution == LegacyDirectoryMapping.Resolution.MAPPED
     assert mapping.target_type == LegacyDirectoryMapping.TargetType.SERVICE_CATEGORY
 
+    from audit.models import AuditEvent
     from services_catalog.models import ServiceCategory
 
     legal = ServiceCategory.objects.get(slug="legal")
     assert legal.is_active is True
     assert legal.has_seo_page is True
     assert legal.description_en == "Legacy."
+
+    # The copied description is a ServiceCategory write, so it went through
+    # save_service_category and left an audit row with a system actor.
+    event = AuditEvent.objects.get(
+        action="service_category.updated", target_id=str(legal.pk)
+    )
+    assert event.actor_user is None
+    assert event.actor_type == AuditEvent.ActorType.SYSTEM
+    assert event.source == AuditEvent.Source.TASK
+    assert event.before["description_en"] == ""
+    assert event.after["description_en"] == "Legacy."
 
 
 @pytest.mark.django_db
@@ -3102,6 +3170,7 @@ import json
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from audit.models import AuditEvent
 from professionals.enums import ProfessionalProfileStatus
 from professionals.models import ProfessionalProfile
 from services_catalog.models import (
@@ -3109,7 +3178,7 @@ from services_catalog.models import (
     ProfessionalService,
     ServiceCategory,
 )
-from services_catalog.services import legacy_dedup_key
+from services_catalog.services import legacy_dedup_key, save_service_category
 
 
 class Command(BaseCommand):
@@ -3204,11 +3273,21 @@ class Command(BaseCommand):
             )
             return
 
-        # Step 3: copy a missing description, never overwrite one.
+        # Step 3: copy a missing description, never overwrite one. The write
+        # goes through save_service_category, not category.save(): rule 5 of
+        # this plan's contract makes that the only sanctioned write path for
+        # ServiceCategory, and a management command is not an exception to it.
+        # actor=None + ActorType.SYSTEM + Source.TASK is how audit.models
+        # already models a non-interactive actor.
         description = (record.get("description") or "").strip()
         if description and not category.description_en:
             category.description_en = description
-            category.save(update_fields=["description_en", "updated_at"])
+            save_service_category(
+                category=category,
+                actor=None,
+                actor_type=AuditEvent.ActorType.SYSTEM,
+                source=AuditEvent.Source.TASK,
+            )
             counts["descriptions_copied"] += 1
 
         # Step 6: the six SEO records stay independent — never deactivated,
@@ -3428,32 +3507,23 @@ git commit -m "feat(services_catalog): add the spec 14.3 legacy directory import
 
 ---
 
-### Task 11: Frontend — trailing-slash canonicalization, the two 301 redirects and the legacy profile resolver
+### Task 11: Frontend — trailing-slash canonicalization and the two 301 redirects
 
 **Files:**
 - Modify: `frontend/next.config.ts`, `frontend/vitest.config.ts`
 - Create: `frontend/next.config.test.ts`
-- Create: `frontend/src/lib/api/directory.ts`
-- Create: `frontend/src/app/professionals/profile/route.ts`, `frontend/src/app/professionals/profile/route.test.ts`
 
 **Interfaces:**
-- Consumes: `GET /api/v1/legacy/professional-redirect/` (Task 9).
+- Consumes: nothing.
 - Produces:
   - `frontend/next.config.ts` — `trailingSlash: true` and a `redirects()` returning **exactly two** entries, both `statusCode: 301`: `/services/` → `/services/professionals/` and `/professionals/` → `/services/professionals/`.
-  - `frontend/src/lib/api/directory.ts` — `DIRECTORY_API_BASE_URL`; types `ServiceCategory`, `ServiceCategoryDetail`, `ProfessionalCard`, `ProfessionalService`, `RelatedProfessional`, `ProfessionalDetail`, `Paginated<T>`, `Locale`; `directoryFetch<T>(path): Promise<T | null>` (null on 404, throws on other failures); `fetchServiceCategories`, `fetchServiceCategory`, `fetchProfessionals`, `fetchProfessional`, `resolveLegacyProfessional`.
-  - Route `GET /professionals/profile/?id=<legacy>` — 301 to the resolved canonical URL, or a 404 response.
+  - `frontend/vitest.config.ts` — an `include` glob that also collects root-level `*.test.ts`.
 
 **Note (ruling — `trailingSlash: true` is load-bearing, not cosmetic):** every canonical URL in spec §1, §4.1 and §4.3 ends in a slash (`/services/professionals/`, `/services/professionals/<slug>/`, `/services/legal/`). Next.js defaults to `trailingSlash: false`, which **308-redirects** `/services/professionals/` to `/services/professionals`. Left at the default, `/services/` → 301 → `/services/professionals/` → 308 → `/services/professionals` — a two-hop chain ending on a non-canonical URL, breaking spec §4.3's "never create redirect chains" and this phase's definition of done ("Both retired directory URLs return a single-hop 301"). Setting `trailingSlash: true` makes the slashed form canonical everywhere, so the 301 lands on its final destination in one hop.
 
 **Note (ruling — `statusCode: 301`, never `permanent: true`):** in Next.js, `permanent: true` emits **308**, not 301. Spec §1 and §4.3 say 301 explicitly, and a 308 is a different status that some crawlers and proxies treat differently. The redirect entries therefore use `statusCode: 301`, which is mutually exclusive with `permanent` in Next's `Redirect` type — do not pass both. Step 6's `curl -sI` check is the authority: if the build emits anything other than `301`, the config is wrong.
 
-**Note (`next.config.test.ts` sits outside Vitest's current glob):** Phase 3's `frontend/vitest.config.ts` sets `include: ["src/**/*.{test,spec}.{ts,tsx}"]`, so a test file at the frontend root is silently **never collected** — it would pass by not running. Step 5a widens the glob to cover the root config test explicitly. Verify by deliberately breaking an assertion once and confirming the suite goes red before fixing it back.
-
-**Note (ruling — a separate `directoryFetch`, not Phase 3's `apiFetch`):** Phase 3's Task 10 turns `src/lib/api/client.ts` into a browser-oriented client that attaches an in-memory access token, sends `credentials: "include"` and retries once through the refresh cookie. Every call in this phase is an **unauthenticated server-side read** during SSR, where there is no cookie jar, no token and nothing to refresh — and where a 404 is an expected, meaningful outcome rather than an error to throw. `directoryFetch` is therefore its own small function that returns `null` on 404 and throws on anything else. It shares the same `NEXT_PUBLIC_API_BASE_URL` environment variable as the browser client, so there is one API origin, not two.
-
-**Note (`127.0.0.1`, not `localhost`, in the server-side default):** Phase 0/1's retrospective records that this machine resolves `localhost` to IPv6 `::1`. The existing `client.ts` default (`http://localhost:8020`) runs in the browser, where that is fine; `directoryFetch` runs in Node during SSR, so its fallback is `http://127.0.0.1:8020`. In every real environment `NEXT_PUBLIC_API_BASE_URL` is set and neither default is used.
-
-**Note (`/professionals/profile/` is a Route Handler, not a page):** it must emit a real 301, and `redirect()` inside a server component emits 307/303. A `route.ts` returning `NextResponse.redirect(url, 301)` gives the exact status spec §4.3 requires. A folder cannot contain both `page.tsx` and `route.ts`; this one contains only `route.ts`. It also does **not** collide with the `/professionals/` → `/services/professionals/` redirect, whose `source` matches only that exact path — so the legacy profile URL still reaches its resolver in one hop, exactly as spec §4.3's separate row requires.
+**Note (`next.config.test.ts` sits outside Vitest's current glob):** Phase 3's `frontend/vitest.config.ts` sets `include: ["src/**/*.{test,spec}.{ts,tsx}"]`, so a test file at the frontend root is silently **never collected** — it would pass by not running. Step 3 widens the glob to cover the root config test explicitly. Verify by deliberately breaking an assertion once and confirming the suite goes red before fixing it back.
 
 - [ ] **Step 1: Verify the Next.js 16.3.5 APIs before writing any config**
 
@@ -3464,7 +3534,7 @@ cat node_modules/next/package.json | head -5
 ls node_modules/next/dist/docs/
 ```
 
-Read the `redirects`, `trailingSlash` and Route Handler pages under `node_modules/next/dist/docs/` and confirm: (a) `redirects()` entries accept `statusCode`, (b) `trailingSlash: true` is a top-level `NextConfig` key, (c) `NextResponse.redirect(url, status)` accepts a numeric status. If any signature differs from what this task writes, follow the installed docs and note the difference in the commit message.
+Read the `redirects` and `trailingSlash` pages under `node_modules/next/dist/docs/` and confirm: (a) `redirects()` entries accept `statusCode`, and (b) `trailingSlash: true` is a top-level `NextConfig` key. If either signature differs from what this task writes, follow the installed docs and note the difference in the commit message.
 
 - [ ] **Step 2: Write the failing config test**
 
@@ -3520,7 +3590,118 @@ describe("next.config", () => {
 });
 ```
 
-- [ ] **Step 3: Write the failing route-handler test**
+- [ ] **Step 3: Widen Vitest's include glob, then run the test to verify it fails**
+
+In `frontend/vitest.config.ts`, replace the `include` line with:
+
+```typescript
+    // src/** covers lib, components and page/route tests; the second entry
+    // picks up the root-level next.config.test.ts, which would otherwise be
+    // silently skipped.
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "*.test.{ts,tsx}"],
+```
+
+```bash
+pnpm test
+```
+
+Expected: `next.config.test.ts` is collected and fails on `trailingSlash` being `undefined`. If it does not appear in Vitest's file list at all, the glob change did not take — fix it before continuing, because a test that never runs is worse than no test.
+
+- [ ] **Step 4: Write the config**
+
+`frontend/next.config.ts`:
+
+```ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  // Every canonical URL in spec 4.1/4.3 ends in a slash. Without this, Next
+  // 308-redirects the slashed form to the unslashed one and turns each 301
+  // below into a two-hop chain ending on a non-canonical URL.
+  trailingSlash: true,
+
+  async redirects() {
+    // Spec 4.3: both retired directory URLs return a permanent 301 to the
+    // combined directory. statusCode: 301 is deliberate — `permanent: true`
+    // would emit 308. /professionals/profile/?id= is NOT listed here: it needs
+    // a database lookup and is handled by src/app/professionals/profile/route.ts.
+    return [
+      {
+        source: "/services/",
+        destination: "/services/professionals/",
+        statusCode: 301,
+      },
+      {
+        source: "/professionals/",
+        destination: "/services/professionals/",
+        statusCode: 301,
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+- [ ] **Step 5: Run the test, lint and build, then verify the real status codes**
+
+```bash
+pnpm test
+pnpm lint
+pnpm build
+pnpm start --port 3020
+```
+
+In a second terminal:
+
+```bash
+curl -sI http://127.0.0.1:3020/services/ | head -3
+curl -sI http://127.0.0.1:3020/professionals/ | head -3
+```
+
+Expected for both: `HTTP/1.1 301` and `location: /services/professionals/`. **A `308` means `statusCode: 301` was not applied; a second redirect hop on the destination means `trailingSlash: true` was not applied.** Both are hard failures — fix the config, do not accept either. (The destination itself 404s until Task 14 builds the page; only the status and `location` of the *first* hop are under test here.)
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd ..
+git add frontend
+git commit -m "feat(frontend): 301 the retired directory URLs to the combined directory"
+```
+
+---
+
+### Task 12: Frontend — the directory API client and the legacy profile resolver
+
+**Files:**
+- Create: `frontend/src/lib/api/directory.ts`
+- Create: `frontend/src/app/professionals/profile/route.ts`, `frontend/src/app/professionals/profile/route.test.ts`
+
+**Interfaces:**
+- Consumes: `GET /api/v1/legacy/professional-redirect/` (Task 9), and the four read endpoints from Tasks 6–8.
+- Produces:
+  - `frontend/src/lib/api/directory.ts` — `DIRECTORY_API_BASE_URL`, `EMPTY_PROFESSIONAL_PAGE`; types `Locale`, `ServiceCategory`, `ServiceCategoryDetail`, `CategoryRef`, `ProfessionalCard`, `ProfessionalService`, `RelatedProfessional`, `ProfessionalDetail`, `Paginated<T>`, `ProfessionalSearch`; `directoryFetch<T>(path): Promise<T | null>` (null on 404, throws on other failures); `fetchServiceCategories`, `fetchServiceCategory`, `fetchProfessionals`, `fetchProfessional`, `resolveLegacyProfessional`.
+  - Route `GET /professionals/profile/?id=<legacy>` — 301 to the resolved canonical URL, or a 404 response.
+
+**Note (ruling — a separate `directoryFetch`, not Phase 3's `apiFetch`):** Phase 3's Task 10 turns `src/lib/api/client.ts` into a browser-oriented client that attaches an in-memory access token, sends `credentials: "include"` and retries once through the refresh cookie. Every call in this phase is an **unauthenticated server-side read** during SSR, where there is no cookie jar, no token and nothing to refresh — and where a 404 is an expected, meaningful outcome rather than an error to throw. `directoryFetch` is therefore its own small function that returns `null` on 404 and throws on anything else. It shares the same `NEXT_PUBLIC_API_BASE_URL` environment variable as the browser client, so there is one API origin, not two.
+
+**Note (ruling — `null` is propagated, never flattened to an empty collection):** `fetchServiceCategories` and `fetchProfessionals` return `T | null`, not `T` with an empty fallback. For a collection endpoint a 404 can only come from Task 6's `CombinedDirectoryEnabled` — i.e. the rollout flag is off — and that is a categorically different fact from "the query matched nothing". Flattening the two here would make it impossible for a page to honour spec §35.1's "gate frontend exposure" (see the ruling in Task 14). `EMPTY_PROFESSIONAL_PAGE` is exported for the one caller that has already established the flag is on and legitimately wants to degrade.
+
+**Note (`Locale` is declared here, once):** `lib/i18n/directory.ts` (Task 13) imports and re-exports this module's `Locale` rather than declaring its own union. Two structurally identical unions compile fine and are still two sources of truth; the API contract's `?locale=` parameter is the thing being modelled, so the API module owns it.
+
+**Note (`127.0.0.1`, not `localhost`, in the server-side default):** Phase 0/1's retrospective records that this machine resolves `localhost` to IPv6 `::1`. The existing `client.ts` default (`http://localhost:8020`) runs in the browser, where that is fine; `directoryFetch` runs in Node during SSR, so its fallback is `http://127.0.0.1:8020`. In every real environment `NEXT_PUBLIC_API_BASE_URL` is set and neither default is used.
+
+**Note (`/professionals/profile/` is a Route Handler, not a page):** it must emit a real 301, and `redirect()` inside a server component emits 307/303. A `route.ts` returning `NextResponse.redirect(url, 301)` gives the exact status spec §4.3 requires. A folder cannot contain both `page.tsx` and `route.ts`; this one contains only `route.ts`. It also does **not** collide with Task 11's `/professionals/` → `/services/professionals/` redirect, whose `source` matches only that exact path — so the legacy profile URL still reaches its resolver in one hop, exactly as spec §4.3's separate row requires.
+
+- [ ] **Step 1: Verify the Route Handler API against the installed Next.js**
+
+```bash
+cd frontend
+```
+
+Read the Route Handler and `NextResponse` pages under `node_modules/next/dist/docs/` and confirm that `NextResponse.redirect(url, status)` accepts a numeric status. If it does not, follow the installed docs and note the difference in the commit message.
+
+- [ ] **Step 2: Write the failing route-handler test**
 
 `frontend/src/app/professionals/profile/route.test.ts`:
 
@@ -3580,58 +3761,15 @@ describe("GET /professionals/profile/", () => {
 });
 ```
 
-- [ ] **Step 4: Widen Vitest's include glob, then run both tests to verify they fail**
-
-In `frontend/vitest.config.ts`, replace the `include` line with:
-
-```typescript
-    // src/** covers lib, components and page/route tests; the second entry
-    // picks up the root-level next.config.test.ts, which would otherwise be
-    // silently skipped.
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "*.test.{ts,tsx}"],
-```
+- [ ] **Step 3: Run it to verify it fails**
 
 ```bash
 pnpm test
 ```
 
-Expected: **both** new files are collected; `next.config.test.ts` fails on `trailingSlash` being `undefined`, and `route.test.ts` fails to resolve `./route`. If `next.config.test.ts` does not appear in Vitest's file list at all, the glob change did not take — fix it before continuing, because a test that never runs is worse than no test.
+Expected: `route.test.ts` is collected (it is under `src/**`, so Task 11's glob change is not needed for it) and fails to resolve `./route`.
 
-- [ ] **Step 5: Write the config, the directory API client and the route handler**
-
-`frontend/next.config.ts`:
-
-```ts
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  // Every canonical URL in spec 4.1/4.3 ends in a slash. Without this, Next
-  // 308-redirects the slashed form to the unslashed one and turns each 301
-  // below into a two-hop chain ending on a non-canonical URL.
-  trailingSlash: true,
-
-  async redirects() {
-    // Spec 4.3: both retired directory URLs return a permanent 301 to the
-    // combined directory. statusCode: 301 is deliberate — `permanent: true`
-    // would emit 308. /professionals/profile/?id= is NOT listed here: it needs
-    // a database lookup and is handled by src/app/professionals/profile/route.ts.
-    return [
-      {
-        source: "/services/",
-        destination: "/services/professionals/",
-        statusCode: 301,
-      },
-      {
-        source: "/professionals/",
-        destination: "/services/professionals/",
-        statusCode: 301,
-      },
-    ];
-  },
-};
-
-export default nextConfig;
-```
+- [ ] **Step 4: Write the directory API client and the route handler**
 
 `frontend/src/lib/api/directory.ts`:
 
@@ -3645,6 +3783,9 @@ export const DIRECTORY_API_BASE_URL =
   // resolves localhost to IPv6 ::1 (Phase 0/1 retrospective).
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8020";
 
+// The single source of truth for the locale union in the whole frontend: it is
+// the API contract's ?locale= parameter. lib/i18n/directory.ts imports and
+// re-exports this type rather than declaring a second, drifting copy.
 export type Locale = "en" | "it" | "es";
 
 export interface ServiceCategory {
@@ -3738,10 +3879,18 @@ function query(params: Record<string, string | undefined>): string {
   return serialized ? `?${serialized}` : "";
 }
 
-export async function fetchServiceCategories(locale: Locale): Promise<ServiceCategory[]> {
-  return (await directoryFetch<ServiceCategory[]>(
+// null means "the API answered 404", which for a collection endpoint can only
+// mean the combined_services_professionals rollout flag is off (Task 6's
+// CombinedDirectoryEnabled). It is NOT the same as an empty list, and the two
+// must not be collapsed here: an empty list is a real directory with nothing
+// in it and gets the spec 31 empty-state copy, while null means the feature
+// does not exist publicly and the page must notFound(). Callers decide.
+export async function fetchServiceCategories(
+  locale: Locale,
+): Promise<ServiceCategory[] | null> {
+  return directoryFetch<ServiceCategory[]>(
     `/api/v1/service-categories/${query({ locale })}`,
-  )) ?? [];
+  );
 }
 
 export async function fetchServiceCategory(
@@ -3761,14 +3910,24 @@ export interface ProfessionalSearch {
   page?: string;
 }
 
+// Same contract as fetchServiceCategories: null = flag off, an empty `results`
+// array = no matching professionals.
 export async function fetchProfessionals(
   search: ProfessionalSearch,
   locale: Locale,
-): Promise<Paginated<ProfessionalCard>> {
-  return (await directoryFetch<Paginated<ProfessionalCard>>(
+): Promise<Paginated<ProfessionalCard> | null> {
+  return directoryFetch<Paginated<ProfessionalCard>>(
     `/api/v1/professionals/${query({ ...search, locale })}`,
-  )) ?? { count: 0, next: null, previous: null, results: [] };
+  );
 }
+
+/** The shape a caller substitutes when it has already decided a 404 is not fatal. */
+export const EMPTY_PROFESSIONAL_PAGE: Paginated<ProfessionalCard> = {
+  count: 0,
+  next: null,
+  previous: null,
+  results: [],
+};
 
 export async function fetchProfessional(
   slug: string,
@@ -3819,57 +3978,53 @@ export async function GET(request: Request): Promise<NextResponse> {
 }
 ```
 
-- [ ] **Step 6: Run the tests, lint and build, then verify the real status codes**
+- [ ] **Step 5: Run the tests, lint and build**
 
 ```bash
 pnpm test
 pnpm lint
 pnpm build
-pnpm start --port 3020
 ```
 
-In a second terminal, with the backend running on 8020:
+Expected: the 4 route-handler tests `PASS` alongside Task 11's 4 config tests; lint clean; build succeeds.
+
+- [ ] **Step 6: Verify the legacy resolver end to end**
+
+With the backend running on 8020 and at least one ACTIVE professional plus a `LegacyDirectoryMapping` row for it:
 
 ```bash
-curl -sI http://127.0.0.1:3020/services/ | head -3
-curl -sI http://127.0.0.1:3020/professionals/ | head -3
+pnpm start --port 3020
+curl -sI "http://127.0.0.1:3020/professionals/profile/?id=<legacy-id>" | grep -i "^HTTP\|^location"
+curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:3020/professionals/profile/?id=no-such-provider"
 ```
 
-Expected for both: `HTTP/1.1 301` and `location: /services/professionals/`. **A `308` means `statusCode: 301` was not applied; a second redirect hop on the destination means `trailingSlash: true` was not applied.** Both are hard failures — fix the config, do not accept either.
+Expected: `301` with a `location` ending in `/services/professionals/<slug>/`, then `404`. A `307` means `redirect()` was used somewhere instead of `NextResponse.redirect(url, 301)`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 cd ..
 git add frontend
-git commit -m "feat(frontend): 301 the retired directory URLs and resolve legacy professional ids"
+git commit -m "feat(frontend): add the directory API client and the legacy professional id resolver"
 ```
 
 ---
 
-### Task 12: Frontend — the combined directory page
+### Task 13: Frontend — the EN/IT/ES directory message dictionary
 
 **Files:**
 - Create: `frontend/src/lib/i18n/directory.ts`, `frontend/src/lib/i18n/directory.test.ts`
-- Create: `frontend/src/components/directory/DirectorySearchForm.tsx` + `.test.tsx`
-- Create: `frontend/src/components/directory/CategoryGrid.tsx` + `.test.tsx`
-- Create: `frontend/src/components/directory/ProfessionalCard.tsx` + `.test.tsx`
-- Create: `frontend/src/app/services/professionals/page.tsx`
 
 **Interfaces:**
-- Consumes: `fetchServiceCategories`, `fetchProfessionals`, and the `ServiceCategory`/`ProfessionalCard`/`Locale` types (Task 11).
+- Consumes: `type Locale` (Task 12).
 - Produces:
-  - `frontend/src/lib/i18n/directory.ts` — `type Locale`, `DEFAULT_LOCALE`, `SUPPORTED_LOCALES`, `resolveLocale(raw)`, `t(locale, key)`, and the `DIRECTORY_MESSAGES` dictionary keyed by spec §37's key names.
-  - `<DirectorySearchForm locale categories current />`, `<CategoryGrid locale categories />`, `<ProfessionalResultCard locale professional />`.
-  - Page `/services/professionals/` with `generateMetadata` emitting the canonical URL.
+  - `frontend/src/lib/i18n/directory.ts` — the re-exported `type Locale`, `DEFAULT_LOCALE`, `SUPPORTED_LOCALES`, `resolveLocale(raw)`, `t(locale, key)`, and the `DIRECTORY_MESSAGES` dictionary keyed by spec §37's key names. Consumed by Tasks 14, 15 and 16.
 
 **Note (ruling — a typed dictionary module, not an i18n framework):** spec §37 binds every new UI string to an EN/IT/ES key and forbids hard-coded English inside component bodies. No i18n library is installed and no phase in the spec installs one; adding `next-intl` here would be an architecture decision this phase has no mandate to make. A typed dictionary with a `t(locale, key)` lookup satisfies §37 exactly — keys exist, all three languages exist, no component contains a literal string — and whichever phase introduces locale routing can back `t()` with a framework without touching a single call site. The two key names spec §37 lists by name for this feature, `nav.services_professionals` and `directory.services_professionals.title`, appear verbatim.
 
-**Note (ruling — the locale is English until locale routing exists):** there is no `/it/` or `/es/` route prefix and no locale cookie yet, so these pages render `en` and pass `locale=en` to the API. The dictionary, the `resolveLocale` helper and the API's `?locale=` parameter are all in place, so the phase that adds locale routing changes the source of one variable, not the pages.
+**Note (ruling — the locale is English until locale routing exists):** there is no `/it/` or `/es/` route prefix and no locale cookie yet, so the pages in Tasks 14–16 render `en` and pass `locale=en` to the API. The dictionary, the `resolveLocale` helper and the API's `?locale=` parameter are all in place, so the phase that adds locale routing changes the source of one variable, not the pages.
 
-**Note (ruling — a plain GET form, no client-side state):** spec §29.4 requires filter URL state to be shareable and back-button safe. A native `<form method="get" action="/services/professionals/">` puts every filter in the query string, works without JavaScript, restores correctly on Back, and needs no client component. The page is a pure server component and every result is server-rendered, which is also what the SEO requirement in spec §32.2 needs.
-
-**Note (empty states are real, per spec §31):** "Combined category tiles | hide inactive; **true empty message**" and "Professional result cards | **no matching professionals**". Both render a real sentence from the dictionary — never a skeleton, never fabricated sample cards.
+**Note (the dictionary is written whole, once):** every key any page or component in Tasks 14–16 needs is defined here, including the `professional.*` keys the detail page uses and `category.browse_professionals` for the SEO pages. Splitting the dictionary across the tasks that consume it would make the "every key exists in all three languages" test meaningful only at the end of the phase instead of at the end of this task.
 
 - [ ] **Step 1: Write the failing dictionary test**
 
@@ -3914,7 +4069,194 @@ describe("directory messages", () => {
 });
 ```
 
-- [ ] **Step 2: Write the failing component tests**
+- [ ] **Step 2: Run it to verify it fails**
+
+```bash
+cd frontend
+pnpm test
+```
+
+Expected: `directory.test.ts` is collected and fails with `Failed to resolve import "@/lib/i18n/directory"`.
+
+- [ ] **Step 3: Write the dictionary**
+
+`frontend/src/lib/i18n/directory.ts`:
+
+```ts
+// Spec 37: all new UI text has EN/IT/ES translation keys and no English is
+// hard-coded inside components. A typed dictionary, not an i18n framework —
+// see the ruling in Task 13 of the Phase 5 plan.
+import type { Locale } from "@/lib/api/directory";
+
+// Locale is declared once, in lib/api/directory.ts (it is the API contract's
+// ?locale= parameter), and re-exported here so a component can import the type
+// from the same module as t(). Do NOT redeclare the union in this file: two
+// structurally identical unions compile but are two sources of truth.
+export type { Locale };
+
+export const SUPPORTED_LOCALES: readonly Locale[] = ["en", "it", "es"];
+export const DEFAULT_LOCALE: Locale = "en";
+
+export function resolveLocale(raw: string | undefined | null): Locale {
+  const candidate = raw?.trim().toLowerCase();
+  return (SUPPORTED_LOCALES as readonly string[]).includes(candidate ?? "")
+    ? (candidate as Locale)
+    : DEFAULT_LOCALE;
+}
+
+type Translations = Record<Locale, string>;
+
+export const DIRECTORY_MESSAGES: Record<string, Translations> = {
+  "nav.services_professionals": {
+    en: "Services / Professionals",
+    it: "Servizi / Professionisti",
+    es: "Servicios / Profesionales",
+  },
+  "directory.services_professionals.title": {
+    // Spec 1 fixes this H1 exactly.
+    en: "Nautical Services & Professionals",
+    it: "Servizi e professionisti nautici",
+    es: "Servicios y profesionales náuticos",
+  },
+  "directory.intro": {
+    en: "Find nautical service providers across Spain and Italy.",
+    it: "Trova fornitori di servizi nautici in Spagna e in Italia.",
+    es: "Encuentra proveedores de servicios náuticos en España e Italia.",
+  },
+  "directory.search.text": { en: "Search", it: "Cerca", es: "Buscar" },
+  "directory.search.category": { en: "Category", it: "Categoria", es: "Categoría" },
+  "directory.search.category.all": {
+    en: "All categories",
+    it: "Tutte le categorie",
+    es: "Todas las categorías",
+  },
+  "directory.search.location": { en: "Location", it: "Località", es: "Ubicación" },
+  "directory.search.sort": { en: "Sort", it: "Ordina", es: "Ordenar" },
+  "directory.search.submit": { en: "Search", it: "Cerca", es: "Buscar" },
+  "directory.sort.recommended": {
+    en: "Recommended",
+    it: "Consigliati",
+    es: "Recomendados",
+  },
+  "directory.sort.alphabetical": { en: "A–Z", it: "A–Z", es: "A–Z" },
+  "directory.categories.heading": {
+    en: "Service categories",
+    it: "Categorie di servizi",
+    es: "Categorías de servicios",
+  },
+  "directory.categories.empty": {
+    en: "No service categories are published yet.",
+    it: "Nessuna categoria di servizi è ancora pubblicata.",
+    es: "Todavía no hay categorías de servicios publicadas.",
+  },
+  "directory.results.heading": {
+    en: "Professionals",
+    it: "Professionisti",
+    es: "Profesionales",
+  },
+  "directory.results.empty": {
+    en: "No matching professionals.",
+    it: "Nessun professionista corrispondente.",
+    es: "No hay profesionales que coincidan.",
+  },
+  "directory.results.count": {
+    en: "results",
+    it: "risultati",
+    es: "resultados",
+  },
+  "directory.seo.heading": {
+    en: "Service pages",
+    it: "Pagine dei servizi",
+    es: "Páginas de servicios",
+  },
+  "directory.pagination.next": { en: "Next", it: "Successivi", es: "Siguientes" },
+  "directory.pagination.previous": {
+    en: "Previous",
+    it: "Precedenti",
+    es: "Anteriores",
+  },
+  "professional.about.heading": { en: "About", it: "Chi siamo", es: "Acerca de" },
+  "professional.services.heading": {
+    en: "Services offered",
+    it: "Servizi offerti",
+    es: "Servicios ofrecidos",
+  },
+  "professional.service_area.heading": {
+    en: "Service area",
+    it: "Area di servizio",
+    es: "Zona de servicio",
+  },
+  "professional.related.heading": {
+    en: "Related professionals",
+    it: "Professionisti correlati",
+    es: "Profesionales relacionados",
+  },
+  "professional.status.active": {
+    // Spec 14.2: short verified/profile status language that does not imply a
+    // government certification. Backed by a real field (status === ACTIVE).
+    en: "Listed NAUTA profile, reviewed by NAUTA staff. NAUTA is not a licensing body and does not certify qualifications.",
+    it: "Profilo NAUTA pubblicato, verificato dallo staff NAUTA. NAUTA non è un ente di rilascio di licenze e non certifica qualifiche.",
+    es: "Perfil NAUTA publicado, revisado por el equipo de NAUTA. NAUTA no es un organismo de licencias y no certifica cualificaciones.",
+  },
+  "category.browse_professionals": {
+    en: "Browse professionals in this category",
+    it: "Sfoglia i professionisti di questa categoria",
+    es: "Ver profesionales de esta categoría",
+  },
+};
+
+export function t(locale: Locale, key: string): string {
+  const translations = DIRECTORY_MESSAGES[key];
+  if (!translations) {
+    throw new Error(`Unknown directory message key: ${key}`);
+  }
+  return translations[locale] || translations[DEFAULT_LOCALE];
+}
+```
+
+- [ ] **Step 4: Run the test, lint and build**
+
+```bash
+pnpm test
+pnpm lint
+pnpm build
+```
+
+Expected: the 4 dictionary tests `PASS` alongside Tasks 11 and 12's suites; lint clean; build succeeds. If the "defines every key in all three supported languages" test passes trivially, check that `DIRECTORY_MESSAGES` is non-empty — an empty object satisfies that loop.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd ..
+git add frontend
+git commit -m "feat(frontend): add the EN/IT/ES directory message dictionary"
+```
+
+---
+
+### Task 14: Frontend — the combined directory page and its components
+
+**Files:**
+- Create: `frontend/src/components/directory/DirectorySearchForm.tsx` + `.test.tsx`
+- Create: `frontend/src/components/directory/CategoryGrid.tsx` + `.test.tsx`
+- Create: `frontend/src/components/directory/ProfessionalCard.tsx` + `.test.tsx`
+- Create: `frontend/src/app/services/professionals/page.tsx`
+
+**Interfaces:**
+- Consumes: `fetchServiceCategories`, `fetchProfessionals`, and the `ServiceCategory`/`ProfessionalCard`/`CategoryRef` types (Task 12); `t`, `DEFAULT_LOCALE`, `type Locale` (Task 13).
+- Produces:
+  - `<DirectorySearchForm locale categories current />`, `<CategoryGrid locale categories />`, `<ProfessionalResultCard locale professional />`.
+  - Page `/services/professionals/` with `generateMetadata` emitting the canonical URL; 404 when the rollout flag is off.
+
+**Note (ruling — a plain GET form, no client-side state):** spec §29.4 requires filter URL state to be shareable and back-button safe. A native `<form method="get" action="/services/professionals/">` puts every filter in the query string, works without JavaScript, restores correctly on Back, and needs no client component. The page is a pure server component and every result is server-rendered, which is also what the SEO requirement in spec §32.2 needs.
+
+**Note (empty states are real, per spec §31):** "Combined category tiles | hide inactive; **true empty message**" and "Professional result cards | **no matching professionals**". Both render a real sentence from the dictionary — never a skeleton, never fabricated sample cards.
+
+**Note (ruling — "flag off" is a 404, not an empty state):** spec §35.1 says the flag gates **frontend exposure**, not merely the API, and warns against leaving the two out of step. The two conditions look similar from inside a component and are completely different facts: *no rows match* is a live feature with nothing to show, and *the flag is off* is a feature that does not exist publicly. This page distinguishes them at the data layer — `fetchServiceCategories` and `fetchProfessionals` return `null` for a 404 and an array/envelope for a 200 — and `notFound()`s on `null`. That makes all three public surfaces behave identically (this page, the detail page, the six SEO pages all 404 with the flag off), makes the seeded flag row's own description literally true, and matches the reason Task 6's `CombinedDirectoryEnabled` chose 404 over 403 in the first place. The empty-state copy stays exactly where spec §31 wants it: an **enabled** directory with no active categories, or a filter that matches nobody, still returns 200 and renders a real sentence.
+
+**Note (ruling — how the page itself is test-driven):** `page.tsx` is an async server component. Vitest with jsdom (Phase 3's Task 10) renders client components; it gives no harness for awaiting a server component's JSX, and mocking `fetch` to assert on the returned tree would test the mock rather than the page. The three components below therefore carry the unit tests, and the **page** is driven by an HTTP check against a real running stack — Step 2 records it failing before the page exists, Step 7 records it passing afterwards. That is the same write-fail/implement/see-pass loop every other task in this plan follows, at the only level at which this artefact can honestly be observed, and it is the shape Task 16 uses for its two routes as well.
+
+- [ ] **Step 1: Write the failing component tests**
 
 `frontend/src/components/directory/CategoryGrid.test.tsx`:
 
@@ -4097,145 +4439,33 @@ describe("DirectorySearchForm", () => {
 });
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [ ] **Step 2: Record the page's failing HTTP state**
+
+The page is an async server component, so this is its failing test — see the ruling above. Build and serve what exists so far (Tasks 11–13 only), with the backend running on 8020 and the rollout flag enabled:
 
 ```bash
-cd frontend
+pnpm build
+pnpm start --port 3020
+```
+
+In a second terminal:
+
+```bash
+curl -s -o /dev/null -w "directory %{http_code}
+" http://127.0.0.1:3020/services/professionals/
+```
+
+Expected now: `404` — the route does not exist yet. Record it. Step 7 runs the identical command and expects `200`. If this prints anything other than `404`, something already serves that path and must be found before continuing (spec §39 forbids a second directory page).
+
+- [ ] **Step 3: Run the component tests to verify they fail**
+
+```bash
 pnpm test
 ```
 
-Expected: all four new files fail to resolve their imports.
+Expected: all three new test files fail to resolve the component they import. Together with Step 2's `404`, every deliverable in this task is now observed failing before any of it is written.
 
-- [ ] **Step 4: Write the dictionary**
-
-`frontend/src/lib/i18n/directory.ts`:
-
-```ts
-// Spec 37: all new UI text has EN/IT/ES translation keys and no English is
-// hard-coded inside components. A typed dictionary, not an i18n framework —
-// see the ruling in Task 12 of the Phase 5 plan.
-export const SUPPORTED_LOCALES = ["en", "it", "es"] as const;
-export type Locale = (typeof SUPPORTED_LOCALES)[number];
-export const DEFAULT_LOCALE: Locale = "en";
-
-export function resolveLocale(raw: string | undefined | null): Locale {
-  const candidate = raw?.trim().toLowerCase();
-  return (SUPPORTED_LOCALES as readonly string[]).includes(candidate ?? "")
-    ? (candidate as Locale)
-    : DEFAULT_LOCALE;
-}
-
-type Translations = Record<Locale, string>;
-
-export const DIRECTORY_MESSAGES: Record<string, Translations> = {
-  "nav.services_professionals": {
-    en: "Services / Professionals",
-    it: "Servizi / Professionisti",
-    es: "Servicios / Profesionales",
-  },
-  "directory.services_professionals.title": {
-    // Spec 1 fixes this H1 exactly.
-    en: "Nautical Services & Professionals",
-    it: "Servizi e professionisti nautici",
-    es: "Servicios y profesionales náuticos",
-  },
-  "directory.intro": {
-    en: "Find nautical service providers across Spain and Italy.",
-    it: "Trova fornitori di servizi nautici in Spagna e in Italia.",
-    es: "Encuentra proveedores de servicios náuticos en España e Italia.",
-  },
-  "directory.search.text": { en: "Search", it: "Cerca", es: "Buscar" },
-  "directory.search.category": { en: "Category", it: "Categoria", es: "Categoría" },
-  "directory.search.category.all": {
-    en: "All categories",
-    it: "Tutte le categorie",
-    es: "Todas las categorías",
-  },
-  "directory.search.location": { en: "Location", it: "Località", es: "Ubicación" },
-  "directory.search.sort": { en: "Sort", it: "Ordina", es: "Ordenar" },
-  "directory.search.submit": { en: "Search", it: "Cerca", es: "Buscar" },
-  "directory.sort.recommended": {
-    en: "Recommended",
-    it: "Consigliati",
-    es: "Recomendados",
-  },
-  "directory.sort.alphabetical": { en: "A–Z", it: "A–Z", es: "A–Z" },
-  "directory.categories.heading": {
-    en: "Service categories",
-    it: "Categorie di servizi",
-    es: "Categorías de servicios",
-  },
-  "directory.categories.empty": {
-    en: "No service categories are published yet.",
-    it: "Nessuna categoria di servizi è ancora pubblicata.",
-    es: "Todavía no hay categorías de servicios publicadas.",
-  },
-  "directory.results.heading": {
-    en: "Professionals",
-    it: "Professionisti",
-    es: "Profesionales",
-  },
-  "directory.results.empty": {
-    en: "No matching professionals.",
-    it: "Nessun professionista corrispondente.",
-    es: "No hay profesionales que coincidan.",
-  },
-  "directory.results.count": {
-    en: "results",
-    it: "risultati",
-    es: "resultados",
-  },
-  "directory.seo.heading": {
-    en: "Service pages",
-    it: "Pagine dei servizi",
-    es: "Páginas de servicios",
-  },
-  "directory.pagination.next": { en: "Next", it: "Successivi", es: "Siguientes" },
-  "directory.pagination.previous": {
-    en: "Previous",
-    it: "Precedenti",
-    es: "Anteriores",
-  },
-  "professional.about.heading": { en: "About", it: "Chi siamo", es: "Acerca de" },
-  "professional.services.heading": {
-    en: "Services offered",
-    it: "Servizi offerti",
-    es: "Servicios ofrecidos",
-  },
-  "professional.service_area.heading": {
-    en: "Service area",
-    it: "Area di servizio",
-    es: "Zona de servicio",
-  },
-  "professional.related.heading": {
-    en: "Related professionals",
-    it: "Professionisti correlati",
-    es: "Profesionales relacionados",
-  },
-  "professional.status.active": {
-    // Spec 14.2: short verified/profile status language that does not imply a
-    // government certification. Backed by a real field (status === ACTIVE).
-    en: "Listed NAUTA profile, reviewed by NAUTA staff. NAUTA is not a licensing body and does not certify qualifications.",
-    it: "Profilo NAUTA pubblicato, verificato dallo staff NAUTA. NAUTA non è un ente di rilascio di licenze e non certifica qualifiche.",
-    es: "Perfil NAUTA publicado, revisado por el equipo de NAUTA. NAUTA no es un organismo de licencias y no certifica cualificaciones.",
-  },
-  "category.browse_professionals": {
-    en: "Browse professionals in this category",
-    it: "Sfoglia i professionisti di questa categoria",
-    es: "Ver profesionales de esta categoría",
-  },
-};
-
-export function t(locale: Locale, key: string): string {
-  const translations = DIRECTORY_MESSAGES[key];
-  if (!translations) {
-    throw new Error(`Unknown directory message key: ${key}`);
-  }
-  return translations[locale] || translations[DEFAULT_LOCALE];
-}
-```
-
-- [ ] **Step 5: Write the three components**
+- [ ] **Step 4: Write the three components**
 
 `frontend/src/components/directory/CategoryGrid.tsx`:
 
@@ -4421,13 +4651,14 @@ export default function DirectorySearchForm({
 }
 ```
 
-- [ ] **Step 6: Write the page**
+- [ ] **Step 5: Write the page**
 
 `frontend/src/app/services/professionals/page.tsx`:
 
 ```tsx
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import CategoryGrid from "@/components/directory/CategoryGrid";
 import DirectorySearchForm from "@/components/directory/DirectorySearchForm";
@@ -4475,6 +4706,17 @@ export default async function CombinedDirectoryPage({
     fetchServiceCategories(locale),
     fetchProfessionals(filters, locale),
   ]);
+
+  // Spec 35.1: the flag gates frontend exposure, not just the API. Either
+  // endpoint answering 404 means combined_services_professionals is off, so
+  // the whole page stops existing — exactly what the detail page and the six
+  // SEO pages already do, and what Task 6's CombinedDirectoryEnabled docstring
+  // assumes ("the Next.js pages already handle 404"). An empty array here is a
+  // different thing entirely and still renders the real empty state below.
+  if (categories === null || results === null) {
+    notFound();
+  }
+
   const seoCategories = categories.filter((category) => category.has_seo_page);
 
   return (
@@ -4565,7 +4807,7 @@ export default async function CombinedDirectoryPage({
 
 **Note (`export const dynamic = "force-dynamic"`):** the page reads live filter parameters and staff-editable content, and `directoryFetch` already sends `cache: "no-store"`. Declaring the route dynamic makes that explicit rather than relying on Next inferring it from the fetch options, and keeps a filtered result set from being statically cached at build time.
 
-- [ ] **Step 7: Run the tests, lint and build**
+- [ ] **Step 6: Run the tests, lint and build**
 
 ```bash
 pnpm test
@@ -4573,7 +4815,26 @@ pnpm lint
 pnpm build
 ```
 
-Expected: the 4 dictionary tests, 3 `CategoryGrid` tests, 4 `ProfessionalResultCard` tests and 3 `DirectorySearchForm` tests `PASS` alongside every earlier suite; lint clean; build succeeds.
+Expected: the 3 `CategoryGrid` tests, 4 `ProfessionalResultCard` tests and 3 `DirectorySearchForm` tests `PASS` alongside every earlier suite; lint clean; build succeeds.
+
+- [ ] **Step 7: Verify the page now answers 200 and renders real records**
+
+Re-run the exact command from Step 2, with the backend on 8020 and at least one ACTIVE professional and one active category in the database:
+
+```bash
+pnpm build
+pnpm start --port 3020
+```
+
+```bash
+curl -s -o /dev/null -w "directory %{http_code}
+" http://127.0.0.1:3020/services/professionals/
+curl -s http://127.0.0.1:3020/services/professionals/ | grep -c "Nautical Services &amp; Professionals"
+curl -s -o /dev/null -w "filtered  %{http_code}
+" "http://127.0.0.1:3020/services/professionals/?category=legal&sort=alphabetical"
+```
+
+Expected: `200` (was `404` in Step 2 — that is the red-to-green transition for this deliverable), at least `1` for the spec §1 H1, and `200` for the filtered URL. Then disable the `combined_services_professionals` flag in Django admin and confirm the first command prints `404`, and re-enable it.
 
 - [ ] **Step 8: Commit**
 
@@ -4585,14 +4846,14 @@ git commit -m "feat(frontend): add the combined Services / Professionals directo
 
 ---
 
-### Task 13: Frontend — the professional detail page
+### Task 15: Frontend — the professional detail page
 
 **Files:**
 - Create: `frontend/src/components/directory/ProfileMonogram.tsx` + `.test.tsx`
 - Create: `frontend/src/app/services/professionals/[slug]/page.tsx`
 
 **Interfaces:**
-- Consumes: `fetchProfessional`, the `ProfessionalDetail` type (Task 11); `t`, `DEFAULT_LOCALE` (Task 12).
+- Consumes: `fetchProfessional`, the `ProfessionalDetail` type (Task 12); `t`, `DEFAULT_LOCALE` (Task 13).
 - Produces:
   - `<ProfileMonogram name />` — a deterministic initials monogram.
   - Route `/services/professionals/<slug>/` with `generateMetadata` emitting the canonical URL, and `notFound()` for any slug the API does not serve.
@@ -4605,6 +4866,8 @@ git commit -m "feat(frontend): add the combined Services / Professionals directo
 **Note (ruling — the status line says only what the data supports):** the page is only ever rendered for a profile the API served, and the API serves only `status=ACTIVE`. The `professional.status.active` string therefore states that the profile is listed and staff-reviewed, and explicitly says NAUTA is not a licensing body — satisfying spec §14.2's "short verified/profile status language without implying government certification" while remaining a true statement about a real field.
 
 **Note (`notFound()` covers four cases at once):** unknown slug, DRAFT, PENDING and SUSPENDED all come back as a 404 from Task 8's endpoint, which `directoryFetch` turns into `null`. One `if (!professional) notFound()` therefore implements all four without the page ever needing to know a profile's status.
+
+**Note (ruling — how the page itself is test-driven):** same as Task 14's, for the same reason: `page.tsx` is an async server component and Vitest/jsdom cannot render one honestly. `ProfileMonogram` carries unit tests; the page is driven by an HTTP check against a real running stack, recorded failing in Step 2 and passing in Step 6. Do not skip Step 2 on the grounds that the answer is obvious — the point is the recorded transition, and it is also what catches a route accidentally shadowed by the static `/services/professionals/` segment.
 
 - [ ] **Step 1: Write the failing monogram test**
 
@@ -4643,7 +4906,7 @@ describe("ProfileMonogram", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [ ] **Step 2: Run the monogram test and record the page's failing HTTP state**
 
 ```bash
 cd frontend
@@ -4651,6 +4914,15 @@ pnpm test ProfileMonogram
 ```
 
 Expected: `Failed to resolve import "@/components/directory/ProfileMonogram"`.
+
+Then the page's own failing test — see the ruling above. With the Task 14 build still serving (`pnpm build && pnpm start --port 3020`), the backend on 8020, the rollout flag enabled and one ACTIVE professional seeded by hand:
+
+```bash
+curl -s -o /dev/null -w "detail   %{http_code}\n" http://127.0.0.1:3020/services/professionals/ocean-legal/
+curl -s -o /dev/null -w "unknown  %{http_code}\n" http://127.0.0.1:3020/services/professionals/no-such-provider/
+```
+
+Expected now: `404` and `404` — the dynamic route does not exist yet, so even the real slug misses. Record both. Step 6 runs the identical commands and expects `200` and `404`: the second one must stay `404` for a different reason afterwards, which is exactly what makes the pair worth recording rather than just the first.
 
 - [ ] **Step 3: Write the monogram**
 
@@ -4754,6 +5026,14 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
               ) : null}
               {location ? (
                 <p className="mt-space-xs font-body-md text-on-surface-variant">{location}</p>
+              ) : null}
+              {/* The one-line summary is rendered, not metadata-only: it is in
+                  the payload and spec 2.1 wants every real field a visitor
+                  would expect to see on the page, not just in <head>. */}
+              {professional.short_description ? (
+                <p className="mt-space-sm max-w-xl font-body-md text-on-surface">
+                  {professional.short_description}
+                </p>
               ) : null}
               <p className="mt-space-sm max-w-xl font-body-sm text-on-surface-variant">
                 {t(locale, "professional.status.active")}
@@ -4882,15 +5162,22 @@ pnpm build
 
 Expected: the 4 `ProfileMonogram` tests `PASS` alongside every earlier suite; lint clean; build succeeds.
 
-- [ ] **Step 6: Manually verify the two seams and the no-contact-data rule**
+- [ ] **Step 6: Verify the page now answers 200, and check the two seams and the no-contact-data rule**
 
-With both servers running and one ACTIVE professional in the database:
+Re-run the exact pair from Step 2, with both servers running and the same ACTIVE professional in the database:
 
 ```bash
-curl -s "http://127.0.0.1:3020/services/professionals/<slug>/" | grep -ci "mailto:\|tel:\|@example"
+pnpm build
+pnpm start --port 3020
 ```
 
-Expected: `0`. Then open the page in a browser and confirm: the identity header, status line, About, Services offered, Service area and Related professionals render; there is **no** inquiry form, **no** contact panel and **no** gallery.
+```bash
+curl -s -o /dev/null -w "detail   %{http_code}\n" http://127.0.0.1:3020/services/professionals/ocean-legal/
+curl -s -o /dev/null -w "unknown  %{http_code}\n" http://127.0.0.1:3020/services/professionals/no-such-provider/
+curl -s "http://127.0.0.1:3020/services/professionals/ocean-legal/" | grep -ci "mailto:\|tel:\|@example"
+```
+
+Expected: `200` (was `404` in Step 2 — the red-to-green transition for this deliverable), then `404` for the unknown slug, then `0` for the contact grep. Also confirm a DRAFT or SUSPENDED profile's slug returns `404`. Then open the page in a browser and confirm: the identity header, the one-line summary, status line, About, Services offered, Service area and Related professionals render; there is **no** inquiry form, **no** contact panel and **no** gallery.
 
 - [ ] **Step 7: Commit**
 
@@ -4902,15 +5189,15 @@ git commit -m "feat(frontend): add the professional detail page with Phase 6/7 s
 
 ---
 
-### Task 14: Frontend — the six SEO service pages and the canonical sitemap
+### Task 16: Frontend — the six SEO service pages and the canonical sitemap
 
 **Files:**
 - Create: `frontend/src/app/services/[categorySlug]/page.tsx`
 - Create: `frontend/src/app/sitemap.ts`
-- Modify: `frontend/src/lib/api/directory.ts` (add `page_size` to `ProfessionalSearch`), `frontend/.env.example` (add `NEXT_PUBLIC_BASE_URL`)
+- Modify: `frontend/src/lib/api/directory.ts` (add `page_size` to `ProfessionalSearch`), `frontend/.env.local.example` (add `NEXT_PUBLIC_BASE_URL`)
 
 **Interfaces:**
-- Consumes: `fetchServiceCategory`, `fetchServiceCategories`, `fetchProfessionals` (Task 11); `t`, `DEFAULT_LOCALE` (Task 12).
+- Consumes: `fetchServiceCategory`, `fetchServiceCategories`, `fetchProfessionals`, `EMPTY_PROFESSIONAL_PAGE` (Task 12); `t`, `DEFAULT_LOCALE` (Task 13).
 - Produces:
   - Route `/services/<category-slug>/` — renders any category with `has_seo_page === true`, `notFound()` otherwise; `generateMetadata` emits the canonical URL and the record's SEO title/description when set.
   - Route `/sitemap.xml` via `frontend/src/app/sitemap.ts`, listing the combined directory, every `has_seo_page` category and every ACTIVE professional.
@@ -4925,9 +5212,9 @@ git commit -m "feat(frontend): add the professional detail page with Phase 6/7 s
 
 - [ ] **Step 1: Record the failing state**
 
-Both deliverables here are async server components that fetch from the API on every request. Phase 3 introduced Vitest for client components with jsdom; it gives no harness for rendering an async server component, and mocking `fetch` to assert on JSX would test the mock rather than the page. These two routes are therefore driven by an HTTP check against a real running stack — the same shape Phase 4's Task 8 used for its endpoints — run **before** the implementation to confirm it fails and again in Step 5 to confirm it passes.
+Both deliverables here are async server components that fetch from the API on every request. Phase 3 introduced Vitest for client components with jsdom; it gives no harness for rendering an async server component, and mocking `fetch` to assert on JSX would test the mock rather than the page. These two routes are therefore driven by an HTTP check against a real running stack — the same shape Phase 4's Task 8 used for its endpoints, and the same one Tasks 14 and 15 use for their pages — run **before** the implementation to confirm it fails and again in Step 5 to confirm it passes.
 
-With the previous build still serving (`pnpm build && pnpm start --port 3020` from Task 13):
+With the previous build still serving (`pnpm build && pnpm start --port 3020` from Task 15):
 
 ```bash
 curl -s -o /dev/null -w "legal %{http_code}\n" http://127.0.0.1:3020/services/legal/
@@ -4947,7 +5234,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import ProfessionalResultCard from "@/components/directory/ProfessionalCard";
-import { fetchProfessionals, fetchServiceCategory } from "@/lib/api/directory";
+import {
+  EMPTY_PROFESSIONAL_PAGE,
+  fetchProfessionals,
+  fetchServiceCategory,
+} from "@/lib/api/directory";
 import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
@@ -4980,7 +5271,12 @@ export default async function ServiceCategoryPage({ params }: { params: Params }
     notFound();
   }
 
-  const results = await fetchProfessionals({ category: category.slug }, locale);
+  // The flag-off case already 404ed above (fetchServiceCategory returned null),
+  // so a null here can only be a race with a flag flip mid-render: degrade to
+  // the empty state rather than throwing.
+  const results =
+    (await fetchProfessionals({ category: category.slug }, locale)) ??
+    EMPTY_PROFESSIONAL_PAGE;
 
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
@@ -5053,6 +5349,10 @@ async function allProfessionals(): Promise<ProfessionalCard[]> {
       { page: String(page), page_size: "48" },
       DEFAULT_LOCALE,
     );
+    // null = the rollout flag is off; there is nothing public to list.
+    if (batch === null) {
+      return collected;
+    }
     collected.push(...batch.results);
     if (!batch.next) {
       return collected;
@@ -5066,6 +5366,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     fetchServiceCategories(DEFAULT_LOCALE),
     allProfessionals(),
   ]);
+
+  // With the flag off the directory has no public URLs at all, so the sitemap
+  // is empty rather than advertising a page that now 404s.
+  if (categories === null) {
+    return [];
+  }
 
   // /services/ and /professionals/ are never emitted: nothing in the database
   // produces them, so the retired URLs are absent by construction (spec 32.2).
@@ -5091,9 +5397,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 }
 ```
 
-**Note (`page_size`):** `ProfessionalSearch` (Task 11) does not declare `page_size`, because no page needed it — only the sitemap does. Step 4 adds the one-line `page_size?: string;` to that interface. Do **not** paper over the type error with a cast: `as never`/`as any` in this position would hide a real contract change from the next reader.
+**Note (`page_size`):** `ProfessionalSearch` (Task 12) does not declare `page_size`, because no page needed it — only the sitemap does. Step 4 adds the one-line `page_size?: string;` to that interface. Do **not** paper over the type error with a cast: `as never`/`as any` in this position would hide a real contract change from the next reader.
 
-**Note (`NEXT_PUBLIC_BASE_URL`):** a sitemap needs absolute URLs. Add `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3020` to `frontend/.env.example` (and the CI environment if the build reads it) in this task, alongside the existing `NEXT_PUBLIC_API_BASE_URL`. Phase 0/1 already established that pattern for the API base URL.
+**Note (`NEXT_PUBLIC_BASE_URL`):** a sitemap needs absolute URLs. Add `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3020` to `frontend/.env.local.example` (and the CI environment if the build reads it) in this task, alongside the existing `NEXT_PUBLIC_API_BASE_URL`. Phase 0/1 already established that pattern for the API base URL.
 
 - [ ] **Step 4: Extend `ProfessionalSearch` with `page_size`**
 
@@ -5145,12 +5451,12 @@ git commit -m "feat(frontend): add the six SEO service pages and the generated c
 
 ---
 
-### Task 15: Phase 5 acceptance pass, definition-of-done evidence and handoff note
+### Task 17: Phase 5 acceptance pass, definition-of-done evidence and handoff note
 
 **Files:**
 - Modify: `ACTIVITY.md`
 
-**Interfaces:** none — this task verifies that Tasks 1–14 work together and records that fact. Spec §39 step 9 requires demonstrating the phase definition of done "with verifiable test output", and §39's "Required phase handoff note" fixes what the record must contain.
+**Interfaces:** none — this task verifies that Tasks 1–16 work together and records that fact. Spec §39 step 9 requires demonstrating the phase definition of done "with verifiable test output", and §39's "Required phase handoff note" fixes what the record must contain.
 
 - [ ] **Step 1: Full backend regression against real Postgres/Redis**
 
@@ -5269,11 +5575,16 @@ Expected: `0` for both. The first proves no contact data reaches the DOM (spec �
 In Django admin, set `combined_services_professionals` to disabled, then:
 
 ```bash
-curl -s -o /dev/null -w "directory %{http_code}\n" http://127.0.0.1:3020/services/professionals/
-curl -s -o /dev/null -w "api %{http_code}\n" http://127.0.0.1:8020/api/v1/professionals/
+curl -s -o /dev/null -w "api        %{http_code}\n" http://127.0.0.1:8020/api/v1/professionals/
+curl -s -o /dev/null -w "directory  %{http_code}\n" http://127.0.0.1:3020/services/professionals/
+curl -s -o /dev/null -w "detail     %{http_code}\n" http://127.0.0.1:3020/services/professionals/ocean-legal/
+curl -s -o /dev/null -w "seo page   %{http_code}\n" http://127.0.0.1:3020/services/legal/
+curl -sI http://127.0.0.1:3020/services/ | grep -i "^HTTP"
 ```
 
-Expected: the API returns `404` and the page renders its empty state rather than fabricated content. Re-enable the flag and confirm both recover. **Note:** the page renders an empty directory rather than 404ing, because `fetchProfessionals`/`fetchServiceCategories` translate a 404 into an empty collection — that is the intended "the feature is off" surface for the *list* page. The detail page and the SEO pages do `notFound()`, since a 404 for a specific record is unambiguous.
+Expected: `404` for all four, matching the flag row's own description. The whole public directory surface disappears when the flag is off — that is what spec §35.1's "gate frontend exposure" means, and it is what Task 6's `CombinedDirectoryEnabled` docstring already assumes when it chooses 404 over 403 ("the Next.js pages already handle 404"). The `/services/` redirect still returns `301`: it is a static `next.config.ts` rule with no database behind it, and a retired URL must keep pointing at its successor whether or not the successor is currently switched on.
+
+Then re-enable the flag and confirm all four recover. **Do not** confuse this with the empty state: an *enabled* directory with no active categories or no matching professionals renders the spec §31 empty-state sentences and returns `200`. Only a disabled flag 404s. Test both, in that order.
 
 - [ ] **Step 6: Update `ACTIVITY.md`**
 
@@ -5282,15 +5593,15 @@ Append a new entry at the top of the `## Log` section:
 ```markdown
 ### 2026-09-18 — Phase 5 directory consolidation complete
 
-- Implemented `docs/superpowers/plans/2026-09-18-phase-5-directory-consolidation.md` in full (Tasks 1-15).
+- Implemented `docs/superpowers/plans/2026-09-18-phase-5-directory-consolidation.md` in full (Tasks 1-17).
 - New `services_catalog` Django app (ruling: spec §3 lists `professionals` and `services_catalog` as separate apps and spec §11.2 groups both catalog models under one "Service catalog" heading, so `ServiceCategory` **and** `ProfessionalService` live here, giving a single one-directional `services_catalog → professionals` dependency and leaving Phase 3's `professionals` app untouched): `ServiceCategory` (EN/IT/ES names/descriptions/SEO fields, `has_seo_page`, `display_order`, reserved-slug guard at validator + DB constraint + route level), `ProfessionalService` (FK to `ProfessionalProfile` CASCADE / `ServiceCategory` PROTECT, unique `(professional, category, title_en)`, reusing Phase 3's `validate_service_area`), and `LegacyDirectoryMapping`.
 - Migrations added: `services_catalog/0001_initial` (ServiceCategory), `0002_seed_seo_service_categories` (data — the six approved SEO categories, names in three languages, **no invented copy**), `0003_professionalservice`, `0004_seed_combined_directory_flag` (data — spec §35.1's `combined_services_professionals` flag, enabled), `0005_legacydirectorymapping`. All additive; both data migrations are `get_or_create`-idempotent with `RunPython.noop` reverses so a rollback keeps staff-editable rows (spec §32.3).
 - New public endpoints, all unauthenticated, rate-limited under the new `services_directory` scope (60/min) via Phase 3's `HashedIPScopedRateThrottle`, and all 404 when the rollout flag is off: `GET /api/v1/service-categories/` (unpaginated by ruling), `GET /api/v1/service-categories/<slug>/`, `GET /api/v1/professionals/` (q/category/location/sort/locale, paginated 12 per page), `GET /api/v1/professionals/<slug>/` (services + up to 4 related), `GET /api/v1/legacy/professional-redirect/?id=`.
 - **No contact data is public.** `public_email`, `public_phone` and `website_url` are absent from every serializer field list in this phase, not merely hidden — so nothing to blur, nothing to leak in SSR HTML or the DOM. Phase 7's `ContactAccessService` owns all three.
-- Permissions and audit: `services_catalog.permissions.CombinedDirectoryEnabled` (feature-flag gate, fails closed). Staff `ServiceCategory` CRUD goes through `save_service_category`/`delete_service_category`, which write `service_category.created` / `.updated` / `.deleted` `AuditEvent` rows (actor, before/after snapshot of all 17 staff-editable columns, source `ADMIN`) inside the same transaction as the change. `ProfessionalService` admin is not audited by design — spec §31 puts it under the provider/staff profile workflow, not the audited staff catalog.
+- Permissions and audit: `services_catalog.permissions.CombinedDirectoryEnabled` (feature-flag gate, fails closed). **Every** `ServiceCategory` write goes through `save_service_category`/`delete_service_category`, which write `service_category.created` / `.updated` / `.deleted` `AuditEvent` rows (actor, before/after snapshot of all 17 staff-editable columns) inside the same transaction as the change — Django admin as `USER`/`ADMIN`, the legacy-import command as `SYSTEM`/`TASK`. No entry point writes the model unaudited. `ProfessionalService` admin is not audited by design — spec §31 puts it under the provider/staff profile workflow, not the audited staff catalog.
 - New frontend routes: `/services/professionals/` (hero + category grid + filtered results + SEO links), `/services/professionals/<slug>/` (identity header, status line, About, Services offered, Service area, Related professionals), `/services/<category-slug>/` (one template for all six approved SEO pages, 404 unless `has_seo_page`), `/professionals/profile/` (301 resolver), `/sitemap.xml` (generated from the database). `trailingSlash: true` plus two `statusCode: 301` entries in `next.config.ts` give single-hop 301s for `/services/` and `/professionals/` — `permanent: true` was **not** used because it emits 308, not the 301 spec §4.3 fixes.
 - Localization: `frontend/src/lib/i18n/directory.ts` holds every new UI string in EN/IT/ES behind spec §37 keys (including `nav.services_professionals` and `directory.services_professionals.title` verbatim). No i18n framework was introduced; pages render `en` until a phase adds locale routing.
-- Feature flag state: `combined_services_professionals` created and **enabled**, gating all four directory read endpoints.
+- Feature flag state: `combined_services_professionals` created and **enabled**. It gates all four directory read endpoints (404 via `CombinedDirectoryEnabled`) **and** the public pages: `fetchServiceCategories`/`fetchProfessionals` return `null` on a 404 and every page built on them calls `notFound()`, so with the flag off `/services/professionals/`, the professional detail pages and the six `/services/<slug>/` SEO pages all return 404 and `/sitemap.xml` is empty. The two static 301 redirects are unaffected by design — a retired URL keeps pointing at its successor whether or not the successor is switched on.
 - Legacy migration (spec §14.3): the mechanism exists and is fully tested — `LegacyDirectoryMapping` plus `manage.py import_legacy_directory --source <json> [--dry-run]` implementing all six steps with a reconciliation report. **It has never been run and there is no legacy data to run it on**: the prior artefact was 51 static HTML mockups with no database (see this file's design-reference notes). No sample rows were seeded and no prototype numbers were imported.
 - Tests added and results: <N> backend tests across `services_catalog` and `common`, plus <M> frontend Vitest tests; full backend suite <TOTAL>/<TOTAL> green against real Postgres/Redis with `makemigrations --check` clean; `pnpm test`, `pnpm lint` and `pnpm build` green.
 - Known limitations: see the plan's "Known Limitations" section — chiefly no inquiry form (Phase 6) and no contact panel (Phase 7) on the professional detail page, both marked as named seams; no advertisement interstitial (no ad model); no portfolio/gallery (no media model, Phase 15); no `hreflang` alternates in the sitemap until locale routing exists; `q` search is case- but not accent-insensitive; the `/brokers/profile/?id=` and `/dashboard/broker/services/` redirects from spec §4.3 belong to the broker and Phase 19 work.
@@ -5324,7 +5635,8 @@ git commit -m "docs: record phase 5 directory consolidation completion in activi
 - **The directory pages render English only.** Same cause as above: no locale routing, no locale cookie, no locale segment. Every page passes `locale=en`.
 - **`common.text.normalize_comparison_text` duplicates `taxonomy.services.normalize_taxonomy_name`.** The new shared home is `common.text`; the merged `taxonomy` copy is deliberately untouched, because this plan does not modify already-merged apps. Collapsing the two belongs to the same cleanup pass Phase 3 queued for `taxonomy`'s view-level stock throttle classes.
 - **No staff or provider API for `ProfessionalService`.** Providers cannot yet add or edit their own services except through Django admin. Spec §26 (Phase 17) owns the staff back office and the provider-facing service editor, including whatever audit that workflow needs.
-- **No `ProfessionalProfile` publication gate.** Phase 3's Known Limitations flagged that blank descriptions and an empty `service_area` are allowed at the database level and assigned the "what must a profile contain before it reaches ACTIVE" rule to Phase 5. This plan does **not** close it: the directory renders whatever an ACTIVE profile actually has (omitting empty sections entirely rather than printing placeholders), but nothing prevents staff from activating a profile with no description and no services. Such a profile appears in the directory with `active_service_count: 0` and no categories. A real gate belongs with the provider-facing profile editor in Phase 17, which is where a provider would be told what is missing; adding a status-transition validator here, with no UI to explain it, would block staff in admin with no recourse.
+- **No `ProfessionalProfile` publication gate — deferred to Phase 17, for a structural reason.** Phase 3 assigned this to Phase 5 in two places: its Task 6 note on blank-allowed descriptive fields ("The publication gate — what a profile must contain before it may reach `ACTIVE` and appear in the directory — is Phase 5's `/services/professionals/` deliverable") and its Known Limitations entry ("the rules for reaching `ACTIVE` and appearing in the directory belong to Phase 5"). This plan does **not** close it, and the reason is not a missing UI. **A publication gate is a status-transition validator on `ProfessionalProfile`, and `ProfessionalProfile` lives in `backend/professionals/` — the app this plan's own Scope ruling (point 3 under "`ServiceCategory` and `ProfessionalService` live in a new `services_catalog` app") commits to touching zero times, because Phase 3 is signed off but not yet merged and adding model logic or a migration to it from here would collide with an in-flight Phase 3 branch and mutate an already-approved app.** Every other boundary in this phase is honoured that way; the gate is not an exception carved out for convenience. Phase 17 (spec §26) owns the staff back office and the provider-facing service/profile editor, which is where the validator belongs anyway: it will already be modifying `professionals`, it can write the transition rule and the screen that explains the failure in one commit, and by then Phase 3 will be merged. Until then the directory renders whatever an ACTIVE profile actually has — omitting empty sections entirely rather than printing placeholders — and nothing prevents staff from activating a profile with no description and no services.
+- **A zero-service ACTIVE profile IS listed in the directory, deliberately and by test.** This is the flip side of the deferred gate, and it is a decision, not an oversight: `test_only_active_professionals_are_listed` (Task 7) creates `active-pro` with **no** `ProfessionalService` rows and asserts it appears in `GET /api/v1/professionals/`, with `active_service_count: 0` and an empty `categories` list. Listing is keyed on `status == ACTIVE` and nothing else, so staff decide who is public and the API does not second-guess them. **Phase 17 must not silently change this.** If its publication gate makes "at least one active service" a precondition for `ACTIVE`, that is a fine rule — but it changes the contract this test pins, so Phase 17 updates the test in the same commit with a written reason, exactly as Contract rule 1 requires for the contact-field tests. Quietly filtering zero-service profiles out of the queryset instead would leave a profile that is ACTIVE in the database and invisible on the site, with no error anywhere to explain it.
 - **`ProfessionalProfile.service_area` is still a JSON list, not a normalized relation.** Phase 3's Task 6 deferred the choice to this phase. This plan keeps the JSON list: the directory's location filter needs exact membership matching, which Postgres JSON containment does directly, and normalizing it would mean a migration on Phase 3's model plus a region taxonomy that nothing else in the spec asks for (YAGNI). If a future phase needs region facets or hierarchical areas, that is the trigger to normalize.
 
 ---
@@ -5369,22 +5681,31 @@ from services_catalog.views import LocalizedContextMixin
 // frontend
 import {
   DIRECTORY_API_BASE_URL,
+  EMPTY_PROFESSIONAL_PAGE,
   directoryFetch,
   fetchProfessional,
   fetchProfessionals,
   fetchServiceCategories,
   fetchServiceCategory,
   resolveLegacyProfessional,
-  type Locale,
+  type CategoryRef,
+  type Locale, // declared here; lib/i18n/directory.ts re-exports this same type
   type Paginated,
   type ProfessionalCard,
   type ProfessionalDetail,
+  type ProfessionalSearch,
   type ProfessionalService,
   type RelatedProfessional,
   type ServiceCategory,
   type ServiceCategoryDetail,
 } from "@/lib/api/directory";
-import { DEFAULT_LOCALE, DIRECTORY_MESSAGES, resolveLocale, t } from "@/lib/i18n/directory";
+import {
+  DEFAULT_LOCALE,
+  DIRECTORY_MESSAGES,
+  SUPPORTED_LOCALES,
+  resolveLocale,
+  t,
+} from "@/lib/i18n/directory";
 ```
 
 Rules a later phase must follow:
@@ -5393,12 +5714,14 @@ Rules a later phase must follow:
 2. **Phase 6 mounts its shared `InquiryForm` at the `PHASE 6 SEAM` comment** in `frontend/src/app/services/professionals/[slug]/page.tsx`, using the same component it mounts on broker and listing pages. Do not create a professional-specific form (spec §15.1, §39).
 3. **Phase 7 mounts its contact panel at the `PHASE 7 SEAM` comment** in the same file and serves the data from its own endpoint. Blur is a server-side authorization outcome, never a CSS filter over a delivered value (spec §39).
 4. **Every new directory-facing read endpoint declares `permission_classes = [AllowAny, CombinedDirectoryEnabled]` and `throttle_scope = "services_directory"`**, and never sets `throttle_classes` (Phase 3 contract rule 9).
-5. **Staff writes to `ServiceCategory` go through `save_service_category` / `delete_service_category`.** A future `/api/v1/staff/service-categories/` endpoint calls those functions rather than `serializer.save()`, so the audit trail stays guaranteed. Adding a staff-editable column means adding it to `CATEGORY_AUDIT_FIELDS` in the same commit — Task 3's snapshot test fails otherwise.
+5. **Every write to `ServiceCategory` goes through `save_service_category` / `delete_service_category` — there is no exception, including for management commands.** A future `/api/v1/staff/service-categories/` endpoint calls those functions rather than `serializer.save()`, so the audit trail stays guaranteed. A non-interactive caller is not a reason to bypass them: pass `actor=None`, `actor_type=AuditEvent.ActorType.SYSTEM` and `source=AuditEvent.Source.TASK`, which is exactly what Task 10's `import_legacy_directory` does. Adding a staff-editable column means adding it to `CATEGORY_AUDIT_FIELDS` in the same commit — Task 3's snapshot test fails otherwise.
 6. **`professionals` is a permanently reserved `ServiceCategory` slug** and is enforced by a database constraint. Adding another reserved public route under `/services/` means adding its slug to `RESERVED_CATEGORY_SLUGS` **and** generating a new migration for the changed constraint.
 7. **Never introduce a second directory page.** Spec §39: "Do not … Keep both Services and Professionals directories live with duplicate content." `/services/` and `/professionals/` are 301 sources in `next.config.ts` and must stay that way; adding a `page.tsx` at either path would silently win over its redirect.
 8. **`trailingSlash: true` and `statusCode: 301` in `next.config.ts` are load-bearing.** Changing either re-introduces a redirect chain or downgrades the 301 to a 308. `next.config.test.ts` guards both.
 9. **New UI strings go in `DIRECTORY_MESSAGES` (or a sibling dictionary) with all three languages**, never as literals inside a component (spec §37). The dictionary test fails on a key missing any locale.
 10. **The category grid and result cards read `is_active`/`status` from the API, never a client-side list.** Spec §31's failure states — "hide inactive; true empty message" and "no matching professionals" — are rendered from real empty collections.
+11. **A 404 from a directory *collection* endpoint means the rollout flag is off, and the page must `notFound()`.** `fetchServiceCategories` and `fetchProfessionals` return `T | null` for exactly this reason. Do not "simplify" them to return an empty collection: that silently downgrades spec §35.1's frontend gate to an empty page, makes the seeded flag row's description false, and makes "feature off" indistinguishable from "no results" at every call site. Use `EMPTY_PROFESSIONAL_PAGE` only where the flag state has already been established by an earlier fetch.
+12. **`Locale` is declared once, in `frontend/src/lib/api/directory.ts`.** `lib/i18n/directory.ts` re-exports it. A new module imports it from either, and never redeclares the union.
 
 ---
 
@@ -5408,44 +5731,51 @@ Rules a later phase must follow:
 
 | Spec §14 requirement | Where implemented |
 |---|---|
-| §14.1 — Professionals directory is the structural base | Task 12 (one page at the canonical URL; no `/services/` or `/professionals/` page exists) |
-| §14.1 — approved service-category introductions carried over | Tasks 2, 4 (`description_*` on `ServiceCategory`, rendered by Tasks 12 and 14 when non-empty) |
-| §14.1 — links to the six SEO service pages | Task 12 (SEO links section) + Task 14 (the pages themselves) |
+| §14.1 — Professionals directory is the structural base | Task 14 (one page at the canonical URL; no `/services/` or `/professionals/` page exists) |
+| §14.1 — approved service-category introductions carried over | Tasks 2, 4 (`description_*` on `ServiceCategory`, rendered by Tasks 14 and 16 when non-empty) |
+| §14.1 — links to the six SEO service pages | Task 14 (SEO links section) + Task 16 (the pages themselves) |
 | §14.1 — category discovery/filter controls | Tasks 7, 12 (`?category=` filter, category grid links, select control) |
 | §14.1 — existing approved service-request CTA | **Not carried over** — the service-request flow is the shared inquiry form, Phase 6. Recorded as a seam and a Known Limitation, not silently dropped |
-| §14.1 — no duplicated category across separate sections | Task 12 (one grid, one result list; `get_categories` dedupes per provider) |
-| §14.1 item 1 — hero with title, explanation, category/location search | Task 12 |
-| §14.1 item 2 — category grid sourced from `ServiceCategory` | Tasks 2, 6, 12 |
-| §14.1 item 3 — results from active `ProfessionalProfile` and services | Tasks 5, 7, 12 |
+| §14.1 — no duplicated category across separate sections | Task 14 (one grid, one result list; `get_categories` dedupes per provider) |
+| §14.1 item 1 — hero with title, explanation, category/location search | Task 14 |
+| §14.1 item 2 — category grid sourced from `ServiceCategory` | Tasks 2, 6, 14 |
+| §14.1 item 3 — results from active `ProfessionalProfile` and services | Tasks 5, 7, 14 |
 | §14.1 item 4 — optional advertisement interstitial | Ruled out of scope (no ad model); comment at the placement, Known Limitation |
-| §14.1 item 5 — SEO links to six service pages | Tasks 12, 14 |
-| §14.2 — identity header (logo/photo, name, categories, location/area) | Task 13 (+ `ProfileMonogram` for the image slot) |
-| §14.2 — short verified/profile status language, no certification implication | Task 12's `professional.status.active` string, rendered by Task 13 |
-| §14.2 — About | Task 13 |
-| §14.2 — Services offered | Tasks 5, 8, 13 |
-| §14.2 — Service area | Tasks 8, 13 |
+| §14.1 item 5 — SEO links to six service pages | Tasks 14, 16 |
+| §14.2 — identity header (logo/photo, name, categories, location/area) | Task 15 (+ `ProfileMonogram` for the image slot) |
+| §14.2 — short verified/profile status language, no certification implication | Task 13's `professional.status.active` string, rendered by Task 15 |
+| §14.2 — About | Task 15 |
+| §14.2 — Services offered | Tasks 5, 8, 15 |
+| §14.2 — Service area | Tasks 8, 15 |
 | §14.2 — Portfolio/gallery only when real records exist | Omitted (no media model); ruling + Known Limitation |
 | §14.2 — Shared inquiry form | Phase 6 seam (ruling + named comment + Known Limitation) |
 | §14.2 — Blurred contact panel via `ContactAccessService` | Phase 7 seam; contact fields excluded from every payload |
-| §14.2 — Related professionals, same category, excluding self | Task 8 (`get_related`, capped at 4), Task 13 |
-| §14.2 — remove invented revenue/guarantees/affiliations/etc. | Absent by construction — no such field exists in any serializer; Task 15 Step 4 greps the rendered HTML to prove it |
+| §14.2 — Related professionals, same category, excluding self | Task 8 (`get_related`, capped at 4), Task 15 |
+| §14.2 — remove invented revenue/guarantees/affiliations/etc. | Absent by construction — no such field exists in any serializer; Task 17 Step 4 greps the rendered HTML to prove it |
 | §14.3 step 1 — mapping table | Task 9 (`LegacyDirectoryMapping`) |
 | §14.3 step 2 — dedup by explicit id and normalized name/address, never name alone | Task 10 (`_resolve_provider`'s three tiers; `DUPLICATE_REVIEW`) |
 | §14.3 step 3 — copy missing descriptions/categories | Task 10 (copy-only-when-empty, tested both ways) |
 | §14.3 step 4 — preserve unique slugs, deterministic redirects for changed ones | Tasks 9 (resolver + slug fallback), 10 (`slugs_preserved`/`slugs_changed` counts) |
-| §14.3 step 5 — canonical tags and sitemap | Task 14 (generated sitemap + per-page canonicals); Task 10 reports it as a structural no-op |
+| §14.3 step 5 — canonical tags and sitemap | Task 16 (generated sitemap + per-page canonicals); Task 10 reports it as a structural no-op |
 | §14.3 step 6 — six SEO records stay independent but linked | Tasks 4, 10 (never deactivated/reparented), 12 (linked from the directory) |
-| DoD — one combined directory, no duplicate index content | Task 15 Step 4.1 |
-| DoD — both retired URLs return a single-hop 301 | Tasks 11, 15 Step 4.2 (`curl -sIL` hop count) |
-| DoD — every displayed category/provider is database-backed | Task 15 Step 4.3 (grep for literals + deactivate-and-reload) |
-| DoD — professional detail aligned with broker, no unsupported fields | Task 15 Step 4.4 — second half proven now, alignment explicitly partial until Phase 20 |
+| DoD — one combined directory, no duplicate index content | Task 17 Step 4.1 |
+| DoD — both retired URLs return a single-hop 301 | Tasks 11, 17 Step 4.2 (`curl -sIL` hop count) |
+| DoD — every displayed category/provider is database-backed | Task 17 Step 4.3 (grep for literals + deactivate-and-reload) |
+| DoD — professional detail aligned with broker, no unsupported fields | Task 17 Step 4.4 — second half proven now, alignment explicitly partial until Phase 20 |
 
 **Spec coverage — §11.2 (data model):** `ServiceCategory` — every listed field (`name_*`, `slug`, `description_*`, `icon_key`, `display_order`, `is_active`, `seo_title_*`, `seo_description_*`) plus the `has_seo_page` flag §11.2's prose requires (Task 2). `ProfessionalService` — every listed field (`professional`, `category`, `title_*`, `description_*`, `service_area`, `is_active`, `created_at`, `updated_at`) and the spec's literal first option for the constraint, `unique(professional, category, title_en)` (Task 5). `ProfessionalProfile` is **not** defined here: it is Phase 3's Task 6, and every field name, enum value and `get_absolute_url()` result used in Tasks 5, 7, 8, 9, 10 and 13 is copied from that plan, not from §11.1's shorthand table.
 
-**Spec coverage — other sections touched:** §1's fixed decisions (navigation label, H1, canonical URL, retired URLs, profile URL, six SEO pages) are all in Global Constraints and each has a task. §4.1's three directory routes and six SEO routes exist (Tasks 12, 13, 14); §4.3's three directory redirect rows are implemented (Task 11) and the two non-directory rows are assigned to other phases with a written reason. §29.3 (professional profile) → Task 13; §29.4's four filters and shareable URL state → Tasks 7 and 12; §29.5/§29.6's responsive and accessibility targets are partially served here (responsive grids, labelled form controls, `aria-labelledby` on every section, no colour-only state) and fully owned by Phase 20, which the Known Limitations record. §30.1 lists no endpoint for this feature, so the five new routes are named under its "Exact URL naming may follow an established API convention" latitude, mirroring `taxonomy`'s existing shape. §30.2's envelope and pagination shape come from Phase 3's exception handler and DRF's `PageNumberPagination`. §30.4's rate limiting → the `services_directory` scope on all five endpoints, using Phase 3's IP-hashing throttle. §31's two directory rows (`Combined category tiles`, `Professional result cards`) map to Tasks 6/12 and 7/12 including both named failure states. §32.2's canonical tags, sitemap and retired-URL removal → Tasks 11, 13, 14; its hreflang requirement is an explicit Known Limitation. §35.1's `combined_services_professionals` flag → Task 6. §37's key requirement, including the two keys it names for this feature → Task 12. §38's idempotency rule → both data migrations and the import command. §39's protocol → the per-task TDD structure, the "no partial implementations" rulings, and Task 15's handoff note.
+**Spec coverage — other sections touched:** §1's fixed decisions (navigation label, H1, canonical URL, retired URLs, profile URL, six SEO pages) are all in Global Constraints and each has a task. §4.1's three directory routes and six SEO routes exist (Tasks 14, 15, 16); §4.3's three directory redirect rows are implemented (Tasks 11 and 12) and the two non-directory rows are assigned to other phases with a written reason. §29.3 (professional profile) → Task 15; §29.4's four filters and shareable URL state → Tasks 7 and 14; §29.5/§29.6's responsive and accessibility targets are partially served here (responsive grids, labelled form controls, `aria-labelledby` on every section, no colour-only state) and fully owned by Phase 20, which the Known Limitations record. §30.1 lists no endpoint for this feature, so the five new routes are named under its "Exact URL naming may follow an established API convention" latitude, mirroring `taxonomy`'s existing shape. §30.2's envelope and pagination shape come from Phase 3's exception handler and DRF's `PageNumberPagination`. §30.4's rate limiting → the `services_directory` scope on all five endpoints, using Phase 3's IP-hashing throttle. §31's two directory rows (`Combined category tiles`, `Professional result cards`) map to Tasks 6/14 and 7/14 including both named failure states. §32.2's canonical tags, sitemap and retired-URL removal → Tasks 11, 15, 16; its hreflang requirement is an explicit Known Limitation. §35.1's `combined_services_professionals` flag → Task 6 on the API side and Tasks 14/15/16 on the page side, all four surfaces 404ing together. §37's key requirement, including the two keys it names for this feature → Task 13. §38's idempotency rule → both data migrations and the import command. §39's protocol → the per-task TDD structure (including the HTTP-level red-to-green checks that drive the three server-component routes in Tasks 14, 15 and 16), the "no partial implementations" rulings, and Task 17's handoff note.
 
-**Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere in this plan. Every code step carries the actual code; every test step carries the actual test. The two `SEAM` comments in Task 13 are deliberate, their exact text is written out, and they mark work assigned to a named phase — they are not stand-ins for work this plan skipped. The `<N>`/`<M>`/`<TOTAL>` tokens in Task 15's `ACTIVITY.md` entry are counts the executor reads off their own test output in Steps 1 and 2, with an explicit instruction to substitute them; they are not unresolved decisions.
+**Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere in this plan. Every code step carries the actual code; every test step carries the actual test. The two `SEAM` comments in Task 15 are deliberate, their exact text is written out, and they mark work assigned to a named phase — they are not stand-ins for work this plan skipped. The `<N>`/`<M>`/`<TOTAL>` tokens in Task 17's `ACTIVITY.md` entry are counts the executor reads off their own test output in Steps 1 and 2, with an explicit instruction to substitute them; they are not unresolved decisions.
 
-**Type consistency:** `ServiceCategory`, `ProfessionalService` and `LegacyDirectoryMapping` are each defined once and referenced by the same name everywhere, including in the File Structure and the contract summary. `localized(instance, field_base, locale)` and `resolve_locale(raw)` keep identical signatures in Tasks 2, 6, 7 and 8. `LocalizedContextMixin` supplies `context["locale"]`, which every `SerializerMethodField` in Tasks 6, 7 and 8 reads by that exact key. `active_service_count` is the annotation name in Tasks 7 and 8's querysets and the serializer field name in `ProfessionalCardSerializer`, which `ProfessionalDetailSerializer` inherits — one name, three places. `COMBINED_DIRECTORY_FLAG` is defined once in `permissions.py` and used by Tasks 6–9's tests, the permission class and migration `0004`'s `FLAG_KEY` (which repeats the literal because a migration must not import application code). `CATEGORY_AUDIT_FIELDS` is the single source of the audited column list, consumed by `category_audit_snapshot` and asserted by Task 3's last test. `legacy_dedup_key` returns a `(name, address)` tuple in both its definition and both call sites in Task 10. On the frontend, `Locale` is declared once in `lib/i18n/directory.ts` and re-exported as the same union in `lib/api/directory.ts`'s signatures; `ProfessionalCard`, `ProfessionalDetail`, `ProfessionalService`, `ServiceCategory`, `ServiceCategoryDetail`, `CategoryRef` and `Paginated<T>` match the backend serializers' field lists one for one. The component is `ProfessionalResultCard` (the default export of `ProfessionalCard.tsx`) in Tasks 12, 13 and 14 — deliberately *not* named `ProfessionalCard`, which is the type. `DIRECTORY_MESSAGES` keys used in components (`directory.*`, `professional.*`, `category.browse_professionals`) all exist in the dictionary, and the dictionary test fails on any key missing a locale. `directoryFetch` returns `T | null` at its definition and every caller handles the `null`.
+**Type consistency:** `ServiceCategory`, `ProfessionalService` and `LegacyDirectoryMapping` are each defined once and referenced by the same name everywhere, including in the File Structure and the contract summary. `localized(instance, field_base, locale)` and `resolve_locale(raw)` keep identical signatures in Tasks 2, 6, 7 and 8. `LocalizedContextMixin` supplies `context["locale"]`, which every `SerializerMethodField` in Tasks 6, 7 and 8 reads by that exact key. `active_service_count` is the annotation name in Tasks 7 and 8's querysets and the serializer field name in `ProfessionalCardSerializer`, which `ProfessionalDetailSerializer` inherits — one name, three places. `COMBINED_DIRECTORY_FLAG` is defined once in `permissions.py` and used by Tasks 6–9's tests, the permission class and migration `0004`'s `FLAG_KEY` (which repeats the literal because a migration must not import application code). `CATEGORY_AUDIT_FIELDS` is the single source of the audited column list, consumed by `category_audit_snapshot` and asserted by Task 3's last test. `legacy_dedup_key` returns a `(name, address)` tuple in both its definition and both call sites in Task 10. On the frontend, `Locale` is **declared exactly once**, as `export type Locale = "en" | "it" | "es"` in `lib/api/directory.ts` (Task 12), because the thing being modelled is the API contract's `?locale=` parameter; `lib/i18n/directory.ts` (Task 13) does `import type { Locale } from "@/lib/api/directory"` and `export type { Locale }`, so a component may import it from either module and still get one type. An earlier draft of this plan declared a second, structurally identical union in the i18n module — it compiled, which is exactly why it was worth removing: two sources of truth that agree today and would diverge silently the first time a fourth locale is added on one side only. `SUPPORTED_LOCALES` is typed `readonly Locale[]`, so adding a member without widening the union is a type error. `ProfessionalCard`, `ProfessionalDetail`, `ProfessionalService`, `ServiceCategory`, `ServiceCategoryDetail`, `CategoryRef` and `Paginated<T>` match the backend serializers' field lists one for one. The component is `ProfessionalResultCard` (the default export of `ProfessionalCard.tsx`) in Tasks 14, 15 and 16 — deliberately *not* named `ProfessionalCard`, which is the type. `DIRECTORY_MESSAGES` keys used in components (`directory.*`, `professional.*`, `category.browse_professionals`) all exist in the dictionary, and the dictionary test fails on any key missing a locale. `directoryFetch` returns `T | null` at its definition and every caller handles the `null`; `fetchServiceCategories` and `fetchProfessionals` deliberately propagate that `null` rather than flattening it to an empty collection, and all three of their callers (Tasks 14, 16's page and 16's sitemap) handle it explicitly.
 
-**One gap found and closed during review:** the first draft linked the directory's SEO section to six URLs with no pages behind them, which would have shipped six 404s and broken spec §2.1 and Phase 3's rule 11. Task 14 was added, along with the ruling that records why the six pages belong to this phase despite §14 not naming them.
+**Gaps found and closed during review:**
+
+1. The first draft linked the directory's SEO section to six URLs with no pages behind them, which would have shipped six 404s and broken spec §2.1 and Phase 3's rule 11. Task 16 was added, along with the ruling that records why the six pages belong to this phase despite §14 not naming them.
+2. `test_location_matches_city_region_or_an_exact_service_area_entry` (Task 7) relied on Phase 3's `make_professional` leaving three fixtures without a `service_area`, but that factory defaults it to `["IT-52"]` — so all four fixtures matched the `IT-52` query and the assertion proved nothing. The three non-area fixtures now pass `service_area=[]` explicitly.
+3. Task 10's import command mutated `ServiceCategory.description_en` with a plain `save()`, the one write in the codebase that bypassed Task 3's audited service. It now calls `save_service_category` with `ActorType.SYSTEM`/`Source.TASK`, and a test asserts the resulting audit row — so Contract rule 5 has no exceptions.
+4. The rollout flag's own description said the public pages "disappear" while the directory page rendered an empty state instead. The pages now `notFound()` on a flag-off 404, uniformly with the detail and SEO pages, which is what spec §35.1's "gate frontend exposure" asks for.
+5. All four API test files shared one 60/min throttle bucket with no cache isolation, so the suite was order-dependent. `services_catalog/tests/conftest.py` now carries one autouse `cache.clear()`, mirroring `platform_settings/tests/conftest.py` (there is no root `backend/conftest.py`), and the four duplicated flag-cache fixtures were folded into it. The rate-limit test also stopped overriding `settings.REST_FRAMEWORK`, which DRF ignores, in favour of the `monkeypatch.setitem(...THROTTLE_RATES...)` pattern `taxonomy`'s equivalent test already uses.
+6. Tasks 11 and 12 (originally one task) and Tasks 13 and 14 (likewise) were each split at their natural seam, and the two `page.tsx` deliverables gained the HTTP-level red-to-green checks they were missing.
