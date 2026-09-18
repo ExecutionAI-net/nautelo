@@ -1,8 +1,9 @@
 from rest_framework import serializers
 
+from professionals.enums import ProfessionalProfileStatus
 from professionals.models import ProfessionalProfile
 
-from .models import ServiceCategory
+from .models import ProfessionalService, ServiceCategory
 from .services import localized
 
 
@@ -103,3 +104,83 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
                 {"slug": category.slug, "name": localized(category, "name", locale)}
             )
         return sorted(categories, key=lambda item: item["name"])
+
+
+RELATED_PROFESSIONAL_LIMIT = 4
+
+
+class ProfessionalServiceSerializer(serializers.ModelSerializer):
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProfessionalService
+        fields = ["id", "title", "description", "service_area", "category"]
+
+    def get_title(self, obj) -> str:
+        return localized(obj, "title", self.context["locale"])
+
+    def get_description(self, obj) -> str:
+        return localized(obj, "description", self.context["locale"])
+
+    def get_category(self, obj) -> dict:
+        return {
+            "slug": obj.category.slug,
+            "name": localized(obj.category, "name", self.context["locale"]),
+        }
+
+
+class ProfessionalDetailSerializer(ProfessionalCardSerializer):
+    """Spec §14.2's professional detail template, minus the two sections other
+    phases own: the shared inquiry form (Phase 6) and the contact panel
+    governed by ContactAccessService (Phase 7). Portfolio/gallery is absent
+    because no media records exist — spec §14.2 permits it "only when real
+    backend records exist".
+    """
+
+    services = serializers.SerializerMethodField()
+    related = serializers.SerializerMethodField()
+
+    class Meta(ProfessionalCardSerializer.Meta):
+        fields = ProfessionalCardSerializer.Meta.fields + [
+            "description",
+            "services",
+            "related",
+        ]
+
+    def get_services(self, obj):
+        active = [
+            service
+            for service in obj.services.all()
+            if service.is_active and service.category.is_active
+        ]
+        active.sort(key=lambda service: (service.category.display_order, service.title_en))
+        return ProfessionalServiceSerializer(active, many=True, context=self.context).data
+
+    def get_related(self, obj):
+        category_ids = {
+            service.category_id for service in obj.services.all() if service.is_active
+        }
+        if not category_ids:
+            return []
+        peers = (
+            type(obj)
+            .objects.filter(
+                status=ProfessionalProfileStatus.ACTIVE,
+                services__is_active=True,
+                services__category_id__in=category_ids,
+            )
+            .exclude(pk=obj.pk)
+            .order_by("display_name")
+            .distinct()[:RELATED_PROFESSIONAL_LIMIT]
+        )
+        return [
+            {
+                "slug": peer.slug,
+                "display_name": peer.display_name,
+                "city": peer.city,
+                "url": peer.get_absolute_url(),
+            }
+            for peer in peers
+        ]
