@@ -94,5 +94,15 @@ def nauta_exception_handler(exc, context):
             "request_id": request_id,
         }
     }
+
+    # Optional, exception-supplied extra context. Spec 20.5 requires a stale
+    # edit to return "current version metadata", for which 30.2's envelope has
+    # no other slot. Only exceptions that explicitly define a non-empty dict
+    # `meta` contribute one, so the key is absent otherwise and no client is
+    # tempted to branch on a permanently-null field.
+    meta = getattr(exc, "meta", None)
+    if isinstance(meta, dict) and meta:
+        response.data["error"]["meta"] = meta
+
     response["X-Request-ID"] = request_id
     return response
