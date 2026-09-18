@@ -9,15 +9,19 @@ from accounts.permissions import (
     IsActiveUser,
     IsBrokerTeamManager,
     IsEmailVerified,
+    IsStaffAdmin,
     IsStaffModerator,
 )
 from brokers.models import BrokerMembership, BrokerOrganization
 from brokers.serializers import (
+    BrokerApprovalPolicySerializer,
     BrokerMembershipCreateSerializer,
     BrokerMembershipSerializer,
     BrokerMembershipUpdateSerializer,
     StaffBrokerDetailSerializer,
 )
+from brokers.services import set_broker_auto_approval
+from listings.permissions import ListingWorkflowEnabled
 
 
 class BrokerTeamBaseView(APIView):
@@ -120,3 +124,41 @@ class StaffBrokerDetailView(APIView):
             pk=broker_id,
         )
         return Response(StaffBrokerDetailSerializer().to_representation(broker))
+
+
+class BrokerApprovalPolicyView(APIView):
+    """PATCH /api/v1/staff/brokers/<id>/approval-policy/ (spec §30.1, §21 rule 4).
+
+    The permission stack is the whole security boundary of spec §5's
+    "Configure broker auto-approval - staff admin only" row, so it is spelled
+    out rather than inherited: authenticated, active, the `listing_revisions`
+    flag (spec §35.1), and staff **admin**, strictly narrower than the
+    IsStaffModerator gate on the read endpoint beside it.
+
+    Returns the whole staff-broker detail payload plus `changed`, so the screen
+    refreshes in one round trip (spec §30.2). A repeat toggle is a 200 with
+    `changed: false` and no new audit row.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        ListingWorkflowEnabled,
+        IsStaffAdmin,
+    ]
+
+    def patch(self, request, broker_id):
+        broker = get_object_or_404(BrokerOrganization, pk=broker_id)
+        envelope = BrokerApprovalPolicySerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+
+        change = set_broker_auto_approval(
+            broker,
+            enabled=envelope.validated_data["auto_approve_listings"],
+            actor=request.user,
+            reason=envelope.validated_data["reason"],
+        )
+
+        payload = StaffBrokerDetailSerializer().to_representation(change.broker)
+        payload["changed"] = change.changed
+        return Response(payload)

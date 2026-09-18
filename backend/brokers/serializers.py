@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.exceptions import ErrorDetail
 
 from accounts.models import User, UserManager
 from accounts.services import is_staff_admin
@@ -9,6 +10,7 @@ from brokers.selectors import (
     broker_listing_counts,
     pending_revision_count,
 )
+from brokers.services import POLICY_REASON_REQUIRED_MESSAGE
 
 
 class BrokerMembershipSerializer(serializers.ModelSerializer):
@@ -264,3 +266,33 @@ class StaffBrokerDetailSerializer(serializers.Serializer):
                 audit_entry(event) for event in broker_audit_history(broker)
             ],
         }
+
+
+class BrokerApprovalPolicySerializer(serializers.Serializer):
+    """Body of PATCH /api/v1/staff/brokers/<id>/approval-policy/ (spec §30.1).
+
+    The reason is validated here *as well as* inside
+    `brokers.services.clean_policy_reason`, deliberately: this layer turns a
+    missing reason into a 400 with the field named before any row is locked,
+    while the service keeps its own check so the rule still holds for every
+    non-HTTP caller. The message lives in one constant so the two never drift.
+
+    `required=False, allow_blank=True, default=""` makes a *missing* `reason` and
+    a *blank* one produce the same `policy_reason_required` code instead of DRF's
+    generic `required` / `blank`.
+    """
+
+    auto_approve_listings = serializers.BooleanField()
+    reason = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=500
+    )
+
+    def validate_reason(self, value):
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise serializers.ValidationError(
+                ErrorDetail(
+                    POLICY_REASON_REQUIRED_MESSAGE, code="policy_reason_required"
+                )
+            )
+        return cleaned

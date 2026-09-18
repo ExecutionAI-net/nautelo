@@ -9,6 +9,9 @@ from audit.services import record_audit_event
 from brokers.models import BrokerOrganization
 
 POLICY_REASON_MAX_LENGTH = 500
+POLICY_REASON_REQUIRED_MESSAGE = (
+    "Explain why this broker's auto-approval policy is changing."
+)
 
 
 @dataclass(frozen=True)
@@ -37,7 +40,7 @@ def clean_policy_reason(reason: str | None) -> str:
             {
                 "reason": [
                     ErrorDetail(
-                        "Explain why this broker's auto-approval policy is changing.",
+                        POLICY_REASON_REQUIRED_MESSAGE,
                         code="policy_reason_required",
                     )
                 ]
