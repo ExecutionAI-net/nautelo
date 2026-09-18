@@ -85,6 +85,32 @@ describe("financingHref", () => {
   });
 });
 
+describe("financingHref with hostile values", () => {
+  const hostile = "a&b=c#d?e/f g+é%";
+
+  it("encodes the exact output and keeps the trailing slash", () => {
+    const href = financingHref(listing({ id: hostile, price: { amount: hostile, currency: "EUR" } }));
+    const enc = "a%26b%3Dc%23d%3Fe%2Ff+g%2B%C3%A9%25";
+    expect(href).toBe(`/financing/?listing=${enc}&price=${enc}&currency=EUR`);
+  });
+
+  it("round-trips through URLSearchParams with no injected params or fragment", () => {
+    const href = financingHref(listing({ id: hostile, price: { amount: hostile, currency: "EUR" } }));
+    expect(href.startsWith("/financing/?")).toBe(true);
+    expect(href).not.toContain("#");
+    const params = new URLSearchParams(href.slice("/financing/?".length));
+    expect([...params.keys()]).toEqual(["listing", "price", "currency"]);
+    expect(params.get("listing")).toBe(hostile);
+    expect(params.get("price")).toBe(hostile);
+  });
+
+  it("uses the server currency, not a literal (finance is only visible on EUR listings)", () => {
+    expect(financingHref(listing({ price: { amount: "1.00", currency: "USD" } }))).toContain(
+      "currency=USD",
+    );
+  });
+});
+
 describe("listingQuery", () => {
   it("omits empty values so a bare page has a clean URL", () => {
     expect(listingQuery({ page: undefined, page_size: "" })).toBe("");
@@ -166,6 +192,12 @@ describe("fetchPublishedListing", () => {
     fetchMock.mockResolvedValue(json(listing()));
     await fetchPublishedListing("a b");
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/listings\/a%20b\/$/);
+  });
+
+  it("keeps a hostile id as one encoded path segment", async () => {
+    fetchMock.mockResolvedValue(json(listing()));
+    await fetchPublishedListing("../x?y#z");
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/listings\/%2E%2E%2Fx%3Fy%23z\/$|\/api\/v1\/listings\/\.\.%2Fx%3Fy%23z\/$/);
   });
 
   it("returns the listing on 200", async () => {
