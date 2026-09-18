@@ -65,6 +65,24 @@ SETTINGS_REGISTRY: dict[str, SettingDefinition] = {
     "finance.enabled": SettingDefinition(
         "finance.enabled", SettingValueType.BOOLEAN, True, _no_extra_validation
     ),
+    # Spec §17.2's global override capability. Not in §10.1's table — see the
+    # scope ruling in docs/superpowers/plans/2026-09-18-phase-9-finance-ui.md.
+    # Disabling it makes stored listing overrides ignored, never deleted.
+    #
+    # is_public=False (the only key in this registry that overrides the default):
+    # this is a staff-only policy switch with no browser consumer. finance
+    # .listing_quotes.FinancePolicy.load() reads it server-side; the listing
+    # form's override controls are gated by Phase 16's staff-aware form context,
+    # not by GET /api/v1/platform/public-settings/. Keeping it out of the public
+    # payload avoids telling anonymous visitors how override policy is
+    # configured, and leaves that endpoint's contract test unchanged.
+    "finance.broker_overrides_enabled": SettingDefinition(
+        "finance.broker_overrides_enabled",
+        SettingValueType.BOOLEAN,
+        True,
+        _no_extra_validation,
+        is_public=False,
+    ),
     "individual.free_listing_count": SettingDefinition(
         "individual.free_listing_count", SettingValueType.INTEGER, 1, _range_validator(0, 100)
     ),
