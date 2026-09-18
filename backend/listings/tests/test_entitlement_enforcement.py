@@ -363,3 +363,91 @@ def test_a_paid_right_publishes_for_the_paid_duration(
     listing = BoatListing.objects.get(pk=second.data["id"])
     assert listing.publication_source == PublicationSource.PAID_ENTITLEMENT
     assert ListingEntitlementGate.publication_days(listing=listing) == 60
+
+
+@pytest.mark.django_db
+def test_draft_creation_is_refused_once_the_allowance_is_gone(
+    api, workflow_enabled, entitlements_on
+):
+    """Spec §22.4: "POST /api/v1/listings/drafts/ returns
+    403 listing_entitlement_required when no right exists"."""
+    seller = make_private_seller()
+    api.force_authenticate(seller)
+    first = _fill_and_submit(api, _draft(api, brand=make_brand("Sealine")))
+    assert first.status_code == 200, first.data
+
+    brand = make_brand("Fairline")
+    refused = api.post(
+        reverse("listing-draft-create"),
+        {
+            "brand_id": str(brand.pk),
+            "model_id": str(make_model(brand).pk),
+            "manufacture_year": 2019,
+        },
+        format="json",
+    )
+
+    assert refused.status_code == 403
+    assert refused.data["error"]["code"] == "listing_entitlement_required"
+    assert refused.data["error"]["action"] == {
+        "type": "PURCHASE",
+        "product_code": "INDIVIDUAL_LISTING_RIGHT",
+    }
+    assert refused.data["error"]["meta"]["blocking_reason"] == "FREE_ALLOWANCE_USED"
+    # Nothing was written: the refusal happens before the listing row.
+    assert BoatListing.objects.filter(owner_user=seller).count() == 1
+
+
+@pytest.mark.django_db
+def test_draft_creation_is_allowed_again_once_a_paid_right_arrives(
+    api, workflow_enabled, entitlements_on
+):
+    seller = make_private_seller()
+    api.force_authenticate(seller)
+    first = _fill_and_submit(api, _draft(api, brand=make_brand("Nimbus")))
+    assert first.status_code == 200, first.data
+    make_entitlement(
+        user=seller,
+        entitlement_type=EntitlementType.PAID_LISTING,
+        source=EntitlementSource.STRIPE_PURCHASE,
+        state=EntitlementState.AVAILABLE,
+        valid_until=timezone.now() + timedelta(days=30),
+    )
+
+    created = _draft(api, brand=make_brand("Grand Banks"))
+
+    assert created["status"] == ListingStatus.DRAFT
+
+
+@pytest.mark.django_db
+def test_a_broker_draft_is_never_gated(
+    api, workflow_enabled, entitlements_on, broker_seller
+):
+    actor, broker, brand = broker_seller
+    api.force_authenticate(actor)
+
+    for year in (2019, 2020, 2021):
+        response = api.post(
+            reverse("listing-draft-create"),
+            {
+                "broker_id": str(broker.pk),
+                "brand_id": str(brand.pk),
+                "model_id": str(make_model(brand, f"Model {year}").pk),
+                "manufacture_year": year,
+            },
+            format="json",
+        )
+        assert response.status_code == 201, response.data
+    assert UserEntitlement.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_draft_creation_is_not_gated_while_the_flag_is_off(api, workflow_enabled):
+    seller = make_private_seller()
+    api.force_authenticate(seller)
+    first = _fill_and_submit(api, _draft(api, brand=make_brand("Linssen")))
+    assert first.status_code == 200, first.data
+
+    created = _draft(api, brand=make_brand("Sirius"))
+
+    assert created["status"] == ListingStatus.DRAFT
