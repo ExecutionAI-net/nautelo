@@ -63,6 +63,12 @@ class UserSummarySerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "email", "primary_role", "email_verified", "is_active")
 
 
+class AccountUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("full_name", "locale")
+
+
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Authenticate by normalized email; expose the user summary alongside the tokens."""
 

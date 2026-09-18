@@ -245,9 +245,9 @@ def test_a_rotated_refresh_token_cannot_be_replayed(api):
 def test_the_issued_access_token_authenticates_a_real_request(api):
     """Task 4's OWN proof that login produces a usable credential.
 
-    The `/api/v1/account/` test below is xfailed until Task 9 ships that endpoint,
-    which would otherwise leave this task claiming "login works" with nothing
-    proving it. This drives SimpleJWT's real authentication class over a real
+    The `/api/v1/account/` test below was xfailed until Task 9 shipped that
+    endpoint, which would otherwise have left Task 4 claiming "login works" with
+    nothing proving it. This drives SimpleJWT's real authentication class over a real
     request carrying the real Authorization header - no mocks, no stubs.
     """
     user = make_user("bearer@example.com")
@@ -269,7 +269,6 @@ def test_the_issued_access_token_authenticates_a_real_request(api):
     assert "permissions" not in validated_token
 
 
-@pytest.mark.xfail(reason="GET /api/v1/account/ arrives in Task 9", strict=True)
 @pytest.mark.django_db
 def test_access_token_authenticates_a_protected_endpoint(api):
     make_user("bearer2@example.com")
