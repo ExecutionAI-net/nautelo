@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from accounts.enums import UserRole
+from accounts.enums import SellerType, UserRole
 from accounts.tests.factories import make_user
 from brokers.tests.factories import make_broker
 from finance.listing_quotes import (
@@ -312,3 +312,118 @@ def test_resolving_assumptions_without_a_configuration_raises_a_named_error():
 
     with pytest.raises(FinanceConfigurationUnavailable):
         resolve_effective_assumptions(snapshot=None, policy=policy)
+
+
+def _assumptions_for(listing):
+    return resolve_effective_assumptions(
+        snapshot=listing.current_public_snapshot, policy=FinancePolicy.load()
+    )
+
+
+@pytest.mark.django_db
+def test_rate_override_boundary_is_accepted_and_just_above_is_ignored(
+    eligible_listing,
+):
+    """Spec §17.3: rate 0-100. The snapshot is mutated in memory only because
+    the database constraint would refuse to store an out-of-range value."""
+    snapshot = eligible_listing.current_public_snapshot
+
+    snapshot.finance_rate_override_percent = Decimal("100.0000")
+    at_limit = _assumptions_for(eligible_listing)
+    assert at_limit.annual_rate_percent == Decimal("100.0000")
+    assert at_limit.sources["annual_rate_percent"] == LISTING_OVERRIDE
+
+    snapshot.finance_rate_override_percent = Decimal("100.0001")
+    above = _assumptions_for(eligible_listing)
+    assert above.annual_rate_percent == Decimal("5.0000")
+    assert above.sources["annual_rate_percent"] == GLOBAL
+
+    snapshot.finance_rate_override_percent = Decimal("-0.0001")
+    below = _assumptions_for(eligible_listing)
+    assert below.sources["annual_rate_percent"] == GLOBAL
+
+
+@pytest.mark.django_db
+def test_down_payment_override_boundary_is_accepted_and_just_above_is_ignored(
+    eligible_listing,
+):
+    """Spec §17.3: down payment 0-99.99."""
+    snapshot = eligible_listing.current_public_snapshot
+
+    snapshot.finance_down_payment_override_percent = Decimal("99.99")
+    at_limit = _assumptions_for(eligible_listing)
+    assert at_limit.down_payment_percent == Decimal("99.99")
+    assert at_limit.sources["down_payment_percent"] == LISTING_OVERRIDE
+
+    snapshot.finance_down_payment_override_percent = Decimal("99.9901")
+    above = _assumptions_for(eligible_listing)
+    assert above.down_payment_percent == Decimal("20.0000")
+    assert above.sources["down_payment_percent"] == GLOBAL
+
+    snapshot.finance_down_payment_override_percent = Decimal("100")
+    assert _assumptions_for(eligible_listing).sources["down_payment_percent"] == GLOBAL
+
+
+@pytest.mark.django_db
+def test_price_boundaries(eligible_listing):
+    """Spec §17.3: price 0.01-999,999,999.99. Mutated in memory because the
+    database refuses a non-positive stored price."""
+    snapshot = eligible_listing.current_public_snapshot
+    policy = FinancePolicy.load()
+
+    for price in (Decimal("0.01"), Decimal("999999999.99")):
+        snapshot.price = price
+        assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is True
+
+    for price in (Decimal("0"), Decimal("0.00"), Decimal("0.009"), Decimal("-1")):
+        snapshot.price = price
+        assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is False
+        assert FinanceQuoteService.card_block(
+            eligible_listing, policy=policy
+        ) == {"visible": False}
+
+
+@pytest.mark.django_db
+def test_a_null_price_yields_the_not_visible_block(eligible_listing):
+    eligible_listing.current_public_snapshot.price = None
+
+    assert FinanceQuoteService.card_block(
+        eligible_listing, policy=FinancePolicy.load()
+    ) == {"visible": False}
+
+
+@pytest.mark.django_db
+def test_partial_overrides_fall_back_to_global_per_field(eligible_listing):
+    """Only the fields actually set are overridden; the None ones stay GLOBAL."""
+    snapshot = eligible_listing.current_public_snapshot
+    snapshot.finance_rate_override_percent = None
+    snapshot.finance_term_override_months = 60
+    snapshot.finance_down_payment_override_percent = None
+
+    assumptions = _assumptions_for(eligible_listing)
+
+    assert assumptions.term_months == 60
+    assert assumptions.annual_rate_percent == Decimal("5.0000")
+    assert assumptions.down_payment_percent == Decimal("20.0000")
+    assert assumptions.sources == {
+        "annual_rate_percent": GLOBAL,
+        "term_months": LISTING_OVERRIDE,
+        "down_payment_percent": GLOBAL,
+    }
+
+
+@pytest.mark.django_db
+def test_seller_type_alone_makes_an_otherwise_eligible_listing_ineligible(
+    eligible_listing,
+):
+    """Everything else about this listing is eligible; only seller_type
+    differs, so this fails if the seller_type condition is dropped."""
+    policy = FinancePolicy.load()
+    assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is True
+
+    eligible_listing.seller_type = SellerType.PRIVATE
+
+    assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is False
+    assert FinanceQuoteService.card_block(
+        eligible_listing, policy=policy
+    ) == {"visible": False}

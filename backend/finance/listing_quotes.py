@@ -47,9 +47,9 @@ ASSUMPTION_FIELDS = ("annual_rate_percent", "term_months", "down_payment_percent
 # when they are *read* (a validator can change; a stored row does not).
 MIN_PRICE = Decimal("0.01")
 MAX_PRICE = Decimal("999999999.99")
-MIN_RATE_PERCENT = Decimal("0")
-MAX_RATE_PERCENT = Decimal("100")
-MIN_DOWN_PAYMENT_PERCENT = Decimal("0")
+MIN_RATE_PERCENT = Decimal(0)
+MAX_RATE_PERCENT = Decimal(100)
+MIN_DOWN_PAYMENT_PERCENT = Decimal(0)
 MAX_DOWN_PAYMENT_PERCENT = Decimal("99.99")
 MIN_TERM_MONTHS = 1
 MAX_TERM_MONTHS = 360
