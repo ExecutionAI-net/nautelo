@@ -988,7 +988,11 @@ from django.core.cache import cache
 from accounts.enums import StaffGroup
 from messaging.enums import UNIFIED_INQUIRIES_FLAG
 from platform_settings.models import FeatureFlag
-from platform_settings.services import set_feature_flag
+from platform_settings.services import (
+    SETTINGS_CACHE_KEY,
+    feature_flag_cache_key,
+    set_feature_flag,
+)
 
 #: Flags this app's tests toggle. Listed so the autouse fixture below clears
 #: their cache entries: platform_settings.services.is_feature_enabled caches a
@@ -1001,17 +1005,29 @@ FLAG_TEST_DESCRIPTION = "Spec 35.1 rollout flag for the shared inquiry form."
 
 @pytest.fixture(autouse=True)
 def _clear_messaging_caches():
-    """backend/conftest.py already clears the cache around every test; this
-    mirrors listings/tests/conftest.py so the guarantee survives a change to the
-    root fixture's ordering.
+    """Delete this package's OWN cache keys around every test.
+
+    Never `cache.clear()`. Django's RedisCache.clear() is a FLUSHDB, and this
+    project's test Redis DB is shared by concurrently running worktrees - a
+    whole-DB flush has already broken parallel suites here once, which is why
+    backend/conftest.py was rewritten to scan and delete only its own
+    KEY_PREFIX. This fixture is narrower still: the two key shapes this package
+    actually writes, exactly as listings/tests/conftest.py and
+    platform_settings/tests/conftest.py do.
 
     Defined FIRST so it runs before _messaging_reference_rows below: pytest
     executes same-scope autouse fixtures in definition order, and the row-seeding
     fixture writes a flag whose cached value must not be a stale one.
     """
-    cache.clear()
+
+    def _clear():
+        cache.delete(SETTINGS_CACHE_KEY)
+        for key in MESSAGING_FEATURE_FLAG_KEYS:
+            cache.delete(feature_flag_cache_key(key))
+
+    _clear()
     yield
-    cache.clear()
+    _clear()
 
 
 @pytest.fixture(autouse=True)
@@ -3822,7 +3838,7 @@ git commit -m "feat(messaging): submit_inquiry, the spec 15.3 atomic submission 
 - Produces:
   - `messaging.exceptions.SpamDetected` — `APIException`, 400, `default_code="spam_detected"`
   - `messaging.serializers.InquirySubmissionSerializer`, `messaging.serializers.InquiryResultSerializer`
-  - `messaging.views.MessagingAPIView` — the base class every later messaging view extends (`permission_denied` and `throttled` overrides)
+  - `messaging.views.MessagingAPIView` — the base class every later messaging view extends (`permission_denied` and `throttled` overrides, plus the documented rule that `UnifiedInquiriesEnabled` is listed first in every subclass's `permission_classes`)
   - `messaging.views.InquiryCreateView` (route name `inquiry-create`), `messaging.views.InquiryConfigView` (route name `inquiry-config`)
   - `messaging.urls.urlpatterns`
   - throttle scopes `inquiry_submit` = `20/hour` and `messaging_read` = `120/min`
@@ -3927,15 +3943,15 @@ def test_the_rollout_flag_off_returns_403_feature_disabled(
 def test_the_flag_off_answer_is_403_for_an_anonymous_caller_too(
     api, professional, unified_inquiries_disabled
 ):
-    """The reason UnifiedInquiriesEnabled RAISES instead of returning False.
+    """Spec 35.1 has no "unless you are signed out" clause.
 
-    DRF's APIView.permission_denied answers 401 NotAuthenticated for any request
-    without credentials before it ever looks at which permission failed - so a
-    permission class that merely returns False would make every anonymous
-    flag-off request read as `authentication_required`, which is a lie about
-    what went wrong. On this endpoint the anonymous caller is refused for
-    authentication anyway, which is why the guest-draft route (AllowAny) is the
-    one that really proves it - see test_inquiry_drafts_api.py.
+    This passes for two reasons that must BOTH hold. (1) UnifiedInquiriesEnabled
+    raises FeatureDisabled rather than returning False, because DRF's
+    permission_denied() answers 401 NotAuthenticated for any credential-less
+    request before it reads a permission's `code`. (2) It is listed FIRST in
+    permission_classes, because check_permissions stops at the first gate that
+    fails - with IsAuthenticated ahead of it, an anonymous caller would be
+    refused for authentication and never reach the flag at all.
     """
     response = api.post(
         reverse("inquiry-create"),
@@ -3944,6 +3960,33 @@ def test_the_flag_off_answer_is_403_for_an_anonymous_caller_too(
     )
     assert response.status_code == 403
     assert response.data["error"]["code"] == "feature_disabled"
+
+
+def test_the_flag_off_answer_precedes_every_other_permission(
+    api, professional, unified_inquiries_disabled
+):
+    """The regression guard for the ordering rule.
+
+    Four callers who would each fail a DIFFERENT later gate - anonymous
+    (IsAuthenticated), deactivated (IsActiveUser), unverified
+    (InquiryEmailVerified) and fully eligible - must all hear the same thing
+    when the feature is off. If anybody ever reorders permission_classes so the
+    flag gate is not first, exactly one of these four flips to 401 or to a
+    different 403 code, and this test says which.
+    """
+    eligible = make_user(email="order-ok@phase6.example")
+    deactivated = make_user(email="order-inactive@phase6.example", is_active=False)
+    unverified = make_user(email="order-unverified@phase6.example", verified=False)
+
+    for caller in (None, deactivated, unverified, eligible):
+        api.force_authenticate(caller)
+        response = api.post(
+            reverse("inquiry-create"),
+            _body(professional.pk, "nobody@phase6.example"),
+            format="json",
+        )
+        assert response.status_code == 403, caller
+        assert response.data["error"]["code"] == "feature_disabled", caller
 
 
 def test_a_valid_submission_returns_spec_15_5_s_success_body(
@@ -4434,6 +4477,16 @@ class MessagingAPIView(APIView):
 
     Two overrides, both about speaking spec 15.5's error vocabulary rather than
     DRF's defaults.
+
+    ONE RULE FOR SUBCLASSES: `UnifiedInquiriesEnabled` goes FIRST in
+    `permission_classes`, always. `check_permissions` stops at the first gate
+    that fails, so a flag gate placed after an authentication gate never speaks
+    for an anonymous caller - and spec 35.1's "flag off => feature_disabled"
+    would silently mean "unless you are signed out". The base class cannot
+    enforce this (DRF reads `permission_classes` off the concrete view), so it
+    is stated here and in the plan's Contract summary, and Task 7's
+    `test_the_flag_off_answer_precedes_every_other_permission` is what actually
+    catches a regression.
     """
 
     def permission_denied(self, request, message=None, code=None):
@@ -4461,16 +4514,27 @@ class MessagingAPIView(APIView):
 class InquiryCreateView(MessagingAPIView):
     """POST /api/v1/inquiries/ - spec 30.1's "shared inquiry submission".
 
-    Permission order is deliberate: an anonymous caller learns nothing about the
-    rollout flag, and a signed-in but unverified caller is told to verify rather
-    than that the feature is off.
+    THE FLAG GATE COMES FIRST, and the order is load-bearing.
+    `APIView.check_permissions` walks the list and stops at the first failure, so
+    whichever gate is first is the one that names the error. With
+    `IsAuthenticated` first, an anonymous caller hits it before the flag is ever
+    consulted and DRF answers `401 authentication_required` - meaning a switched
+    -off feature would report itself differently to signed-in and signed-out
+    callers, on the same endpoint, at the same moment.
+
+    Putting `UnifiedInquiriesEnabled` first makes spec 35.1's rule true without
+    exception: flag off => `403 feature_disabled` for everyone. It costs nothing
+    when the flag is on, because the class then returns True and the
+    authentication gates run exactly as before - an anonymous caller still gets
+    `401 authentication_required`, which is what
+    `test_a_guest_gets_401_authentication_required` asserts.
     """
 
     permission_classes = [
+        UnifiedInquiriesEnabled,
         IsAuthenticated,
         IsActiveUser,
         InquiryEmailVerified,
-        UnifiedInquiriesEnabled,
     ]
     throttle_scope = "inquiry_submit"
 
@@ -4569,7 +4633,7 @@ urlpatterns = [
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_inquiry_api.py -v`
-Expected: PASS — **25 collected test items**.
+Expected: PASS — **26 collected test items**.
 
 Then confirm the URL names resolve and nothing else broke:
 
@@ -4944,7 +5008,7 @@ class InquiryDraftCreateView(MessagingAPIView):
     required by spec 15.2. AllowAny by definition: its whole purpose is to hold
     a guest's work while they authenticate."""
 
-    permission_classes = [AllowAny, UnifiedInquiriesEnabled]
+    permission_classes = [UnifiedInquiriesEnabled, AllowAny]
     throttle_scope = "inquiry_draft"
 
     def post(self, request):
@@ -4970,10 +5034,10 @@ class InquiryDraftResolveView(MessagingAPIView):
     """
 
     permission_classes = [
+        UnifiedInquiriesEnabled,
         IsAuthenticated,
         IsActiveUser,
         InquiryEmailVerified,
-        UnifiedInquiriesEnabled,
     ]
     throttle_scope = "inquiry_draft"
 
@@ -5306,6 +5370,15 @@ def test_the_inbox_query_count_is_constant_in_the_number_of_rows(api, scene):
     select_related in the selector, never a per-row query in the serializer.
     """
     api.force_authenticate(scene["asker"])
+    # Warm-up request, deliberately discarded. messaging/tests/conftest.py starts
+    # each test with the feature-flag cache key deleted, and
+    # platform_settings.services.is_feature_enabled caches a persisted value with
+    # timeout=None - so the FIRST request of any test pays one extra FeatureFlag
+    # SELECT that no later request pays. Without this line the comparison below
+    # is off by exactly that one query and fails for a reason that has nothing to
+    # do with N+1.
+    api.get(reverse("conversation-list"))
+
     with CaptureQueriesContext(connection) as small:
         first = api.get(reverse("conversation-list"))
     assert len(first.data["results"]) == 2
@@ -5595,7 +5668,9 @@ class ConversationListView(MessagingAPIView, ListAPIView):
     throttled overrides win over ListAPIView's inherited APIView versions.
     """
 
-    permission_classes = [IsAuthenticated, IsActiveUser, UnifiedInquiriesEnabled]
+    # Flag gate FIRST - see InquiryCreateView's docstring. Every messaging view
+    # in this app lists UnifiedInquiriesEnabled first, without exception.
+    permission_classes = [UnifiedInquiriesEnabled, IsAuthenticated, IsActiveUser]
     throttle_scope = "messaging_read"
     pagination_class = ConversationPagination
     serializer_class = ConversationSerializer
@@ -5920,6 +5995,33 @@ def test_a_blank_named_replier_never_leaks_their_email_address(api, thread):
     assert nameless.email not in inbox_body
 
 
+@pytest.mark.parametrize(
+    ("name_length", "expected_length"),
+    [(120, 120), (150, 120)],
+)
+def test_an_over_long_account_name_is_truncated_not_a_database_error(
+    api, thread, name_length, expected_length
+):
+    """accounts.User.full_name is max_length=150; Message.sender_name_snapshot is
+    120, spec 15.1's number for this field. Without the truncation in
+    services._reply_display_name the 150 case raises DataError inside
+    post_reply's transaction and the reply silently never exists."""
+    long_name = "N" * name_length
+    replier = make_user(email=f"thr-long{name_length}@phase6.example", full_name=long_name)
+    thread["professional"].owner_user = replier
+    thread["professional"].save(update_fields=["owner_user", "updated_at"])
+
+    api.force_authenticate(replier)
+    response = api.post(
+        _messages_url(thread["conversation"]), {"message": REPLY}, format="json"
+    )
+
+    assert response.status_code == 201
+    reply = Message.objects.latest("created_at")
+    assert len(reply.sender_name_snapshot) == expected_length
+    assert reply.sender_name_snapshot == long_name[:expected_length]
+
+
 def test_a_short_reply_is_a_field_error(api, thread):
     api.force_authenticate(thread["owner"])
     response = api.post(
@@ -5960,13 +6062,12 @@ def test_a_stranger_cannot_mark_a_thread_read(api, thread):
 
 def test_the_flag_gates_the_thread_endpoints(api, thread, unified_inquiries_disabled):
     # Anonymous first: the answer must be feature_disabled, not the
-    # authentication_required DRF would produce from a permission class that
-    # returned False instead of raising.
-    assert api.get(_messages_url(thread["conversation"])).status_code == 403
-    assert (
-        api.get(_messages_url(thread["conversation"])).data["error"]["code"]
-        == "feature_disabled"
-    )
+    # authentication_required DRF produces when an authentication gate is
+    # consulted before the flag gate. ONE request, asserted twice - a second
+    # GET here would spend another `messaging_read` token for nothing.
+    anonymous = api.get(_messages_url(thread["conversation"]))
+    assert anonymous.status_code == 403
+    assert anonymous.data["error"]["code"] == "feature_disabled"
 
     api.force_authenticate(thread["asker"])
     assert api.get(_messages_url(thread["conversation"])).status_code == 403
@@ -6124,7 +6225,7 @@ def _notify_recipients(context, conversation, message) -> list[str]:
 Add these imports to the module's import section:
 
 ```python
-from messaging.enums import ConversationStatus
+from messaging.enums import FULL_NAME_MAX_LENGTH, ConversationStatus
 from messaging.exceptions import ConversationClosed
 from messaging.selectors import conversation_context, conversation_recipients
 ```
@@ -6148,8 +6249,18 @@ def _reply_display_name(actor) -> str:
     concatenated literal (spec 37). The thread UI renders
     `inquiry.sender_unnamed` for a blank name (Phase 19), and the notification
     email substitutes its own per-locale fallback in notifications/tasks.py.
+
+    TRUNCATED to FULL_NAME_MAX_LENGTH, and that is not defensive padding:
+    `accounts.User.full_name` is `max_length=150` while spec 15.1 caps the
+    inquiry form's Full name at 120, which is what `Message.sender_name_snapshot`
+    is sized to. An account carrying a 121-150 character name would otherwise
+    raise `DataError: value too long for type character varying(120)` inside
+    post_reply's transaction, rolling back a message the sender was told nothing
+    about. Truncating is the right call rather than widening the column: 120 is
+    the spec's number for this field, and every INQUIRY row already obeys it, so
+    widening would let replies hold names no inquiry could.
     """
-    return (actor.full_name or "").strip()
+    return (actor.full_name or "").strip()[:FULL_NAME_MAX_LENGTH]
 
 
 @transaction.atomic
@@ -6294,7 +6405,8 @@ class ConversationScopedView(MessagingAPIView):
     exists, which is itself information about other people's correspondence.
     """
 
-    permission_classes = [IsAuthenticated, IsActiveUser, UnifiedInquiriesEnabled]
+    # Flag gate FIRST - see InquiryCreateView's docstring.
+    permission_classes = [UnifiedInquiriesEnabled, IsAuthenticated, IsActiveUser]
 
     def get_conversation(self, conversation_id):
         conversation = (
@@ -6413,7 +6525,7 @@ class MessagePagination(PageNumberPagination):
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_conversation_thread_api.py -v`
-Expected: PASS — **16 collected test items**.
+Expected: PASS — **18 collected test items** (16 plain tests plus `test_an_over_long_account_name_is_truncated_not_a_database_error` × 2).
 
 Then the whole backend, to prove nothing in another app regressed:
 
@@ -8511,6 +8623,7 @@ The four endpoint additions are deliberate and flagged here rather than presente
 9. **Never write a `Message` or a `Conversation` outside `messaging.services`.** `submit_inquiry` and `post_reply` hold the transaction, the duplicate guard, the `last_message_at` update, the notification fan-out and the post-commit signal together. A direct `Message.objects.create()` gets none of them.
 10. **Any new messaging error code must be stable and documented** in this plan's Global Constraints table, and must be raised as an `APIException` subclass with a `default_code` — **not** as a `ValidationError`, which this project's envelope always collapses to `code: "validation_error"` with the detail in `error.fields`. An exception needing extra response context sets a dict attribute named `meta` (the passthrough Phase 11 added).
 11. **Views extend `messaging.views.MessagingAPIView`**, which turns DRF's anonymous `not_authenticated` into spec §15.5's `authentication_required` and DRF's `throttled` into `rate_limited`. A messaging view that extends `APIView` directly will silently answer in a vocabulary spec §15.5 does not define.
+11a. **`UnifiedInquiriesEnabled` goes FIRST in `permission_classes`, on every messaging view, without exception.** `APIView.check_permissions` walks the list and stops at the first gate that fails, so a flag gate listed after `IsAuthenticated` never speaks for an anonymous caller — spec §35.1's "flag off ⇒ `feature_disabled`" would quietly become "unless you are signed out", and the same endpoint would name two different reasons for one state depending on who asked. Ordering it first costs nothing while the flag is on (the class returns `True` and the authentication gates run unchanged, so an anonymous caller still gets `401 authentication_required`). **Phase 7 extends `MessagingAPIView` for its contact endpoint and inherits this rule** — its `permission_classes` start with the flag gate too, whether that is `UnifiedInquiriesEnabled` or its own `contact_unlock` gate. `test_the_flag_off_answer_precedes_every_other_permission` (Task 7) is the regression guard; copy it for any new gate.
 12. **New UI strings go in `INQUIRY_MESSAGES` with all three languages** (spec §37); the dictionary test fails on any key missing a locale. `Locale` is still declared once, in `frontend/src/lib/api/directory.ts` (Phase 5 contract rule 12) — import it, never redeclare it.
 13. **§37 keys reserved by this phase and not yet translated anywhere:** `notification.inquiry_received.title` and `notification.inquiry_received.body`. They are written into `Notification.title_key`/`body_key` today and have **no** frontend dictionary entry, because no notification UI exists. Phase 18 adds them to its own dictionary with EN/IT/ES.
 14. **The `unified_inquiries` flag gates both surfaces.** Backend: `403 feature_disabled` from every messaging endpoint **except `GET /api/v1/inquiries/config/`**, which answers `200 {"enabled": false}` because it is the mechanism that tells the page not to render the form. Frontend: a page must not render `InquiryForm` when `config.enabled` is false. Adding a messaging endpoint means adding `UnifiedInquiriesEnabled` to its `permission_classes` — and that class **raises** `FeatureDisabled`; do not "simplify" it to `return is_feature_enabled(...)`, which would make every anonymous flag-off request answer `401 authentication_required` instead.
@@ -8578,9 +8691,13 @@ The four endpoint additions are deliberate and flagged here rather than presente
 4. The email recipient was originally "every broker member with `can_read_messages`", which spec §15.4 forbids in as many words ("not every member by default"). Split into two channels: in-app to every reader, email to one configured organization address.
 5. A `test_the_email_job_is_queued_only_after_the_transaction_commits` drafted with a bare `with transaction.atomic():` would have failed on its last line — pytest-django's `django_db` never commits, so `on_commit` never fires. Rewritten around `django_capture_on_commit_callbacks`, with the reason spelled out in the docstring so nobody "fixes" it back.
 6. The broker-profile partial unique index initially omitted `listing__isnull=True`, which would have made a second inquiry about a second boat from the same broker impossible. Caught by writing `test_a_broker_listing_thread_does_not_collide_with_the_broker_profile_thread` first; the same clause is repeated in `_open_thread_lookup` so the query and the index agree.
-7. **(Fix round 1)** `UnifiedInquiriesEnabled` originally returned `False`. DRF's `APIView.permission_denied` answers `401 NotAuthenticated` for any credential-less request *before* it consults which permission failed, so on the `AllowAny` guest-draft route a flag-off request would have answered `401 authentication_required` — and this plan's own test asserted `403 feature_disabled`, so it could never have passed. The class now raises `FeatureDisabled`, mirroring the merged `services_catalog.permissions.CombinedDirectoryEnabled`, and every endpoint has an anonymous flag-off assertion.
-8. **(Fix round 1)** `_reply_display_name` was `actor.get_full_name() or actor.get_short_name()`. Both are `self.full_name or self.email` in `accounts/models.py`, and `register_user` defaults `full_name=""` — so a nameless replier's **email address** would have been stored in `Message.sender_name_snapshot` and returned by both the thread and the inbox serializers. It now reads `actor.full_name` only, stores `""`, and the localized `inquiry.sender_unnamed` / per-locale `SENDER_FALLBACK` cover the display. A regression test asserts the address appears in neither payload.
-9. **(Fix round 1)** The inbox's N+1 guard was `django_assert_max_num_queries(6 + 2 * rows)` — a budget that scales with the row count cannot fail on an N+1, it funds one. Replaced with a 2-row-vs-7-row comparison that requires an *equal* query count, and the two per-row lookups became `Subquery` annotations (`annotate_last_message`). `annotate_unread` also moved from a `Count` aggregate to a subquery so the outer query stays ungrouped alongside `.distinct()` and pagination.
-10. **(Fix round 1)** `fetchInquiryConfig` called `fetch` directly, so every server-rendered visitor shared one `messaging_read` bucket and a 429 would have made the form vanish from the page. It now goes through the merged `directoryFetch`, which forwards `X-Internal-Client-IP` behind `X-Internal-Service-Secret` (PR #103) — and a test asserts the delegation, because a plain `fetch` would pass every happy-path assertion while reintroducing the bug.
-11. **(Fix round 1)** Every "Expected: PASS — N collected items" line was recounted from the real test bodies; five were wrong.
-12. Fixture slugs and emails were checked against the real merged seeds rather than assumed: `blue-marine-brokers`, `marine-survey-co`, `user@example.com`, the six `services_catalog` SEO category slugs and `Beneteau` are all real and unique, so every fixture in this plan uses `phase6-*` slugs and `@phase6.example` addresses.
+7. **(Fix round 2)** Raising `FeatureDisabled` was necessary but not sufficient: `UnifiedInquiriesEnabled` was listed **last** in every `permission_classes`, and `APIView.check_permissions` stops at the first gate that fails. An anonymous caller therefore failed `IsAuthenticated` and got `401 authentication_required` before the flag was ever consulted — so three of this plan's own round-1 tests asserted a 403 that could not arrive, and spec §35.1's rule silently read "flag off ⇒ `feature_disabled`, unless you are signed out". The flag gate is now **first** on every messaging view, the `InquiryCreateView` docstring that argued for the old order is inverted, `MessagingAPIView`'s docstring states the rule for subclasses, Contract rule 11a states it for Phase 7, and `test_the_flag_off_answer_precedes_every_other_permission` walks four callers who would each fail a different later gate and requires all four to hear `feature_disabled`.
+8. **(Fix round 2)** The equal-query N+1 test would have failed by exactly one query: `platform_settings.services.is_feature_enabled` caches with `timeout=None`, the package conftest deletes that key at test start, so the first request of any test pays a `FeatureFlag` SELECT no later request pays. A discarded warm-up request now precedes the first `CaptureQueriesContext`.
+9. **(Fix round 2)** `messaging/tests/conftest.py` called `cache.clear()` while claiming to mirror `listings/tests/conftest.py`. That claim was false in the way that matters: those conftests delete **named** keys, and `RedisCache.clear()` is a `FLUSHDB` that has already broken concurrently running worktree suites in this repository — which is why `backend/conftest.py` was rewritten to scan and delete only its own `KEY_PREFIX`. The fixture now deletes `SETTINGS_CACHE_KEY` plus `feature_flag_cache_key(k)` for each key in `MESSAGING_FEATURE_FLAG_KEYS`, which also gives that previously-unused constant its job back.
+10. **(Fix round 2)** `_reply_display_name` could raise `DataError` inside `post_reply`'s transaction: `accounts.User.full_name` is `max_length=150` while `Message.sender_name_snapshot` is spec §15.1's 120. It now truncates to `FULL_NAME_MAX_LENGTH`, with a parametrised boundary test at 120 and 150.
+11. **(Fix round 1)** `UnifiedInquiriesEnabled` originally returned `False`. DRF's `APIView.permission_denied` answers `401 NotAuthenticated` for any credential-less request *before* it consults which permission failed, so on the `AllowAny` guest-draft route a flag-off request would have answered `401 authentication_required` — and this plan's own test asserted `403 feature_disabled`, so it could never have passed. The class now raises `FeatureDisabled`, mirroring the merged `services_catalog.permissions.CombinedDirectoryEnabled`, and every endpoint has an anonymous flag-off assertion.
+12. **(Fix round 1)** `_reply_display_name` was `actor.get_full_name() or actor.get_short_name()`. Both are `self.full_name or self.email` in `accounts/models.py`, and `register_user` defaults `full_name=""` — so a nameless replier's **email address** would have been stored in `Message.sender_name_snapshot` and returned by both the thread and the inbox serializers. It now reads `actor.full_name` only, stores `""`, and the localized `inquiry.sender_unnamed` / per-locale `SENDER_FALLBACK` cover the display. A regression test asserts the address appears in neither payload.
+13. **(Fix round 1)** The inbox's N+1 guard was `django_assert_max_num_queries(6 + 2 * rows)` — a budget that scales with the row count cannot fail on an N+1, it funds one. Replaced with a 2-row-vs-7-row comparison that requires an *equal* query count, and the two per-row lookups became `Subquery` annotations (`annotate_last_message`). `annotate_unread` also moved from a `Count` aggregate to a subquery so the outer query stays ungrouped alongside `.distinct()` and pagination.
+14. **(Fix round 1)** `fetchInquiryConfig` called `fetch` directly, so every server-rendered visitor shared one `messaging_read` bucket and a 429 would have made the form vanish from the page. It now goes through the merged `directoryFetch`, which forwards `X-Internal-Client-IP` behind `X-Internal-Service-Secret` (PR #103) — and a test asserts the delegation, because a plain `fetch` would pass every happy-path assertion while reintroducing the bug.
+15. **(Fix round 1)** Every "Expected: PASS — N collected items" line was recounted from the real test bodies; five were wrong.
+16. Fixture slugs and emails were checked against the real merged seeds rather than assumed: `blue-marine-brokers`, `marine-survey-co`, `user@example.com`, the six `services_catalog` SEO category slugs and `Beneteau` are all real and unique, so every fixture in this plan uses `phase6-*` slugs and `@phase6.example` addresses.
