@@ -130,6 +130,11 @@ jobs:
         working-directory: frontend
         run: pnpm lint
 
+      - name: Test
+        if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
+        run: pnpm test
+
       - name: Build
         if: steps.check.outputs.exists == 'true'
         working-directory: frontend
