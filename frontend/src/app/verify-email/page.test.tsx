@@ -45,9 +45,9 @@ describe("VerifyEmailPage", () => {
     expect(reloadMock).toHaveBeenCalled();
   });
 
-  it("reports an invalid or already-used token", async () => {
+  it("reports a genuinely invalid, expired, or foreign token", async () => {
     const { ApiError } = await import("@/lib/api/client");
-    searchParams = new URLSearchParams("token=spent-token");
+    searchParams = new URLSearchParams("token=not-a-real-token");
     apiFetchMock.mockRejectedValue(
       new ApiError(
         400,
@@ -64,6 +64,30 @@ describe("VerifyEmailPage", () => {
       /invalid or has already been used/i,
     );
     expect(reloadMock).not.toHaveBeenCalled();
+  });
+
+  it("shows success again when the same link is opened a second time", async () => {
+    // The backend treats a moments-later replay of an already-consumed token
+    // as an idempotent success (a mail client or corporate link-scanner
+    // prefetching the link, a double-click, or a browser retry all resend
+    // the exact same token after it already verified the account), so a
+    // second visit to the identical link must render success too - not the
+    // "invalid or already been used" failure a naive single-use check would
+    // produce.
+    searchParams = new URLSearchParams("token=already-verified-token");
+    apiFetchMock.mockResolvedValue({});
+
+    const { unmount } = render(<VerifyEmailPage />);
+    expect(
+      await screen.findByText(/your email address is verified/i),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(<VerifyEmailPage />);
+    expect(
+      await screen.findByText(/your email address is verified/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("reports a link with no token at all, without calling the API", async () => {
