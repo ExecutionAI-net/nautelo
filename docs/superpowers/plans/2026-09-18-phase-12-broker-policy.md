@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13 + `uv`, Django 5.2, Django REST Framework, PostgreSQL 16 (Postgres on `127.0.0.1:5433`), Redis (`127.0.0.1:6380`); **Next.js 16.3.5** (App Router, TypeScript), **Tailwind CSS v4**, `pnpm`, Vitest + Testing Library. No new third-party dependencies in either project.
 
-**Spec:** [`NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md`](../../../NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md) — **§21 (Phase 12, the primary and authoritative source: Rules, Staff broker UI, Acceptance tests)**, plus §1 (fixed product decisions), §2.2/§2.3/§2.4 (server authority, atomic state changes, auditability), §5 (only staff admin may "Configure broker auto-approval"), §6.1 (`DRAFT → PUBLISHED` edge), §10.2 (audit event), §11.1 (`BrokerOrganization` / `BrokerMembership` fields, and "Only staff admin can change `auto_approve_listings`. Broker users may see the current policy but cannot change it."), §11.4/§11.5 (listing, snapshot, revision, media), §20.1 step 8 and §20.4 (broker listing edits under auto-approval), §20.5 (optimistic locking), §26.2 (decision rules), §26 definition of done ("Product, policy, broker approval and taxonomy actions are audited"), §30.1 (`PATCH /api/v1/staff/brokers/<id>/approval-policy/`), §30.2 (response envelope), §31 (UI-to-backend traceability), §34.1–§34.3 (test classes), §35.1 (feature-flag list), §37 (localization keys), §39 (developer execution protocol).
+**Spec:** [`NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md`](../../../NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md) — **§21 (Phase 12, the primary and authoritative source: Rules, Staff broker UI, Acceptance tests)**, plus §1 (fixed product decisions), §2.2/§2.3/§2.4 (server authority, atomic state changes, auditability), §4.2 (private routes — the Staff row's `/brokers/` entry, under the `/dashboard/staff/` prefix, is the route Task 7 builds), §5 (only staff admin may "Configure broker auto-approval"), §6.1 (`DRAFT → PUBLISHED` edge), §10.2 (audit event), §11.1 (`BrokerOrganization` / `BrokerMembership` fields, and "Only staff admin can change `auto_approve_listings`. Broker users may see the current policy but cannot change it."), §11.4/§11.5 (listing, snapshot, revision, media), §20.1 step 8 and §20.4 (broker listing edits under auto-approval), §20.5 (optimistic locking), §26.2 (decision rules), §26 definition of done ("Product, policy, broker approval and taxonomy actions are audited"), §30.1 (`PATCH /api/v1/staff/brokers/<id>/approval-policy/`), §30.2 (response envelope), §31 (UI-to-backend traceability), §34.1–§34.3 (test classes), §35.1 (feature-flag list), §37 (localization keys), §39 (developer execution protocol).
 
 **Predecessor plans (read before starting — this plan does not restate their contracts, it obeys them):**
 
@@ -97,7 +97,7 @@ Spec §21 is short and sits between two unbuilt neighbours (Phase 13's entitleme
 Spec §11.1 already gives `BrokerOrganization` the three columns this phase needs (`auto_approve_listings bool default false`, `auto_approve_changed_by nullable FK User`, `auto_approve_changed_at nullable`), and Phase 3 **already built all three**, plus the `brokers_auto_approve_actor_requires_timestamp` check constraint. Spec §21 rule 3 ("`auto_approve_listings=false` by default for migrated/new brokers") is therefore already satisfied by `models.BooleanField(default=False)` in merged code — this phase proves it with a test rather than re-declaring it. "Listing counts by status" (Staff broker UI item 2) is an aggregate query, not a denormalized column: spec §2.1 requires every visible state to have a real backend source, and §26's definition of done requires "All visible counters equal query results", which a cached counter cannot guarantee. Consequently **no task in this plan runs `makemigrations`**, and a reviewer seeing a new migration file should reject the task.
 
 **Note (ruling — the publication core moves to a new module, `listings/publication.py`).**
-Phase 11's contract rule 5 says the auto-approval branch must "publish directly by calling into the same snapshot-creation path `approve_revision` uses". That path is currently ~70 lines inlined in `listings.decisions.approve_revision`. Calling `approve_revision` itself from `submit_listing_revision` is impossible: `approve_revision` opens its own `transaction.atomic()`, re-takes `select_for_update()` locks the submit transaction already holds, and refuses any revision that is not already `SUBMITTED` — and inverting the module dependency would create a cycle, because `decisions.py` already imports `validate_submission_media` from `submissions.py`. The core therefore moves down into a new leaf module that both import: `listings/publication.py`, exporting `publish_revision()` and `guard_base_snapshot()`. Task 1 is that extraction as a **pure refactor with zero behaviour change**, proven by Phase 11's existing suite staying green with no test edits. The alternative — a second, parallel publication path inside `submissions.py` — is exactly what spec §21's acceptance test "Invalid listing never publishes even when auto-approval is on" is designed to catch, and is forbidden here.
+Phase 11's contract rule 5 says the auto-approval branch must "publish directly by calling into the same snapshot-creation path `approve_revision` uses". That path is currently ~70 lines inlined in `listings.decisions.approve_revision`. Calling `approve_revision` itself from `submit_listing_revision` is impossible: `approve_revision` opens its own `transaction.atomic()`, re-takes `select_for_update()` locks the submit transaction already holds, and refuses any revision that is not already `SUBMITTED` — and inverting the module dependency would create a cycle, because `decisions.py` already imports `validate_submission_media` from `submissions.py`. The core therefore moves down into a new leaf module that both import: `listings/publication.py`, exporting `publish_revision()` and `guard_base_snapshot()`. Task 1 is that extraction: **behaviour-preserving for every existing caller, but deliberately additive to the audit and signal contract.** Alongside the move it adds `auto_approved` and `broker_id` to the approval audit event's `metadata`, and an `auto_approved: bool` kwarg to the `listing_revision_approved` signal (with the matching docstring), because both are the parameters the two publication paths differ by and Task 2 consumes them. Neither addition changes an existing caller's behaviour — the staff path keeps its `listing.revision_approved` action, its `metadata["note"]`, its state transitions and its error precedence, which is why Phase 11's existing suite stays green with no test edits, and that is the proof the *extraction* is faithful. It is **not** a "pure refactor": a reviewer who strips the two additions as unauthorized scope creep silently breaks Task 2, which is why they are named here and again at the top of Task 1. The alternative — a second, parallel publication path inside `submissions.py` — is exactly what spec §21's acceptance test "Invalid listing never publishes even when auto-approval is on" is designed to catch, and is forbidden here.
 
 **Note (ruling — the staff policy surface lives in the `brokers` app, not in `listings`).**
 The three new endpoints are all `.../staff/brokers/<id>/...`: they read and write `BrokerOrganization`. Putting them in `brokers/` keeps this phase's `listings/` footprint to three files (`policies.py`, `submissions.py`, `signals.py`) plus the one extraction, which matters because Phases 9 and 10 are being planned in parallel against the same app. The import direction is the safe one: **`brokers` may import `listings`; `listings` must never import `brokers` at module level.** `listings.policies.requires_staff_approval` reads `listing.broker.auto_approve_listings` through the FK attribute and imports nothing from `brokers`. The bulk-approve service, which does need `listings.decisions`, goes in a brand-new module `brokers/moderation.py` rather than in `brokers/services.py`, because `brokers/services.py` is imported by `brokers/admin.py` at admin-autodiscover time and `accounts/services.py` documents a real app-loading cycle in that neighbourhood — a new leaf module has no such exposure.
@@ -126,13 +126,24 @@ Spec §21's "Staff broker UI" section enumerates six concrete items, so it is a 
 **Note (ruling — the broker row is not locked while reading its policy at submit time).**
 `submit_listing_revision` reads `listing.broker.auto_approve_listings` under the listing's own `select_for_update(of=("self",))`. It deliberately does **not** lock the `BrokerOrganization` row: doing so would serialize every concurrent submission across a large broker organization behind one row lock, in exchange for closing a microsecond-wide race whose two outcomes are *both* spec-compliant — §21 rules 5 and 6 say the policy affects "future submissions", and a submission landing in the same instant as the toggle is, by definition, on the boundary. What *is* guaranteed and tested: a submission that has already reached `PENDING_APPROVAL` is never retro-approved by a later toggle (rule 5), and a published listing is never unpublished by a later toggle (rule 6).
 
+**The same unlocked read also covers `broker.is_active`, and that deserves its own answer.** `requires_staff_approval` reads suspension status off the same unlocked `listing.broker` instance, and §21 rule 2 — "'Unlimited' does not bypass validation, moderation, **suspension**, media limits or abuse controls" — is worded unconditionally, with none of rules 5/6's "future submissions" latitude. So the race is not symmetrical with the policy-toggle one and cannot be waved through with the same sentence: a submission whose `SELECT` ran microseconds before a staff admin's suspension committed will auto-publish *after* that suspension is durable, which reads, from the outside, like a rule-2 violation.
+
+Ruled **acceptable**, on four grounds that are textual rather than convenient:
+
+1. **Rule 2 forbids a bypass, and there is none — suspension is checked twice, on two independent reads.** A suspended organization's member never reaches `submit_listing_revision` at all: `ListingSubmitView`'s inherited `IsOwnerOrBrokerEditor` calls `accounts.services.can_edit_owned_object` → `active_broker_membership`, whose queryset filters `broker__status=BrokerOrganizationStatus.ACTIVE`, so the request is refused **403 `not_object_owner`** before the service runs (this is merged Phase 3 code, and it is how §12's backend-work item 5, "Prevent suspended users/organizations from creating, submitting or purchasing new rights", is already enforced). `requires_staff_approval`'s `broker.is_active` test is therefore the *second* gate, not the only one. The residual window is not "between suspension and submit" but the far narrower "between this request's own permission query and its locked listing fetch" — a serialization boundary inherent to any check not taken under a lock, and one this phase narrows rather than widens, since before this task nothing in the publication decision consulted organization status at all.
+2. **The spec's own remedy for "live under a policy that has since changed" is moderation, not retraction.** Rule 6 states it directly — "current published listings stay live unless moderated" — and §36.4 backs it with an immediate mechanism: "Staff can suspend a live listing without modifying snapshot content." Phase 11 already merged that mechanism as `listings.decisions.suspend_listing`, and the staff admin who suspended the organization is by construction at a keyboard, in the same minute, looking at the same broker.
+3. **Suspending an organization does not unpublish its existing listings anyway.** In merged code, `BrokerOrganization.status = SUSPENDED` touches one column; the organization's already-published listings stay live until each is moderated. The race outcome is therefore *one more row of the same state suspension already leaves behind*, resolved by the same takedown action — not a new class of unreachable state.
+4. **The alternative costs more than it buys.** Closing it means locking `BrokerOrganization` on every submission (dropping `of=("self",)`), which serializes an entire agency's concurrent submissions behind one row for a window measured in milliseconds, or adding a post-suspension sweep — a background job that §21 rule 7 deliberately replaces with an explicit, confirmed, audited bulk action.
+
+**Flagged for human review.** This is a judgment about rule 2's *intent*, not a quotation of it — rule 2 does not itself say "except under concurrency". If the controller reads rule 2 as an absolute ordering guarantee, the fix is a one-line change in Task 2 Step 3b (lock the broker row by dropping `of=("self",)`) plus a note about the throughput cost, and it should be decided before Task 2 merges rather than after. Recorded in Known Limitation 10.
+
 ---
 
 ## Execution Model
 
 Per the standing project convention recorded in `ACTIVITY.md` and repeated in every earlier plan: each task is implemented on its own branch off the current tip of `dev` (`git checkout -b phase12-task-N-<slug> dev`), run through `subagent-driven-development`'s implementer → task-reviewer → fix-loop cycle, opened as a PR (`gh pr create`), and merged by the controller only when the CI workflow (`.github/workflows/ci.yml`) is green and the branch is cleanly mergeable. Tasks run strictly sequentially — never two branches in flight at once — and each new task branches from the just-merged `dev` tip (run `git fetch && git merge origin/dev --ff-only` first; the Phase 4 retrospective records a real bug caused by branching a worktree off a stale local `dev`).
 
-**Ordering constraint that is not negotiable:** Task 1 (pure refactor) must merge before Task 2 (the policy + auto-approval branch), and Task 2 must merge as **one** commit. Landing the new `requires_staff_approval` body without the `else` branch in `submit_listing_revision` would leave a broker submission in a broken intermediate state — listing `DRAFT`, revision `SUBMITTED`, nothing published, no moderator queue entry. Tasks 1 and 2 are split because a pure refactor and a semantic change deserve separate reviewer gates; they are **not** independently deployable.
+**Ordering constraint that is not negotiable:** Task 1 (the extraction, plus the two additive audit/signal parameters it introduces) must merge before Task 2 (the policy + auto-approval branch), and Task 2 must merge as **one** commit. Landing the new `requires_staff_approval` body without the `else` branch in `submit_listing_revision` would leave a broker submission in a broken intermediate state — listing `DRAFT`, revision `SUBMITTED`, nothing published, no moderator queue entry. Tasks 1 and 2 are split because a code move and a semantic change deserve separate reviewer gates; they are **not** independently deployable, and **Task 1's reviewer must not treat its `auto_approved`/`broker_id` additions as scope creep** — they are named in Task 1's own header for exactly that reason, and Task 2 depends on them.
 
 ---
 
@@ -145,8 +156,8 @@ Phases 9 and 10 are being planned in parallel against the same `listings` app. T
 | `backend/listings/decisions.py` | **Removes** ~65 lines from the body of `approve_revision` (the base-snapshot guard, revision bump, snapshot creation, listing bump, audit event and signal emission) and replaces them with one `publish_revision(...)` call. `_refuse`, `request_revision_changes`, `reject_revision`, `create_staff_correction_revision`, `suspend_listing`, `unsuspend_listing` and `_locked_submitted_revision` are **untouched**. Imports change. | 1 |
 | `backend/listings/publication.py` | **New file.** | 1 |
 | `backend/listings/policies.py` | Replaces the body of `requires_staff_approval` (7 lines → 20). `ListingEntitlementGate`, `effective_media_allowance`, `media_counts` and `MediaAllowance` are **untouched**. | 2 |
-| `backend/listings/submissions.py` | Adds `.select_for_update(of=("self",)).select_related("broker")` to the one row fetch at the top of `submit_listing_revision`, and adds an `else:` branch to the existing `if requires_staff_approval(listing):`. `validate_submission_media` and `withdraw_listing_revision` are **untouched**. | 2 |
-| `backend/listings/signals.py` | Docstring only: records that `listing_revision_approved` now also carries an `auto_approved: bool` kwarg. No signal added or removed. | 2 |
+| `backend/listings/submissions.py` | Inside `submit_listing_revision` only, four edits: (a) the one row fetch at the top gains `.select_for_update(of=("self",)).select_related("broker")` and stops shadowing the caller's `listing` reference (it is kept as `caller_listing`); (b) an `else:` branch is added to the existing `if requires_staff_approval(listing):`; (c) the `listing.submitted` audit event's `after["state"]` is read from the row instead of being hard-coded, and `metadata` gains `auto_approved`; (d) the closing `listing.open_revision = revision` also writes to `caller_listing`, so the view's own object carries the revision into the response. `validate_submission_media` and `withdraw_listing_revision` are **untouched**. | 2 |
+| `backend/listings/signals.py` | Docstring only: records that `listing_revision_approved` now also carries an `auto_approved: bool` kwarg. No signal added or removed. Lands in the same task that introduces the kwarg. | 1 |
 | `backend/listings/tests/factories.py` | Adds nothing; Task 2 imports `brokers.tests.factories.make_broker` instead. **Untouched.** | — |
 
 Files this phase **does not** touch, and which Phases 9 and 10 are expected to: `listings/models.py`, `listings/serializers.py`, `listings/views.py`, `listings/urls.py`, `listings/migrations/`, `listings/enums.py`, `listings/payloads.py`, `listings/locking.py`, `listings/drafts.py`, `listings/snapshots.py`, `listings/admin.py`, `backend/config/urls.py`, `backend/config/settings/base.py`.
@@ -189,7 +200,7 @@ nautelo/
 │       ├── decisions.py                                               (modify: Task 1)
 │       ├── policies.py                                                (modify: Task 2)
 │       ├── submissions.py                                             (modify: Task 2)
-│       ├── signals.py                                                 (modify: Task 2 — docstring)
+│       ├── signals.py                                                 (modify: Task 1 — docstring)
 │       └── tests/
 │           ├── test_publication.py                                    (new: Task 1)
 │           ├── test_policies.py                                       (modify: Task 2)
@@ -215,12 +226,20 @@ nautelo/
 
 ### Task 1: Extract Phase 11's publication core into `listings/publication.py`
 
-Pure refactor. No behaviour change, no new endpoint, no migration. Phase 11's entire existing test suite must stay green **with no edits to any existing test file** — that is the proof the extraction is faithful.
+An extraction, no new endpoint, no migration. Phase 11's entire existing test suite must stay green **with no edits to any existing test file** — that is the proof the extraction is faithful.
+
+**Note to the task reviewer — this is NOT framed as a "pure refactor", and the difference matters.** The move itself is behaviour-preserving for every existing caller, but the task is deliberately **additive to the audit and signal contract**, in exactly two places:
+
+1. The approval audit event's `metadata` gains `auto_approved: bool` and `broker_id: str | None`. The staff path keeps `action="listing.revision_approved"` and `metadata["note"]`; nothing that exists today is removed or renamed.
+2. `listings.signals.listing_revision_approved` gains an `auto_approved: bool` kwarg, plus the module-docstring sentence that documents it (Step 5).
+
+Both are consumed by **Task 2** and are the only parameters the two publication paths differ by. Neither breaks a currently-merged test — existing assertions read `metadata["note"]`, and every receiver signature in the repo ends in `**kwargs` — which is why "no existing test file is edited" still holds. **Do not ask for these two additions to be removed as scope creep: deleting them silently breaks Task 2**, which merges next and which cannot distinguish an automatic publication from a human one without them.
 
 **Files:**
 - Create: `backend/listings/publication.py`
 - Create: `backend/listings/tests/test_publication.py`
 - Modify: `backend/listings/decisions.py` (the import block, and the body of `approve_revision` only)
+- Modify: `backend/listings/signals.py` (module docstring only — the `auto_approved` kwarg is introduced here, so its documentation lands here too)
 
 **Interfaces:**
 - Consumes (all already merged): `listings.drafts.InvalidWorkflowState`, `listings.enums.ListingStatus`, `listings.enums.RevisionStatus`, `listings.locking.bump_version`, `listings.models.BoatListing`/`ListingRevision`/`ListingSnapshot`, `listings.policies.ListingEntitlementGate.publication_days`, `listings.signals.listing_published`/`listing_revision_approved`, `listings.snapshots.create_snapshot_from_revision`, `audit.services.record_audit_event`, `audit.models.AuditEvent`.
@@ -228,6 +247,7 @@ Pure refactor. No behaviour change, no new endpoint, no migration. Phase 11's en
   - `listings.publication.guard_base_snapshot(listing: BoatListing, revision: ListingRevision) -> None` — raises `InvalidWorkflowState(code="stale_base_snapshot")` carrying a `meta` dict `{"resource": "snapshot", "current_version": int | None}`.
   - `listings.publication.publish_revision(*, listing: BoatListing, revision: ListingRevision, actor, cleaned: dict, expected_revision_version: int, note: str = "", auto_approved: bool = False, publication_source: str | None = None) -> ListingSnapshot`
   - `listings.decisions.approve_revision` keeps its exact public signature `(*, revision_id, actor, expected_version: int, note: str = "") -> ListingRevision`.
+  - **Additive contract changes (consumed by Task 2, see the note above):** the approval audit event's `metadata` gains `auto_approved: bool` and `broker_id: str | None`; `listings.signals.listing_revision_approved` gains an `auto_approved: bool` kwarg, documented in `listings/signals.py`'s module docstring.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -757,7 +777,25 @@ def approve_revision(
 
 Nothing else in `decisions.py` changes: `_locked_submitted_revision`, `_require_note`, `_refuse`, `request_revision_changes`, `reject_revision`, `create_staff_correction_revision`, `_change_suspension`, `suspend_listing` and `unsuspend_listing` are untouched.
 
-- [ ] **Step 5: Run the new tests and the whole Phase 11 suite**
+- [ ] **Step 5: Record the signal contract change in `backend/listings/signals.py`**
+
+`publish_revision` (Step 3) is what starts sending `auto_approved` on `listing_revision_approved`, so the docstring that documents the kwarg lands in the same commit as the kwarg — not one task later. Replace the final paragraph of the module docstring with:
+
+```text
+Every signal is sent with `sender=listings.models.ListingRevision` and the
+keyword argument `revision` (a ListingRevision), with two exceptions:
+
+  * `listing_published` is sent with `sender=listings.models.BoatListing` and
+    the keyword arguments `listing` and `snapshot`.
+  * `listing_revision_approved` additionally carries `auto_approved: bool`
+    (Phase 12, spec §21) — True when a broker organization's auto-approval
+    policy published the revision rather than a moderator. Receivers must accept
+    it through `**kwargs` and must not assume a human decided.
+```
+
+No signal is added, removed or renamed, and no receiver exists yet to break (spec Phase 18 owns fan-out). `test_publication.py::test_the_approved_signal_reports_whether_the_publication_was_automatic` is the executable half of this contract.
+
+- [ ] **Step 6: Run the new tests and the whole Phase 11 suite**
 
 Run:
 ```bash
@@ -768,17 +806,22 @@ cd backend && uv run pytest -q
 
 Expected: the new file passes, and **every existing test still passes with no test file edited**. If an existing test needed a change, the extraction was not faithful — revert the test and fix `publication.py` instead.
 
-- [ ] **Step 6: Check for dead imports**
+- [ ] **Step 7: Check for dead imports**
 
 Run: `cd backend && uv run ruff check listings/decisions.py listings/publication.py`
 
 Expected: no `F401` (unused import) findings. If `ruff` is not configured in this repo, use `uv run python -m pyflakes listings/decisions.py` or read the import block against the symbol list in Step 4a — an unused import left behind is a review rejection.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add backend/listings/publication.py backend/listings/decisions.py backend/listings/tests/test_publication.py
-git commit -m "refactor(listings): extract the publication core into listings.publication"
+git add backend/listings/publication.py backend/listings/decisions.py backend/listings/signals.py backend/listings/tests/test_publication.py
+git commit -m "refactor(listings): extract the publication core into listings.publication
+
+Behaviour-preserving for both existing callers. Additive, on purpose: the
+approval audit metadata gains auto_approved/broker_id and
+listing_revision_approved gains an auto_approved kwarg, both consumed by the
+broker auto-approval path that lands next."
 ```
 
 ---
@@ -789,17 +832,16 @@ The phase's core. It lands as **one** commit: the new policy body without the ne
 
 **Files:**
 - Modify: `backend/listings/policies.py` (one import line, one new module constant, the body of `requires_staff_approval`)
-- Modify: `backend/listings/submissions.py` (the row fetch and the branch inside `submit_listing_revision` only)
-- Modify: `backend/listings/signals.py` (module docstring only)
+- Modify: `backend/listings/submissions.py` (the row fetch, the branch, the audit event and the closing assignment inside `submit_listing_revision` only)
 - Modify: `backend/listings/tests/test_policies.py` (append)
 - Create: `backend/listings/tests/test_auto_approval.py`
 
 **Interfaces:**
-- Consumes: `listings.publication.publish_revision` (Task 1); `brokers.models.BrokerOrganization.auto_approve_listings` and `.is_active` (Phase 3 — read through `listing.broker`, never imported); `brokers.tests.factories.make_broker`/`make_membership` (Phase 3); `listings.tests.factories.make_broker_listing`/`make_media`/`make_revision` (Phase 11).
+- Consumes: `listings.publication.publish_revision` and the `auto_approved` audit/signal parameters Task 1 added (both are hard dependencies — if a reviewer removed them from Task 1 as "scope creep", stop and restore them before starting this task); `brokers.models.BrokerOrganization.auto_approve_listings` and `.is_active` (Phase 3 — read through `listing.broker`, never imported); `brokers.tests.factories.make_broker`/`make_membership` (Phase 3); `listings.tests.factories.make_broker_listing`/`make_media`/`make_revision` (Phase 11).
 - Produces:
   - `listings.policies.AUTO_APPROVABLE_LISTING_STATES: frozenset[str]`
   - `listings.policies.requires_staff_approval(listing: BoatListing) -> bool` — unchanged signature, real body.
-  - `listings.signals.listing_revision_approved` now also carries `auto_approved: bool`.
+  - `submit_listing_revision` now sets `open_revision` on **the listing object the caller passed in**, not only on its own row-locked copy — the response contract fix described in Step 3b.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1210,6 +1252,31 @@ def test_a_manual_broker_submission_still_summons_a_moderator():
 
 
 @pytest.mark.django_db
+def test_the_service_hands_the_revision_back_on_the_caller_s_listing_object():
+    """The response contract, at the service boundary (spec §30.2).
+
+    `ListingSubmitView.post` serializes *its own* `listing` instance, and
+    `ListingWorkflowSerializer` reads `getattr(listing, "open_revision", None)`
+    before falling back to `open_revision_for()`, which only finds DRAFT or
+    SUBMITTED rows. On the auto-approval path the revision is APPROVED before
+    the response is built, so the fallback finds nothing — the service must put
+    the revision on the object it was given, not only on the row-locked copy it
+    re-fetched. This asserts on `listing`, the caller's object, deliberately.
+    """
+    _, actor, listing, revision = _ready_broker_listing(
+        auto=True, slug="auto-caller-obj", email="auto-caller-obj@example.com"
+    )
+
+    returned = submit_listing_revision(
+        listing=listing, actor=actor, expected_version=revision.version
+    )
+
+    assert listing.open_revision is not None
+    assert listing.open_revision.pk == returned.pk
+    assert listing.open_revision.state == RevisionStatus.APPROVED
+
+
+@pytest.mark.django_db
 def test_the_submit_endpoint_reports_the_published_state(api, workflow_enabled):
     _, actor, listing, revision = _ready_broker_listing(
         auto=True, slug="auto-api", email="auto-api@example.com"
@@ -1226,14 +1293,22 @@ def test_the_submit_endpoint_reports_the_published_state(api, workflow_enabled):
     assert response.data["status"] == ListingStatus.PUBLISHED
     assert response.data["current_public_snapshot_version"] == 1
     assert response.data["policy"]["requires_approval"] is False
+    # Spec §30.2: "Mutations return updated resource/version". A successful
+    # auto-approved submission must still carry its revision back — the
+    # APPROVED one it just published, not None.
+    assert response.data["revision"] is not None
+    assert response.data["revision"]["id"] == str(revision.pk)
     assert response.data["revision"]["state"] == RevisionStatus.APPROVED
+    assert response.data["revision"]["decided_at"] is not None
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cd backend && uv run pytest listings/tests/test_auto_approval.py listings/tests/test_policies.py -q`
 
-Expected: `AUTO_APPROVABLE_LISTING_STATES` is an `ImportError`; every auto-approval assertion fails because `requires_staff_approval` still returns `True`, so the listing stays `PENDING_APPROVAL` and no snapshot appears; the audit test fails on the missing `auto_approved` metadata key.
+Expected: `AUTO_APPROVABLE_LISTING_STATES` is an `ImportError`; every auto-approval assertion fails because `requires_staff_approval` still returns `True`, so the listing stays `PENDING_APPROVAL` and no snapshot appears; the audit test fails on the missing `auto_approved` metadata key; and `test_the_service_hands_the_revision_back_on_the_caller_s_listing_object` fails with `AttributeError: 'BoatListing' object has no attribute 'open_revision'`, because today's `submit_listing_revision` sets that attribute on its own re-fetched copy and throws the caller's object away.
+
+**Be careful with the last two.** Once the auto-approval branch exists, `test_the_service_hands_the_revision_back_...` will still fail (and `test_the_submit_endpoint_reports_the_published_state` will fail with `TypeError: 'NoneType' object is not subscriptable`) until Step 3b's first and last edits land as well. Those two are not "the policy doesn't work yet" failures — they are the response-contract bug the ruling under Step 3b describes, and the branch alone does not fix them.
 
 - [ ] **Step 3a: Give `requires_staff_approval` a real body**
 
@@ -1291,7 +1366,7 @@ def requires_staff_approval(listing: BoatListing) -> bool:
     return not broker.auto_approve_listings
 ```
 
-- [ ] **Step 3b: Add the auto-approval branch to `submit_listing_revision`**
+- [ ] **Step 3b: Add the auto-approval branch to `submit_listing_revision` — and stop shadowing the caller's `listing`**
 
 In `backend/listings/submissions.py`, add to the import block:
 
@@ -1308,6 +1383,24 @@ Replace the first statement of `submit_listing_revision`:
 with:
 
 ```python
+    # Keep a handle on the object the caller handed us BEFORE rebinding the
+    # name. `ListingSubmitView.post` serializes its *own* instance after
+    # `refresh_from_db()`, and `ListingWorkflowSerializer.to_representation`
+    # reads `getattr(listing, "open_revision", None)` before falling back to
+    # `open_revision_for()` — which only ever finds a DRAFT or SUBMITTED row.
+    # On the auto-approval path the revision is APPROVED by the time the
+    # response is built, so without this reference the fallback finds nothing
+    # and the endpoint answers `"revision": null` on a successful publication,
+    # breaking spec §30.2's "Mutations return updated resource/version". The
+    # closing assignment at the bottom of this function writes to it.
+    #
+    # (Phase 11 never hit this: a submitted revision stayed SUBMITTED, so the
+    # fallback query always found it. This phase is the first caller that closes
+    # the revision inside the same request. `listings/views.py` and
+    # `listings/serializers.py` are owned by the Phase 9/10 plans and are not
+    # touched here, so the fix belongs on this side of the call.)
+    caller_listing = listing
+
     # `of=("self",)` keeps the lock on the listing row alone. `select_related`
     # is needed because requires_staff_approval() reads the organization's
     # policy, and a bare select_for_update() across that join would lock the
@@ -1321,6 +1414,8 @@ with:
         .get(pk=listing.pk)
     )
 ```
+
+**Note (ruling — the caller's reference is kept rather than changing the view or the serializer).** Three fixes were available. (i) Return the updated listing from `submit_listing_revision` and have `ListingSubmitView.post` serialize *that* instead of calling `refresh_from_db()` on its own object — rejected: it edits `listings/views.py`, which this plan declares off-limits because the Phase 9 and Phase 10 plans own it, and it would either change the service's documented return type (`ListingRevision`) or make the view depend on a second return value — both wider than the problem. (ii) Make `ListingWorkflowSerializer` fall back to the listing's most recent revision in any state — rejected: it edits `listings/serializers.py` (same owner problem) and would change what *every* other endpoint returns. (iii) **Chosen:** stop shadowing the caller's reference, a two-line change inside the one file this task already modifies, with no signature change and no other endpoint affected. `refresh_from_db()` in the view reloads columns and clears cached *relations*; `open_revision` is a plain instance attribute, not a field, so it survives the refresh — which is exactly why the existing Phase 11 code sets it this way at all.
 
 Then replace the block that begins at `is_initial = listing.current_public_snapshot_id is None` and runs to the end of the function with:
 
@@ -1423,27 +1518,17 @@ Then replace the block that begins at `is_initial = listing.current_public_snaps
             )
 
     transaction.on_commit(_emit)
+    # Both objects: the locked copy this function worked on, and the instance
+    # the caller (ListingSubmitView.post) still holds and is about to serialize.
+    # Without the second line the response carries `"revision": null` whenever
+    # the revision left DRAFT/SUBMITTED inside this call — i.e. on every
+    # auto-approved submission. See the ruling above Step 3b's first edit.
     listing.open_revision = revision
+    caller_listing.open_revision = revision
     return revision
 ```
 
-`validate_submission_media` and `withdraw_listing_revision` are untouched.
-
-- [ ] **Step 3c: Record the signal contract change**
-
-In `backend/listings/signals.py`, replace the final paragraph of the module docstring with:
-
-```text
-Every signal is sent with `sender=listings.models.ListingRevision` and the
-keyword argument `revision` (a ListingRevision), with two exceptions:
-
-  * `listing_published` is sent with `sender=listings.models.BoatListing` and
-    the keyword arguments `listing` and `snapshot`.
-  * `listing_revision_approved` additionally carries `auto_approved: bool`
-    (Phase 12, spec §21) — True when a broker organization's auto-approval
-    policy published the revision rather than a moderator. Receivers must accept
-    it through `**kwargs` and must not assume a human decided.
-```
+`validate_submission_media` and `withdraw_listing_revision` are untouched. (`withdraw_listing_revision` shadows the caller's `listing` in the same way, and its own `listing.open_revision = revision` is therefore equally invisible to the view — but a withdrawn revision is genuinely no longer open, so `open_revision_for()` correctly returns `None` there and the response is unaffected. Do not "fix" it in this task; it is not broken, and the file's diff is meant to stay inside `submit_listing_revision`.)
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -1459,7 +1544,7 @@ Expected: all pass, including every Phase 11 test with no edit. A private-seller
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/listings/policies.py backend/listings/submissions.py backend/listings/signals.py backend/listings/tests/
+git add backend/listings/policies.py backend/listings/submissions.py backend/listings/tests/
 git commit -m "feat(listings): publish a broker submission immediately when auto-approval is on"
 ```
 
@@ -2125,7 +2210,7 @@ def test_a_broker_member_sees_the_current_auto_approval_policy(api):
     assert response.data["permissions"]["configure_broker_auto_approval"] is False
 ```
 
-Before writing it, open `backend/accounts/tests/test_session.py` and match its existing fixtures and the real `reverse()` route name for the session endpoint — use whatever that file already uses rather than the placeholder `"session"` above, and fold the two local imports into the file's import block.
+The route name is `"session"` — verified against `backend/accounts/urls.py`'s `path("session/", SessionView.as_view(), name="session")` — so `reverse("session")` above is the real call, not a stand-in. Before writing the test, still open `backend/accounts/tests/test_session.py` to match its existing fixtures and fold the two local imports into the file's import block.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -3442,7 +3527,12 @@ Spec §21 "Staff broker UI" items 1 (account status) and 2 (listing counts by st
 
 **Note (ruling — this phase builds the screen, not the staff dashboard.)** The page lives at `/dashboard/staff/brokers/<brokerId>/`, matching §26.1's fully-written `/dashboard/staff/products/` and `/dashboard/staff/taxonomy/`. No staff dashboard home, no broker index/search page and **no navigation entry** is added: §26.1 assigns staff navigation to Phase 17 and warns "Do not scatter one workflow across unrelated dashboards", and Phase 3's contract rule 11 forbids adding a nav link in a commit that does not create its target. The screen is reachable by direct URL and by whatever Phase 17's moderation queue links to it. Recorded in Known Limitations.
 
-**Note (ruling — client component, not a server component.)** Every other authenticated screen in this codebase (`/login`, `RequirePermission`) is a client component, because the access token lives in memory in `lib/api/client.ts` and the refresh token is an HttpOnly cookie the browser holds — there is no server-side session to render from. `params` is a Promise in Next 16, so the page awaits it with React's `use()`.
+**Note (ruling — a thin async server page shell around a client data owner.)** The split is deliberate, and the two halves are not interchangeable:
+
+- **`page.tsx` (`StaffBrokerPage`) is an `async` *server* component.** `params` is a Promise in Next 16, and the page resolves it with a plain `await params` — **not** with `"use client"` + React's `use()`. It does nothing else: it awaits the route param, wraps the screen in `RequirePermission` and hands the plain `brokerId` string down. `page.test.tsx` calls it accordingly (`render(await StaffBrokerPage({ params: Promise.resolve({ brokerId: "b1" }) }))`), so turning it into a client component would break the page *and* its test.
+- **`StaffBrokerDetailView` is the client component** (`"use client"`), and it is where every authenticated concern lives: `useSession()`, the `fetchStaffBrokerDetail` call, loading/error state, and in Tasks 8 and 9 the mutation panels. That has to be client-side because the access token lives in memory in `lib/api/client.ts` and the refresh token is an HttpOnly cookie the browser holds — there is no server-side session to render from, which is why every other authenticated screen in this codebase (`/login`, `RequirePermission`) is a client component too. `BrokerOverviewPanel` and the Task 8/9 panels are plain presentational components rendered inside that boundary; they need no `"use client"` directive of their own.
+
+Nothing is fetched on the server, so the page shell being a server component costs nothing and keeps the `await params` idiom the rest of this codebase's dynamic routes use.
 
 **Files:**
 - Create: `frontend/src/lib/api/staffBrokers.ts`
@@ -4118,6 +4208,7 @@ Spec §21 "Staff broker UI" items 3, 4 and 5: "Auto-approval switch with current
 - Consumes: `fetchStaffBrokerDetail`/`StaffBrokerDetail` (Task 7), `tStaffBroker` (Task 7), `useSession().can` (Phase 3), the backend route `PATCH /api/v1/staff/brokers/<id>/approval-policy/` (Task 5).
 - Produces:
   - `@/lib/api/staffBrokers`: `PolicyUpdateResponse` (= `StaffBrokerDetail & { changed: boolean }`) and `setBrokerAutoApproval(brokerId: string, input: { enabled: boolean; reason: string }): Promise<PolicyUpdateResponse>`.
+  - `@/lib/i18n/staff-brokers`: `formatStaffTimestamp(locale: Locale, iso: string): string` — the screen's one date format, reused by Task 9's audit panel.
   - `@/components/staff/ConfirmPolicyChangeDialog` — default export, props `{ locale: Locale; title: string; body: string; submitting: boolean; error: string | null; onConfirm: (reason: string) => void; onCancel: () => void }`.
   - `@/components/staff/AutoApprovalPanel` — default export, props `{ locale: Locale; broker: StaffBrokerDetail; canConfigure: boolean; onUpdated: (broker: StaffBrokerDetail) => void }`.
 
@@ -4540,6 +4631,38 @@ Add inside `STAFF_BROKER_MESSAGES`:
   },
 ```
 
+And append this exported helper below `tStaffBroker`:
+
+```ts
+/**
+ * A timestamp in the reader's locale, for a screen that is otherwise fully
+ * EN/IT/ES (spec §37).
+ *
+ * A raw ISO string is not a spec §37 violation — it is a timestamp, not
+ * translatable copy — but it is the only thing on this screen that ignores the
+ * locale the rest of it obeys, and staff read these stamps next to translated
+ * action labels and staff-authored reasons. There is no existing date-format
+ * convention to follow: as of this phase `frontend/src` contains no
+ * `Intl.DateTimeFormat`, `toLocaleDateString` or `formatDate` call at all
+ * (verify with `grep -rn "Intl\.\|toLocale" src/` before writing this), so this
+ * is the convention's first definition rather than a deviation from one. `Intl`
+ * is a platform built-in; no dependency is added.
+ *
+ * `timeZone: "UTC"` is deliberate on both counts: every stamp the backend sends
+ * is timezone-aware UTC (spec §11 preamble) and staff compare these against the
+ * audit trail, so a stamp that silently shifted to the reader's machine clock
+ * would be worse than useless during an incident — and a fixed zone keeps the
+ * component tests deterministic on any CI box.
+ */
+export function formatStaffTimestamp(locale: Locale, iso: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(iso));
+}
+```
+
 - [ ] **Step 3c: Create `frontend/src/components/staff/ConfirmPolicyChangeDialog.tsx`**
 
 ```tsx
@@ -4660,7 +4783,7 @@ import {
   type StaffBrokerDetail,
 } from "@/lib/api/staffBrokers";
 import type { Locale } from "@/lib/i18n/directory";
-import { tStaffBroker } from "@/lib/i18n/staff-brokers";
+import { formatStaffTimestamp, tStaffBroker } from "@/lib/i18n/staff-brokers";
 
 /**
  * Spec §21 "Staff broker UI" item 3: the auto-approval switch with its current
@@ -4748,7 +4871,7 @@ export default function AutoApprovalPanel({
               broker.auto_approve_changed_by?.full_name ||
               broker.auto_approve_changed_by?.email ||
               ""
-            } — ${new Date(broker.auto_approve_changed_at).toISOString()}`}
+            } — ${formatStaffTimestamp(locale, broker.auto_approve_changed_at)}`}
       </p>
 
       {notice ? (
@@ -4867,7 +4990,7 @@ Spec §21 "Staff broker UI" item 6 ("Audit history") and rule 7's "separate expl
 - Modify: `frontend/src/components/staff/StaffBrokerDetailView.tsx` (mount both)
 
 **Interfaces:**
-- Consumes: `StaffBrokerDetail`/`BrokerAuditEntry` (Task 7), `ConfirmPolicyChangeDialog` (Task 8), the backend route `POST /api/v1/staff/brokers/<id>/pending-approvals/` (Task 6).
+- Consumes: `StaffBrokerDetail`/`BrokerAuditEntry` (Task 7), `ConfirmPolicyChangeDialog` and `formatStaffTimestamp` (Task 8 — reused, not redefined: this screen has one date format), the backend route `POST /api/v1/staff/brokers/<id>/pending-approvals/` (Task 6).
 - Produces:
   - `@/lib/api/staffBrokers`: `BulkApproveFailure`, `BulkApproveResponse`, `bulkApprovePendingSubmissions(brokerId: string, input: { reason: string }): Promise<BulkApproveResponse>`.
   - `@/components/staff/BrokerAuditHistory` — default export, props `{ locale: Locale; entries: BrokerAuditEntry[] }`.
@@ -5167,7 +5290,11 @@ export function bulkApprovePendingSubmissions(
 ```tsx
 import type { BrokerAuditEntry } from "@/lib/api/staffBrokers";
 import type { Locale } from "@/lib/i18n/directory";
-import { STAFF_BROKER_MESSAGES, tStaffBroker } from "@/lib/i18n/staff-brokers";
+import {
+  STAFF_BROKER_MESSAGES,
+  formatStaffTimestamp,
+  tStaffBroker,
+} from "@/lib/i18n/staff-brokers";
 
 /**
  * Spec §21 "Staff broker UI" item 6: the audit history of this organization's
@@ -5218,9 +5345,10 @@ export default function BrokerAuditHistory({
                 {actionLabel(locale, entry.action)}
               </p>
               <p className="font-body-sm text-on-surface-variant">
-                {`${entry.actor?.full_name || entry.actor?.email || ""} — ${new Date(
+                {`${entry.actor?.full_name || entry.actor?.email || ""} — ${formatStaffTimestamp(
+                  locale,
                   entry.created_at,
-                ).toISOString()}`}
+                )}`}
               </p>
               {entry.reason ? (
                 <p className="mt-space-xs font-body-sm text-on-surface">
@@ -5575,7 +5703,7 @@ def test_21_acceptance_1_a_broker_creates_listing_101_without_a_quota_failure(
     # The first hundred exist already. They are built with the factory rather
     # than a hundred HTTP round trips because what this test proves is that
     # listing *101* is refused by nothing — not that the factory works.
-    for index in range(100):
+    for _ in range(100):
         make_broker_listing(
             broker=broker,
             actor=agent,
@@ -5583,7 +5711,6 @@ def test_21_acceptance_1_a_broker_creates_listing_101_without_a_quota_failure(
             model=model,
             status=ListingStatus.PUBLISHED,
         )
-        assert index >= 0
     assert BoatListing.objects.filter(broker=broker).count() == 100
     api.force_authenticate(agent)
 
@@ -5916,13 +6043,14 @@ Add a new entry at the top of `ACTIVITY.md`'s `## Log` section, matching the for
 - **No new model, no new field, no migration.** Phase 3 already built all three `auto_approve_*` columns and their check constraint; listing counts are live aggregates, not cached columns.
 - New endpoints (all in the `brokers` app, no `config/urls.py` change): `GET /api/v1/staff/brokers/<id>/` (staff moderator), `PATCH /api/v1/staff/brokers/<id>/approval-policy/` (staff admin — the spec §30.1 endpoint), `POST /api/v1/staff/brokers/<id>/pending-approvals/` (staff moderator, bulk approve). The GET and the POST are Phase 12 additions beyond §30.1's literal table and are flagged as such in the plan's Contract summary.
 - `brokers.services.set_broker_auto_approval` now requires a `reason`, returns a `PolicyChange(broker, changed)` and writes a `broker.auto_approval_changed` audit event. Django admin collects the same mandatory reason through `brokers.forms.BrokerOrganizationAdminForm`, so the flag has no unaudited write path.
+- Response-contract fix in `listings.submissions.submit_listing_revision`: it no longer shadows the caller's `listing` instance, so `POST /api/v1/listings/<id>/submit/` returns the revision on the auto-approval path instead of `"revision": null`. The bug was unreachable in Phase 11 (a submitted revision stayed `SUBMITTED`, so the serializer's `open_revision_for()` fallback always found it); auto-approval is the first path that closes a revision inside the same request. No signature change, and `listings/views.py` and `listings/serializers.py` were not touched.
 - Audit actions added: `broker.auto_approval_changed`, `listing.revision_auto_approved`, `broker.pending_revisions_bulk_approved`.
 - Error codes added (stable): `policy_reason_required`, `bulk_approve_not_confirmed`.
 - Signal contract change: `listings.signals.listing_revision_approved` now also carries `auto_approved: bool`. Under auto-approval the moderator-recruiting signals (`listing_initial_submitted`, `listing_revision_submitted`) are **not** emitted; `listing_other_model_submitted` still is, because taxonomy staff still owe a mapping decision.
 - Feature flag state unchanged: no new flag (spec §35.1's list is closed). The two staff mutation endpoints are gated on the existing `listing_revisions` flag; the staff read endpoint is not.
 - Frontend: `/dashboard/staff/brokers/<brokerId>/` with account status, listing counts by status, the auto-approval switch with last-changed-by/at, a confirmation dialog that states the future-only effect, a mandatory reason field, the policy audit history and the bulk-approve action. EN/IT/ES keys in `frontend/src/lib/i18n/staff-brokers.ts`. No navigation entry and no staff dashboard shell — Phase 17 owns staff navigation.
 - Tests added: <N_BACKEND> backend in `backend/listings/tests/` and `backend/brokers/tests/`, <N_FRONTEND> frontend in `frontend/src/components/staff/` and `frontend/src/app/dashboard/`. Spec §21's four acceptance tests and all seven rules are covered end to end in `backend/brokers/tests/test_phase_12_acceptance.py`. Full backend suite: <TOTAL_BACKEND> passed. Full frontend suite: <TOTAL_FRONTEND> passed.
-- Known limitations (all documented in the plan): no staff dashboard shell or broker index page (Phase 17); §20.4's staff-enumerated "non-substantive fields" list not built (Phase 17); no `Idempotency-Key` replay store on the staff mutations (Phase 14); bulk approve is synchronous and unpaginated; auto-approval records the submitting user as `decided_by`; notification receivers still absent (Phase 18); the entitlement gate is still Phase 11's allow-everything stub (Phase 13).
+- Known limitations (all documented in the plan): no staff dashboard shell or broker index page (Phase 17); §20.4's staff-enumerated "non-substantive fields" list not built (Phase 17); no `Idempotency-Key` replay store on the staff mutations (Phase 14); bulk approve is synchronous and unpaginated; auto-approval records the submitting user as `decided_by`; notification receivers still absent (Phase 18); the entitlement gate is still Phase 11's allow-everything stub (Phase 13); and the broker row is read unlocked at submit time, leaving two microsecond-wide races — the policy toggle (covered by §21 rules 5/6) and organization suspension (ruled acceptable and flagged for a controller decision, Known Limitation 10).
 - Next: Phase 13 (individual quota and entitlement ledger) must preserve the broker branch of `ListingEntitlementGate.can_submit` — `listings/tests/test_policies.py::test_brokers_have_no_numeric_listing_quota` is the tripwire. Phase 17's moderation queue links to `/dashboard/staff/brokers/<id>/` and owns the staff navigation entry for it.
 ```
 
@@ -5939,7 +6067,7 @@ git commit -m "test(brokers): add the Phase 12 acceptance tests and record the p
 
 ## Known Limitations (carried forward, not fixed by this plan)
 
-Each item names the phase that closes it. None breaks a MUST requirement *of this phase* (spec §39: "Any known limitation that breaks a MUST requirement prevents completion") — every one is either assigned elsewhere by the spec or an explicitly ruled scope boundary.
+Each item names the phase that closes it. None breaks a MUST requirement *of this phase* (spec §39: "Any known limitation that breaks a MUST requirement prevents completion") — every one is either assigned elsewhere by the spec or an explicitly ruled scope boundary. **One exception needs a controller's eye before Task 2 merges rather than after: item 10's suspension race**, which rests on a reading of §21 rule 2's intent rather than on its literal wording, and whose alternative is a one-line change in Task 2.
 
 1. **No staff dashboard shell, no broker index, no navigation entry.** `/dashboard/staff/brokers/<id>/` is reachable by direct URL only. Spec §26.1 assigns staff navigation to **Phase 17** and warns against scattering one workflow across dashboards; Phase 3's contract rule 11 forbids adding a nav link in a commit that does not create its target. → **Phase 17** (spec §26).
 2. **Spec §20.4's "clearly enumerated non-substantive fields" are not built.** §20.4 permits staff to define a list of fields that auto-publish even without auto-approval, and in the same sentence fixes the default: "default is that all public content fields are substantive." This phase implements the default. A staff-editable allowlist needs a `PlatformSetting`, a staff screen and a per-field diff engine — all spec §26 surface. → **Phase 17**.
@@ -5950,7 +6078,9 @@ Each item names the phase that closes it. None breaks a MUST requirement *of thi
 7. **The entitlement gate is still Phase 11's allow-everything stub.** Spec §21 rule 1 is discharged by proof (the 101-listing acceptance test plus a unit tripwire), not by code, because no quota code exists yet. → **Phase 13** (spec §22), bound by contract rule 3 below.
 8. **The audit-history panel is a fixed 50-row window.** No pagination, no filtering, no date range, and it deliberately excludes listing-decision events (which target `listings.ListingRevision`). A full audit browser is staff tooling. → **Phase 17**.
 9. **Broker-facing visibility of the policy is one session field.** `broker_auto_approve_listings` on each membership summary satisfies spec §11.1's "Broker users may see the current policy"; there is no broker dashboard panel rendering it, because the broker dashboard is **Phase 19** (spec §28).
-10. **The policy is read without locking the broker row.** Ruled in Global Constraints. A submission landing in the same instant as a toggle may take either branch; both outcomes satisfy §21 rules 5 and 6, which speak of "future submissions". What *is* guaranteed and tested: a submission already in `PENDING_APPROVAL` is never retro-approved, and a published listing is never unpublished.
+10. **The whole `BrokerOrganization` row — both `auto_approve_listings` *and* `status`/`is_active` — is read without a lock at submit time.** Ruled in Scope rulings. Two distinct races follow from the one unlocked read:
+    - **Policy toggle.** A submission landing in the same instant as a toggle may take either branch; both outcomes satisfy §21 rules 5 and 6, which speak of "future submissions". What *is* guaranteed and tested: a submission already in `PENDING_APPROVAL` is never retro-approved, and a published listing is never unpublished.
+    - **Suspension (`status` → `SUSPENDED`, i.e. `is_active` → False).** A submission whose permission check and locked listing fetch both ran before a staff admin's suspension committed can still auto-publish once afterwards. §21 rule 2's suspension clause is unconditional in its wording, so — unlike the toggle race — this one is *not* self-evidently covered by rules 5/6, and the ruling argues acceptability explicitly (suspension is enforced twice on independent reads, the first being `IsOwnerOrBrokerEditor`'s `broker__status=ACTIVE` filter, which returns 403 for every request that starts after the suspension; the remedy — `listings.decisions.suspend_listing`, spec §36.4 — is already merged and immediate; and suspension does not unpublish the organization's other live listings either). **Flagged for a controller decision**, because it is a reading of rule 2's intent, not a quotation of it. Closing it costs one line (drop `of=("self",)` in Task 2 Step 3b, locking the organization row) and serializes an agency's concurrent submissions behind that row.
 11. **No rate limit on the three staff endpoints.** Spec §30.4's enumerated list does not include staff endpoints, and all three require membership of a staff group. → **Phase 22** if a broader policy is adopted.
 12. **Media allowance under auto-approval is still Phase 11's base tier.** `effective_media_allowance` is unchanged, so an auto-approving broker gets the configured broker allowance and nothing more. That is correct for this phase — §21 rule 2 requires media limits to keep applying — but the private-seller upgrade tier remains unreachable. → **Phase 15** (spec §24).
 13. **Nothing in the public API says a listing was auto-approved.** `PublicListingSerializer` is untouched, and the workflow serializer reports only `policy.requires_approval`. Whether a buyer should see "published without staff review" is a product question nobody has asked; the fact is recorded in the audit trail and on `publication_source`.
@@ -6033,6 +6163,7 @@ Rules a later phase must follow:
 8. **Phase 17's moderation queue owns the navigation entry** for `/dashboard/staff/brokers/<brokerId>/`, the broker index/search page, and the staff dashboard shell this screen currently hangs off nothing. It should also surface `broker.pending_revisions_bulk_approved` and `listing.revision_auto_approved` in whatever audit browser it builds.
 9. **Any new staff broker-policy action must reuse `clean_policy_reason`** and emit an audit event with `metadata.reason`, so `brokers.selectors.broker_audit_history` and the screen's audit panel keep working without a special case. A new action also needs a `staff.broker.audit.<action>` key in `frontend/src/lib/i18n/staff-brokers.ts` — the panel renders an unknown action as its raw code rather than crashing, but a raw code on a staff screen is a bug, not a feature.
 10. **`listing_counts` is a live aggregate, not a column.** Do not denormalize it onto `BrokerOrganization` for performance without also satisfying spec §26's "All visible counters equal query results".
+11. **A workflow service that re-fetches its listing under `select_for_update()` must not shadow the caller's reference.** `listings.serializers.ListingWorkflowSerializer` reads `getattr(listing, "open_revision", None)` off the instance the *view* holds, and its `open_revision_for()` fallback only matches `DRAFT`/`SUBMITTED` rows. Any service that closes a revision inside the same request — as auto-approval does, and as a Phase 17 staff action might — has to set `open_revision` on the object it was handed, or the endpoint returns `"revision": null` on success and violates spec §30.2. `listings.submissions.submit_listing_revision`'s `caller_listing` is the worked example. The alternative fixes (returning the listing, or widening the serializer's fallback) both touch `listings/views.py` / `listings/serializers.py` and were ruled out in Task 2; a later phase that owns those files may revisit that, but must keep `test_the_service_hands_the_revision_back_on_the_caller_s_listing_object` passing.
 
 ---
 
@@ -6043,7 +6174,8 @@ Rules a later phase must follow:
 | Spec §21 requirement | Where implemented |
 |---|---|
 | Rule 1 — "Broker organizations have no numeric listing quota in this release." | Task 10 acceptance test 1 (listing 101 published end to end) + Task 2's `test_brokers_have_no_numeric_listing_quota` tripwire + Contract rule 3 binding Phase 13. Ruled: proved, not coded — no quota code exists to disable. |
-| Rule 2 — "'Unlimited' does not bypass validation, moderation, suspension, media limits or abuse controls." | Validation and media: Task 2 (`submit_listing_revision` validates before the branch; `test_an_invalid_submission_never_publishes_even_with_the_policy_on`, `test_media_that_is_not_ready_blocks_an_auto_approved_submission`) and Task 1 (one publication path). Suspension: Task 2's `AUTO_APPROVABLE_LISTING_STATES` + the organization `is_active` check, tested per organization status and per listing status, and again in Task 10. Moderation: a listing already in `PENDING_APPROVAL` never auto-approves. |
+| Rule 2 — "'Unlimited' does not bypass validation, moderation, suspension, media limits or abuse controls." | Validation and media: Task 2 (`submit_listing_revision` validates before the branch; `test_an_invalid_submission_never_publishes_even_with_the_policy_on`, `test_media_that_is_not_ready_blocks_an_auto_approved_submission`) and Task 1 (one publication path). Suspension: Task 2's `AUTO_APPROVABLE_LISTING_STATES` + the organization `is_active` check, tested per organization status and per listing status, and again in Task 10; the residual concurrency window is Known Limitation 10, ruled and flagged. Moderation: a listing already in `PENDING_APPROVAL` never auto-approves. |
+| Rule 2, the **"abuse controls"** clause specifically | **No code, and deliberately none.** There is no abuse-control mechanism in this codebase for auto-approval to bypass: spec §30.4's rate-limited-endpoint list does not include any of this phase's staff endpoints or the listing submit route, and no abuse-scoring, velocity or reputation surface exists in merged code or in any phase this plan depends on. The clause is therefore **not applicable in this phase's scope** — it constrains a future abuse-control feature (it must keep applying to auto-approving brokers) rather than asking for one here. Recorded rather than omitted so a reviewer can see it was read, not skipped; adjacent limitations: Known Limitation 11 (no rate limit on the three staff endpoints) and Known Limitation 4 (bulk approve is unbounded). |
 | Rule 3 — "`auto_approve_listings=false` by default for migrated/new brokers unless staff explicitly enables it." | Already true in merged Phase 3 code (`BooleanField(default=False)`); proved by Task 10's `test_21_rule_3_...`. Ruled: no migration, no field change. |
 | Rule 4 — "Only staff admin may toggle policy; change requires a reason." | Staff admin: Task 5 (`IsStaffAdmin` on the endpoint) + Task 3 (`is_staff_admin` in the admin) + Task 8 (disabled control) + Task 10 acceptance test 2. Reason: Task 3 (`clean_policy_reason` in the service, `BrokerOrganizationAdminForm` in the admin), Task 5 (serializer), Task 8 (dialog), Task 10's `test_21_rule_4_...`. |
 | Rule 5 — "Enabling policy affects future submissions, not currently pending submissions automatically." | Task 2 (the policy is read once, at submit time; `PENDING_APPROVAL` is excluded from `AUTO_APPROVABLE_LISTING_STATES`), `test_enabling_the_policy_does_not_retro_approve_a_pending_submission`, Task 10's `test_21_rule_5_...`, and the dialog copy in Task 8. |
@@ -6063,6 +6195,7 @@ Rules a later phase must follow:
 **2. Spec coverage — cross-referenced sections:**
 
 - **§20.4** ("If broker auto-approval is on, valid create/edit submissions publish a new snapshot immediately") → Task 2, `test_an_auto_approved_edit_publishes_the_next_snapshot_and_keeps_the_status`. Its second half ("Staff may define clearly enumerated non-substantive fields…") is ruled out of scope with the spec's own default implemented; Known Limitation 2.
+- **§4.2** — the Staff row's `/brokers/` entry, under the `/dashboard/staff/` prefix §26.1 writes out in full, is the route Task 7 builds at `/dashboard/staff/brokers/<brokerId>/`. No other row of §4.2's table is touched, and no navigation entry is added (Known Limitation 1).
 - **§6.1** — the `DRAFT → PUBLISHED` edge Phase 11 put in `LISTING_TRANSITIONS` and never took is now taken, by exactly one caller.
 - **§5** — "Configure broker auto-approval: staff admin only" → `IsStaffAdmin` (Task 5) and `configure_broker_auto_approval` (Task 8). "Approve listings/revisions: staff moderator and staff admin" → `IsStaffModerator` on the read and bulk endpoints (Tasks 4, 6), matching Phase 11's choice for the decision endpoint.
 - **§11.1** — the three `auto_approve_*` fields are used exactly as specified; "Only staff admin can change `auto_approve_listings`" → Tasks 3 and 5; "Broker users may see the current policy but cannot change it" → Task 4's session key plus Task 5's 403.
@@ -6071,7 +6204,7 @@ Rules a later phase must follow:
 - **§2.4 / §10.2 / §26 definition of done** ("Product, policy, broker approval and taxonomy actions are audited") — three new audit actions, every one written inside the transaction it describes, every one carrying a reason where the spec demands one.
 - **§26.2**'s decision rules are unchanged and still enforced: bulk approve goes through `approve_revision`, so "repeated click cannot create multiple snapshots" and "if another moderator already decided, return conflict" hold — a revision decided between the snapshot and the loop is skipped, not double-approved.
 - **§30.1** — one listed endpoint implemented, two additions flagged in the Contract summary.
-- **§30.2** — every mutation returns the updated resource (the full staff broker detail); errors use the standard envelope; the new codes are listed in Global Constraints.
+- **§30.2** — every mutation returns the updated resource (the full staff broker detail); errors use the standard envelope; the new codes are listed in Global Constraints. **`POST /listings/<id>/submit/` is included in that guarantee by Task 2 Step 3b's caller-reference fix**: without it the auto-approval path answers `"revision": null` on success, because the serializer's `open_revision_for()` fallback only matches DRAFT/SUBMITTED rows and the revision is already APPROVED. Pinned by `test_the_service_hands_the_revision_back_on_the_caller_s_listing_object` and by the endpoint test's `response.data["revision"]` assertions.
 - **§30.3** — `Idempotency-Key` still absent; Known Limitation 3.
 - **§30.4** — no new throttle scope; staff endpoints are not in §30.4's enumerated list and all require a staff group.
 - **§34.1/§34.2/§34.3** — unit tests for the policy function and the transition set; concurrency covered by the unchanged optimistic-locking path (`bump_version` compare-and-swap inside `publish_revision`, exercised by Phase 11's existing `test_locking.py` and by bulk approve's stale-state skip); API tests for authz, stable error codes and the pending-listing-absent-publicly assertion in Task 10 acceptance test 4.
@@ -6090,6 +6223,9 @@ Rules a later phase must follow:
 - `publish_revision(*, listing, revision, actor, cleaned, expected_revision_version, note="", auto_approved=False, publication_source=None) -> ListingSnapshot` — identical in Task 1's Interfaces block, its definition, its test, its call in `approve_revision` (Task 1) and its call in `submit_listing_revision` (Task 2).
 - `guard_base_snapshot(listing, revision) -> None` — positional in all three places it appears (Task 1's definition, `publish_revision`'s first line, `approve_revision`).
 - `requires_staff_approval(listing) -> bool` — signature unchanged from Phase 11, so `listings.serializers.ListingWorkflowSerializer`'s existing call keeps working untouched; asserted by Task 2's API test reading `policy.requires_approval`.
+- `submit_listing_revision(*, listing, actor, expected_version) -> ListingRevision` — signature and return type unchanged from Phase 11. What changes is a side effect the view already depends on: `open_revision` is now set on **the caller's** instance as well as the function's row-locked copy, which is what `ListingWorkflowSerializer.to_representation`'s `getattr(listing, "open_revision", None)` reads. `withdraw_listing_revision` is not changed and does not need to be (a withdrawn revision is correctly not "open").
+- `listing_revision_approved`'s `auto_approved: bool` kwarg and the approval audit event's `metadata["auto_approved"]` / `metadata["broker_id"]` are **introduced in Task 1** (with the `signals.py` docstring that documents them) and **consumed in Task 2**. There is no task boundary at which the kwarg exists but is undocumented, and no task at which Task 2's assertions depend on something Task 1 was told was out of scope.
+- `formatStaffTimestamp(locale: Locale, iso: string): string` — defined once in `@/lib/i18n/staff-brokers` (Task 8) and used by both `AutoApprovalPanel` (Task 8) and `BrokerAuditHistory` (Task 9). No component formats a date any other way, and no raw `toISOString()` survives on this screen.
 - `set_broker_auto_approval(broker, *, enabled, actor, reason, source=AuditEvent.Source.API) -> PolicyChange` — same in Task 3's definition, Task 3's admin call sites, Task 5's view, and Tasks 3/4/5/10's tests. Every caller reads `.broker` / `.changed`, never treats the result as a `BrokerOrganization`.
 - `clean_policy_reason(reason) -> str` and `POLICY_REASON_REQUIRED_MESSAGE` — defined in Task 3 (constant extracted in Task 5 Step 3a), consumed by `BrokerApprovalPolicySerializer` (Task 5) and `bulk_approve_pending_broker_revisions` (Task 6).
 - `broker_listing_counts(broker)` returns `{"by_status": {...}, "total": int}` — same shape in Task 4's selector, Task 4's serializer, Task 4's and Task 10's assertions, and the TypeScript `StaffBrokerListingCounts` in Task 7. The seven keys are spec §6.1's `ListingStatus` values verbatim, and `LISTING_STATUS_ORDER` in Task 7 lists exactly those seven.
