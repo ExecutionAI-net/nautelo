@@ -1,6 +1,7 @@
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
-from rest_framework.throttling import ScopedRateThrottle
+
+from common.throttling import HashedIPScopedRateThrottle
 
 from .models import BoatBrand
 from .pagination import TaxonomySearchPagination
@@ -12,7 +13,7 @@ class BoatBrandListView(ListAPIView):
     serializer_class = BoatBrandSerializer
     permission_classes = [AllowAny]
     pagination_class = TaxonomySearchPagination
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [HashedIPScopedRateThrottle]
     throttle_scope = "taxonomy_search"
 
     def get_queryset(self):
@@ -37,7 +38,7 @@ class BoatModelListView(ListAPIView):
     serializer_class = BoatModelSerializer
     permission_classes = [AllowAny]
     pagination_class = TaxonomySearchPagination
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [HashedIPScopedRateThrottle]
     throttle_scope = "taxonomy_search"
 
     def get_queryset(self):
