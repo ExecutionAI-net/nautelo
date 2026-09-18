@@ -296,3 +296,41 @@ class BrokerApprovalPolicySerializer(serializers.Serializer):
                 )
             )
         return cleaned
+
+
+class BrokerBulkApproveSerializer(serializers.Serializer):
+    """Body of POST /api/v1/staff/brokers/<id>/pending-approvals/ (spec §21 rule 7).
+
+    `confirm` is a server-side control, not a record of a browser dialog: spec
+    §39 forbids visual-only implementations, so "with confirmation" has to be
+    something the API refuses without. `required=False, default=False` makes an
+    omitted flag fail the same way an explicit `false` does.
+    """
+
+    confirm = serializers.BooleanField(required=False, default=False)
+    reason = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=500
+    )
+
+    def validate_confirm(self, value):
+        if value is not True:
+            raise serializers.ValidationError(
+                ErrorDetail(
+                    "Confirm that every pending submission for this broker "
+                    "should be approved.",
+                    code="bulk_approve_not_confirmed",
+                )
+            )
+        return value
+
+    def validate_reason(self, value):
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise serializers.ValidationError(
+                ErrorDetail(
+                    "Explain why this broker's pending submissions are being "
+                    "approved together.",
+                    code="policy_reason_required",
+                )
+            )
+        return cleaned
