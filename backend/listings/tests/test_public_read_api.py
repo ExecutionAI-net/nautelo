@@ -383,11 +383,12 @@ def test_the_public_read_endpoints_are_rate_limited(api, monkeypatch):
     setting_changed signal does not retroactively update it. Monkeypatching the
     scope entry is the reliable way to exercise the throttle in a test.
     """
-    from django.core.cache import cache
     from rest_framework.throttling import ScopedRateThrottle
 
+    from conftest import clear_own_cache_keys
+
     listing, _ = _published()
-    cache.clear()
+    clear_own_cache_keys()
     monkeypatch.setitem(ScopedRateThrottle.THROTTLE_RATES, "public_listing_read", "2/min")
 
     assert api.get(reverse("listing-list")).status_code == 200
