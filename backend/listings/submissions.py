@@ -14,6 +14,7 @@ from .models import BoatListing, ListingMedia, ListingRevision
 from .payloads import validate_revision_payload
 from .policies import (
     ListingEntitlementGate,
+    ListingEntitlementRequired,
     effective_media_allowance,
     media_counts,
     requires_staff_approval,
@@ -114,16 +115,34 @@ def submit_listing_revision(
     )
     validate_submission_media(listing, cleaned["media_ids"])
 
-    if not ListingEntitlementGate.can_submit(user=actor, broker=listing.broker):
-        # Unreachable in Phase 11 (the gate always allows); Phase 13 makes this
-        # the `403 listing_entitlement_required` path of spec §22.4.
-        raise InvalidWorkflowState(
-            "You do not have a listing right available.",
-            code="listing_entitlement_required",
-        )
-    publication_source = ListingEntitlementGate.consume(listing=listing, user=actor)
-
+    # Moved up from below: the entitlement guard needs it. Same expression, same
+    # meaning, and it is still the value the `if requires_staff_approval(...)`
+    # block below reads.
     is_initial = listing.current_public_snapshot_id is None
+    # Spec §6.3 charges a right when a listing is "submitted for initial
+    # approval" — so only an initial submission that has not already been
+    # charged can possibly need one. A post-publication revision (spec §20.2)
+    # and a correction of a withdrawn/rejected submission (spec §22.1) are both
+    # already paid for, and `can_submit()` — which is not told which listing
+    # this is — would refuse both once the seller's free right is gone.
+    charges_a_right = is_initial and listing.consumed_entitlement_id is None
+
+    if charges_a_right and not ListingEntitlementGate.can_submit(
+        user=actor, broker=listing.broker
+    ):
+        # Spec §22.4. 403, not the 409 Phase 11's placeholder used: this is an
+        # authorization answer, not a stale-state answer, and it must match the
+        # code and status the draft-creation gate returns.
+        #
+        # This is only an early exit. `consume()` re-checks the same thing under
+        # a lock and is the authoritative answer (spec §22.2's "last check"), so
+        # a `charges_a_right` that is wrongly True still cannot burn a second
+        # right, and one that is wrongly False still cannot publish for free.
+        raise ListingEntitlementRequired()
+    # Authoritative: re-checks and consumes under a lock on the seller's own
+    # row, inside this transaction (spec §22.4, and §22.2's "last check").
+    consumed = ListingEntitlementGate.consume(listing=listing, user=actor)
+    publication_source = consumed.publication_source
     uses_other_model = listing.model.is_other_placeholder
     needs_approval = requires_staff_approval(listing)
     before = {"listing_status": listing.status, "revision_state": revision.state}
@@ -146,6 +165,7 @@ def submit_listing_revision(
                 resource="listing",
                 status=ListingStatus.PENDING_APPROVAL,
                 publication_source=publication_source,
+                consumed_entitlement=consumed.entitlement,
                 updated_by=actor,
             )
         else:
