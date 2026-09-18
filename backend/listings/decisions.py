@@ -97,8 +97,8 @@ def approve_revision(
         )
         # Copied into the error envelope by common.exceptions.nauta_exception_handler.
         conflict.meta = {
-            "resource": "listing",
-            "current_snapshot_version": (
+            "resource": "snapshot",
+            "current_version": (
                 listing.current_public_snapshot.version
                 if listing.current_public_snapshot_id is not None
                 else None
@@ -193,7 +193,6 @@ def approve_revision(
             )
 
     transaction.on_commit(_emit)
-    listing.open_revision = None
     return revision
 
 

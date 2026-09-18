@@ -286,7 +286,7 @@ def test_a_revision_based_on_a_superseded_snapshot_is_refused():
         )
 
     assert exc_info.value.get_codes() == "stale_base_snapshot"
-    assert exc_info.value.meta == {"resource": "listing", "current_snapshot_version": 2}
+    assert exc_info.value.meta == {"resource": "snapshot", "current_version": 2}
     assert ListingSnapshot.objects.filter(listing=listing).count() == 2
 
 
