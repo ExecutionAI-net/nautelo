@@ -194,11 +194,21 @@ class Command(BaseCommand):
             ).first()
             if category is None:
                 continue
+            # Look up by (professional, category) only — never by title_en. That
+            # field is also part of unique_professional_category_title, so
+            # including it in the lookup key means a staff rename of title_en
+            # after the first import makes the second run miss the existing
+            # row and create a duplicate instead of finding it. title_en (and
+            # service_area) are only ever set on create, mirroring the "only
+            # copy when empty" rule used for descriptions above: an existing
+            # row's title_en is never overwritten by a later import.
             _, created = ProfessionalService.objects.get_or_create(
                 professional=profile,
                 category=category,
-                title_en=category.name_en,
-                defaults={"service_area": list(profile.service_area or [])},
+                defaults={
+                    "title_en": category.name_en,
+                    "service_area": list(profile.service_area or []),
+                },
             )
             if created:
                 counts["categories_attached"] += 1

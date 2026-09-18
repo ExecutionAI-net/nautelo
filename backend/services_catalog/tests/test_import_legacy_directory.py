@@ -270,6 +270,52 @@ def test_legacy_categories_become_professional_services_only_when_missing(tmp_pa
 
 
 @pytest.mark.django_db
+def test_a_renamed_professional_service_title_is_not_duplicated_on_reimport(tmp_path):
+    """The ProfessionalService write path must key on (professional, category),
+    not on title_en.
+
+    title_en is part of unique_professional_category_title, so if the
+    get_or_create lookup also includes title_en, a staff rename of that field
+    after the first import makes the second run blind to the existing row —
+    it would create a second ProfessionalService for the same
+    professional+category instead of finding the first one, breaking the
+    command's own idempotency guarantee (spec §38).
+    """
+    legal = ServiceCategory.objects.get(slug="legal")
+    pro = build_professional("m@example.com", slug="renamed-pro", display_name="Renamed Pro")
+    source = write_source(
+        tmp_path,
+        {
+            "services": [],
+            "providers": [
+                {
+                    "legacy_id": "60",
+                    "slug": "renamed-pro",
+                    "display_name": "Renamed Pro",
+                    "address": "",
+                    "categories": ["legal"],
+                }
+            ],
+        },
+    )
+
+    call_command("import_legacy_directory", f"--source={source}")
+
+    service = ProfessionalService.objects.get(professional=pro, category=legal)
+    assert service.title_en == "Legal"
+
+    # Simulate a staff edit of the imported row's title.
+    service.title_en = "Legal advice (staff renamed)"
+    service.save(update_fields=["title_en", "updated_at"])
+
+    call_command("import_legacy_directory", f"--source={source}")
+
+    services = ProfessionalService.objects.filter(professional=pro, category=legal)
+    assert services.count() == 1
+    assert services.get().title_en == "Legal advice (staff renamed)"
+
+
+@pytest.mark.django_db
 def test_a_legacy_service_record_maps_to_a_category_and_never_deactivates_an_seo_row(tmp_path):
     source = write_source(
         tmp_path,
