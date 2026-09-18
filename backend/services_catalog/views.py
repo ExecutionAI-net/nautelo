@@ -90,11 +90,14 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
             )
 
         if params.get("sort", "recommended").strip() == "alphabetical":
-            ordering = ("display_name",)
+            # `display_name` isn't unique, so `id` is appended as a final
+            # tiebreak to keep ordering fully deterministic across page loads.
+            ordering = ("display_name", "id")
         else:
             # "Recommended" = breadth of real catalogue coverage, with a
             # deterministic tiebreak so pagination stays stable. No invented
-            # ranking signal (spec §2.1).
-            ordering = ("-active_service_count", "display_name")
+            # ranking signal (spec §2.1). `id` is appended after
+            # `display_name` because `display_name` isn't unique either.
+            ordering = ("-active_service_count", "display_name", "id")
 
         return queryset.order_by(*ordering).distinct()

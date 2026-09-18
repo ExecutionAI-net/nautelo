@@ -191,6 +191,28 @@ def test_a_card_reports_its_categories_in_the_requested_locale():
 
 
 @pytest.mark.django_db
+def test_active_service_count_is_not_inflated_when_a_query_filter_rejoins_services():
+    # Regression test for the Count("services", ..., distinct=True) annotation.
+    # The `q` filter adds a second join onto the same `services` relation
+    # (separate from the one the annotation itself uses), which multiplies
+    # the joined rows in the base queryset. Without distinct=True, that
+    # non-distinct Count would double: a profile with 2 active services would
+    # report active_service_count == 4, and would appear twice in `results`
+    # because the multiplied rows also break `.distinct()` at the row level
+    # for anything keyed off the count. This must stay 2 and appear once.
+    legal = make_service_category(slug="legal-test", name_en="Legal")
+    insurance = make_service_category(slug="insurance-test", name_en="Insurance")
+    pro = build_professional("m@example.com", slug="multi-service", display_name="Multi Service")
+    make_professional_service(pro, legal, title_en="Ocean Survey Coordination")
+    make_professional_service(pro, insurance, title_en="Ocean Salvage Response")
+
+    response = APIClient().get("/api/v1/professionals/", {"q": "ocean"})
+
+    assert [r["slug"] for r in response.data["results"]] == ["multi-service"]
+    assert response.data["results"][0]["active_service_count"] == 2
+
+
+@pytest.mark.django_db
 def test_results_are_paginated_with_the_standard_envelope():
     for index in range(14):
         build_professional(
