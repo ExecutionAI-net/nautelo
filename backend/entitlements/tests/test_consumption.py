@@ -215,7 +215,6 @@ def test_the_refusal_message_follows_the_blocking_reason():
     )
 
 
-@pytest.mark.xfail(reason="draft gate lands in Task 9", strict=True)
 @pytest.mark.django_db
 def test_the_error_envelope_carries_the_spec_30_2_action_block(
     entitlements_enforced,

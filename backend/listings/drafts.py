@@ -5,7 +5,9 @@ from django.db import transaction
 from rest_framework import status
 from rest_framework.exceptions import APIException, ErrorDetail, ValidationError
 
+from accounts.enums import SellerType
 from accounts.services import resolve_seller_context
+from entitlements.consumption import ensure_can_start_listing
 from taxonomy.models import BoatBrand, BoatModel
 
 from .enums import ListingStatus, RevisionOrigin, RevisionStatus
@@ -137,6 +139,12 @@ def _apply_payload_to_listing(listing: BoatListing, cleaned: dict) -> None:
 @transaction.atomic
 def create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing:
     context = resolve_seller_context(actor, broker_id=broker_id)
+
+    # Spec §22.4: an individual seller with no listing right cannot even open a
+    # draft. Broker quota is unlimited (spec §1). Advisory only: consumption
+    # happens at submission, under a lock (spec §6.3).
+    if context.seller_type == SellerType.PRIVATE:
+        ensure_can_start_listing(context.owner_user)
 
     listing = BoatListing(
         owner_user=context.owner_user,
