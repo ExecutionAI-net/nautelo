@@ -666,23 +666,25 @@ def test_paid_selector_tie_on_valid_until_breaks_on_created_at_then_pk():
     user = make_private_seller()
     frm = NOW - timedelta(days=1)
     until = NOW + timedelta(days=5)
-    rows = [_paid(user, valid_from=frm, valid_until=until) for _ in range(4)]
-    early, mid, tie_a, tie_b = rows
+    rows = [_paid(user, valid_from=frm, valid_until=until) for _ in range(10)]
+    early, mid = rows[0], rows[1]
+    tied = rows[2:]
     UserEntitlement.objects.filter(pk=early.pk).update(
         created_at=NOW - timedelta(hours=3)
     )
     UserEntitlement.objects.filter(pk=mid.pk).update(
         created_at=NOW - timedelta(hours=2)
     )
-    UserEntitlement.objects.filter(pk__in=[tie_a.pk, tie_b.pk]).update(
+    # Eight rows identical on valid_until AND created_at: only pk can order
+    # them (10 UUID pks make an accidental match vanishingly unlikely).
+    UserEntitlement.objects.filter(pk__in=[r.pk for r in tied]).update(
         created_at=NOW - timedelta(hours=1)
     )
 
     result = list(available_paid_rights(user, now=NOW))
 
     assert result[:2] == [early, mid]
-    # The exact tie is resolved deterministically by primary key.
-    assert result[2:] == sorted([tie_a, tie_b], key=lambda r: r.pk)
+    assert [r.pk for r in result[2:]] == sorted(r.pk for r in tied)
     assert list(available_paid_rights(user, now=NOW)) == result
 
 
@@ -706,3 +708,70 @@ def test_paid_selector_with_a_zone_shifted_now():
     la = NOW.astimezone(ZoneInfo("America/Los_Angeles"))
     assert list(available_paid_rights(user, now=la)) == [row]
     assert list(available_paid_rights(user, now=la - MICRO)) == []
+
+
+# ---- used_in_period is an exact count -----------------------------------
+
+
+@pytest.mark.django_db
+def test_used_in_period_is_an_exact_count_not_capped_by_the_allowance():
+    user = make_private_seller()  # allowance 1
+    days = (5, 50, 100, 200)
+    for d in days:
+        _consumed_free(user, when=NOW - timedelta(days=d))
+
+    state = free_quota_state(user, now=NOW)
+
+    assert state.used_in_period == 4
+    assert state.available is False
+    assert state.used_at == NOW - timedelta(days=5)
+    assert state.next_available_at == NOW - timedelta(days=5) + PERIOD
+
+
+@pytest.mark.django_db
+def test_used_in_period_counts_only_the_rolling_window_at_the_edge():
+    user = make_private_seller()
+    _consumed_free(user, when=NOW - PERIOD + MICRO)  # inside by 1us: counted
+    _consumed_free(user, when=NOW - PERIOD)  # exactly at edge: not counted
+    _consumed_free(user, when=NOW - PERIOD - MICRO)  # outside: not counted
+    _consumed_free(user, when=NOW - timedelta(days=1))  # counted
+
+    assert free_quota_state(user, now=NOW).used_in_period == 2
+    assert free_quota_state(user, now=NOW + MICRO).used_in_period == 1
+
+
+@pytest.mark.django_db
+def test_used_in_period_excludes_revoked_other_type_and_other_users_rows():
+    user = make_private_seller("count-me@example.com")
+    other = make_private_seller("count-not-me@example.com")
+    when = NOW - timedelta(days=2)
+    _consumed_free(user, when=when)
+    revoked = _consumed_free(user, when=when - timedelta(days=1))
+    revoked.state = EntitlementState.REVOKED
+    revoked.revoked_at = NOW
+    revoked.save(update_fields=["state", "revoked_at", "updated_at"])
+    _paid(
+        user,
+        valid_from=when,
+        valid_until=when + PERIOD,
+        state=EntitlementState.CONSUMED,
+        consumed_at=when,
+    )
+    _consumed_free(other, when=when)
+    _consumed_free(other, when=when - timedelta(days=3))
+
+    assert free_quota_state(user, now=NOW).used_in_period == 1
+    assert free_quota_state(other, now=NOW).used_in_period == 2
+
+
+# ---- naive `now` is rejected ---------------------------------------------
+
+
+@pytest.mark.django_db
+def test_a_naive_now_is_rejected():
+    user = make_private_seller()
+    naive = datetime(2026, 9, 18, 12, 0)  # noqa: DTZ001 - deliberately naive
+    with pytest.raises(ValueError, match="timezone-aware"):
+        free_quota_state(user, now=naive)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        available_paid_rights(user, now=naive)

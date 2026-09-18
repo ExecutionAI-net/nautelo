@@ -57,6 +57,7 @@ class FreeQuotaState:
     next_available_at: datetime | None
     publication_days: int
     allowance: int
+    # Exact number of uses inside the rolling window (never capped).
     used_in_period: int
 
     def as_dict(self) -> dict:
@@ -68,6 +69,14 @@ class FreeQuotaState:
             "next_available_at": self.next_available_at,
             "publication_days": self.publication_days,
         }
+
+
+def _resolve_now(now: datetime | None) -> datetime:
+    if now is None:
+        return timezone.now()
+    if timezone.is_naive(now):
+        raise ValueError("`now` must be a timezone-aware datetime")
+    return now
 
 
 def free_quota_state(user, *, now: datetime | None = None) -> FreeQuotaState:
@@ -82,33 +91,42 @@ def free_quota_state(user, *, now: datetime | None = None) -> FreeQuotaState:
     unless staff explicitly restores it with an audited remedy", and spec §6.3
     makes CONSUMED -> REVOKED the transition that remedy performs.
     """
-    now = now or timezone.now()
+    now = _resolve_now(now)
     allowance = free_listing_count()
     period = timedelta(days=free_period_days())
     cutoff = now - period
 
-    # Newest first: [0] is spec §22.2's `used_at`, and [allowance - 1] is the
-    # oldest use still inside the window, which is the one that has to age out
-    # before a new right appears.
-    consumed_at_values = list(
+    consumed = (
         UserEntitlement.objects.for_user(user)
         .free()
         .consumed()
         .filter(consumed_at__isnull=False)
-        .order_by("-consumed_at")
-        .values_list("consumed_at", flat=True)[: max(allowance, 1) + 1]
     )
-    used_at = consumed_at_values[0] if consumed_at_values else None
-    in_period = [value for value in consumed_at_values if value > cutoff]
-    used_in_period = len(in_period)
+    # Spec §22.2's `used_at` is the ledger fact: the newest non-revoked
+    # consumption, whether or not it is still inside the rolling window.
+    used_at = (
+        consumed.order_by("-consumed_at").values_list("consumed_at", flat=True).first()
+    )
+
+    # A use counts while `consumed_at > now - period`: exactly one period after
+    # the use, it has aged out (so eligibility returns at `used + period`).
+    in_window = consumed.filter(consumed_at__gt=cutoff)
+    # An exact count of uses inside the rolling window (not capped).
+    used_in_period = in_window.count()
 
     available = allowance > 0 and used_in_period < allowance
     next_available_at = None
-    if not available and allowance > 0 and len(in_period) >= allowance:
-        # `in_period` is newest-first, so the element at `allowance - 1` is the
-        # oldest of the `allowance` most recent uses. With the default
-        # allowance of 1 this is simply "last use + 365 days" (spec §22.1).
-        next_available_at = in_period[allowance - 1] + period
+    if not available and allowance > 0:
+        # Newest-first, the `allowance`-th row is the oldest of the `allowance`
+        # most recent in-window uses: the one that must age out before a new
+        # right appears. With the default allowance of 1 this is simply
+        # "last use + 365 days" (spec §22.1). The query is bounded by allowance.
+        newest_in_window = list(
+            in_window.order_by("-consumed_at").values_list("consumed_at", flat=True)[
+                :allowance
+            ]
+        )
+        next_available_at = newest_in_window[allowance - 1] + period
 
     return FreeQuotaState(
         available=available,
@@ -128,7 +146,7 @@ def available_paid_rights(
     Soonest-expiring first is deliberate: consuming the right that would lapse
     next is the only ordering that never destroys value the buyer paid for.
     """
-    now = now or timezone.now()
+    now = _resolve_now(now)
     return (
         UserEntitlement.objects.for_user(user)
         .paid()
