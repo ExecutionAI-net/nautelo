@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "finance",
     "taxonomy",
     "listings",
+    "analytics",
     "platform_settings",
 ]
 
