@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.cookies import REFRESH_COOKIE_NAME, clear_refresh_cookie, set_refresh_cookie
 from accounts.models import User
+from accounts.selectors import build_session_payload
 from accounts.serializers import (
     EmailTokenObtainPairSerializer,
     RegistrationSerializer,
@@ -158,3 +159,13 @@ class LogoutView(APIView):
             except TokenError:
                 pass  # An already-invalid token means the session is already gone.
         return clear_refresh_cookie(Response(status=status.HTTP_204_NO_CONTENT))
+
+
+class SessionView(APIView):
+    """user, role, permissions, locale (spec 30.1). Answers guests with 200."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        user = request.user if request.user.is_authenticated else None
+        return Response(build_session_payload(user), status=status.HTTP_200_OK)
