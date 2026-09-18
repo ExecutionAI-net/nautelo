@@ -4,6 +4,7 @@ from brokers.views import (
     BrokerApprovalPolicyView,
     BrokerMemberDetailView,
     BrokerMemberListView,
+    BrokerPendingApprovalsView,
     StaffBrokerDetailView,
 )
 
@@ -27,5 +28,10 @@ urlpatterns = [
         "staff/brokers/<uuid:broker_id>/approval-policy/",
         BrokerApprovalPolicyView.as_view(),
         name="staff-broker-approval-policy",
+    ),
+    path(
+        "staff/brokers/<uuid:broker_id>/pending-approvals/",
+        BrokerPendingApprovalsView.as_view(),
+        name="staff-broker-bulk-approve",
     ),
 ]

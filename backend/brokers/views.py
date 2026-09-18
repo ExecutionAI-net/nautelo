@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -13,8 +15,10 @@ from accounts.permissions import (
     IsStaffModerator,
 )
 from brokers.models import BrokerMembership, BrokerOrganization
+from brokers.moderation import bulk_approve_pending_broker_revisions
 from brokers.serializers import (
     BrokerApprovalPolicySerializer,
+    BrokerBulkApproveSerializer,
     BrokerMembershipCreateSerializer,
     BrokerMembershipSerializer,
     BrokerMembershipUpdateSerializer,
@@ -162,3 +166,48 @@ class BrokerApprovalPolicyView(APIView):
         payload = StaffBrokerDetailSerializer().to_representation(change.broker)
         payload["changed"] = change.changed
         return Response(payload)
+
+
+class BrokerPendingApprovalsView(APIView):
+    """POST /api/v1/staff/brokers/<id>/pending-approvals/ (spec §21 rule 7).
+
+    IsStaffModerator, not IsStaffAdmin: spec §5 gives "Approve
+    listings/revisions" to both tiers, and this action is approving listings —
+    many at once — not configuring a policy. The narrower staff-admin gate
+    belongs to BrokerApprovalPolicyView beside it.
+
+    Deliberately not `@transaction.atomic`: the service takes one savepoint per
+    revision so a single invalid submission cannot block the rest of the run.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        ListingWorkflowEnabled,
+        IsStaffModerator,
+    ]
+
+    def post(self, request, broker_id):
+        broker = get_object_or_404(BrokerOrganization, pk=broker_id)
+        envelope = BrokerBulkApproveSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+
+        result = bulk_approve_pending_broker_revisions(
+            broker=broker,
+            actor=request.user,
+            reason=envelope.validated_data["reason"],
+        )
+
+        broker.refresh_from_db()
+        return Response(
+            {
+                "approved_count": len(result.approved),
+                "failed_count": len(result.failures),
+                "approved_revision_ids": result.approved,
+                "failures": [asdict(failure) for failure in result.failures],
+                # The refreshed detail travels with the run so the screen's
+                # counts, backlog size and audit history update in one round
+                # trip (spec §30.2).
+                "broker": StaffBrokerDetailSerializer().to_representation(broker),
+            }
+        )
