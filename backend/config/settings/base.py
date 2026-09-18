@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "common",
     "accounts",
     "brokers",
+    "professionals",
     "audit",
     "finance",
     "taxonomy",
