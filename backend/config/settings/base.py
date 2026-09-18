@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "analytics",
     "entitlements",
     "messaging",
+    "notifications",
     "platform_settings",
 ]
 
@@ -113,6 +114,7 @@ CELERY_TASK_QUEUES = (
 CELERY_TASK_ROUTES = {
     "common.tasks.*": {"queue": "default"},
     "accounts.tasks.*": {"queue": "notifications"},
+    "notifications.tasks.*": {"queue": "notifications"},
 }
 
 REST_FRAMEWORK = {
