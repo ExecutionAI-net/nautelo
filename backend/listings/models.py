@@ -350,6 +350,21 @@ class ListingSnapshot(UUIDModel):
     location_city = models.CharField(max_length=120)
     currency = models.CharField(max_length=3)
     price = models.DecimalField(max_digits=14, decimal_places=2)
+    # Spec §18.2 reads these four as "listing.show_finance_estimate" etc. They
+    # are snapshotted rather than read off the BoatListing row because those
+    # columns are draft state (listings.drafts._apply_payload_to_listing writes
+    # them on every draft save) and spec §36.1 requires that "draft broker
+    # finance settings do not leak before publication". Written only by
+    # listings.snapshots.create_snapshot_from_revision; read only by
+    # finance.listing_quotes.
+    show_finance_estimate = models.BooleanField(default=False)
+    finance_down_payment_override_percent = models.DecimalField(
+        max_digits=7, decimal_places=4, null=True, blank=True
+    )
+    finance_rate_override_percent = models.DecimalField(
+        max_digits=7, decimal_places=4, null=True, blank=True
+    )
+    finance_term_override_months = models.PositiveIntegerField(null=True, blank=True)
     media_manifest = models.JSONField(default=list, encoder=DjangoJSONEncoder)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
