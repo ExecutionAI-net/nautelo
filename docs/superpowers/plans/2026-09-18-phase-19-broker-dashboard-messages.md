@@ -81,11 +81,11 @@ Concurrent phases are editing `listings/`, `platform_settings/`, `finance/`, `br
 
 | File | Change | Task | Why it is unavoidable |
 |---|---|---|---|
-| `backend/messaging/exceptions.py` | **Append** two `APIException` subclasses. | 1 | Spec §28's Archived filter needs a producer, and Phase 6 contract rule 10 requires a named code to be an `APIException` subclass. |
+| `backend/messaging/exceptions.py` | **Append** three `APIException` subclasses: `InvalidConversationStatus`, `ConversationSuperseded`, `ConversationFilingForbidden`. | 1 | Spec §28's Archived filter needs a producer, ruling 5 needs a named refusal for a sender who tries to file, and Phase 6 contract rule 10 requires every named code to be an `APIException` subclass. |
 | `backend/messaging/services.py` | **Append** `ARCHIVABLE_STATUSES` and `set_conversation_status()`. | 1 | Phase 6 contract rule 9: *"Never write a `Message` or a `Conversation` outside `messaging.services`."* The writer has to live here. |
 | `backend/messaging/serializers.py` | **Append** `ConversationStatusSerializer`; **edit** `ConversationSerializer` to add one `viewer_is_initiator` field and one `"url"` key inside `get_context()`. | 1 | Spec §28's thread requires a "listing/profile link", and spec §2.1 requires a backend source for the archive control's own visibility. Both edits add; neither changes an existing field. |
 | `backend/messaging/views.py` | **Append** `ConversationDetailView` and `ConversationStatusView`. | 1 | Phase 6 contract rule 11: a messaging view must extend `MessagingAPIView`, which lives here. |
-| `backend/messaging/urls.py` | **Append** one `path(...)`. | 1 | — |
+| `backend/messaging/urls.py` | **Append** two `path(...)` entries: `conversation-detail` and `conversation-status`. | 1 | — |
 | `backend/brokers/permissions.py` | **New file.** | 2 | Avoids editing `accounts/permissions.py`. |
 | `backend/brokers/dashboard.py` | **New file.** | 2 | Keeps the metric aggregation out of `brokers/selectors.py`, which Phase 12 owns. |
 | `backend/brokers/views.py` | **Append** `BrokerDashboardView`. | 2 | House style: one views module per app. |
@@ -324,8 +324,11 @@ FILE_NEEDLES = {
                          "class ConversationMessagesView", "class ConversationListView"],
   "messaging/selectors.py": ["def conversations_visible_to", "def can_view_conversation",
                              "def annotate_unread", "def annotate_last_message"],
+  # `def _viewer` because Step 4c's get_viewer_is_initiator calls it; if Phase 6
+  # spelled that helper differently, this task's new method must follow suit
+  # rather than introduce a second way to read the request user.
   "messaging/serializers.py": ["class ConversationSerializer", "class MessageSerializer",
-                               "def get_context"],
+                               "def get_context", "def _viewer"],
   "messaging/services.py": ["def post_reply", "def mark_conversation_read"],
   "messaging/exceptions.py": ["class ConversationClosed"],
   "messaging/permissions.py": ["class UnifiedInquiriesEnabled"],
@@ -1999,6 +2002,16 @@ describe("CONVERSATION_MESSAGES", () => {
     expect(tConversations("it", "broker.messages")).toBe("Messaggi");
   });
 
+  it("gives ARCHIVED and BLOCKED distinct badge strings", () => {
+    // Spec 2.1: two different statuses must not render the same word. The
+    // components gate on `=== "ARCHIVED"` / `=== "BLOCKED"`, never `!== "OPEN"`.
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(tConversations(locale, "messages.archived_badge")).not.toBe(
+        tConversations(locale, "messages.blocked_badge"),
+      );
+    }
+  });
+
   it("names a filter string for each of spec 28's five filters", () => {
     for (const key of [
       "messages.filter.all",
@@ -2086,6 +2099,9 @@ Expected: FAIL — `Failed to resolve import "@/lib/i18n/conversations"`.
 // Spec 37: all new UI text has EN/IT/ES translation keys and no English is
 // hard-coded inside a component. A typed dictionary, not an i18n framework —
 // the same shape lib/i18n/directory.ts established in Phase 5.
+//
+// `Locale` is imported, never redeclared (Phase 5 contract rule 12): it is
+// declared once in lib/api/directory.ts and re-exported by lib/i18n/directory.
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
 
 type Translations = Record<Locale, string>;
@@ -2163,6 +2179,14 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
     en: "Archived",
     it: "Archiviata",
     es: "Archivada",
+  },
+  "messages.blocked_badge": {
+    // A distinct state, not a synonym for archived. Spec 36.6 makes BLOCKED a
+    // moderation outcome; nothing in this phase produces it (ruling 4), but a
+    // thread that reaches it must not be mislabelled "Archived".
+    en: "Blocked",
+    it: "Bloccata",
+    es: "Bloqueada",
   },
 
   "messages.thread.back": {
@@ -2354,7 +2378,7 @@ export function formatConversationMessage(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd frontend && pnpm vitest run src/lib/i18n/conversations.test.ts`
-Expected: PASS — **9 tests**.
+Expected: PASS — **10 tests**.
 
 Run: `cd frontend && pnpm lint`
 Expected: no errors.
@@ -2378,6 +2402,7 @@ git commit -m "feat(messages): EN/IT/ES dictionary for the broker messages scree
 - Produces:
   - Types `ConversationStatus`, `ConversationType`, `ConversationContextRef`, `ConversationRow`, `MessageRow`, `BrokerDashboard`, `ConversationFilter`
   - `CONVERSATION_FILTERS: readonly ConversationFilter[]`
+  - `FILTER_MESSAGE_KEYS: Record<ConversationFilter, string>` — the filter → dictionary-key map `ConversationFilters` (Task 5) renders from
   - `resolveFilter(raw: string | undefined) -> ConversationFilter`
   - `conversationListQuery(filter, options) -> string`
   - `fetchConversations(filter, options?) -> Promise<Paginated<ConversationRow>>`
@@ -3008,6 +3033,10 @@ describe("ConversationRowCard", () => {
       <ConversationRowCard locale="en" row={ROW} href="/dashboard/messages/c-1/" />,
     );
     expect(screen.getByText("Ada Rossi")).toBeInTheDocument();
+    // The context type and the label are separate elements on purpose (see the
+    // component), so each is addressable by its exact text. If this ever has to
+    // become a regex, the component has regressed to one span.
+    expect(screen.getByText("Broker")).toBeInTheDocument();
     expect(screen.getByText("Phase19 Alpha Brokers")).toBeInTheDocument();
     expect(
       screen.getByText("I would like to arrange a viewing next week."),
@@ -3053,6 +3082,27 @@ describe("ConversationRowCard", () => {
       />,
     );
     expect(screen.getByText("Archived")).toBeInTheDocument();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+  });
+
+  it("labels a blocked row Blocked, not Archived", () => {
+    // Spec 2.1: a visible state must be the state the data says. A `!== "OPEN"`
+    // badge condition would call every blocked thread archived.
+    render(
+      <ConversationRowCard
+        locale="en"
+        row={{ ...ROW, status: "BLOCKED" }}
+        href="/x/"
+      />,
+    );
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
+  });
+
+  it("shows no status badge at all on an open row", () => {
+    render(<ConversationRowCard locale="en" row={ROW} href="/x/" />);
+    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
   });
 
   it("renders no timestamp at all when there is no last message", () => {
@@ -3235,14 +3285,38 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
         <span className="font-title-sm text-title-sm text-on-surface">
           {senderName}
         </span>
+        {/* The context type and the context label are SEPARATE elements, not
+            one span holding `type + " · " + label`. Testing Library matches an
+            element on the concatenation of its direct text-node children, so a
+            single span would have the accessible text "Broker · Phase19 Alpha
+            Brokers" and no exact query could ever address the label on its own.
+            Splitting them makes each independently assertable and costs one
+            element; the flex `gap-space-sm` on the parent already spaces them,
+            and the separator is decorative so it is aria-hidden. */}
         <span className="font-body-sm text-on-surface-variant">
           {tConversations(locale, `messages.context.${row.context.type}`)}
-          {row.context.label ? ` · ${row.context.label}` : ""}
         </span>
+        {row.context.label ? (
+          <>
+            <span aria-hidden="true" className="font-body-sm text-on-surface-variant">
+              ·
+            </span>
+            <span className="font-body-sm text-on-surface-variant">
+              {row.context.label}
+            </span>
+          </>
+        ) : null}
         {row.status === "ARCHIVED" ? (
-          // Spec 29.6: never convey state by colour alone.
+          // Spec 29.6: never convey state by colour alone. Gated on ARCHIVED
+          // exactly, never on `!== "OPEN"` — a BLOCKED thread is not archived,
+          // and labelling it "Archived" would be a false visible state (spec 2.1).
           <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
             {tConversations(locale, "messages.archived_badge")}
+          </span>
+        ) : null}
+        {row.status === "BLOCKED" ? (
+          <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
+            {tConversations(locale, "messages.blocked_badge")}
           </span>
         ) : null}
         {row.unread_count > 0 ? (
@@ -3310,7 +3384,7 @@ export default function ConversationList({ locale, rows, hrefFor }: Props) {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run src/components/messages/`
-Expected: PASS — **12 tests** (4 filters, 6 row, 2 list).
+Expected: PASS — **14 tests** (4 filters, 8 row, 2 list).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit`
 Expected: no errors.
@@ -3635,7 +3709,10 @@ describe("ConversationThread", () => {
     expect(onToggleArchive).toHaveBeenCalledWith("OPEN");
   });
 
-  it("disables the composer on a closed thread", () => {
+  it("disables the composer on a blocked thread and labels it Blocked", () => {
+    // Spec 2.1: the badge must say what the status IS. A `!== "OPEN"` condition
+    // would render "Archived" here, which is a different state with a different
+    // meaning and a different way out of it.
     render(
       <ConversationThread
         locale="en"
@@ -3646,6 +3723,14 @@ describe("ConversationThread", () => {
       />,
     );
     expect(screen.getByLabelText("Reply")).toBeDisabled();
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
+    // …and no filing control, because BLOCKED is not a state this phase's
+    // endpoint can leave (ruling 4).
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Move to inbox" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a real empty state for a thread with no messages", () => {
@@ -3890,9 +3975,18 @@ export default function ConversationThread({
           >
             {conversation.subject}
           </h1>
-          {conversation.status !== "OPEN" ? (
+          {/* Gated on the exact status, never on `!== "OPEN"`. A BLOCKED thread
+              is not an archived one, and spec 2.1 forbids showing a state the
+              data does not support — the earlier `!== "OPEN"` form labelled
+              every blocked conversation "Archived". */}
+          {conversation.status === "ARCHIVED" ? (
             <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
               {tConversations(locale, "messages.archived_badge")}
+            </span>
+          ) : null}
+          {conversation.status === "BLOCKED" ? (
+            <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
+              {tConversations(locale, "messages.blocked_badge")}
             </span>
           ) : null}
           {canFile ? (
@@ -3920,14 +4014,22 @@ export default function ConversationThread({
                 key={message.id}
                 className="rounded-xl border border-outline-variant p-space-md"
               >
+                {/* The attribution is its OWN span, for the same reason the
+                    inbox row splits its context label: Testing Library matches
+                    an element on the concatenation of its direct text-node
+                    children, so leaving the name and the " · " separator as
+                    siblings of <time> inside this <p> would give it the text
+                    "You ·" and no exact query could address "You". */}
                 <p className="font-label-md text-label-md text-on-surface-variant">
-                  {message.is_system
-                    ? tConversations(locale, "messages.thread.system_note")
-                    : message.sender.is_you
-                      ? tConversations(locale, "messages.thread.you")
-                      : message.sender.display_name.trim() ||
-                        tConversations(locale, "messages.sender_unnamed")}
-                  {" · "}
+                  <span>
+                    {message.is_system
+                      ? tConversations(locale, "messages.thread.system_note")
+                      : message.sender.is_you
+                        ? tConversations(locale, "messages.thread.you")
+                        : message.sender.display_name.trim() ||
+                          tConversations(locale, "messages.sender_unnamed")}
+                  </span>
+                  <span aria-hidden="true">{" · "}</span>
                   <time dateTime={message.created_at}>
                     {new Date(message.created_at).toLocaleString(locale)}
                   </time>
@@ -3952,7 +4054,7 @@ export default function ConversationThread({
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run src/components/messages/`
-Expected: PASS — **30 tests** (12 from Task 5, 18 from this task).
+Expected: PASS — **32 tests** (14 from Task 5, 18 from this task).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit`
 Expected: no errors.
@@ -4641,7 +4743,7 @@ import {
   type ConversationRow,
 } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
+import { resolveLocale } from "@/lib/i18n/directory";
 import { useSession } from "@/lib/auth/session";
 
 interface Props {
@@ -4655,18 +4757,13 @@ interface Props {
   filter: ConversationFilter;
 }
 
-function sessionLocale(locale: string | undefined): Locale {
-  const lower = (locale ?? "").toLowerCase();
-  return lower === "it" || lower === "es" ? (lower as Locale) : DEFAULT_LOCALE;
-}
-
 export default function MessagesScreen({ brokerId, basePath, filter }: Props) {
   const { session, loading } = useSession();
   const [rows, setRows] = useState<ConversationRow[]>([]);
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
 
-  const locale = sessionLocale(session?.user?.locale);
+  const locale = resolveLocale(session?.user?.locale);
   const authenticated = session?.authenticated === true;
 
   const load = useCallback(async () => {
@@ -4766,17 +4863,12 @@ import {
   type MessageRow,
 } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
+import { resolveLocale } from "@/lib/i18n/directory";
 import { useSession } from "@/lib/auth/session";
 
 interface Props {
   conversationId: string;
   basePath: string;
-}
-
-function sessionLocale(locale: string | undefined): Locale {
-  const lower = (locale ?? "").toLowerCase();
-  return lower === "it" || lower === "es" ? (lower as Locale) : DEFAULT_LOCALE;
 }
 
 export default function ThreadScreen({ conversationId, basePath }: Props) {
@@ -4786,7 +4878,7 @@ export default function ThreadScreen({ conversationId, basePath }: Props) {
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
 
-  const locale = sessionLocale(session?.user?.locale);
+  const locale = resolveLocale(session?.user?.locale);
   const authenticated = session?.authenticated === true;
 
   const load = useCallback(async () => {
@@ -4976,7 +5068,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run src/components/messages/ src/app/dashboard/ src/components/auth/`
-Expected: PASS — **56 tests**, made up of: 44 under `components/messages/` (30 from Tasks 5–6, plus 7 `MessagesScreen` and 7 `ThreadScreen`), 6 under `app/dashboard/` (4 in the inbox route, 2 in the thread route), and 6 under `components/auth/` (the 4 that were already there, unedited, plus this task's 2).
+Expected: PASS — **58 tests**, made up of: 46 under `components/messages/` (32 from Tasks 5–6, plus 7 `MessagesScreen` and 7 `ThreadScreen`), 6 under `app/dashboard/` (4 in the inbox route, 2 in the thread route), and 6 under `components/auth/` (the 4 that were already there, unedited, plus this task's 2).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit && pnpm build`
 Expected: no errors; the build output lists `/dashboard/messages` and `/dashboard/messages/[conversationId]`.
@@ -5336,15 +5428,61 @@ describe("/dashboard/broker/messages/<id>/", () => {
 });
 ```
 
-Append to `frontend/src/components/layout/PrimaryNav.test.tsx` — and **widen `mockSession`** so it can carry memberships:
+Append three cases to `frontend/src/components/layout/PrimaryNav.test.tsx`. The file's existing four tests are not edited; only its `mockSession` helper is widened, below, and both new parameters default to what it does today.
 
 ```tsx
-// Replace the existing mockSession signature with this one. The default keeps
-// every existing test in this file unchanged.
+const BROKER_MEMBERSHIP = {
+  broker_id: "b-1",
+  broker_name: "Phase19 Alpha Brokers",
+  broker_slug: "phase19-alpha-brokers",
+  broker_status: "ACTIVE" as const,
+  broker_auto_approve_listings: false,
+  role: "AGENT" as const,
+  can_edit_listings: false,
+  can_manage_team: false,
+  can_read_messages: false,
+};
+
+  it("shows the broker dashboard link only to a member of a broker organization", () => {
+    mockSession(ALL_FALSE);
+    render(<PrimaryNav />);
+    expect(
+      screen.queryByRole("link", { name: "Broker dashboard" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the broker dashboard link to a broker member with no permissions at all", () => {
+    // Membership, not a permission: spec 5's capability table has no "broker
+    // dashboard" row, and an AGENT with every flag false is still a member.
+    mockSession(ALL_FALSE, true, [BROKER_MEMBERSHIP]);
+    render(<PrimaryNav />);
+    expect(
+      screen.getByRole("link", { name: "Broker dashboard" }),
+    ).toHaveAttribute("href", "/dashboard/broker/");
+  });
+
+  it.each([
+    ["EN", "Broker dashboard"],
+    ["IT", "Pannello broker"],
+    ["ES", "Panel del bróker"],
+  ])("renders the broker dashboard label in %s", (localeCode, label) => {
+    // Spec 37: this phase's new nav text is a dictionary key, not a literal.
+    // The six entries merged in Phase 3 remain hard-coded English — see this
+    // task's note and Known Limitation 18.
+    mockSession(ALL_FALSE, true, [BROKER_MEMBERSHIP], localeCode);
+    render(<PrimaryNav />);
+    expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
+  });
+```
+
+The locale has to reach `mockSession`, so widen it once more — the existing calls are unaffected because both new parameters have defaults:
+
+```tsx
 function mockSession(
   permissions: PermissionMap,
   authenticated = true,
   brokerMemberships: SessionPayload["broker_memberships"] = [],
+  localeCode: SessionPayload["locale"] = "EN",
 ) {
   const value: SessionPayload = {
     authenticated,
@@ -5354,12 +5492,12 @@ function mockSession(
           email: "nav@example.com",
           full_name: "Nav User",
           primary_role: "BUYER",
-          locale: "EN",
+          locale: localeCode,
           email_verified: true,
           is_active: true,
         }
       : null,
-    locale: "EN",
+    locale: localeCode,
     permissions,
     broker_memberships: brokerMemberships,
     professional_profile: null,
@@ -5375,38 +5513,6 @@ function mockSession(
     reload: vi.fn(),
   });
 }
-```
-
-```tsx
-  it("shows the broker dashboard link only to a member of a broker organization", () => {
-    mockSession(ALL_FALSE);
-    render(<PrimaryNav />);
-    expect(
-      screen.queryByRole("link", { name: "Broker dashboard" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows the broker dashboard link to a broker member with no permissions at all", () => {
-    // Membership, not a permission: spec 5's capability table has no "broker
-    // dashboard" row, and an AGENT with every flag false is still a member.
-    mockSession(ALL_FALSE, true, [
-      {
-        broker_id: "b-1",
-        broker_name: "Phase19 Alpha Brokers",
-        broker_slug: "phase19-alpha-brokers",
-        broker_status: "ACTIVE",
-        broker_auto_approve_listings: false,
-        role: "AGENT",
-        can_edit_listings: false,
-        can_manage_team: false,
-        can_read_messages: false,
-      },
-    ]);
-    render(<PrimaryNav />);
-    expect(
-      screen.getByRole("link", { name: "Broker dashboard" }),
-    ).toHaveAttribute("href", "/dashboard/broker/");
-  });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -5502,12 +5608,7 @@ export default function BrokerDashboardNav({ locale }: { locale: Locale }) {
 
 import BrokerDashboardNav from "@/components/broker/BrokerDashboardNav";
 import { useSession } from "@/lib/auth/session";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
-
-function sessionLocale(locale: string | undefined): Locale {
-  const lower = (locale ?? "").toLowerCase();
-  return lower === "it" || lower === "es" ? (lower as Locale) : DEFAULT_LOCALE;
-}
+import { resolveLocale } from "@/lib/i18n/directory";
 
 /** The broker dashboard shell. The nav renders on every /dashboard/broker/ page
  * so spec 28's "Navigation item `Messages`" is present wherever a broker is,
@@ -5520,7 +5621,7 @@ export default function BrokerDashboardLayout({
   const { session } = useSession();
   return (
     <>
-      <BrokerDashboardNav locale={sessionLocale(session?.user?.locale)} />
+      <BrokerDashboardNav locale={resolveLocale(session?.user?.locale)} />
       {children}
     </>
   );
@@ -5547,7 +5648,7 @@ import MessagesScreen from "@/components/messages/MessagesScreen";
 import { resolveFilter } from "@/lib/api/conversations";
 import { useSession } from "@/lib/auth/session";
 import { tConversations } from "@/lib/i18n/conversations";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
+import { resolveLocale } from "@/lib/i18n/directory";
 
 // Next 16: searchParams is a Promise, including in a client component, where it
 // is unwrapped with React's `use()`.
@@ -5557,11 +5658,6 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function sessionLocale(locale: string | undefined): Locale {
-  const lower = (locale ?? "").toLowerCase();
-  return lower === "it" || lower === "es" ? (lower as Locale) : DEFAULT_LOCALE;
-}
-
 export default function BrokerMessagesPage({
   searchParams,
 }: {
@@ -5569,7 +5665,7 @@ export default function BrokerMessagesPage({
 }) {
   const params = use(searchParams);
   const { session } = useSession();
-  const locale = sessionLocale(session?.user?.locale);
+  const locale = resolveLocale(session?.user?.locale);
   const membership = primaryBrokerMembership(session);
 
   return (
@@ -5623,12 +5719,23 @@ export default async function BrokerThreadPage({ params }: { params: Params }) {
 
 - [ ] **Step 3d: Modify `frontend/src/components/layout/PrimaryNav.tsx`**
 
-Widen the link type and append one entry — reorder nothing:
+Widen the link type and append one entry — reorder nothing, and **rename nothing**: the existing six entries keep their hard-coded `label`.
 
 ```tsx
 interface NavLink {
   href: string;
-  label: string;
+  /** Hard-coded English, as the six entries merged in Phase 3 all are. */
+  label?: string;
+  /** A key in CONVERSATION_MESSAGES, resolved per the viewer's locale.
+   *
+   * New UI text must be an EN/IT/ES key (spec 37), so this phase's entry uses
+   * this rather than `label`. The existing entries are NOT converted here:
+   * retro-fitting six labels into a dictionary is a change to Phase 3's
+   * component with its own copy decisions (what is "Boats" in Italian on a
+   * marketplace that has not shipped a boats page?), and this plan's charter is
+   * spec 28. Recorded as Known Limitation 18, beside the related observation
+   * that the same six links point at pages that do not exist. */
+  messageKey?: string;
   permission?: PermissionKey;
   /** Some entries are gated on membership rather than on a spec 5 capability:
    * spec 5's table has no "broker dashboard" row, and an AGENT with every flag
@@ -5640,15 +5747,31 @@ interface NavLink {
 ```tsx
   {
     href: "/dashboard/broker/",
-    label: "Broker dashboard",
+    // Spec 37: new UI text is a key, never a literal. `broker.dashboard.title`
+    // already carries EN/IT/ES and is the same string the broker home page's
+    // own nav landmark uses, so the two can never drift.
+    messageKey: "broker.dashboard.title",
     requiresBrokerMembership: true,
   },
 ```
 
-…and replace the `visible` computation:
+…add two imports:
+
+```tsx
+import { tConversations } from "@/lib/i18n/conversations";
+import { resolveLocale } from "@/lib/i18n/directory";
+```
+
+…and replace the `visible` computation and the label expression:
 
 ```tsx
   const isBrokerMember = (session?.broker_memberships?.length ?? 0) > 0;
+  // PrimaryNav is already a client component holding the session, so the
+  // viewer's own locale is available here. resolveLocale is the shared helper
+  // (lib/i18n/directory.ts:15) — the session's LocaleCode is "EN"/"IT"/"ES"
+  // and the dictionary's Locale is "en"/"it"/"es", and that lowercasing lives
+  // in exactly one place.
+  const locale = resolveLocale(session?.user?.locale);
 
   const visible = LINKS.filter((link) => {
     if (link.permission !== undefined && !can(link.permission)) return false;
@@ -5657,10 +5780,21 @@ interface NavLink {
   });
 ```
 
+```tsx
+            <Link
+              href={link.href}
+              className="font-body-md text-on-surface-variant hover:text-primary"
+            >
+              {link.messageKey
+                ? tConversations(locale, link.messageKey)
+                : link.label}
+            </Link>
+```
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run`
-Expected: PASS — the whole frontend suite, with **18 new tests** from this task: 9 in `BrokerDashboardNav.test.tsx` (6 for the nav, 3 for `primaryBrokerMembership`), 5 in the broker inbox page, 2 in the broker thread page, and 2 appended to `PrimaryNav.test.tsx`, whose existing 4 stay green and unedited.
+Expected: PASS — the whole frontend suite, with **21 new tests** from this task: 9 in `BrokerDashboardNav.test.tsx` (6 for the nav, 3 for `primaryBrokerMembership`), 5 in the broker inbox page, 2 in the broker thread page, and 5 appended to `PrimaryNav.test.tsx` (2 plain cases plus one `it.each` over EN/IT/ES), whose existing 4 stay green and unedited.
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit && pnpm build`
 Expected: no errors; the build output lists `/dashboard/broker/messages` and `/dashboard/broker/messages/[conversationId]`.
@@ -6088,19 +6222,14 @@ import {
 } from "@/lib/api/conversations";
 import { useSession } from "@/lib/auth/session";
 import { tConversations } from "@/lib/i18n/conversations";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
-
-function sessionLocale(locale: string | undefined): Locale {
-  const lower = (locale ?? "").toLowerCase();
-  return lower === "it" || lower === "es" ? (lower as Locale) : DEFAULT_LOCALE;
-}
+import { resolveLocale } from "@/lib/i18n/directory";
 
 export default function BrokerHomePage() {
   const { session, loading } = useSession();
   const [dashboard, setDashboard] = useState<BrokerDashboard | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
 
-  const locale = sessionLocale(session?.user?.locale);
+  const locale = resolveLocale(session?.user?.locale);
   const membership = primaryBrokerMembership(session);
   const brokerId = membership?.broker_id ?? null;
 
@@ -6782,6 +6911,7 @@ git commit -m "test(brokers): Phase 19 acceptance suite and handoff note (Phase 
 15. **A SUSPENDED brokerage's member still sees the Messages navigation before being refused.** `accounts/selectors.py:63-65` returns every `is_active=True` membership regardless of the organization's status, while `accounts/services.py:150-159` requires `broker__status=ACTIVE`. Both are right for their own job, so ruling 15 changes neither: the screen now names the real cause (`messages.error.not_broker_member` says the organization may be suspended or the membership removed) instead of showing a generic failure. Hiding the nav entry as well would mean teaching `PrimaryNav` and `BrokerDashboardNav` a status rule the session payload does not carry — a change to Phase 3's contract, not this phase's.
 16. **`PrimaryNav` links to six pages that do not exist.** `frontend/src/components/layout/PrimaryNav.tsx:15-32` offers `/boats/`, `/brokers/`, `/financing/`, `/dashboard/staff/`, `/settings/` and `/account/`; of its link set only `/services/professionals/` has a page today. An earlier draft of this plan cited that component as a *precedent* for avoiding dead links, which was the opposite of the truth (see ruling 3's correction). This phase holds the line on the surfaces it authors — the broker nav and the thread's context link — and deliberately does not widen its diff into a merged Phase 3 component to fix the rest. Phase 20 builds most of those pages and should close this.
 17. **`/dashboard/broker/services` (no trailing slash) reaches Messages in two hops, not one.** With `trailingSlash: true` Next.js 308s the slashless form to the slashed one, which then 301s to Messages. Spec §4.3's table names only `/dashboard/broker/services/`, and the same two-hop shape already applies to the two Phase 5 redirects merged in `next.config.ts`, so this is a property of the project's canonical-URL setting rather than of this redirect. Task 10's probe prints both shapes so the behaviour is recorded rather than discovered. Dropping `trailingSlash` would un-canonicalise every §4.1 route and is not the fix.
+18. **`PrimaryNav` now mixes a localized label with six hard-coded English ones.** This phase's entry carries `messageKey: "broker.dashboard.title"` and renders through `tConversations`, because spec §37 governs *new* UI text. The six Phase 3 entries (`Boats`, `Brokers`, `Services / Professionals`, `Financing`, `Moderation`, `Settings`) keep their literals, along with `Sign in`, `Sign out` and the account link. Retro-fitting them is a change to Phase 3's component with copy decisions of its own — `directory.ts` already holds `nav.services_professionals`, so one of the six even has a key waiting — and doing it here would put six unreviewed Italian and Spanish marketplace terms into a diff whose charter is spec §28. The `NavLink` type carries both fields with a comment saying which is for what, so the next phase to touch this file can convert them a link at a time. Phase 20, which owns public UI, is the natural place.
 
 
 ## Contract summary for later phases
@@ -6887,19 +7017,19 @@ All three are flagged as additions rather than presented as spec-literal, exactl
 
 1. **Still no second message store.** Spec §28's sentence outlives this phase. `Conversation` and `Message` are the only tables; `messaging.services` is the only writer (Phase 6 contract rule 9, extended to `set_conversation_status`). A per-participant archive flag or a `MessageRead` join table is a *schema* decision that belongs to whoever amends spec §11.8, not to a screen.
 2. **`components/messages/` is role-neutral and must stay that way.** Nothing in that directory imports a broker concept; scoping is the `brokerId` prop and `basePath`. That is the whole mechanism behind spec §28's "share components/services where practical", and it is what lets Phase 16 mount the same inbox in a private-seller shell by passing a different `basePath`.
-3. **`BROKER_NAV_LINKS` is pinned by a test that asserts the exact array.** A phase adding `/fleet/`, `/leads/`, `/team/`, `/profile/` or `/subscription/` adds its entry **and** updates that assertion in the same commit, and only once the page exists (spec §39; `PrimaryNav.test.tsx`'s own precedent). Never re-add a `Services & Surveyors` entry — spec §28 removes it by name.
+3. **`BROKER_NAV_LINKS` is pinned by a test that asserts the exact array.** A phase adding `/fleet/`, `/leads/`, `/team/`, `/profile/` or `/subscription/` adds its entry **and** updates that assertion in the same commit, and only once the page exists (spec §39 and §2.1 — **not** `PrimaryNav`, which links to six pages that do not exist; see ruling 3's correction and Known Limitation 16). Never re-add a `Services & Surveyors` entry — spec §28 removes it by name. Every entry carries a `messageKey`, never a literal label (spec §37).
 4. **`NAVIGABLE_URL_PREFIXES` is Phase 20's to delete.** When `/boats/` and `/brokers/` exist, add those prefixes (or drop the allowlist entirely) and the thread's context link starts working for those contexts. The backend already returns the canonical URLs; nothing server-side needs to change except giving `BoatListing` a slug.
 5. **`context.url` is canonical, not navigable.** A serializer returning a URL is stating the product's canonical path (spec §4.1), not promising a built page. Any new context kind adds a `url` key to `ConversationSerializer.get_context()` — never a second field, and never a client-side slug assembly.
 6. **New UI strings go in `CONVERSATION_MESSAGES` with all three languages.** The dictionary test fails on any key missing a locale (spec §37). `Locale` is still declared once, in `frontend/src/lib/api/directory.ts` — import it.
 7. **Never render `error.message`.** Map `error.code` through `messageErrorKey()` and a dictionary key. The backend's strings are English-only and developer-facing.
 8. **`IsBrokerMember` gates membership, not capability.** Per-capability narrowing happens inside the payload (`messages.can_read`), so an AGENT can still load their own dashboard. A new broker-facing endpoint that needs `can_read_messages` uses `messaging.selectors` for the data and `IsBrokerMember` for the door — do **not** widen `IsBrokerMember` itself.
 9. **Phase 18's `Notification.target_url` now resolves, and `SENDER_CONVERSATION_URL_TEMPLATE` is settled.** `/dashboard/messages/<id>/` is a real page. The constant is **not** a placeholder awaiting "the phase that builds the page" — ruling 2 shows spec §15.5's sender URL and spec §28's broker URL are two seats on one conversation, so they are two routes, and Task 1 Step 6 rewrites the comment that said otherwise. Do not change its value. If a role-specific destination is ever wanted, redirect in the frontend from the neutral path rather than forking the constant, because it is written into rows already in the database.
-13. **Only the recipient side may file a conversation.** `set_conversation_status` refuses the initiator with `conversation_filing_forbidden`, and `ConversationSerializer.viewer_is_initiator` is how a client knows whether to render the control. A phase that adds a per-participant archive flag (which needs an amendment to spec §11.8) should remove both together, not just the client half.
-14. **Use `fetchConversation(id)`, never a scan of the inbox, to load one conversation.** The list is paginated at 20; scanning it is correct only until somebody has 21 conversations. `GET /api/v1/conversations/<id>/` exists for this.
-15. **`RequirePermission`'s `permission` prop is optional.** With it omitted the component is a sign-in guard. Do not "fix" that by inventing a `PermissionKey` for a membership capability — `PermissionKey` is spec §5's table, and §5 has no row for reading conversations.
 10. **Any new messaging error code is an `APIException` subclass with a `default_code`** (Phase 6 contract rule 10, restated because this phase added two). A `ValidationError` collapses to `validation_error`.
 11. **Views declare `throttle_scope` only.** This phase owns `conversation_status` (120/hour) and `broker_dashboard` (120/min), both in `DEFAULT_THROTTLE_RATES`.
 12. **Query-count tests compare, never budget.** Both N+1 tests in `test_phase_19_acceptance.py` assert `len(large) == len(small)` after a discarded warm-up request. Copy that shape; an absolute budget cannot fail on an N+1.
+13. **Only the recipient side may file a conversation.** `set_conversation_status` refuses the initiator with `conversation_filing_forbidden`, and `ConversationSerializer.viewer_is_initiator` is how a client knows whether to render the control. A phase that adds a per-participant archive flag (which needs an amendment to spec §11.8) should remove both together, not just the client half.
+14. **Use `fetchConversation(id)`, never a scan of the inbox, to load one conversation.** The list is paginated at 20; scanning it is correct only until somebody has 21 conversations. `GET /api/v1/conversations/<id>/` exists for this.
+15. **`RequirePermission`'s `permission` prop is optional.** With it omitted the component is a sign-in guard. Do not "fix" that by inventing a `PermissionKey` for a membership capability — `PermissionKey` is spec §5's table, and §5 has no row for reading conversations.
 
 ---
 
@@ -6958,7 +7088,7 @@ All three are flagged as additions rather than presented as spec-literal, exactl
 
 **5. Right-sizing.** Eleven tasks, unchanged in number by this revision: ruling 14's detail endpoint went into Task 1 rather than becoming a twelfth, because it edits the same four files and the same `get_context()` method as the other two deliverables there — splitting would have meant rebasing one task onto another for no review benefit, and Task 1 says so in as many words. Each task ends with an independently testable deliverable and a commit, and each could be rejected by a reviewer without rejecting its neighbour: Task 1 is the messaging read/write extension, Task 2 is an endpoint, Tasks 3–4 are pure modules with unit tests, Tasks 5–6 are component groups that render without a network, Task 7 is the first thing a person can actually use, Task 8 is the broker chrome spec §28 names, Task 9 is broker home, Task 10 is one redirect, Task 11 is evidence. Setup is folded in rather than split out: Task 1 carries its own reconciliation gate, Task 2 carries its own cache conftest, Task 7 carries the one-prop `RequirePermission` change its routes need, Task 8 carries the `PrimaryNav` edit its nav entry needs.
 
-**6. Counts.** Every "Expected: PASS — N" line in this plan was re-derived programmatically from the embedded test bodies after this revision (counting `^def test_` in each Python block and `^\s*it\(` in each TypeScript block), not carried forward by hand. Backend: 13 + 18 (Task 1), 13 (Task 2), 9 (Task 11) = **53 new backend tests**. Frontend: 9 + 23 + 12 + 18 + 14 + 6 + 2 (routes, Task 7) + 18 (Task 8) + 12 (Task 9) + 1 net new in `next.config.test.ts` = **115 new frontend tests**, plus 4 existing `RequirePermission` tests and 4 existing `PrimaryNav` tests that must stay green unedited.
+**6. Counts.** Every "Expected: PASS — N" line in this plan was re-derived programmatically from the embedded test bodies after this revision (counting `^def test_` in each Python block and `^\s*it\(` in each TypeScript block), not carried forward by hand. Backend: 13 + 18 (Task 1), 13 (Task 2), 9 (Task 11) = **53 new backend tests**. Frontend: 10 (Task 3) + 23 (Task 4) + 14 (Task 5) + 18 (Task 6) + 14 screens + 6 routes + 2 auth (Task 7) + 21 (Task 8) + 12 (Task 9) + 1 net new in `next.config.test.ts` = **121 new frontend tests**, plus the 4 existing `RequirePermission` tests and 4 existing `PrimaryNav` tests that must stay green unedited.
 
 
 
