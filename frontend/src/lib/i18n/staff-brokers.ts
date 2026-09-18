@@ -116,6 +116,86 @@ export const STAFF_BROKER_MESSAGES: Record<string, Translations> = {
     it: "Le organizzazioni broker non hanno un limite di annunci.",
     es: "Las organizaciones de bróker no tienen límite de anuncios.",
   },
+  "staff.broker.auto_approval": {
+    en: "Automatic approval",
+    it: "Approvazione automatica",
+    es: "Aprobación automática",
+  },
+  "staff.broker.auto_approval.on": { en: "On", it: "Attiva", es: "Activada" },
+  "staff.broker.auto_approval.off": {
+    en: "Off",
+    it: "Disattivata",
+    es: "Desactivada",
+  },
+  "staff.broker.auto_approval.enable": {
+    en: "Turn on automatic approval",
+    it: "Attiva l'approvazione automatica",
+    es: "Activar la aprobación automática",
+  },
+  "staff.broker.auto_approval.disable": {
+    en: "Turn off automatic approval",
+    it: "Disattiva l'approvazione automatica",
+    es: "Desactivar la aprobación automática",
+  },
+  "staff.broker.auto_approval.last_changed": {
+    en: "Last changed by",
+    it: "Ultima modifica di",
+    es: "Última modificación por",
+  },
+  "staff.broker.auto_approval.never_changed": {
+    en: "Never changed.",
+    it: "Mai modificata.",
+    es: "Nunca modificada.",
+  },
+  "staff.broker.auto_approval.readonly": {
+    en: "Only a staff administrator can change this policy.",
+    it: "Solo un amministratore dello staff può modificare questa politica.",
+    es: "Solo un administrador del equipo puede cambiar esta política.",
+  },
+  "staff.broker.auto_approval.confirm_title": {
+    en: "Confirm the policy change",
+    it: "Conferma la modifica della politica",
+    es: "Confirma el cambio de política",
+  },
+  "staff.broker.auto_approval.confirm_enable": {
+    // Spec §21 rule 5, said in the confirmation modal spec §21 requires.
+    en: "Turning this on affects future submissions only. Submissions already waiting for a moderator stay in the queue until somebody decides them.",
+    it: "L'attivazione riguarda solo gli invii futuri. Gli invii già in attesa di un moderatore restano in coda finché qualcuno non li decide.",
+    es: "Activarla afecta solo a los envíos futuros. Los envíos que ya esperan a un moderador permanecen en la cola hasta que alguien los decida.",
+  },
+  "staff.broker.auto_approval.confirm_disable": {
+    // Spec §21 rule 6.
+    en: "Turning this off affects future submissions only. Listings that are already published stay live unless they are moderated.",
+    it: "La disattivazione riguarda solo gli invii futuri. Gli annunci già pubblicati restano online salvo moderazione.",
+    es: "Desactivarla afecta solo a los envíos futuros. Los anuncios ya publicados siguen visibles salvo que se moderen.",
+  },
+  "staff.broker.reason_label": {
+    en: "Reason (required)",
+    it: "Motivo (obbligatorio)",
+    es: "Motivo (obligatorio)",
+  },
+  "staff.broker.reason_required": {
+    en: "Enter a reason before confirming.",
+    it: "Inserisci un motivo prima di confermare.",
+    es: "Introduce un motivo antes de confirmar.",
+  },
+  "staff.broker.confirm": { en: "Confirm", it: "Conferma", es: "Confirmar" },
+  "staff.broker.cancel": { en: "Cancel", it: "Annulla", es: "Cancelar" },
+  "staff.broker.saving": {
+    en: "Saving…",
+    it: "Salvataggio…",
+    es: "Guardando…",
+  },
+  "staff.broker.save_failed": {
+    en: "The change could not be saved.",
+    it: "Impossibile salvare la modifica.",
+    es: "No se ha podido guardar el cambio.",
+  },
+  "staff.broker.no_change": {
+    en: "The policy was already in that state. Nothing changed.",
+    it: "La politica era già in questo stato. Nessuna modifica.",
+    es: "La política ya estaba en ese estado. No ha cambiado nada.",
+  },
 };
 
 export function tStaffBroker(locale: Locale, key: string): string {
@@ -124,4 +204,32 @@ export function tStaffBroker(locale: Locale, key: string): string {
     throw new Error(`Unknown staff broker message key: ${key}`);
   }
   return translations[locale] || translations[DEFAULT_LOCALE];
+}
+
+/**
+ * A timestamp in the reader's locale, for a screen that is otherwise fully
+ * EN/IT/ES (spec §37).
+ *
+ * A raw ISO string is not a spec §37 violation — it is a timestamp, not
+ * translatable copy — but it is the only thing on this screen that ignores the
+ * locale the rest of it obeys, and staff read these stamps next to translated
+ * action labels and staff-authored reasons. There is no existing date-format
+ * convention to follow: as of this phase `frontend/src` contains no
+ * `Intl.DateTimeFormat`, `toLocaleDateString` or `formatDate` call at all
+ * (verify with `grep -rn "Intl\.\|toLocale" src/` before writing this), so this
+ * is the convention's first definition rather than a deviation from one. `Intl`
+ * is a platform built-in; no dependency is added.
+ *
+ * `timeZone: "UTC"` is deliberate on both counts: every stamp the backend sends
+ * is timezone-aware UTC (spec §11 preamble) and staff compare these against the
+ * audit trail, so a stamp that silently shifted to the reader's machine clock
+ * would be worse than useless during an incident — and a fixed zone keeps the
+ * component tests deterministic on any CI box.
+ */
+export function formatStaffTimestamp(locale: Locale, iso: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(iso));
 }

@@ -60,3 +60,23 @@ export function fetchStaffBrokerDetail(
     `/api/v1/staff/brokers/${encodeURIComponent(brokerId)}/`,
   );
 }
+
+/**
+ * The policy PATCH returns the whole refreshed detail plus `changed` — false
+ * when the switch was already in the requested state, so the screen can say so
+ * instead of implying a change happened (spec §30.2).
+ */
+export type PolicyUpdateResponse = StaffBrokerDetail & { changed: boolean };
+
+export function setBrokerAutoApproval(
+  brokerId: string,
+  { enabled, reason }: { enabled: boolean; reason: string },
+): Promise<PolicyUpdateResponse> {
+  return apiFetch<PolicyUpdateResponse>(
+    `/api/v1/staff/brokers/${brokerId}/approval-policy/`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ auto_approve_listings: enabled, reason }),
+    },
+  );
+}

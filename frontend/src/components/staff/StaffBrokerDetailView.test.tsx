@@ -93,6 +93,7 @@ describe("StaffBrokerDetailView", () => {
     ).toBeInTheDocument();
     expect(fetchStaffBrokerDetail).toHaveBeenCalledWith("b1");
     expect(screen.getByTestId("listing-count-total")).toHaveTextContent("4");
+    expect(screen.getByTestId("auto-approval-state")).toHaveTextContent("Off");
   });
 
   it("waits for the session before fetching, then fetches exactly once", async () => {
