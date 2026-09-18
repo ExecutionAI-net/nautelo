@@ -17,8 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
-from common.views import HealthCheckView, StripeWebhookView
+from common.views import HealthCheckView
 from finance.views import FinanceQuoteView
+from payments.views import StripeWebhookView
 from platform_settings.views import PublicPlatformSettingsView
 
 urlpatterns = [

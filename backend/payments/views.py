@@ -1,6 +1,10 @@
+from django.conf import settings
+from django.http import HttpResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -11,6 +15,13 @@ from .errors import IdempotencyKeyRequired
 from .models import PaymentOrder
 from .permissions import StripeCheckoutEnabled
 from .serializers import CheckoutSessionRequestSerializer, PaymentOrderSerializer
+from .webhooks import (
+    DuplicateWebhookEvent,
+    InvalidWebhookPayload,
+    InvalidWebhookSignature,
+    process_stripe_event,
+    verify_stripe_event,
+)
 
 
 class CheckoutSessionCreateView(APIView):
@@ -92,3 +103,47 @@ class PaymentOrderDetailView(APIView):
             pk=order_id,
         )
         return Response(PaymentOrderSerializer(order).data)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class StripeWebhookView(APIView):
+    """POST /api/v1/stripe/webhook/ (spec §30.1, §23.3).
+
+    Unauthenticated (Stripe carries no JWT), unthrottled (throttling Stripe's
+    retries would manufacture the paid-not-fulfilled state spec §35.4 tells us
+    to watch for) and deliberately NOT gated by the
+    `stripe_entitlement_checkout` flag — see the plan's ruling: turning the flag
+    off between a customer paying and Stripe delivering must not strand a real
+    payment.
+
+    `request.body` is read BEFORE anything touches `request.data`: DRF's parsers
+    consume the stream, and spec §33.1 requires verification against the raw
+    bytes Django received. Never introduce a `request.data` access above this.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    http_method_names = ["post", "options"]
+
+    def post(self, request):
+        raw_body = request.body
+        signature = request.META.get("HTTP_STRIPE_SIGNATURE", "")
+        try:
+            event = verify_stripe_event(
+                raw_body=raw_body,
+                signature_header=signature,
+                secret=settings.STRIPE_WEBHOOK_SECRET,
+            )
+        except (InvalidWebhookSignature, InvalidWebhookPayload):
+            # No body: distinguishing "bad timestamp" from "bad signature" would
+            # be a signature oracle, and Stripe reads only the status code.
+            return HttpResponse(status=400)
+
+        try:
+            process_stripe_event(event, raw_body=raw_body)
+        except DuplicateWebhookEvent:
+            # Spec §23.3 step 3: "duplicate event ID returns HTTP 200 without
+            # re-fulfillment".
+            return HttpResponse(status=200)
+        # Any other exception propagates to a 500 on purpose, so Stripe retries.
+        return HttpResponse(status=200)
