@@ -38,7 +38,7 @@ never merge a PR without green CI and a clean/conflict-free merge state.
 | 16 | Role-aware create/edit experience | 9, 11-15 | idea | — | |
 | 17 | Staff products, moderation and taxonomy UI | 12-16 | idea | — | |
 | 18 | WebSocket, email and in-app notifications | 6, 11-17 | idea | — | |
-| 19 | Broker dashboard simplification and messages | 6, 12 | idea | — | |
+| 19 | Broker dashboard simplification and messages | 6, 12 | **ready** (implementation gated on Phase 6 Tasks 3-10) | `2026-09-18-phase-19-broker-dashboard-messages.md` (merged, PR #144) | 11 tasks (53 backend + 121 frontend new tests). Two review rounds; EN/IT/ES dictionary for the dashboard nav. |
 | 20 | Public card/profile integration and responsive QA | 5-10 | idea | — | **New requirement added 2026-09-18 (project owner instruction):** spec §29.7 "Listing sharing" — the boat listing detail page needs a share affordance (at minimum WhatsApp + copy-link) using the canonical public URL. Not yet planned; bring it into this phase's plan when Phase 20 is scoped. |
 | 21 | Data migration, redirects and SEO | 5, 11, 20 | idea | — | |
 | 22 | Security, privacy, performance and observability | all features | idea | — | wsgi.py fail-secure gap already flagged here, see Phase 0/1 plan's Known Limitations. |
