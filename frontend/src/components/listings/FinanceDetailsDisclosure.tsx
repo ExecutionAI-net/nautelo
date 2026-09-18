@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { safeMoney } from "@/components/listings/money";
-import { requestFinanceQuote, type FinanceQuote } from "@/lib/api/listings";
+import { requestFinanceQuote, type FinanceQuote } from "@/lib/api/finance-quote";
 import type { Locale } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
 
