@@ -140,7 +140,13 @@ def test_another_user_cannot_edit_someone_elses_listing(api, workflow_enabled):
     response = api.patch(_url(listing), {"version": revision.version, "title_en": "Mine now"},
                          format="json")
 
-    assert response.status_code in (403, 404)
+    # Deterministically 403, not 404: the view looks the listing up with
+    # get_object_or_404 and only then calls check_object_permissions, so an
+    # existing listing always reaches IsOwnerOrBrokerEditor's refusal.
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "not_object_owner"
+    revision.refresh_from_db()
+    assert "title_en" not in revision.payload
 
 
 @pytest.mark.django_db
@@ -472,6 +478,36 @@ def test_a_rejected_listing_returns_to_draft_when_editing_resumes(api, workflow_
     assert ListingRevision.objects.filter(
         listing=listing, state=RevisionStatus.DRAFT, revision_number=2
     ).exists()
+
+
+@pytest.mark.parametrize(
+    "status",
+    [ListingStatus.SUSPENDED, ListingStatus.EXPIRED, ListingStatus.ARCHIVED],
+)
+@pytest.mark.django_db
+def test_a_listing_outside_the_edit_loop_cannot_open_a_new_revision(
+    api, workflow_enabled, status
+):
+    """SUSPENDED / EXPIRED / ARCHIVED are not part of the owner's edit loop, so a
+    new edit cycle is refused rather than silently carrying the status forward
+    onto a draft revision the moderation queue could never approve."""
+    owner = _seller()
+    listing = make_private_listing(owner=owner, status=status)
+    listing.current_public_snapshot = make_snapshot(listing, approved_by=_staff())
+    listing.save(update_fields=["current_public_snapshot"])
+    original_version = listing.version
+    api.force_authenticate(owner)
+
+    response = api.patch(
+        _url(listing), {"version": original_version, "price": "1000.00"}, format="json"
+    )
+
+    assert response.status_code == 409
+    assert response.data["error"]["code"] == "invalid_listing_state"
+    assert not ListingRevision.objects.filter(listing=listing).exists()
+    listing.refresh_from_db()
+    assert listing.status == status
+    assert listing.version == original_version
 
 
 @pytest.mark.django_db
