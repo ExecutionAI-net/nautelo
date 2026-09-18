@@ -13,7 +13,7 @@ from django.utils import timezone
 from accounts.enums import SellerType
 from common.models import UUIDTimeStampedModel
 
-from .enums import ListingStatus, PublicationSource
+from .enums import ListingStatus, MediaStatus, MediaType, PublicationSource
 
 MIN_MANUFACTURE_YEAR = 1900
 CUSTOM_MODEL_NAME_MIN_LENGTH = 2
@@ -179,3 +179,69 @@ class BoatListing(UUIDTimeStampedModel):
 
         if errors:
             raise ValidationError(errors)
+
+
+class ListingMediaQuerySet(models.QuerySet):
+    def non_rejected(self):
+        """Spec §11.5: "Media count limits include all non-rejected items to
+        prevent concurrent upload bypasses."""
+        return self.exclude(status=MediaStatus.REJECTED)
+
+    def ready(self):
+        """Spec §11.5: "Only READY media can enter a submitted revision/public
+        snapshot."""
+        return self.filter(status=MediaStatus.READY)
+
+
+class ListingMedia(UUIDTimeStampedModel):
+    """Spec §11.5. This phase owns the model only — the upload/scan/transcode
+    pipeline is spec Phase 15 (§24), which will drive `status` for real."""
+
+    listing = models.ForeignKey(
+        BoatListing, on_delete=models.CASCADE, related_name="media"
+    )
+    media_type = models.CharField(max_length=5, choices=MediaType.choices)
+    storage_key = models.CharField(max_length=500)
+    status = models.CharField(
+        max_length=10, choices=MediaStatus.choices, default=MediaStatus.UPLOADING
+    )
+    mime_type = models.CharField(max_length=100)
+    byte_size = models.PositiveBigIntegerField()
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    checksum_sha256 = models.CharField(max_length=64)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    objects = ListingMediaQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["media_type", "sort_order", "created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["listing", "storage_key"],
+                name="listings_media_unique_storage_key_per_listing",
+            ),
+            models.UniqueConstraint(
+                fields=["listing", "media_type", "sort_order"],
+                name="listings_media_unique_sort_order_per_type",
+            ),
+            models.CheckConstraint(
+                condition=Q(byte_size__gt=0),
+                name="listings_media_byte_size_is_positive",
+            ),
+            models.CheckConstraint(
+                condition=Q(checksum_sha256__regex=r"^[0-9a-f]{64}$"),
+                name="listings_media_checksum_is_lowercase_sha256_hex",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.media_type} {self.storage_key} ({self.status})"

@@ -1,7 +1,10 @@
+import hashlib
+import uuid
 from decimal import Decimal
 
 from accounts.enums import SellerType
-from listings.models import BoatListing
+from listings.enums import MediaStatus, MediaType
+from listings.models import BoatListing, ListingMedia
 from taxonomy.models import BoatBrand, BoatModel
 
 
@@ -53,3 +56,22 @@ def make_broker_listing(*, broker, actor, brand=None, model=None, **kwargs):
     }
     defaults.update(kwargs)
     return BoatListing.objects.create(**defaults)
+
+
+def make_media(listing, *, media_type=MediaType.IMAGE, status=MediaStatus.READY, sort_order=0, **kwargs):
+    unique = uuid.uuid4().hex
+    defaults = {
+        "listing": listing,
+        "media_type": media_type,
+        "status": status,
+        "sort_order": sort_order,
+        "storage_key": f"listings/{listing.pk}/{unique}",
+        "mime_type": "image/jpeg" if media_type == MediaType.IMAGE else "video/mp4",
+        "byte_size": 204_800,
+        "width": 1920 if media_type == MediaType.IMAGE else 1280,
+        "height": 1080 if media_type == MediaType.IMAGE else 720,
+        "duration_seconds": None if media_type == MediaType.IMAGE else 45,
+        "checksum_sha256": hashlib.sha256(unique.encode()).hexdigest(),
+    }
+    defaults.update(kwargs)
+    return ListingMedia.objects.create(**defaults)
