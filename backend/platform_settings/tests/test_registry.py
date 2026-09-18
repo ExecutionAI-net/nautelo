@@ -6,6 +6,16 @@ from platform_settings.registry import SETTINGS_REGISTRY, SettingValueType, coer
 
 EXPECTED_KEYS_AND_DEFAULTS = {
     "finance.enabled": (SettingValueType.BOOLEAN, True),
+    # Spec §17.2 requires a global switch for broker finance overrides ("Staff
+    # can disable override capability globally without altering existing stored
+    # values") and gives it no home: §10.1's table has no such key and §11.6's
+    # FinanceConfigurationVersion has no such column. The Phase 9 plan's scope
+    # ruling puts it here, in the typed audited registry §10.1 exists to hold,
+    # rather than inventing a column on the immutable configuration model or
+    # stretching §35.1's closed flag list. This test is the contract for §10.1's
+    # table, so the deviation is recorded here rather than silently absorbed.
+    # It is the registry's only non-public key (see the test below).
+    "finance.broker_overrides_enabled": (SettingValueType.BOOLEAN, True),
     "individual.free_listing_count": (SettingValueType.INTEGER, 1),
     "individual.free_period_days": (SettingValueType.INTEGER, 365),
     "individual.free_publish_days": (SettingValueType.INTEGER, 30),
@@ -20,8 +30,21 @@ EXPECTED_KEYS_AND_DEFAULTS = {
 }
 
 
-def test_registry_defines_exactly_the_twelve_spec_keys():
+def test_registry_defines_the_spec_keys_plus_the_phase_9_override_switch():
     assert set(SETTINGS_REGISTRY) == set(EXPECTED_KEYS_AND_DEFAULTS)
+
+
+def test_the_broker_override_switch_is_not_a_public_setting():
+    """Staff-only policy, so `is_public=False` — the registry's only such key.
+
+    FinancePolicy.load() reads it server-side and no browser consumer exists:
+    the listing form's "use custom assumptions" control is gated by Phase 16's
+    own staff-aware form context, not by the public settings payload. Keeping it
+    non-public also means GET /api/v1/platform/public-settings/ is unchanged, so
+    test_views.py::test_public_settings_endpoint_returns_all_seeded_keys — an
+    exact-dict assertion over that payload — stays untouched by Phase 9.
+    """
+    assert SETTINGS_REGISTRY["finance.broker_overrides_enabled"].is_public is False
 
 
 @pytest.mark.parametrize("key, expected", EXPECTED_KEYS_AND_DEFAULTS.items())
