@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import AutoApprovalPanel from "@/components/staff/AutoApprovalPanel";
 import BrokerOverviewPanel from "@/components/staff/BrokerOverviewPanel";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -53,7 +54,7 @@ export default function StaffBrokerDetailView({
 }: {
   brokerId: string;
 }) {
-  const { session, loading: sessionLoading } = useSession();
+  const { session, loading: sessionLoading, can } = useSession();
   const locale = resolveLocale(session?.locale);
   // The access token lives in memory in lib/api/client and is only populated
   // once SessionProvider has finished bootstrapping. Fetching before then sends
@@ -99,6 +100,10 @@ export default function StaffBrokerDetailView({
   const broker = current?.broker ?? null;
   const failureKey = current?.failureKey ?? null;
 
+  function setBroker(updated: StaffBrokerDetail) {
+    setResult({ key: requestKey, broker: updated, failureKey: null });
+  }
+
   if (failureKey !== null) {
     return (
       <p role="alert" className="font-body-md text-error">
@@ -128,6 +133,14 @@ export default function StaffBrokerDetailView({
         <p className="font-body-sm text-on-surface-variant">{broker.slug}</p>
       </header>
       <BrokerOverviewPanel locale={locale} broker={broker} />
+      <AutoApprovalPanel
+        locale={locale}
+        broker={broker}
+        canConfigure={can("configure_broker_auto_approval")}
+        // Every mutation endpoint returns the same detail payload, so the whole
+        // screen refreshes from the response with no second GET (spec §30.2).
+        onUpdated={setBroker}
+      />
     </div>
   );
 }
