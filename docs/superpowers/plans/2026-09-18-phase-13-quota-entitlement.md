@@ -43,7 +43,15 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 - **Product code:** `INDIVIDUAL_LISTING_RIGHT` (spec §22.2's `purchase_product_code`, §23.1's product list).
 - **Blocking reason vocabulary:** `FREE_ALLOWANCE_USED` is spec-literal (§22.2). This plan adds exactly one more, `NOT_AN_INDIVIDUAL_SELLER` (ruling below). `null` means nothing is blocking.
 - **Feature flag key for this phase:** `individual_entitlements` (spec §35.1), seeded **disabled** — matching the `listing_revisions` precedent and spec §35.2 step 4 ("Deploy code with features off/read-compatible"). The flag gates **refusal only**, never bookkeeping: ledger rows are written whether or not the flag is on (ruling below).
-- **Error codes added by this phase (closed set):** `listing_entitlement_required` (403, on `POST /api/v1/listings/drafts/` and `POST /api/v1/listings/<id>/submit/`), `entitlement_reason_required` (400, staff grant/revoke/restore without a reason), `invalid_entitlement_state` (409, a staff action against a row in the wrong state). No other new codes. Phase 11's rule 10 applies: any new listing-related error code must be stable and documented here.
+- **Error codes added by this phase (closed set):** `listing_entitlement_required` (403, on `POST /api/v1/listings/drafts/` and `POST /api/v1/listings/<id>/submit/`), `invalid_entitlement_state` (409, a staff action against a row in the wrong state), and one **field-level** code, `entitlement_reason_required` (staff grant/revoke/restore without a reason). No other new codes. Phase 11's rule 10 applies: any new listing-related error code must be stable and documented here.
+- **`entitlement_reason_required` is a field-level code, not a top-level envelope code.** `EntitlementReasonRequired` subclasses DRF's `ValidationError` (see the ruling in Task 13), and `common.exceptions.nauta_exception_handler` maps **every** `ValidationError` — subclass or not — to `code: "validation_error"` plus a `fields` map built by `_field_map(exc.detail)`. So the wire shape is a **400 `validation_error` envelope carrying `fields: {"reason": ["entitlement_reason_required"]}`**, and `entitlement_reason_required` never appears as `error.code`:
+  ```json
+  {"error": {"code": "validation_error",
+             "message": "The submitted data is invalid.",
+             "fields": {"reason": ["Explain why this entitlement is being changed."]},
+             "request_id": "..."}}
+  ```
+  That is deliberate — the reason is a *field* the staff user failed to fill in, and the `fields` map is the only thing that can say which field. Consequence for tests: DRF's `ValidationError.get_codes()` on a **dict** detail returns a **dict**, so an assertion must be `exc.get_codes() == {"reason": ["entitlement_reason_required"]}` (or `exc.detail["reason"][0].code == "entitlement_reason_required"`), never a bare string.
 - **Error envelope:** spec §30.2, produced by `common.exceptions.nauta_exception_handler`. This phase adds the `action` passthrough the spec's own worked example requires:
   ```json
   {"error": {"code": "listing_entitlement_required",
@@ -78,16 +86,16 @@ Phases 9, 10 and 12 are being planned in parallel with this one. Phase 12 (broke
 | `policies.py` | Replaces the **whole `ListingEntitlementGate` class body** and adds a `ConsumedRight` dataclass. Does **not** touch `requires_staff_approval`, `effective_media_allowance`, `media_counts` or `MediaAllowance`. | 8 | **Same file, different symbol.** Phase 12 owns `requires_staff_approval`; Phase 15 owns `effective_media_allowance`. Line-level conflict only, resolved by keeping both edits. |
 | `models.py` | `consumed_entitlement_id = UUIDField(...)` → `consumed_entitlement = ForeignKey("entitlements.UserEntitlement", ...)`. One field. No constraint, index or `clean()` change. | 7 | Low. |
 | `admin.py` | `BoatListingAdmin.readonly_fields`: `"consumed_entitlement_id"` → `"consumed_entitlement"`. One string. | 7 | Low. |
-| `submissions.py` | Inside `submit_listing_revision`, **only** the existing 7-line entitlement block (the `can_submit` guard + the `consume` call) and one added keyword argument on the `is_initial` branch's `bump_version(listing, ...)`. Does **not** touch `validate_submission_media`, `withdraw_listing_revision`, the `requires_staff_approval(listing)` branch structure, the audit call or the signal block. | 8 | **HIGH — same function.** Phase 12 adds the `else:` auto-approval branch to `if requires_staff_approval(listing):`. This plan does not add, remove or reindent that `if`. The two diffs touch adjacent but disjoint line ranges; merge order does not matter, but whoever merges second must re-read the function. |
+| `submissions.py` | Inside `submit_listing_revision`, **only**: (a) the existing 7-line entitlement block (the `can_submit` guard + the `consume` call) is replaced, (b) the existing one-line `is_initial = listing.current_public_snapshot_id is None` assignment moves **three lines up**, above that block, because the guard now needs it, and (c) one added keyword argument on the `is_initial` branch's `bump_version(listing, ...)`. Does **not** touch `validate_submission_media`, `withdraw_listing_revision`, the `requires_staff_approval(listing)` branch structure, the audit call or the signal block. | 8 | **HIGH — same function.** Phase 12 adds the `else:` auto-approval branch to `if requires_staff_approval(listing):`. This plan does not add, remove or reindent that `if`, and the moved `is_initial` line lands *above* it, not inside it. The two diffs touch adjacent but disjoint line ranges; merge order does not matter, but whoever merges second must re-read the function. |
 | `drafts.py` | Inside `create_listing_draft`, two lines added immediately after `resolve_seller_context(...)`, plus two imports. Nothing else in the module. | 9 | Low — Phase 12 has no reason to touch draft creation. |
 | `signals.py` | Appends two `Signal()` objects (`listing_expiring`, `listing_expired`) and extends the module docstring. Nothing existing is renamed. | 10 | Low. |
 | `expiry.py`, `tasks.py` | **New files.** | 10, 11 | None. |
 | `tests/test_entitlement_enforcement.py`, `tests/test_expiry.py` | **New files.** | 8, 9, 10, 11 | None. |
-| `tests/conftest.py` | Extends `LISTINGS_FEATURE_FLAG_KEYS` with `"individual_entitlements"`; adds a `broker_seller` fixture (Task 8) and a `published_listing_with_snapshot` fixture (Task 10, moved in from `test_public_read_api.py`). The existing autouse cache fixture is untouched. | 8, 10 | Low, but a parallel phase adding its own fixture here will conflict on the same file. |
-| `tests/test_policies.py`, `tests/test_boat_listing_model.py`, `tests/test_public_read_api.py` | Existing Phase 11 tests updated in place: the three `ListingEntitlementGate` stub assertions (Task 8), two appended FK tests (Task 7), and one helper moved to `conftest.py` (Task 10). No Phase 11 test is deleted. | 7, 8, 10 | Low. |
+| `tests/conftest.py` | Extends `LISTINGS_FEATURE_FLAG_KEYS` with `"individual_entitlements"`; adds a `broker_seller` fixture (Task 8). The existing autouse cache fixture is untouched. | 8 | Low, but a parallel phase adding its own fixture here will conflict on the same file. |
+| `tests/test_policies.py`, `tests/test_boat_listing_model.py` | Existing Phase 11 tests updated in place: the three `ListingEntitlementGate` stub assertions (Task 8) and two appended FK tests (Task 7). No Phase 11 test is deleted. | 7, 8 | Low. |
 | `enums.py`, `views.py`, `urls.py`, `serializers.py`, `decisions.py`, `payloads.py`, `locking.py`, `permissions.py`, `snapshots.py` | **Untouched.** | — | None. |
 
-Shared files outside `listings/`: `backend/config/settings/base.py` (append to `INSTALLED_APPS`, `CELERY_TASK_ROUTES`, `DEFAULT_THROTTLE_RATES`; add `CELERY_BEAT_SCHEDULE`), `backend/config/urls.py` (one `include`), `backend/common/exceptions.py` (one `action` passthrough block mirroring the existing `meta` one). Expect trivial rebases, not real conflicts.
+Shared files outside `listings/`: `backend/config/settings/base.py` (append to `INSTALLED_APPS`, `CELERY_TASK_ROUTES`, `DEFAULT_THROTTLE_RATES`; add `CELERY_BEAT_SCHEDULE`), `backend/config/urls.py` (one `include`), `backend/common/exceptions.py` (one `action` passthrough block mirroring the existing `meta` one), `backend/conftest.py` (one appended `published_listing_with_snapshot` fixture, Task 10 — it must live at the repo-test root because it is consumed from **two different app test packages**, `listings/tests/` and `entitlements/tests/`, and a `conftest.py` fixture is only visible inside its own directory subtree). Expect trivial rebases, not real conflicts.
 
 ---
 
@@ -116,12 +124,12 @@ Spec §35.1 requires flags to gate backend mutation, and spec §35.2 step 4 depl
 This keeps spec §22's definition of done item 2 — "UI and API agree on eligibility" — true under **both** flag states, which is what a rollout flag is for. A consumption recorded while the flag was off and beyond the configured allowance also carries `metadata["over_allowance"] = True`, so the ledger never lies about what happened.
 
 **Note (ruling — draft creation validates but does not reserve).**
-Spec §22.4 says draft creation *"may* reserve an available paid right or mark intended free eligibility without consuming until submit" — permission, not obligation. This plan does **not** reserve, for a concrete reason: a reservation attached to a saved draft is explicitly exempt from §6.3's 30-minute timeout, and this codebase has **no** listing deletion, archival or abandonment mechanism (Phase 11 shipped none; `ListingStatus.ARCHIVED` is unreachable). A paid right reserved at draft creation would therefore have no release path at all and would leak permanently — strictly worse than not reserving. Draft creation instead performs the same eligibility check and returns `403 listing_entitlement_required` when nothing is available (spec §22.4's literal requirement), and consumption happens once, atomically, at submit (spec §6.3: *"Consumption happens when the listing is submitted for initial approval, not when the create form first opens"*). The `RESERVED` state, its transitions and `release_stale_reservations()` (the §6.3 30-minute rule) are all implemented and tested; what this phase does not ship is a *producer* of reserved rows. Phase 14 (a Stripe fulfilment reserved against a pending order) and Phase 15 (the listing-bound media upgrade) are the natural first producers. Recorded in Known Limitations.
+Spec §22.4 says draft creation *"may* reserve an available paid right or mark intended free eligibility without consuming until submit" — permission, not obligation. This plan does **not** reserve, for a concrete reason: a reservation attached to a saved draft is explicitly exempt from §6.3's 30-minute timeout, and this codebase has **no** listing deletion, archival or abandonment mechanism (Phase 11 shipped none; `ListingStatus.ARCHIVED` is unreachable). A paid right reserved at draft creation would therefore have no release path at all and would leak permanently — strictly worse than not reserving. The §6.3 sweep this phase *does* build makes the same point mechanically: `release_stale_reservations()` filters on `listing__isnull=True`, because §6.3 exempts a reservation "attached to a saved draft" from the 30-minute clock and assumes some *other* mechanism releases it when the draft is abandoned. **No such abandonment mechanism exists in this codebase** — so a draft-attached reservation would match neither the clock-driven sweep nor any manual release, and §36.3's "a draft abandoned before submission releases reservation" rule has no implementable home here. That is the second, independent reason draft-time reservation is not implemented in Task 4. Draft creation instead performs the same eligibility check and returns `403 listing_entitlement_required` when nothing is available (spec §22.4's literal requirement), and consumption happens once, atomically, at submit (spec §6.3: *"Consumption happens when the listing is submitted for initial approval, not when the create form first opens"*). The `RESERVED` state, its transitions and `release_stale_reservations()` (the §6.3 30-minute rule) are all implemented and tested; what this phase does not ship is a *producer* of reserved rows. Phase 14 (a Stripe fulfilment reserved against a pending order) and Phase 15 (the listing-bound media upgrade) are the natural first producers. Recorded in Known Limitations.
 Consequence, stated so no reviewer mistakes it for a bug: a free-eligible seller may hold several DRAFT listings at once. Only one can ever be submitted on that right, because the authoritative check is the locked one at submit (spec §22.2: *"The last check is authoritative and prevents multiple-tab races"*).
 
 **Note (ruling — consumption is serialised by a lock on the `User` row).**
 Spec §22.4 requires "locks entitlement/quota rows" and "Concurrent requests cannot consume one entitlement twice". Locking a *paid* right is straightforward (`SELECT … FOR UPDATE` on the row). The **free** right has no row to lock until the moment it is consumed, so two concurrent submits could both observe "free available" and both insert. The serialisation point is therefore `SELECT … FOR UPDATE` on the consuming user's own `accounts_user` row, taken before the quota is recomputed. It is per-user, short-lived, and held inside the transaction `submit_listing_revision` already opened.
-**Lock ordering is `BoatListing` → `User`, always.** `submit_listing_revision` locks the listing first (Phase 11) and this phase's consumption locks the user second. No other code path in the repository locks a `User` row, so no inversion exists today; any future path that locks both must take them in this order or risk a deadlock.
+**Lock ordering is `BoatListing` → `User`, always.** `submit_listing_revision` locks the listing first (Phase 11) and this phase's consumption locks the user second. No other code path in the repository locks **both** a `BoatListing` and a `User` row together, so no inversion exists today. To be precise about what *does* exist: `accounts.services.consume_email_verification_token()` (`backend/accounts/services.py`) already takes a `User` row lock — `User.objects.select_for_update().get(pk=token.user_id)` — but it reaches it through an entirely different entry path (`EmailVerificationToken` row lock → `User`) and never touches a `BoatListing`, so the two orderings can never cross. Do **not** read this rule as "nothing else locks `User`"; read it as "nothing else holds a `BoatListing` lock while taking one". Any future path that needs both must take them in `BoatListing` → `User` order or risk a deadlock.
 
 **Note (ruling — publication duration is frozen onto the entitlement at consumption).**
 Spec §36.3: *"Configuration changes are prospective. Existing consumed entitlements preserve their recorded publication duration."* `ListingEntitlementGate.publication_days()` is called by `listings.decisions.approve_revision` at **approval** time, which can be days after submission — and staff may have changed `individual.free_publish_days` in between. So consumption writes `metadata["publication_days"]` onto the `UserEntitlement`, and `publication_days()` reads it back from `listing.consumed_entitlement` rather than re-reading the setting. `metadata` is spec §11.9's own field; no column is invented. The setting is consulted only as a fallback for a listing with no consumed entitlement (a broker listing returns `None` as before; a legacy pre-flag listing falls back to the current `individual.free_publish_days`). **`listings/decisions.py` is not modified** — the call signature is unchanged.
@@ -150,6 +158,9 @@ nautelo/
 ├── ACTIVITY.md                                                (modify: Task 14)
 ├── docs/superpowers/plans/2026-09-18-phase-13-quota-entitlement.md   (this file)
 └── backend/
+    ├── conftest.py                 (modify: Task 10 — append the
+    │                                published_listing_with_snapshot fixture, which is
+    │                                used from BOTH listings/tests/ and entitlements/tests/)
     ├── config/
     │   ├── settings/base.py         (modify: Task 1 INSTALLED_APPS; Task 5 throttle rate;
     │   │                             Task 10 CELERY_BEAT_SCHEDULE + task routes;
@@ -196,10 +207,9 @@ nautelo/
         ├── tasks.py                 (new: Task 10; extended Task 11)
         ├── migrations/0005_boatlisting_consumed_entitlement.py  (generated: Task 7)
         └── tests/
-            ├── conftest.py                              (modify: Tasks 8, 10 — flag list + two fixtures)
+            ├── conftest.py                              (modify: Task 8 — flag list + broker_seller fixture)
             ├── test_policies.py                         (modify: Task 8 — stub assertions)
             ├── test_boat_listing_model.py               (modify: Task 7 — two appended tests)
-            ├── test_public_read_api.py                  (modify: Task 10 — helper moved to conftest)
             ├── test_entitlement_enforcement.py          (new: Tasks 8, 9)
             └── test_expiry.py                           (new: Tasks 10, 11)
 ```
@@ -475,7 +485,7 @@ In `backend/config/settings/base.py`, append `"entitlements",` to the `INSTALLED
 - [ ] **Step 6: Run the test to verify it passes**
 
 Run: `cd backend && uv run pytest entitlements/tests/test_enums.py -v`
-Expected: PASS (all 15 assertions/parametrisations green).
+Expected: PASS — **19 collected test items** (8 plain tests, plus `test_spec_6_3_edges_are_allowed` × 6 and `test_edges_outside_spec_6_3_are_refused` × 5 parametrisations).
 
 Then confirm Django still boots with the new app:
 
@@ -1298,7 +1308,7 @@ def test_paid_defaults_come_from_platform_settings():
 
 
 @pytest.mark.django_db
-def test_enforcement_is_off_until_the_flag_is_enabled(entitlements_enforced):
+def test_enforcement_is_on_once_the_flag_is_enabled(entitlements_enforced):
     assert enforcement_enabled() is True
 
 
@@ -2281,6 +2291,22 @@ def test_ensure_can_start_listing_raises_with_a_blocking_reason(
         ensure_can_start_listing(user)
 
     assert excinfo.value.meta == {"blocking_reason": "FREE_ALLOWANCE_USED"}
+    assert str(excinfo.value.detail) == "You have used your free listing allowance."
+
+
+@pytest.mark.django_db
+def test_the_refusal_message_follows_the_blocking_reason():
+    """The 403's code and status are one value for every reason (spec §30.2),
+    but the human-readable message must not claim a free allowance was used when
+    the real problem is that the account is not an individual seller."""
+    not_a_seller = ListingEntitlementRequired(
+        blocking_reason="NOT_AN_INDIVIDUAL_SELLER"
+    )
+
+    assert not_a_seller.get_codes() == "listing_entitlement_required"
+    assert str(not_a_seller.detail) == (
+        "This account cannot create a private-seller listing."
+    )
 ```
 
 And, in the same file, the envelope passthrough:
@@ -2288,7 +2314,7 @@ And, in the same file, the envelope passthrough:
 ```python
 @pytest.mark.django_db
 def test_the_error_envelope_carries_the_spec_30_2_action_block(
-    client, entitlements_enforced
+    entitlements_enforced,
 ):
     """Spec §30.2's worked example for this exact code includes an `action`
     block; the envelope had no slot for it before this phase."""
@@ -2389,9 +2415,23 @@ class ListingEntitlementRequired(APIException):
     # Copied verbatim from spec §30.2's example error body.
     default_detail = "You have used your free listing allowance."
     default_code = "listing_entitlement_required"
+    # One message per blocking reason. Without this, an account that is not an
+    # individual seller at all would be told it had "used its free listing
+    # allowance" — false, and unhelpful. The code and status stay the same for
+    # every reason so a client still branches on one value (spec §30.2); only
+    # the human-readable message differs.
+    DETAIL_BY_REASON = {
+        "FREE_ALLOWANCE_USED": default_detail,
+        "NOT_AN_INDIVIDUAL_SELLER": (
+            "This account cannot create a private-seller listing."
+        ),
+    }
 
     def __init__(self, *, blocking_reason: str | None = None, detail=None):
-        super().__init__(detail=detail or self.default_detail, code=self.default_code)
+        detail = detail or self.DETAIL_BY_REASON.get(
+            blocking_reason, self.default_detail
+        )
+        super().__init__(detail=detail, code=self.default_code)
         # Both are copied into the envelope by common.exceptions.
         self.action = {"type": "PURCHASE", "product_code": PURCHASE_PRODUCT_CODE}
         if blocking_reason:
@@ -2420,6 +2460,13 @@ def ensure_can_start_listing(user) -> None:
     No lock: this is one of spec §22.2's advisory evaluation points, not the
     authoritative one. Taking a lock here would serialise draft creation for no
     benefit, since nothing is consumed.
+
+    The raised message is chosen from the blocking reason, so calling this in
+    isolation on an account that is not an individual seller produces the
+    NOT_AN_INDIVIDUAL_SELLER wording rather than a false "you used your free
+    allowance". In the normal flow that reason is unreachable here, because
+    listings.drafts calls accounts.services.resolve_seller_context() first and
+    that rejects a non-individual seller with its own error.
     """
     if not enforcement_enabled():
         return
@@ -2488,9 +2535,19 @@ def consume_listing_right(
 
 
 def _audit(*, entitlement, actor, listing, before_state):
+    # actor_type MUST agree with actor_user. The plan's Global Constraints rule
+    # is "system actions use SYSTEM/TASK", and an unauthenticated or absent
+    # actor here is exactly a system action — writing actor_type=USER with
+    # actor_user=None would put a self-contradicting pair in an immutable audit
+    # row (spec §2.4). Same conditional shape as services.release_reservation.
+    actor_user = actor if getattr(actor, "is_authenticated", False) else None
     record_audit_event(
-        actor_user=actor if getattr(actor, "is_authenticated", False) else None,
-        actor_type=AuditEvent.ActorType.USER,
+        actor_user=actor_user,
+        actor_type=(
+            AuditEvent.ActorType.USER
+            if actor_user is not None
+            else AuditEvent.ActorType.SYSTEM
+        ),
         action="entitlement.consumed",
         target_type="entitlements.UserEntitlement",
         target_id=str(entitlement.pk),
@@ -2689,9 +2746,11 @@ In `BoatListingAdmin.readonly_fields`, replace `"consumed_entitlement_id",` with
 
 - [ ] **Step 5: Generate and verify the migration**
 
-Run: `cd backend && uv run python manage.py makemigrations listings --name boatlisting_consumed_entitlement`
+Run: `cd backend && uv run python manage.py makemigrations listings --name boatlisting_consumed_entitlement --no-input`
 
-Open the generated file. It will contain a `RemoveField` for `consumed_entitlement_id` and an `AddField` for `consumed_entitlement`. Both act on the same database column, so **`RemoveField` must come first** — if the autodetector emitted them in the other order, swap them by hand and leave a one-line comment saying why.
+**`--no-input` is not optional.** One field disappears (`consumed_entitlement_id`) and another appears (`consumed_entitlement`) against the *same* database column, which is precisely the shape that can make Django's autodetector ask the interactive question *"Did you rename boatlisting.consumed_entitlement_id to boatlisting.consumed_entitlement (a ForeignKey)? [y/N]"*. In CI that prompt reads EOF and either hangs or aborts the job. `--no-input` installs `NonInteractiveMigrationQuestioner`, whose `ask_rename` answers **no** — which is the answer this plan wants, because a rename would keep the column as a `UUIDField` and never create the FK constraint. If you are ever forced to answer it interactively, answer **N**.
+
+Open the generated file and verify it contains **exactly two operations**: a `RemoveField` for `consumed_entitlement_id` and an `AddField` for `consumed_entitlement` — and no `RenameField`. Both act on the same database column, so **`RemoveField` must come first**; if the autodetector emitted them in the other order, swap them by hand and leave a one-line comment saying why. If a `RenameField` appears instead, delete it and hand-write the two operations.
 
 Then confirm the dependency list contains both of these (Django adds the second automatically for the FK; add it if it is missing):
 
@@ -2738,7 +2797,7 @@ git commit -m "feat(listings): consumed_entitlement is a real FK to the ledger"
 - Consumes: `entitlements.consumption.{ListingEntitlementRequired, consume_listing_right}` (Task 6); `entitlements.eligibility.ListingEligibilityService` (Task 4); `entitlements.policy.{enforcement_enabled, free_publication_days}` (Task 3); `entitlements.enums.EntitlementType` (Task 1).
 - Produces:
   - `listings.policies.ConsumedRight` — frozen dataclass: `entitlement: object | None`, `publication_source: str`
-  - `listings.policies.ListingEntitlementGate.can_submit(*, user, broker=None) -> bool` (signature unchanged from Phase 11)
+  - `listings.policies.ListingEntitlementGate.can_submit(*, user, broker=None) -> bool` (signature unchanged from Phase 11 — deliberately, see Step 4: it knows nothing about *which* listing is being submitted, so the **call site** decides when it applies)
   - `listings.policies.ListingEntitlementGate.consume(*, listing, user) -> ConsumedRight` (**return type changed** from `str` to `ConsumedRight`; the keyword arguments are unchanged)
   - `listings.policies.ListingEntitlementGate.publication_days(*, listing) -> int | None` (signature unchanged; now reads the consumed entitlement first)
   - `listings.policies.ListingEntitlementRequired` — re-exported from `entitlements.consumption` so `listings.submissions` has one import source for the whole gate
@@ -2877,7 +2936,14 @@ def test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right(
 ):
     """Spec §22.1: "A rejected submission can be corrected without consuming a
     second right." Spec §36.3: "a submitted right stays associated through
-    changes-requested/rejected correction loop"."""
+    changes-requested/rejected correction loop".
+
+    This is the test that forces `submit_listing_revision`'s pre-check to be
+    guarded by `listing.consumed_entitlement_id is None` (Step 4). By the second
+    submit the seller's free right is gone, so a bare
+    `can_submit(user=actor, broker=...)` returns False and would 403 — even
+    though `consume()` would correctly hand back the very same right.
+    """
     seller = make_private_seller()
     api.force_authenticate(seller)
     created = _draft(api, brand=make_brand("Bavaria"))
@@ -2910,6 +2976,58 @@ def test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right(
     assert again.status_code == 200, again.data
     listing.refresh_from_db()
     assert listing.consumed_entitlement_id == first_right_id
+    assert UserEntitlement.objects.filter(user=seller).count() == 1
+
+
+@pytest.mark.django_db
+def test_a_legacy_published_listing_is_revisable_without_burning_a_right(
+    api, workflow_enabled, entitlements_on, published_listing_with_snapshot
+):
+    """Phase 11 Known Limitation 1: EVERY listing published before this phase
+    has `consumed_entitlement_id = NULL`, because no code path ever wrote that
+    column — that is real data in dev and staging today.
+
+    Spec §6.3 charges a right only on submission "for initial approval", and
+    spec §20.2's post-publication edit runs through this same submit path. So
+    the first revision of such a listing must be neither charged nor refused,
+    even when its owner has no right left. Gating on `consumed_entitlement_id`
+    alone would do both.
+    """
+    listing = published_listing_with_snapshot
+    seller = listing.owner_user
+    assert listing.consumed_entitlement_id is None
+    assert listing.current_public_snapshot_id is not None
+
+    # This owner has nothing available: one spent free right, no paid right.
+    make_entitlement(
+        user=seller,
+        listing=make_private_listing(owner=seller),
+        entitlement_type=EntitlementType.FREE_LISTING,
+        source=EntitlementSource.FREE_POLICY,
+        state=EntitlementState.CONSUMED,
+        consumed_at=timezone.now(),
+    )
+    assert ListingEntitlementGate.can_submit(user=seller, broker=None) is False
+
+    api.force_authenticate(seller)
+    reopened = api.patch(
+        reverse("listing-draft-update", kwargs={"listing_id": listing.pk}),
+        {"version": listing.version, "title_en": "Now with a new tender"},
+        format="json",
+    )
+    assert reopened.status_code == 200, reopened.data
+    again = api.post(
+        reverse("listing-submit", kwargs={"listing_id": listing.pk}),
+        {"version": reopened.data["revision"]["version"]},
+        format="json",
+    )
+
+    assert again.status_code == 200, again.data
+    listing.refresh_from_db()
+    # Spec §20.2: the approved snapshot stays live while the edit is reviewed.
+    assert listing.status == ListingStatus.PUBLISHED
+    assert listing.consumed_entitlement_id is None
+    # Exactly the one row created above — nothing new was burned.
     assert UserEntitlement.objects.filter(user=seller).count() == 1
 
 
@@ -3019,28 +3137,28 @@ def broker_seller(db):
     from accounts.enums import UserRole
     from accounts.tests.factories import make_user
     from brokers.enums import BrokerMembershipRole, BrokerOrganizationStatus
-    from brokers.models import BrokerMembership, BrokerOrganization
+    from brokers.tests.factories import make_broker, make_membership
     from listings.tests.factories import make_brand
 
     actor = make_user("broker-agent@example.com", role=UserRole.BROKER, verified=True)
-    broker = BrokerOrganization.objects.create(
-        name="Palma Yachts", status=BrokerOrganizationStatus.ACTIVE
+    broker = make_broker(
+        "Palma Yachts", "palma-yachts", status=BrokerOrganizationStatus.ACTIVE
     )
-    BrokerMembership.objects.create(
-        broker=broker,
-        user=actor,
+    make_membership(
+        actor,
+        broker,
         role=BrokerMembershipRole.OWNER,
         can_edit_listings=True,
     )
     return actor, broker, make_brand("Azimut")
 ```
 
-**Before writing this fixture, open `backend/brokers/models.py` and `backend/brokers/enums.py` and use the real field names** — `BrokerOrganization` and `BrokerMembership` are Phase 3's and this plan does not restate their full definitions. If `BrokerOrganization` requires a slug or another non-null column, supply it; if `can_edit_listings` is derived from `ROLE_DEFAULT_CAPABILITIES` on save rather than passed explicitly, follow that. Phase 11's `listings/tests/test_draft_create.py` already builds a broker for the same purpose — copy its construction rather than inventing one.
+**Use `backend/brokers/tests/factories.py`, never a raw `.create()`.** `make_broker(name, slug, *, status, **extra)` also fills `public_email` and `public_phone`, and `make_membership(user, broker, *, role, can_edit_listings, can_manage_team, can_read_messages, is_active)` fills the whole capability set — a bare `BrokerOrganization.objects.create(name=..., status=...)` would leave `slug`, `public_email` and `public_phone` unset and is likely to fail outright. This is the plan's own reuse rule (Contract summary, and the Phase 11 precedent): reuse an existing factory rather than duplicating construction logic. Note the argument order — `make_broker` takes `name` and `slug` positionally, `make_membership` takes `user` then `broker` positionally. If Phase 3 ever changes those signatures, read the real file; do not re-derive the model's fields from memory.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cd backend && uv run pytest listings/tests/test_entitlement_enforcement.py -v`
-Expected: FAIL — the first test fails on `assert right is not None`, because the gate is still Phase 11's stub and nothing writes `consumed_entitlement`.
+Expected: FAIL (9 tests collected) — the first test fails on `assert right is not None`, because the gate is still Phase 11's stub and nothing writes `consumed_entitlement`.
 
 - [ ] **Step 3: Replace the `ListingEntitlementGate` class body in `backend/listings/policies.py`**
 
@@ -3114,18 +3232,30 @@ class ListingEntitlementGate:
     """Spec §22.2's ListingEligibilityService, seen from the listing side.
 
     Phase 11 shipped this class as a stub with its call sites already in place;
-    this is the promised replacement (Phase 11 contract rule 6). The call sites
-    in listings.submissions and listings.decisions keep their signatures.
+    this is the promised replacement (Phase 11 contract rule 6).
+
+    `listings.decisions` is untouched: it calls `publication_days(*, listing)`,
+    whose signature and return type are unchanged. `listings.submissions` DOES
+    change, because `consume()`'s return type goes from `str` to `ConsumedRight`
+    — a deliberate, documented deviation from Phase 11's "the call sites do not
+    change" wording. See the Contract summary.
     """
 
     @staticmethod
     def can_submit(*, user, broker=None) -> bool:
-        """A cheap, UNLOCKED pre-check.
+        """A cheap, UNLOCKED pre-check: "could this user start a NEW listing?"
 
         Not authoritative — `consume()` re-checks while holding the lock, which
         is what spec §22.2 means by "The last check is authoritative and
         prevents multiple-tab races". This exists so an obviously-blocked
         submission fails before any row is written.
+
+        It deliberately keeps Phase 11's signature and therefore knows nothing
+        about *which* listing is being submitted. That means it answers the
+        wrong question for a resubmission or a post-publication edit, both of
+        which must never be charged or refused. The CALL SITE is responsible for
+        only consulting it when a right would actually be charged — see
+        listings.submissions.submit_listing_revision.
         """
         if broker is not None:
             # Spec §1: "Broker listing quota: Unlimited."
@@ -3146,10 +3276,39 @@ class ListingEntitlementGate:
         quota that is charged belongs to `listing.owner_user`. Charging the
         actor would let a staff admin burn their own allowance on someone
         else's boat.
+
+        Three cases never reach the ledger at all:
+          * a broker listing (spec §1, unlimited quota);
+          * an already-published listing (spec §6.3 charges "initial approval"
+            only, and spec §20.2's post-publication edit goes through this same
+            function);
+          * a listing that already carries a consumed right — handled one layer
+            down by `consume_listing_right`'s own idempotent short-circuit
+            (spec §22.1's correction loop).
         """
         if listing.seller_type == SellerType.BROKER:
             return ConsumedRight(
                 entitlement=None, publication_source=PublicationSource.BROKER_POLICY
+            )
+        if listing.current_public_snapshot_id is not None:
+            # Spec §6.3: "Consumption happens when the listing is submitted for
+            # initial approval." A listing with a live public snapshot is past
+            # that point, so every later submission is a revision of something
+            # already paid for.
+            #
+            # This check — not `consumed_entitlement_id` — is what protects
+            # legacy data. Phase 11's Known Limitation 1 records that
+            # `consumed_entitlement_id` is ALWAYS NULL on every listing
+            # published before this phase, so gating on that column alone would
+            # charge a brand-new free right for the first edit of any
+            # pre-Phase-13 listing in dev, staging or production.
+            #
+            # `publication_source` is whatever the listing already carries and is
+            # not rewritten; on the non-initial path `submit_listing_revision`
+            # does not pass it to `bump_version` at all.
+            return ConsumedRight(
+                entitlement=listing.consumed_entitlement,
+                publication_source=listing.publication_source,
             )
         entitlement = consume_listing_right(
             user=listing.owner_user, listing=listing, actor=user
@@ -3187,7 +3346,14 @@ class ListingEntitlementGate:
 
 - [ ] **Step 4: Wire consumption into `backend/listings/submissions.py`**
 
-**This is the only change to this file.** Inside `submit_listing_revision`, replace this exact block:
+**Read this ruling before touching the code.** Phase 11's pre-check sits *above* `consume()`, so it runs before `consume()`'s own correct short-circuits and, unguarded, would become the real gate. `can_submit(*, user, broker=None)` is not told *which* listing is being submitted, so on its own it can only answer "could this user start a **new** listing?" — and once a seller's one free right is consumed that answer is `False` **forever**. Left as-is, this plan would break two flows that must never be charged and must never be refused:
+
+1. **Resubmitting a withdrawn or rejected listing** (spec §22.1: *"A rejected submission can be corrected without consuming a second right"*) — the listing already carries `consumed_entitlement_id`, so `consume()` would correctly return the same row, but the pre-check above it would already have raised.
+2. **Any post-publication edit of an already-PUBLISHED listing** (spec §20.2; `listings.drafts` opens the revision at `backend/listings/drafts.py` around lines 239-243) — it comes through this *same* `submit_listing_revision` path. That is a live Phase 11 flow, and breaking it would be a silent regression, not a new refusal.
+
+**The ruling is to fix the call site, not the gate's signature.** `can_submit` keeps Phase 11's exact signature (which matters: Phase 12's plan edits an adjacent part of this same function), and `consume()` remains the ultimate authority. The pre-check becomes what its own docstring already claims it is — a cheap early exit for the common case.
+
+Inside `submit_listing_revision`, replace this exact block:
 
 ```python
     if not ListingEntitlementGate.can_submit(user=actor, broker=listing.broker):
@@ -3198,15 +3364,36 @@ class ListingEntitlementGate:
             code="listing_entitlement_required",
         )
     publication_source = ListingEntitlementGate.consume(listing=listing, user=actor)
+
+    is_initial = listing.current_public_snapshot_id is None
 ```
 
 with:
 
 ```python
-    if not ListingEntitlementGate.can_submit(user=actor, broker=listing.broker):
+    # Moved up from below: the entitlement guard needs it. Same expression, same
+    # meaning, and it is still the value the `if requires_staff_approval(...)`
+    # block below reads.
+    is_initial = listing.current_public_snapshot_id is None
+    # Spec §6.3 charges a right when a listing is "submitted for initial
+    # approval" — so only an initial submission that has not already been
+    # charged can possibly need one. A post-publication revision (spec §20.2)
+    # and a correction of a withdrawn/rejected submission (spec §22.1) are both
+    # already paid for, and `can_submit()` — which is not told which listing
+    # this is — would refuse both once the seller's free right is gone.
+    charges_a_right = is_initial and listing.consumed_entitlement_id is None
+
+    if charges_a_right and not ListingEntitlementGate.can_submit(
+        user=actor, broker=listing.broker
+    ):
         # Spec §22.4. 403, not the 409 Phase 11's placeholder used: this is an
         # authorization answer, not a stale-state answer, and it must match the
         # code and status the draft-creation gate returns.
+        #
+        # This is only an early exit. `consume()` re-checks the same thing under
+        # a lock and is the authoritative answer (spec §22.2's "last check"), so
+        # a `charges_a_right` that is wrongly True still cannot burn a second
+        # right, and one that is wrongly False still cannot publish for free.
         raise ListingEntitlementRequired()
     # Authoritative: re-checks and consumes under a lock on the seller's own
     # row, inside this transaction (spec §22.4, and §22.2's "last check").
@@ -3241,7 +3428,7 @@ Then, in the **`is_initial` branch only** of the `if requires_staff_approval(lis
             )
 ```
 
-**Do not touch anything else in this function** — not the `else:` branch, not the `if requires_staff_approval(listing):` line, not the audit call, not the signal block. Phase 12 adds an `else:` branch to that same `if`; these two diffs are disjoint by construction.
+**Do not touch anything else in this function** — not the `else:` branch, not the `if requires_staff_approval(listing):` line, not the `uses_other_model` / `before` / `submitted_at` lines, not the audit call, not the signal block. The complete, commit-worthy diff to `submissions.py` is exactly four things: one import name added to the existing `from .policies import (...)` block; the 7-line entitlement block replaced; the existing `is_initial = ...` line moved three lines up (above that block, never into it); and one `consumed_entitlement=` keyword added to the `is_initial` branch's `bump_version`. Phase 12 adds an `else:` branch to that same `if`; these two diffs are disjoint by construction.
 
 - [ ] **Step 5: Update the stub assertions in `backend/listings/tests/test_policies.py`**
 
@@ -3411,7 +3598,7 @@ Nothing else in `drafts.py` changes — not `update_listing_draft`, not `_apply_
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd backend && uv run pytest listings/tests/test_entitlement_enforcement.py -v`
-Expected: PASS (12 tests).
+Expected: PASS (13 tests — Task 8's nine plus the four appended here).
 
 - [ ] **Step 5: Un-`xfail` the envelope test**
 
@@ -3436,7 +3623,7 @@ git commit -m "feat(listings): gate draft creation on an available listing right
 
 **Files:**
 - Create: `backend/listings/expiry.py`, `backend/listings/tasks.py`, `backend/listings/tests/test_expiry.py`
-- Modify: `backend/listings/signals.py` (append two signals), `backend/listings/tests/conftest.py` (add a published-listing fixture), `backend/config/settings/base.py` (task routes + beat schedule)
+- Modify: `backend/listings/signals.py` (append two signals), `backend/conftest.py` (append the `published_listing_with_snapshot` fixture — the **repo test root**, because Task 14 uses it from `entitlements/tests/`), `backend/config/settings/base.py` (task routes + beat schedule)
 
 **Interfaces:**
 - Consumes: `listings.models.BoatListing`; `listings.enums.{ListingStatus, can_transition_listing}`; `listings.locking.bump_version`; `audit.services.record_audit_event`.
@@ -3603,7 +3790,78 @@ def test_an_expired_listing_disappears_from_the_public_api(
     assert api.get(reverse("listing-list")).data["count"] == 0
 ```
 
-Add a `published_listing_with_snapshot` fixture to `backend/listings/tests/conftest.py`. Build it by driving the real workflow — create a draft, fill it, submit it and approve it through `listings.drafts` / `listings.submissions` / `listings.decisions` — rather than hand-constructing a `ListingSnapshot`, which `ListingSnapshot.save()` refuses anyway. `listings/tests/test_public_read_api.py` already builds a published listing this way; move its helper into `conftest.py` as the fixture's body and have that test module import it, so there is exactly one way to build a published listing in the test suite.
+Add a `published_listing_with_snapshot` fixture to **`backend/conftest.py`** — the repo-wide test root, *not* `backend/listings/tests/conftest.py`.
+
+**Why the root conftest:** pytest only makes a `conftest.py` fixture visible inside its own directory subtree. This fixture is consumed from two different Django apps' test packages — `backend/listings/tests/test_expiry.py` (this task) and `backend/entitlements/tests/test_phase_acceptance.py` (Task 14's `test_done_4_...`) — so a `listings/tests/`-local definition would simply not resolve for the second one and Task 14 would error at collection with `fixture 'published_listing_with_snapshot' not found`. `backend/conftest.py` today holds only the autouse `clear_redis_cache` fixture; this is an **append**, and that fixture is untouched.
+
+**What the body does — and two corrections to earlier drafts of this plan, both verified against the real code:**
+- `ListingSnapshot.save()` (`backend/listings/models.py`, around line 361) does **not** refuse hand-construction. It refuses only a **re-save of an existing row**: `if not self._state.adding: raise ValueError("ListingSnapshot rows are immutable once created.")`. A fresh insert is perfectly legal, and `listings.tests.factories.make_snapshot` does exactly that.
+- `listings/tests/test_public_read_api.py`'s `_published()` helper does **not** drive the real workflow. It hand-constructs the snapshot via `make_snapshot(...)` and assigns `listing.current_public_snapshot` directly. It also takes `**snapshot_kwargs` and returns a `(listing, snapshot)` **tuple**, which its ~30 call sites in that module depend on.
+
+So: **mirror `_published()`'s construction, but return the listing alone**, and leave `test_public_read_api.py` completely untouched (it is not in this plan's footprint). Every consumer of this fixture treats it as a single `BoatListing`; the snapshot is reachable as `listing.current_public_snapshot`. Hand-construction is also the right choice on its own merits here: driving draft → submit → approve would make every consumer of this fixture depend on the `listing_revisions` feature flag being enabled, which Task 14's `both_flags_on` supplies but Task 10's expiry tests do not.
+
+Append to `backend/conftest.py`:
+
+```python
+@pytest.fixture
+def published_listing_with_snapshot(db):
+    """A PUBLISHED listing with one READY photo and a live public snapshot.
+
+    Defined here, at the repo test root, because it is used from BOTH
+    listings/tests/ and entitlements/tests/ — a conftest fixture is only visible
+    inside its own directory subtree.
+
+    Mirrors listings/tests/test_public_read_api.py's `_published()` helper, which
+    stays where it is (it returns a tuple and takes snapshot kwargs that its own
+    module needs). Returns the listing alone; the snapshot is
+    `listing.current_public_snapshot`.
+    """
+    from uuid import uuid4
+
+    from django.utils import timezone
+
+    from accounts.enums import UserRole
+    from accounts.tests.factories import make_user
+    from listings.enums import ListingStatus, MediaStatus, MediaType
+    from listings.tests.factories import make_media, make_private_listing, make_snapshot
+
+    suffix = uuid4().hex[:8]
+    owner = make_user(
+        f"published-owner-{suffix}@example.com",
+        role=UserRole.PRIVATE_SELLER,
+        verified=True,
+    )
+    moderator = make_user(
+        f"published-moderator-{suffix}@example.com",
+        role=UserRole.STAFF,
+        verified=True,
+    )
+    listing = make_private_listing(owner=owner, status=ListingStatus.PUBLISHED)
+    image = make_media(listing, media_type=MediaType.IMAGE, status=MediaStatus.READY)
+    snapshot = make_snapshot(
+        listing,
+        approved_by=moderator,
+        media_manifest=[
+            {
+                "media_id": str(image.pk),
+                "media_type": image.media_type,
+                "storage_key": image.storage_key,
+                "mime_type": image.mime_type,
+                "sort_order": image.sort_order,
+                "width": image.width,
+                "height": image.height,
+                "duration_seconds": image.duration_seconds,
+                "checksum_sha256": image.checksum_sha256,
+            }
+        ],
+    )
+    listing.current_public_snapshot = snapshot
+    listing.published_at = timezone.now()
+    listing.save(update_fields=["current_public_snapshot", "published_at"])
+    return listing
+```
+
+The imports live inside the function body deliberately: `backend/conftest.py` is loaded before Django's app registry is populated, so a module-level `from listings.models import ...` there would raise `AppRegistryNotReady`.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -3817,7 +4075,7 @@ Expected: PASS, unchanged (the conftest helper move must not alter its behaviour
 - [ ] **Step 8: Commit**
 
 ```bash
-git add backend/listings/expiry.py backend/listings/tasks.py backend/listings/signals.py backend/listings/tests backend/config/settings/base.py
+git add backend/listings/expiry.py backend/listings/tasks.py backend/listings/signals.py backend/listings/tests backend/conftest.py backend/config/settings/base.py
 git commit -m "feat(listings): daily expiry sweep per spec 22.5"
 ```
 
@@ -4412,11 +4670,17 @@ def release_stale_reservations(*, now: datetime | None = None) -> int:
     saved draft."
 
     `listing__isnull=True` is the "unless": a reservation bound to a listing is
-    attached by definition and is released by the flow that abandons the draft,
-    never by the clock.
+    attached by definition, so the clock must not reclaim it.
 
-    This phase creates no RESERVED rows (see the plan's ruling on draft
-    creation), so on today's data this pass is a no-op. It is built anyway
+    Spec §36.3 assumes something else releases it — "a draft abandoned before
+    submission releases reservation" — but NO draft-abandonment flow exists in
+    this codebase (there is no listing deletion or archival path; ARCHIVED is
+    unreachable). That gap is harmless only because this phase creates no
+    RESERVED rows at all (see the plan's ruling on draft creation), so on
+    today's data this pass is a no-op and no draft-attached reservation can
+    exist to be stranded. The first phase that produces a RESERVED row must
+    either leave `listing` NULL, so this sweep can time it out, or ship the
+    abandonment-release flow §36.3 presumes. It is built anyway
     because spec §6.3 mandates the rule and because Phase 14's Stripe
     fulfilment and Phase 15's media upgrade are its first producers.
     """
@@ -4508,7 +4772,7 @@ git commit -m "feat(entitlements): nightly ledger sweep for expiry and stale res
 **Interfaces:**
 - Consumes: `entitlements.services._transition`, `entitlements.services.InvalidEntitlementState` (Task 12); `entitlements.policy.paid_validity_days` (Task 3); `accounts.services.is_staff_admin`.
 - Produces:
-  - `entitlements.services.EntitlementReasonRequired(APIException)` — 400, `default_code = "entitlement_reason_required"`
+  - `entitlements.services.EntitlementReasonRequired(ValidationError)` — a DRF `ValidationError` subclass whose detail is `{"reason": [ErrorDetail(..., code="entitlement_reason_required")]}`. It renders as **400 `validation_error`** with `fields: {"reason": [...]}`, because `common.exceptions.nauta_exception_handler` routes every `ValidationError` — subclass or not — through `_field_map(exc.detail)`. `entitlement_reason_required` is therefore a **field-level** code, never the envelope's top-level `code`. See Global Constraints; that is deliberate, since the whole point is to name the field the staff user left blank.
   - `entitlements.services.grant_listing_right(*, user, actor, reason, entitlement_type=EntitlementType.PAID_LISTING, valid_days=None, now=None) -> UserEntitlement`
   - `entitlements.services.revoke_entitlement(*, entitlement, actor, reason, now=None) -> UserEntitlement`
   - `entitlements.services.RestoreResult` — frozen dataclass: `revoked: UserEntitlement`, `replacement: UserEntitlement | None`
@@ -4573,7 +4837,11 @@ def test_a_grant_without_a_reason_is_refused(staff_admin):
         grant_listing_right(user=make_private_seller(), actor=staff_admin, reason="  ")
 
     assert excinfo.value.status_code == 400
-    assert excinfo.value.get_codes() == "entitlement_reason_required"
+    # A dict-detail ValidationError's get_codes() returns a DICT, not a string:
+    # this is a FIELD-level code inside a `validation_error` envelope, not a
+    # top-level envelope code. See the Global Constraints note.
+    assert excinfo.value.get_codes() == {"reason": ["entitlement_reason_required"]}
+    assert excinfo.value.detail["reason"][0].code == "entitlement_reason_required"
 
 
 @pytest.mark.django_db
@@ -4698,7 +4966,7 @@ def test_restoring_does_not_touch_the_listing_it_published(staff_admin):
 
 
 @pytest.mark.django_db
-def test_the_admin_actions_are_staff_admin_only(client, staff_admin):
+def test_the_admin_actions_are_staff_admin_only(staff_admin):
     """Spec §5 and Phase 3 contract rule 6: grant/revoke/restore are
     configuration and compensation, so staff-admin, not staff-moderator."""
     from django.contrib.admin.sites import site
@@ -4712,6 +4980,10 @@ def test_the_admin_actions_are_staff_admin_only(client, staff_admin):
     class _Request:
         def __init__(self, user):
             self.user = user
+            # Django 5.2's ModelAdmin.get_actions() reads `IS_POPUP_VAR in
+            # request.GET` on its FIRST line, so a fake request without a .GET
+            # raises AttributeError before any permission logic runs.
+            self.GET = {}
 
     assert set(admin_class.get_actions(_Request(staff_admin))) >= {
         "revoke_selected",
@@ -4734,8 +5006,15 @@ class EntitlementReasonRequired(ValidationError):
     """Spec §26.3 and §36.3: every staff operation on the ledger is a
     compensation decision and must say why, in the audit trail and on the row.
 
-    A ValidationError (400) rather than a bespoke exception, so it renders
-    through spec §30.2's `fields` map with the offending field named.
+    A ValidationError (400) rather than a bespoke APIException, so it renders
+    through spec §30.2's `fields` map with the offending field named. The
+    consequence, stated because it is easy to get wrong: common.exceptions maps
+    EVERY ValidationError to `code: "validation_error"`, so the envelope reads
+    `{"code": "validation_error", "fields": {"reason": [...]}}` and
+    "entitlement_reason_required" appears only as the FIELD-level code. That is
+    the intended contract — a blank reason is a form error about one field, not
+    a distinct API failure mode — and it is why `get_codes()` on this exception
+    returns a dict, not a string.
     """
 
     def __init__(self):
@@ -5393,7 +5672,7 @@ Each item names the phase that closes it. None breaks a MUST requirement *of thi
 
 1. **No `MarketplaceProduct`, no price, no Checkout.** The eligibility payload carries `purchase_product_code: "INDIVIDUAL_LISTING_RIGHT"` but nothing carries the product's name, price, currency, Stripe ids or refund/help link, so spec §22.3's purchase modal has no backend source and §22.3's "Confirming creates a Stripe Checkout Session" is unreachable. → **Phase 14** (spec §23.1, §23.2).
 2. **No frontend.** Spec §22.3's disabled "Start a listing" control, the adjacent purchase CTA and the "Use an available listing right" branch are Next.js work against pages that do not exist yet (`/sell/`, `/sell/create/`, the private dashboard). This plan is backend-only, matching Phase 11's precedent. The full API contract they render from ships here. → **Phase 16** (spec §25), with §37's `listing.free_allowance_used` and `listing.buy_right` keys.
-3. **Nothing produces a `RESERVED` entitlement.** The state, its two spec §6.3 edges, `release_reservation()` and the 30-minute `release_stale_reservations()` sweep are all implemented and tested, but no code path in this phase creates a reserved row — draft creation validates instead of reserving (see the scope ruling), because an attached reservation has no release path while listing deletion/abandonment does not exist. → **Phase 14** (a right reserved against a pending Stripe order) or **Phase 15** (the listing-bound media upgrade).
+3. **Nothing produces a `RESERVED` entitlement.** The state, its two spec §6.3 edges, `release_reservation()` and the 30-minute `release_stale_reservations()` sweep are all implemented and tested, but no code path in this phase creates a reserved row — draft creation validates instead of reserving (see the scope ruling), because an attached reservation has no release path while listing deletion/abandonment does not exist. Consequence worth naming explicitly: **spec §36.3's "a draft abandoned before submission releases reservation" is not implemented and cannot be**, because `release_stale_reservations()` filters on `listing__isnull=True` — §6.3's own "unless attached to a saved draft" exemption — and no draft-abandonment flow exists in this codebase to do the releasing. The rule is vacuously satisfied today (nothing creates a draft-attached reservation) and becomes a real obligation for whichever phase first produces one. → **Phase 14** (a right reserved against a pending Stripe order) or **Phase 15** (the listing-bound media upgrade); whichever it is must also ship the abandonment-release flow, or leave `listing` NULL so the clock can reclaim the row.
 4. **Reactivation after expiry is not built.** Spec §22.5 states a precondition ("requires a new available paid listing right") on a transition spec §6.1 does not define: `LISTING_TRANSITIONS[EXPIRED]` is `{ARCHIVED}` and there is no `EXPIRED -> PUBLISHED` or `EXPIRED -> DRAFT` edge anywhere in the spec. The precondition ships as reusable services; the transition needs a specified edge. → **Phase 16/17**, or a signed change request extending spec §6.1.
 5. **No Celery beat process is deployed.** `CELERY_BEAT_SCHEDULE` declares the three nightly jobs, and the tasks are registered and tested, but nothing runs `celery beat` in any environment. Until one does, no listing ever expires in a running system. → **Phase 24** (spec §35.2's deployment sequence).
 6. **Expiry reminders have no receivers and no deduplication store.** `listing_expiring` and `listing_expired` fire correctly, and the window arithmetic makes a daily schedule fire each threshold once, but there is no `Notification` row, no WebSocket frame, no email and no persisted dedup key — so a beat misfire or a schedule change to twice-daily would double-send. → **Phase 18** (spec §27.1, whose dedup keys are "listing + threshold" and "listing + expiry"; the signal already carries `threshold_days`).
@@ -5483,6 +5762,12 @@ from listings.tasks import send_listing_expiry_reminders
 
 No other route is added, and no existing route's URL, method or success shape changes. Two existing endpoints gain one new failure mode each: `POST /api/v1/listings/drafts/` and `POST /api/v1/listings/<id>/submit/` can now return `403 listing_entitlement_required`.
 
+**Deliberate, accepted deviations from Phase 11's contract** (recorded here so a later reader does not mistake either for a silent break; the controller is knowingly accepting both):
+
+- **`ListingEntitlementGate.consume()`'s return type changes from `str` to `ConsumedRight`,** so the one call site inside `listings.submissions.submit_listing_revision` changes shape (`publication_source = consumed.publication_source`, plus `consumed.entitlement` passed to `bump_version`). Phase 11's contract rule 6 said *"the call sites in `listings.submissions` and `listings.decisions` do not change"*. Half of that holds and half does not, and the half that does not is unavoidable: a submission must hand the listing both its publication source **and** the ledger row it burned, and a bare string cannot carry two values. The keyword arguments are unchanged.
+- **`listings/decisions.py` genuinely is not modified.** `publication_days(*, listing)` keeps Phase 11's exact signature and return type (`int | None`); only its *body* changes, to read the frozen `metadata["publication_days"]` before falling back to the setting. `decisions.py` appears in no task, no file list and no commit in this plan.
+- **`can_submit(*, user, broker=None)` also keeps Phase 11's exact signature** — deliberately, so Phase 12's edit to the same function stays a clean merge. The cost is that `can_submit` cannot tell an initial submission from a revision, so the **call site** carries a `charges_a_right` guard (Task 8 Step 4). A later phase that wants a listing-aware gate must not "fix" this by widening `can_submit`'s signature without re-reading that guard first.
+
 Rules a later phase must follow:
 
 1. **Never write `UserEntitlement.state` directly.** Go through `entitlements.consumption.consume_listing_right` or one of `entitlements.services`' functions, all of which hold the transaction, the row lock, the spec §6.3 edge check and the audit event together. Django admin is read-only for exactly this reason.
@@ -5495,8 +5780,9 @@ Rules a later phase must follow:
 8. **Phase 16** renders spec §22.3 from `GET /api/v1/listing-eligibility/` alone. Do not re-derive quota in the client and do not add a second eligibility representation — `Eligibility.as_dict()` is the single wire format.
 9. **Phase 17** builds the staff entitlement UI on `entitlements.services`' existing functions; it should add the *grant* affordance (which needs a target user) and may expose the ledger over `/api/v1/staff/...`. It must not add a second grant/revoke path.
 10. **Phase 18** connects receivers to `listings.signals.listing_expiring` and `listing_expired`. `listing_expiring` carries `threshold_days`, which is spec §27.1's dedup key component; `listing_expired` fires inside `transaction.on_commit()` and `listing_expiring` does not, because a reminder writes nothing.
-11. **Phase 12 must not remove the `is_initial` branch's `consumed_entitlement=consumed.entitlement` keyword** when it adds the auto-approval `else:` to `submit_listing_revision`. If Phase 12's auto-approval path publishes a private-seller listing directly (it should not — auto-approval is a broker policy), it must set `consumed_entitlement` too.
-12. **Any new entitlement-related error code must be stable and documented** in this plan's Global Constraints list. The closed set today is `listing_entitlement_required` (403), `entitlement_reason_required` (400) and `invalid_entitlement_state` (409). Exceptions needing extra response context set a dict attribute named `meta`; exceptions offering the client a next step set one named `action` (both are envelope passthroughs in `common.exceptions`).
+11. **Phase 12 must not remove the `is_initial` branch's `consumed_entitlement=consumed.entitlement` keyword** when it adds the auto-approval `else:` to `submit_listing_revision`, and must not remove or weaken the `charges_a_right` guard above the entitlement block. `is_initial` is assigned **above** that block (this phase moved it three lines up); if Phase 12 reorders that function, the assignment must stay above the guard. If Phase 12's auto-approval path publishes a private-seller listing directly (it should not — auto-approval is a broker policy), it must set `consumed_entitlement` too.
+12. **Any new entitlement-related error code must be stable and documented** in this plan's Global Constraints list. The closed set today is two **envelope** codes — `listing_entitlement_required` (403) and `invalid_entitlement_state` (409) — plus one **field-level** code, `entitlement_reason_required`, which surfaces inside a 400 `validation_error` envelope as `fields: {"reason": ["entitlement_reason_required"]}` and never as `error.code`. A phase that needs a distinct top-level code must raise a plain `APIException` subclass, not a `ValidationError`, and must accept losing the per-field `fields` map. Exceptions needing extra response context set a dict attribute named `meta`; exceptions offering the client a next step set one named `action` (both are envelope passthroughs in `common.exceptions`).
+13. **Never charge a right for a listing that already has a public snapshot.** Spec §6.3 charges "initial approval" only, and spec §20.2's post-publication edit shares the submit path. `ListingEntitlementGate.consume()` short-circuits on `listing.current_public_snapshot_id is not None`, and the call site's `charges_a_right` guard mirrors it. Checking `consumed_entitlement_id` alone is **not** sufficient: Phase 11's Known Limitation 1 means that column is NULL on every pre-Phase-13 published listing, so such a listing's first revision would be charged a fresh free right (flag off) or refused with a 403 (flag on).
 
 ---
 
@@ -5509,7 +5795,8 @@ Rules a later phase must follow:
 | §22.1 One free listing activation per rolling 365-day period | Task 3 (`free_quota_state`), Task 14 done-1 |
 | §22.1 Approved publication lasts 30 days | Task 8 (`publication_days`), consumed by Phase 11's `approve_revision` unchanged |
 | §22.1 Rolling period starts when the free entitlement is consumed on submission | Task 3 (window keyed on `consumed_at`), Task 6 (`consumed_at=now` at submit), Task 14 `test_spec_22_1_the_rolling_period_starts_at_consumption_not_publication` |
-| §22.1 A rejected submission can be corrected without consuming a second right | Task 6 (`consume_listing_right`'s existing-right short-circuit), Task 8 `test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right` |
+| §22.1 A rejected submission can be corrected without consuming a second right | Task 6 (`consume_listing_right`'s existing-right short-circuit), **Task 8 Step 4's `charges_a_right` guard on the pre-check** (without it the unlocked `can_submit` would 403 before the short-circuit is ever reached), Task 8 `test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right` |
+| §20.2 / §6.3 A post-publication edit of an already-PUBLISHED listing is neither charged nor refused | Task 8 (`consume()`'s `current_public_snapshot_id is not None` short-circuit + the call-site guard), Task 8 `test_a_legacy_published_listing_is_revisable_without_burning_a_right`. Gating on `consumed_entitlement_id` alone would regress every Phase 11-era published listing, whose column is always NULL |
 | §22.1 Permanent policy rejection leaves the right consumed unless staff restores it | Task 13 (`restore_consumed_right`), Task 3 (`REVOKED` rows are not counted) |
 | §22.1 Deleting/archiving/selling does not reset free quota | Task 3 (ledger-only arithmetic), Task 7 (`PROTECT` makes a hard delete impossible), Task 14 `test_spec_22_1_deleting_the_listing_does_not_reset_the_quota` |
 | §22.1 Eligible again once 365 days have elapsed | Task 3, Task 14 `test_spec_22_1_the_window_reopens_after_the_period` |
@@ -5536,11 +5823,11 @@ Rules a later phase must follow:
 | Done 3 — Multiple tabs cannot create multiple free listings | Tasks 6, 8, Task 14 done-3 |
 | Done 4 — Expired listings disappear publicly, remain manageable privately | Tasks 10, Task 14 done-4 |
 
-**2. Spec coverage — cross-referenced sections:** §11.9's `UserEntitlement` (all thirteen listed fields, plus `granted_by` by documented ruling and `source_payment` as a loose id) → Task 2; its "Free use is also recorded as an entitlement/ledger entry" → Task 6; its "Do not infer historical quota solely from current listings" → Task 3 and the app-boundary ruling. §6.3's four transition lines → Task 1 (`ENTITLEMENT_TRANSITIONS`, with the documented `AVAILABLE -> CONSUMED` reading), Task 12 (both time-driven edges), Task 13 (the `CONSUMED -> REVOKED` remedy and its documented widening). §6.3's "Reservations expire after 30 minutes unless attached to a saved draft" → Task 12 (`release_stale_reservations`). §6.3's "Consumption happens when the listing is submitted for initial approval" → Tasks 6, 9 (the draft gate deliberately does not consume). §10.1's five `individual.*` settings → Task 3 (read, never re-declared — the registry is untouched). §26.3's four staff capabilities → Task 13 (grant, revoke, restore) and Task 2 (the read-only ledger admin), with the missing grant *affordance* in Known Limitation 9. §26.4's "staff must not edit Stripe-paid order status manually" → respected: nothing here touches a payment record. §30.1's `GET /api/v1/listing-eligibility/` → Task 5. §30.2's envelope, stable codes and the worked `action` block for this exact code → Task 6. §31's "Listing CTA availability → `ListingEligibilityService`" and "Free-right copy/countdown → entitlement ledger + platform settings ... exact next eligibility date" → Tasks 4, 5 (`next_available_at`). §35.1's `individual_entitlements` flag → Task 2 (seeded disabled) and the flag ruling. §35.2 step 4's "deploy code with features off" → the same ruling. §36.3's six free-and-paid-rights rules → Task 3 (prospective config, raised/lowered count), Task 6 (frozen publication duration, one right per publication cycle), Task 12 (abandoned-draft reservation release), Task 13 (staff grant records who/why/expiry). §36.4's separation of moderation from entitlement remedies → Task 13's `test_restoring_does_not_touch_the_listing_it_published`. §27.1's `listing.expiring` and `listing.expired` rows, including their dedup keys → Tasks 10, 11. §2.4's audit requirement → every state change in Tasks 6, 10, 12, 13. §38's "Individual policy: 1 free use / 365 days / 30 publication days" and "Paid policy defaults: 30 publication days / 365 unused-right validity" → already seeded by Phase 2's `0002_seed_default_settings`; this phase adds no seed data and needs none. §34.2's concurrency requirement → Task 6's lock assertion and Task 14 done-3, with the stronger two-connection test deferred in Known Limitation 12.
+**2. Spec coverage — cross-referenced sections:** §11.9's `UserEntitlement` (all thirteen listed fields, plus `granted_by` by documented ruling and `source_payment` as a loose id) → Task 2; its "Free use is also recorded as an entitlement/ledger entry" → Task 6; its "Do not infer historical quota solely from current listings" → Task 3 and the app-boundary ruling. §6.3's four transition lines → Task 1 (`ENTITLEMENT_TRANSITIONS`, with the documented `AVAILABLE -> CONSUMED` reading), Task 12 (both time-driven edges), Task 13 (the `CONSUMED -> REVOKED` remedy and its documented widening). §6.3's "Reservations expire after 30 minutes unless attached to a saved draft" → Task 12 (`release_stale_reservations`). §6.3's "Consumption happens when the listing is submitted for initial approval" → Tasks 6, 9 (the draft gate deliberately does not consume). §10.1's five `individual.*` settings → Task 3 (read, never re-declared — the registry is untouched). §26.3's four staff capabilities → Task 13 (grant, revoke, restore) and Task 2 (the read-only ledger admin), with the missing grant *affordance* in Known Limitation 9. §26.4's "staff must not edit Stripe-paid order status manually" → respected: nothing here touches a payment record. §30.1's `GET /api/v1/listing-eligibility/` → Task 5. §30.2's envelope, stable codes and the worked `action` block for this exact code → Task 6. §31's "Listing CTA availability → `ListingEligibilityService`" and "Free-right copy/countdown → entitlement ledger + platform settings ... exact next eligibility date" → Tasks 4, 5 (`next_available_at`). §35.1's `individual_entitlements` flag → Task 2 (seeded disabled) and the flag ruling. §35.2 step 4's "deploy code with features off" → the same ruling. §36.3's six free-and-paid-rights rules → Task 3 (prospective config, raised/lowered count), Task 6 (frozen publication duration, one right per publication cycle), Task 13 (staff grant records who/why/expiry). **The sixth — "a draft abandoned before submission releases reservation" — is deliberately NOT implemented and is NOT covered by Task 12.** `release_stale_reservations()` filters on `listing__isnull=True`, which by construction never matches a draft-linked reservation; spec §6.3 exempts those from the clock and assumes some other abandonment-release flow, and this codebase has none (no listing deletion, archival or abandonment mechanism exists — `ListingStatus.ARCHIVED` is unreachable). The rule is vacuously satisfied here because this phase never creates a draft-attached reservation in the first place (see the draft-reservation ruling), and it becomes a real obligation for whichever phase first produces one — Phase 14 or Phase 15, per Contract summary rule 6. §36.4's separation of moderation from entitlement remedies → Task 13's `test_restoring_does_not_touch_the_listing_it_published`. §27.1's `listing.expiring` and `listing.expired` rows, including their dedup keys → Tasks 10, 11. §2.4's audit requirement → every state change in Tasks 6, 10, 12, 13. §38's "Individual policy: 1 free use / 365 days / 30 publication days" and "Paid policy defaults: 30 publication days / 365 unused-right validity" → already seeded by Phase 2's `0002_seed_default_settings`; this phase adds no seed data and needs none. §34.2's concurrency requirement → Task 6's lock assertion and Task 14 done-3, with the stronger two-connection test deferred in Known Limitation 12.
 
 **Gaps deliberately left, with the owning phase named:** §22.3's rendered UI and its product/price content (Phases 16 and 14), §22.5's reactivation transition (undefined in §6.1), the `RESERVED` producer (Phases 14/15), `MEDIA_UPGRADE` behaviour (Phase 15), the staff ledger API and the grant affordance (Phase 17), notification delivery (Phase 18), and everything in Known Limitations above. No spec §22 requirement is unaccounted for.
 
-**3. Placeholder scan:** no task contains "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "similar to Task N", or a test described but not written. Every code step carries the real code. Three places tell the implementer to read an existing file rather than restating it — the `broker_seller` fixture (Task 8), the `published_listing_with_snapshot` fixture (Task 10) and the `test_policies.py` edits (Task 8 Step 5) — and each says exactly which file to read and which existing helper to copy; that is a deliberate refusal to restate Phase 3's and Phase 11's definitions from memory, not an unwritten step. `release_stale_reservations` (Task 12) is a mechanism with no producer in this phase, built because spec §6.3 mandates the rule; it is complete, tested and flagged, following Phase 5's precedent for the §14.3 legacy-import mechanism. The one `xfail` in the plan (Task 6's envelope test) is created and removed within the plan, in Tasks 6 and 9, with both steps spelled out.
+**3. Placeholder scan:** no task contains "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "similar to Task N", or a test described but not written. Every code step carries the real code, including both fixtures: the `broker_seller` fixture (Task 8) is written out in terms of the real `brokers/tests/factories.py` helpers `make_broker`/`make_membership`, and the `published_listing_with_snapshot` fixture (Task 10) is written out in full against `listings/tests/factories.py`'s `make_snapshot`. One place still tells the implementer to read an existing file rather than restating it — the `test_policies.py` edits (Task 8 Step 5), which change three named assertions in a Phase 11 file this plan does not otherwise own; that is a deliberate refusal to restate Phase 11's test module from memory, not an unwritten step. `release_stale_reservations` (Task 12) is a mechanism with no producer in this phase, built because spec §6.3 mandates the rule; it is complete, tested and flagged, following Phase 5's precedent for the §14.3 legacy-import mechanism. The one `xfail` in the plan (Task 6's envelope test) is created and removed within the plan, in Tasks 6 and 9, with both steps spelled out.
 
 **4. Type and name consistency (checked across every task's Interfaces block):**
 - `free_quota_state(user, *, now=None) -> FreeQuotaState` — same signature in Tasks 3, 4, 6, 13.
@@ -5548,7 +5835,10 @@ Rules a later phase must follow:
 - `ListingEligibilityService.for_user(user, *, now=None) -> Eligibility` — same in Tasks 4, 5, 6, 8.
 - `consume_listing_right(*, user, listing, actor, now=None) -> UserEntitlement` — defined in Task 6, called once, from `ListingEntitlementGate.consume` in Task 8. It returns the **ledger row**, not a `ConsumedRight`; the `ConsumedRight` wrapper exists only in `listings.policies` so `entitlements` never imports `listings`.
 - `ListingEntitlementGate.consume(*, listing, user) -> ConsumedRight` — Task 8's definition, Task 8's single call site in `submit_listing_revision`, and Task 8's updated `test_policies.py` all use the `ConsumedRight` return type. Phase 11's `str` return is replaced everywhere it was read (one place: `publication_source = ...`).
-- `ListingEntitlementGate.can_submit(*, user, broker=None)` and `.publication_days(*, listing)` — signatures **unchanged** from Phase 11, so `listings.decisions.approve_revision` needs no edit and `listings/decisions.py` appears in no task.
+- `ListingEntitlementGate.can_submit(*, user, broker=None)` and `.publication_days(*, listing)` — signatures **unchanged** from Phase 11, so `listings.decisions.approve_revision` needs no edit and `listings/decisions.py` appears in no task. Because `can_submit` takes no listing, Task 8 Step 4's call site wraps it in a `charges_a_right` guard (`is_initial and listing.consumed_entitlement_id is None`); `consume()` re-checks the same two conditions itself, so the guard is an early exit and not the authority.
+- `published_listing_with_snapshot` — defined **once**, in `backend/conftest.py` (Task 10), and consumed from two app test packages: `listings/tests/test_expiry.py` (Task 10) and `entitlements/tests/test_phase_acceptance.py` (Task 14). It yields a single `BoatListing`, never a `(listing, snapshot)` tuple, and both consumers use it that way. `listings/tests/test_public_read_api.py`'s own `_published()` tuple helper is untouched and stays module-local.
+- `EntitlementReasonRequired` — a `ValidationError` subclass everywhere it appears (Task 13's Interfaces block, its code and its test), and described consistently in Global Constraints and Contract summary rule 12 as a **field-level** code inside a 400 `validation_error` envelope, never as a top-level envelope code. Its test asserts the dict form of `get_codes()`.
+- `ListingEntitlementRequired` — an `APIException` subclass with a scalar detail, so `get_codes()` **does** return the bare string `"listing_entitlement_required"`, which is what Tasks 6 and 9 assert. The two exceptions differ deliberately; do not copy one's assertion style onto the other.
 - `listing.consumed_entitlement_id` — used in Tasks 6, 8, 9 and in every test; valid both before Task 7 (a `UUIDField` of that name) and after it (the FK's attname). `listing.consumed_entitlement` (the object) is used only in Tasks 7, 8 and their tests, all of which run after the conversion.
 - `_transition(...)` — defined once in Task 12, called by `expire_due_entitlements`, `release_reservation` and `release_stale_reservations` in Task 12; Task 13's `_revoke` deliberately does **not** use it, because it must widen the allowed source states and write three fields, and that divergence is documented at the ruling in Task 13 Step 3.
 - `_audit(...)` — defined in Task 12's `services.py`, reused by Task 13's `grant_listing_right` and `_revoke`. `entitlements/consumption.py` has its own private `_audit` with a different signature; the two modules never import each other's, and neither is exported.
