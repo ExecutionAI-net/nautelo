@@ -5,6 +5,7 @@ from django.contrib.auth.models import Group
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.enums import StaffGroup, UserRole
@@ -289,3 +290,79 @@ def test_query_count_does_not_grow_with_audit_rows_or_pending_items(
 
     assert len(response.data["audit_history"]) == 7
     assert len(large) == len(small)
+
+
+@pytest.mark.django_db
+def test_pending_revision_count_only_covers_this_brokers_submitted_revisions(api):
+    moderator = _staff("detail-pend-mod@example.com", StaffGroup.MODERATOR)
+    agent = make_user("detail-pend-agent@example.com", role=UserRole.BROKER, verified=True)
+    mine = make_broker(name="Pend Mine", slug="pend-mine")
+    theirs = make_broker(name="Pend Theirs", slug="pend-theirs")
+    for _ in range(2):
+        their_listing = _listing(theirs, agent, ListingStatus.PENDING_APPROVAL)
+        make_revision(
+            their_listing, state=RevisionStatus.SUBMITTED,
+            submitted_by=agent, submitted_at=their_listing.created_at,
+        )
+    api.force_authenticate(moderator)
+
+    assert api.get(_detail_url(mine)).data["pending_revision_count"] == 0
+    assert selectors.pending_revision_count(mine) == 0
+
+    my_listing = _listing(mine, agent, ListingStatus.PENDING_APPROVAL)
+    make_revision(
+        my_listing, state=RevisionStatus.SUBMITTED, submitted_by=agent,
+        submitted_at=my_listing.created_at,
+    )
+    make_revision(_listing(mine, agent, ListingStatus.DRAFT), state=RevisionStatus.DRAFT)
+
+    assert api.get(_detail_url(mine)).data["pending_revision_count"] == 1
+    assert api.get(_detail_url(theirs)).data["pending_revision_count"] == 2
+
+
+@pytest.mark.django_db
+def test_listing_counts_by_status_ignore_other_brokers(api):
+    mine = make_broker(name="Cnt Mine", slug="cnt-mine")
+    theirs = make_broker(name="Cnt Theirs", slug="cnt-theirs")
+    agent = make_user("detail-cnt-agent@example.com", role=UserRole.BROKER, verified=True)
+    _listing(mine, agent, ListingStatus.PUBLISHED)
+    _listing(theirs, agent, ListingStatus.PUBLISHED)
+    _listing(theirs, agent, ListingStatus.ARCHIVED)
+
+    counts = selectors.broker_listing_counts(mine)
+
+    assert counts["by_status"][ListingStatus.PUBLISHED] == 1
+    assert counts["by_status"][ListingStatus.ARCHIVED] == 0
+    assert counts["total"] == 1
+
+
+@pytest.mark.django_db
+def test_audit_history_order_is_stable_when_timestamps_tie(monkeypatch):
+    admin = _staff("detail-tie-admin@example.com", StaffGroup.ADMIN)
+    broker = make_broker(name="Tie", slug="tie-detail")
+    frozen = timezone.now()
+    monkeypatch.setattr(timezone, "now", lambda: frozen)
+    for index in range(5):
+        record_audit_event(
+            actor_user=admin,
+            actor_type=AuditEvent.ActorType.USER,
+            action=f"broker.tie_{index}",
+            target_type="brokers.BrokerOrganization",
+            target_id=str(broker.pk),
+            source=AuditEvent.Source.API,
+        )
+    assert AuditEvent.objects.filter(
+        target_id=str(broker.pk), created_at=frozen
+    ).count() == 5
+
+    first = [e.pk for e in selectors.broker_audit_history(broker)]
+    expected = [
+        e.pk
+        for e in sorted(
+            AuditEvent.objects.filter(target_id=str(broker.pk)),
+            key=lambda e: e.pk,
+            reverse=True,
+        )
+    ]
+
+    assert first == expected

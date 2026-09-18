@@ -75,5 +75,5 @@ def broker_audit_history(
         .filter(
             target_type="brokers.BrokerOrganization", target_id=str(broker.pk)
         )
-        .order_by("-created_at")[:limit]
+        .order_by("-created_at", "-id")[:limit]
     )
