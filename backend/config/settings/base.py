@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "taxonomy",
     "listings",
     "analytics",
+    "entitlements",
     "platform_settings",
 ]
 
