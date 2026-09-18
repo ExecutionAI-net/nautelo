@@ -89,6 +89,38 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 13 (individual free quota and entitlement enforcement) complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-13-quota-entitlement.md` in full.
+- New `entitlements` app: spec §11.9's `UserEntitlement` ledger (with spec §6.3's
+  state machine, four database constraints and a read-only Django admin), the
+  rolling free-quota arithmetic of spec §22.1, `ListingEligibilityService` and
+  `GET /api/v1/listing-eligibility/` (spec §22.2, §30.1), locked once-only
+  consumption (spec §22.4), the nightly ledger sweep (spec §6.3), and audited
+  staff grant/revoke/restore (spec §26.3).
+- `listings` changes, deliberately minimal: `ListingEntitlementGate` is now real
+  (Phase 11 contract rule 6), `BoatListing.consumed_entitlement` is a real FK,
+  draft creation and submit both return `403 listing_entitlement_required`, and
+  publication expiry (spec §22.5) landed as two new modules, `listings/expiry.py`
+  and `listings/tasks.py`, plus two appended signals.
+- `common.exceptions.nauta_exception_handler` gained an `action` passthrough so
+  spec §30.2's worked error body for this exact code renders as specified.
+- Rollout: `individual_entitlements` is seeded **disabled**. The ledger is written
+  either way — only refusal is gated — so enabling the flag later cannot hand a
+  pre-rollout user a second free listing.
+- Celery beat: `CELERY_BEAT_SCHEDULE` now declares three nightly jobs. **No beat
+  process is deployed yet**; starting one is a Phase 24 (§35.2) deployment step.
+  Until then, expiry and the ledger sweep must be run manually or by cron calling
+  the task functions, or published listings will never expire.
+- Known limitations: no `MarketplaceProduct` and no Checkout, so spec §22.3's
+  purchase CTA has no backend source (Phase 14); no frontend at all for §22.3
+  (Phase 16); nothing produces a RESERVED row yet; reactivation after expiry is
+  undefined in spec §6.1 and is not built. See the plan's Known Limitations for
+  the full list with owning phases.
+- Next: Phase 14 (Stripe products, Checkout and fulfilment) — it converts
+  `UserEntitlement.source_payment_id` into a real FK and becomes the first
+  producer of `STRIPE_PURCHASE` rights.
+
 ### 2026-09-19 — Phase 12 broker auto-approval policy complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-12-broker-policy.md` (10 tasks; last PRs #160 switch UI, #161 audit history and bulk approve, plus this acceptance PR).
