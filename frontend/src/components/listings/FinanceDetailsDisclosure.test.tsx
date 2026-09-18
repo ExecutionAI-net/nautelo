@@ -250,6 +250,156 @@ describe("FinanceDetailsDisclosure", () => {
     expect(money(principal)).toBeInTheDocument();
   });
 
+
+  // A RangeError from formatMoney inside a render unmounts the whole subtree:
+  // the panel and its own button vanish and the error reaches the Next.js error
+  // boundary. Every money field of the quote is therefore formatted through the
+  // shared guard, and an unrenderable one is dropped, not thrown.
+  const MONEY_ROWS = [
+    ["down_payment_amount", "finance.down_payment"],
+    ["principal", "finance.amount_financed"],
+    ["total_payment", "finance.total_installments"],
+    ["total_interest", "finance.total_interest"],
+  ] as const;
+
+  const HOSTILE_AMOUNTS = [
+    "abc",
+    "1e5",
+    "",
+    " ",
+    "1,000.00",
+    "€91800.00",
+    "NaN",
+    null,
+    undefined,
+  ];
+
+  // One case per field/value pair rather than a loop in one test: a loop of
+  // nine renders trips vitest's 5s timeout on a loaded CI worker.
+  const HOSTILE_CASES = MONEY_ROWS.flatMap(([field, labelKey]) =>
+    HOSTILE_AMOUNTS.map((hostile) => [field, labelKey, hostile] as const),
+  );
+
+  it.each(HOSTILE_CASES)(
+    "drops the %s row when the server sends %s = %s",
+    async (field, labelKey, hostile) => {
+      requestFinanceQuote.mockResolvedValue({ ...QUOTE, [field]: hostile });
+
+      expect(() =>
+        render(<FinanceDetailsDisclosure locale="en" listingId="abc" />),
+      ).not.toThrow();
+      await userEvent.click(showButton());
+      const rows = await screen.findByTestId("finance-assumptions");
+
+      expect(screen.queryByText(tf("en", labelKey))).not.toBeInTheDocument();
+      expect(within(rows).getByText("48 months")).toBeInTheDocument();
+      expect(within(rows).getByText("5.0000%")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Hide assumptions" })).toBeInTheDocument();
+      expect(
+        screen.getByText(tf("en", "finance.illustrative_disclaimer")),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(["eu", "€", "", " ", "EURO", "E1R", null, undefined])(
+    "shows the unavailable state rather than a half-empty panel for currency %s",
+    async (currency) => {
+      requestFinanceQuote.mockResolvedValue({ ...QUOTE, currency });
+
+      expect(() =>
+        render(<FinanceDetailsDisclosure locale="en" listingId="abc" />),
+      ).not.toThrow();
+      await userEvent.click(showButton());
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("The estimate could not be calculated right now."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.queryByTestId("finance-assumptions")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Hide assumptions" })).toBeInTheDocument();
+    },
+  );
+
+  it.each(["abc", "", null, undefined, "8,456.36", "1e5"])(
+    "shows the unavailable state when the headline monthly payment is %s",
+    async (monthly) => {
+      requestFinanceQuote.mockResolvedValue({ ...QUOTE, monthly_payment: monthly });
+
+      expect(() =>
+        render(<FinanceDetailsDisclosure locale="en" listingId="abc" />),
+      ).not.toThrow();
+      await userEvent.click(showButton());
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("The estimate could not be calculated right now."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.queryByTestId("finance-assumptions")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(LOCALES)("translates that unavailable state too (%s)", async (locale) => {
+    requestFinanceQuote.mockResolvedValue({ ...QUOTE, currency: "€" });
+    render(<FinanceDetailsDisclosure locale={locale} listingId="abc" />);
+
+    await userEvent.click(showButton(locale));
+
+    await waitFor(() =>
+      expect(screen.getByText(tf(locale, "finance.details.error"))).toBeInTheDocument(),
+    );
+  });
+
+  // The in-flight guard: a reader who opens, closes and opens again before the
+  // first POST answers must not send a second one (spec 11.6 logs an explicit
+  // calculator interaction; two rows for one intent is a wrong metric and a
+  // doubled 429 risk).
+  it("never sends a second request while the first is still in flight", async () => {
+    let settle!: (quote: FinanceQuote) => void;
+    requestFinanceQuote.mockReturnValue(
+      new Promise<FinanceQuote>((resolve) => {
+        settle = resolve;
+      }),
+    );
+    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+
+    await userEvent.click(showButton());
+    await userEvent.click(screen.getByRole("button", { name: "Hide assumptions" }));
+    await userEvent.click(showButton());
+    await userEvent.click(screen.getByRole("button", { name: "Hide assumptions" }));
+    await userEvent.click(showButton());
+
+    expect(requestFinanceQuote).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      settle(QUOTE);
+    });
+    await waitFor(() => expect(screen.getByTestId("finance-assumptions")).toBeInTheDocument());
+    expect(requestFinanceQuote).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not touch state after it is unmounted mid-request", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    let settle!: (quote: FinanceQuote) => void;
+    requestFinanceQuote.mockReturnValue(
+      new Promise<FinanceQuote>((resolve) => {
+        settle = resolve;
+      }),
+    );
+    const view = render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+
+    await userEvent.click(showButton());
+    view.unmount();
+
+    await act(async () => {
+      settle(QUOTE);
+    });
+
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
   it("asks for the listing it was given, not a hard-coded one", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
     render(

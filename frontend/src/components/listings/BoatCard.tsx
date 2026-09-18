@@ -1,28 +1,10 @@
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
+import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { financingHref, type ListingFinance, type PublicListing } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
-import { formatCount, formatMoney, isDecimalString, tf } from "@/lib/i18n/finance";
+import { formatCount, tf } from "@/lib/i18n/finance";
 
 type EligibleFinance = Extract<ListingFinance, { visible: true }>;
-
-/**
- * formatMoney throws on anything that is not a plain decimal string, and Intl
- * throws on a currency code that is not three letters. That strictness is right
- * — it is what keeps "NaN" off a price — but one bad row must not take down the
- * server render of a whole 24-card page, so the card drops a value it cannot
- * format and keeps the rest of the card. Returning null (never a placeholder
- * number) also keeps spec §2.1: nothing is invented.
- */
-function money(locale: Locale, amount: string, currency: string): string | null {
-  if (typeof amount !== "string" || !isDecimalString(amount)) {
-    return null;
-  }
-  try {
-    return formatMoney(locale, amount, currency);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Spec §18.5 sends `{visible: false}` or the full six-key block, and §18.2
@@ -65,11 +47,15 @@ export default function BoatCard({
     .join(", ");
   const primaryImage = listing.media.find((item) => item.media_type === "IMAGE");
   const views = formatCount(locale, listing.view_count);
-  const price = money(locale, listing.price.amount, listing.price.currency);
+  const price = safeMoney(locale, listing.price.amount, listing.price.currency);
   const finance = eligibleFinance(listing.finance);
-  const monthly = finance
-    ? money(locale, finance.monthly_payment, listing.price.currency)
-    : null;
+  // Spec §18.2's price half of the eligibility conjunction, re-checked here:
+  // the server decides visibility, but a card that cannot render its own price
+  // must never carry a monthly payment, an asterisk or a calculator link.
+  const monthly =
+    finance && isFinanceablePrice(listing.price)
+      ? safeMoney(locale, finance.monthly_payment, listing.price.currency)
+      : null;
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
@@ -87,7 +73,11 @@ export default function BoatCard({
         {/* Spec §18.1: view count in the upper metadata row next to an eye icon.
             Spec §29.6: the icon is not the only means of conveying state, so the
             number carries an accessible label and the icon is hidden from it. */}
+        {/* ARIA 1.2 forbids aria-label on an element with the generic role
+            (axe: aria-prohibited-attr), so the icon and the number are one
+            labelled image rather than a bare span with a label. */}
         <span
+          role="img"
           className="inline-flex items-center gap-space-xs"
           aria-label={tf(locale, "listing.views_label", { count: views })}
         >
@@ -128,7 +118,11 @@ export default function BoatCard({
             <span className="font-title-sm text-title-sm text-on-surface">
               {`${monthly}${tf(locale, "finance.per_month")}`}
               <sup>
-                <a href={`#${disclaimerId}`}>*</a>
+                {/* WCAG 2.4.4: "*" is not a link purpose, so the mark stays
+                    visible and the announced name is the translated sentence. */}
+                <a href={`#${disclaimerId}`} aria-label={tf(locale, "finance.disclaimer_link")}>
+                  *
+                </a>
               </sup>
             </span>
           </p>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
+import { safeMoney } from "@/components/listings/money";
 import { requestFinanceQuote, type FinanceQuote } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
-import { formatMoney, tf } from "@/lib/i18n/finance";
+import { tf } from "@/lib/i18n/finance";
 
 /**
  * Spec §18.1's optional details disclosure. "It must use live calculation
@@ -34,43 +35,70 @@ export default function FinanceDetailsDisclosure({
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // A card can be scrolled out of a virtualised list, or the whole page
+  // navigated away from, while the POST is in flight; the answer must not then
+  // be written into a component that no longer exists.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
   async function toggle() {
     const next = !open;
     setOpen(next);
-    // On close, and once a quote is in hand, there is nothing to ask for. A
-    // previous failure left `quote` null, so the next open retries.
+    // On close, and once a quote is in hand, there is nothing to ask for; while
+    // one request is in flight a second open must not start another. A previous
+    // failure left `quote` null, so the next open retries.
     if (!next || quote || loading) {
       return;
     }
     setLoading(true);
     setFailed(false);
     try {
-      setQuote(await requestFinanceQuote({ listing_id: listingId }));
+      const answer = await requestFinanceQuote({ listing_id: listingId });
+      if (alive.current) {
+        setQuote(answer);
+      }
     } catch {
-      setFailed(true);
+      if (alive.current) {
+        setFailed(true);
+      }
     } finally {
-      setLoading(false);
+      if (alive.current) {
+        setLoading(false);
+      }
     }
   }
 
-  // Money is formatted from the server's decimal strings; the rate is the
-  // server's own string, printed verbatim so no digit is re-rounded here.
-  const rows: [string, string][] = quote
-    ? [
-        [
-          "finance.down_payment",
-          formatMoney(locale, quote.down_payment_amount, quote.currency),
-        ],
-        ["finance.amount_financed", formatMoney(locale, quote.principal, quote.currency)],
-        ["finance.term", tf(locale, "finance.months", { count: quote.term_months })],
-        ["finance.annual_rate", `${quote.annual_rate_percent}%`],
-        [
-          "finance.total_installments",
-          formatMoney(locale, quote.total_payment, quote.currency),
-        ],
-        ["finance.total_interest", formatMoney(locale, quote.total_interest, quote.currency)],
-      ]
-    : [];
+  // Every money value goes through the shared guard: formatMoney throws a
+  // RangeError on a malformed amount or currency, and a RangeError raised
+  // during render unmounts this subtree — the panel and its own button would
+  // disappear and the error would reach the page's error boundary. A row that
+  // cannot be rendered is dropped instead; the rate is the server's own string,
+  // printed verbatim so no digit is re-rounded here.
+  const money = (amount: string) => (quote ? safeMoney(locale, amount, quote.currency) : null);
+  // The monthly payment is the figure this panel exists to explain. If it
+  // cannot be rendered, the quote as a whole is unusable (a bad currency takes
+  // every money row with it), and the reader gets the translated unavailable
+  // state rather than a panel with two lonely rows in it.
+  const headline = quote ? money(quote.monthly_payment) : null;
+  const rows: [string, string][] =
+    quote && headline
+      ? (
+          [
+            ["finance.down_payment", money(quote.down_payment_amount)],
+            ["finance.amount_financed", money(quote.principal)],
+            ["finance.term", tf(locale, "finance.months", { count: quote.term_months })],
+            ["finance.annual_rate", `${quote.annual_rate_percent}%`],
+            ["finance.total_installments", money(quote.total_payment)],
+            ["finance.total_interest", money(quote.total_interest)],
+          ] as [string, string | null][]
+        ).filter((row): row is [string, string] => row[1] !== null)
+      : [];
+  const unavailable = failed || (quote !== null && headline === null);
 
   return (
     <div className="mt-space-xs">
@@ -95,7 +123,9 @@ export default function FinanceDetailsDisclosure({
         {open ? (
           <>
             {loading ? <p>{tf(locale, "finance.details.loading")}</p> : null}
-            {failed ? <p className="text-error">{tf(locale, "finance.details.error")}</p> : null}
+            {unavailable ? (
+              <p className="text-error">{tf(locale, "finance.details.error")}</p>
+            ) : null}
             {rows.length > 0 ? (
               <>
                 <dl

@@ -92,6 +92,9 @@ describe("BoatCard", () => {
     expect(screen.getByText("€459,000.00")).toBeInTheDocument();
     expect(screen.getByText("149")).toBeInTheDocument();
     expect(screen.getByLabelText("149 views")).toBeInTheDocument();
+    // ARIA 1.2 forbids aria-label on a generic role (axe: aria-prohibited-attr),
+    // so the icon-plus-number pair is one labelled image (spec 29.6).
+    expect(screen.getByRole("img", { name: "149 views" })).toBeInTheDocument();
   });
 
   it("titles the card with year, brand and model", () => {
@@ -126,7 +129,7 @@ describe("BoatCard", () => {
     expect(screen.queryByTestId("finance-details")).not.toBeInTheDocument();
     expect(screen.queryByTestId("finance-estimate")).not.toBeInTheDocument();
     expect(screen.queryByText(/month/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "*" })).not.toBeInTheDocument();
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
   });
 
   it("shows the estimated payment when the listing is eligible", () => {
@@ -153,13 +156,13 @@ describe("BoatCard", () => {
     expect(cta).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("builds the calculator link from this listing's own price and currency", () => {
+  it("builds the calculator link from this listing's own id and price", () => {
     render(
       <BoatCard
         locale="en"
         listing={listing({
           id: "11112222-0000-4000-8000-000000000009",
-          price: { amount: "125500.50", currency: "USD" },
+          price: { amount: "125500.50", currency: "EUR" },
           finance: ELIGIBLE,
         })}
         disclaimerId="d"
@@ -168,17 +171,31 @@ describe("BoatCard", () => {
 
     expect(screen.getByRole("link", { name: /Calculate your financing/ })).toHaveAttribute(
       "href",
-      "/financing/?listing=11112222-0000-4000-8000-000000000009&price=125500.50&currency=USD",
+      "/financing/?listing=11112222-0000-4000-8000-000000000009&price=125500.50&currency=EUR",
     );
   });
 
   it("resolves its disclaimer asterisk inside the region that renders it", () => {
     renderInRegion("en", listing({ finance: ELIGIBLE }));
 
-    expect(screen.getByRole("link", { name: "*" })).toHaveAttribute(
-      "href",
-      "#finance-disclaimer",
-    );
+    const asterisk = screen.getByRole("link", {
+      name: tf("en", "finance.disclaimer_link"),
+    });
+    expect(asterisk).toHaveAttribute("href", "#finance-disclaimer");
+    expect(asterisk).toHaveTextContent("*");
+  });
+
+  // WCAG 2.4.4: "*" is a mark, not a link purpose. The visible asterisk stays;
+  // the announced name is the translated sentence.
+  it.each(LOCALES)("names the disclaimer link something a reader can act on (%s)", (locale) => {
+    renderInRegion(locale, listing({ finance: ELIGIBLE }));
+
+    const asterisk = screen.getByRole("link", {
+      name: tf(locale, "finance.disclaimer_link"),
+    });
+    expect(asterisk).toHaveTextContent("*");
+    expect(asterisk).toHaveAttribute("href", "#finance-disclaimer");
+    expect(screen.queryByRole("link", { name: "*" })).not.toBeInTheDocument();
   });
 
   // Spec 2.5: the disclaimer belongs to every finance result, so the estimate
@@ -194,10 +211,9 @@ describe("BoatCard", () => {
       expect(estimate).toHaveAccessibleDescription(
         tf(locale, "finance.illustrative_disclaimer"),
       );
-      expect(screen.getByRole("link", { name: "*" })).toHaveAttribute(
-        "href",
-        "#finance-disclaimer",
-      );
+      expect(
+        screen.getByRole("link", { name: tf(locale, "finance.disclaimer_link") }),
+      ).toHaveAttribute("href", "#finance-disclaimer");
     },
   );
 
@@ -225,7 +241,7 @@ describe("BoatCard", () => {
     );
 
     expect(screen.getByText((content) => norm(content) === price)).toBeInTheDocument();
-    expect(screen.getByLabelText(views)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: views })).toBeInTheDocument();
   });
 
   // formatMoney throws on anything that is not a plain decimal string. One bad
@@ -272,6 +288,56 @@ describe("BoatCard", () => {
     expect(
       screen.getByRole("heading", { name: "2021 Beneteau Oceanis 46.1" }),
     ).toBeInTheDocument();
+  });
+
+  // Spec 18.2: the finance column needs "listing.price is valid AND
+  // listing.currency is supported". A monthly payment beside a price the card
+  // could not even render is exactly the state that rule forbids.
+  it.each([
+    ["an unformattable price amount", { amount: "not-a-number", currency: "EUR" }],
+    ["a zero price", { amount: "0.00", currency: "EUR" }],
+    ["a negative price", { amount: "-459000.00", currency: "EUR" }],
+    ["an unsupported currency", { amount: "459000.00", currency: "USD" }],
+    ["an invalid currency code", { amount: "459000.00", currency: "EURO" }],
+    ["both invalid", { amount: "", currency: "€" }],
+  ])("drops the entire finance column for %s", (_label, price) => {
+    expect(() =>
+      render(
+        <BoatCard
+          locale="en"
+          listing={listing({ price, finance: ELIGIBLE })}
+          disclaimerId="finance-disclaimer"
+        />,
+      ),
+    ).not.toThrow();
+
+    expect(screen.queryByTestId("finance-estimate")).not.toBeInTheDocument();
+    expect(screen.queryByText("Estimated payment")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Calculate your financing/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("finance-details")).not.toBeInTheDocument();
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "2021 Beneteau Oceanis 46.1" }),
+    ).toBeInTheDocument();
+  });
+
+  it("still shows a formattable price in a currency the platform does not finance", () => {
+    render(
+      <BoatCard
+        locale="en"
+        listing={listing({
+          price: { amount: "125500.50", currency: "USD" },
+          finance: ELIGIBLE,
+        })}
+        disclaimerId="d"
+      />,
+    );
+
+    // en-IE names a foreign currency: "US$125,500.50", not "$125,500.50".
+    expect(screen.getByText((content) => norm(content) === "US$125,500.50")).toBeInTheDocument();
+    expect(screen.queryByTestId("finance-estimate")).not.toBeInTheDocument();
   });
 
   it("treats a missing finance key as not eligible instead of throwing", () => {
