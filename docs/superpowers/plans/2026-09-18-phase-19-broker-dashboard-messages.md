@@ -8,7 +8,7 @@
 
 **Tech Stack:** Django 5.2 + DRF (backend, `messaging` and `brokers` apps), PostgreSQL 16, Redis (cache + DRF throttle buckets), Next.js 16 App Router + React 19 + Tailwind v4 (frontend), Vitest + Testing Library (frontend tests), pytest + pytest-django (backend tests).
 
-**Spec:** [`NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md`](../../../NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md) §28 (Phase 19, line 1908), and the sections it depends on: §3 (architecture/app layout), §4.2–§4.3 (private routes, the `/dashboard/broker/services/` → `/dashboard/broker/messages/` 301), §5 (roles, `can_read_messages`), §11.1 (`BrokerMembership`), §11.8 (`Conversation`/`Message`/`ContactAccessGrant`), §15 (Phase 6 messaging core), §21 (Phase 12 broker policy), §26.x/§30 (API conventions), §33 (security/privacy/performance), §34 (test strategy), §35.1–§35.2 (feature flags, seeded **disabled**), §36.6 (contact access and abuse), §37 (EN/IT/ES keys, including the literal `broker.messages`), §40 Scenario L.
+**Spec:** [`NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md`](../../../NAUTA_PRODUCTION_IMPLEMENTATION_SPEC.md) §28 (Phase 19, line 1908), and the sections it depends on: §3 (architecture/app layout), §4.2–§4.3 (private routes, the `/dashboard/broker/services/` → `/dashboard/broker/messages/` 301), §5 (the role capability table), §11.1 (`BrokerMembership`, where **`can_read_messages` is actually defined** — §5's table has no row for it), §11.8 (`Conversation`/`Message`/`ContactAccessGrant`), §15 (Phase 6 messaging core), §21 (Phase 12 broker policy), §26.x/§30 (API conventions), §33 (security/privacy/performance), §34 (test strategy), §35.1–§35.2 (feature flags, seeded **disabled**), §36.6 (contact access and abuse), §37 (EN/IT/ES keys, including the literal `broker.messages`), §40 Scenario L.
 
 **Plans this one builds on (read before starting):**
 
@@ -35,6 +35,10 @@ A task whose final step does not show that command's real output is not finished
 
 **Ordering constraint inside this plan.** Tasks 1 and 2 are backend and independent of each other. Tasks 3–9 are frontend and strictly sequential: 4 consumes 3, 5 and 6 consume 3 and 4, 7 consumes 5 and 6, 8 consumes 7, 9 consumes 4 and 8. Task 10 depends on nothing in 1–9 but its regression sweep is only meaningful once 8 has shipped the nav. Task 11 is last.
 
+**Ordering constraint ACROSS phases — this is a hard gate, not a preference.** Task 1 extends modules Phase 6 has not written yet. Verified against `dev` at the time of this revision (merge commit `6dec1e6`): `backend/messaging/` contains only `__init__.py`, `admin.py`, `apps.py`, `enums.py`, `masking.py`, `models.py`, `migrations/{0001_conversation,0002_seed_unified_inquiries_flag}.py` and its tests. There is **no** `views.py`, `serializers.py`, `selectors.py`, `services.py`, `permissions.py`, `exceptions.py`, `pagination.py` or `urls.py`; `messaging/models.py` defines **only `Conversation`** (no `Message`, no `ContactAccessGrant`); `config/urls.py` has **no** `include("messaging.urls")`; and `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` holds six scopes, **none** of them `messaging_read` or `message_send`.
+
+Therefore: **Phase 6 Tasks 3, 4, 5, 6, 7, 8, 9 and 10 must all be merged to `dev` before Task 1 of this phase is started**, because between them they create every module, model, route and throttle scope Task 1 appends to. Phase 6 Tasks 11–15 (frontend) must be merged before **Task 4** of this phase, which reconciles against `INQUIRY_MESSAGES`. Phase 12 Tasks 6–10 must be merged before **Task 2**, which appends to `brokers/views.py` and `brokers/urls.py`. Task 1 Step 0 is a machine-checked gate over exactly these artifacts and **fails the task** if any is absent — it is not advisory.
+
 ---
 
 ## Global Constraints
@@ -43,7 +47,7 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 
 - **No second message store.** Spec §28, Backend: *"Use the shared `Conversation`/`Message` model. Do not build a second broker-only messaging store."* This plan adds **no model and no migration.** If a task appears to need one, it is out of scope — record it in Known Limitations instead.
 - **Mark-read and reply endpoints enforce broker organization membership** (spec §28, Backend). They already do: Phase 6's `messaging.selectors.can_view_conversation()` is the single gate, and Phase 6's contract rule 8 forbids replacing it with `IsOwnerOrBrokerEditor` or a fresh query.
-- **Broker team access is `can_read_messages` and nothing else** (spec §28 Add, §5, §11.1). Never `can_edit_listings`, never `can_manage_team`, never role.
+- **Broker team access is `can_read_messages` and nothing else** (spec §28 Add; the field is defined in **§11.1**'s `BrokerMembership` block — §5's capability table has no row for it, which is exactly why no `PermissionKey` in `frontend/src/lib/auth/types.ts` expresses it and why the client must never try to). Never `can_edit_listings`, never `can_manage_team`, never role.
 - **Spec §28's five filters, verbatim:** `All`, `Unread`, `Listing inquiries`, `Profile inquiries`, `Archived`.
 - **Spec §28's conversation row, verbatim:** sender display name, context/listing, last message excerpt, timestamp, unread count.
 - **Spec §28's thread, verbatim:** messages, context sidebar, listing/profile link, reply composer.
@@ -69,7 +73,9 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 
 Concurrent phases are editing `listings/`, `platform_settings/`, `finance/`, `brokers/`, `analytics/`, `messaging/`, `notifications/`, `entitlements/` and `common/throttling.py`.
 
-**This plan opens `messaging/` and `brokers/`, and that is safe only because of a sequencing fact, not because the edits are small.** Phase 19 depends on Phase 6 and Phase 12 (spec §7, PHASE-TRACKER). Phase 6 Tasks 1–2 and Phase 12 Tasks 1–5 are merged today; Phase 6 Tasks 3–15 and Phase 12 Tasks 6–10 are in flight. **Task 1 of this plan does not start until Phase 6 Task 15 and Phase 12 Task 10 are both merged to `dev`.** At that moment neither app is in flight any more and this plan is the only writer. The controller must confirm this before creating Task 1's worktree — the confirmation command is in Task 1, Step 0.
+**This plan opens `messaging/` and `brokers/`, and that is safe only because of a sequencing fact, not because the edits are small.** Phase 19 depends on Phase 6 and Phase 12 (spec §7, PHASE-TRACKER). Merged to `dev` at merge commit `6dec1e6`: **Phase 6 Tasks 1–2** (`messaging/enums.py`, `messaging/models.py`'s `Conversation`, migrations `0001`/`0002`, `tests/{conftest,factories}.py`), **Phase 7 Task 1** (`messaging/masking.py` + `messaging/tests/test_masking.py`, PR #131), **Phase 12 Tasks 1–5** and **Phase 13 Task 4** (`entitlements/eligibility.py`, PR #130). Phase 6 Tasks 3–15 and Phase 12 Tasks 6–10 are in flight. **Task 1 of this plan does not start until Phase 6 Task 15 and Phase 12 Task 10 are both merged to `dev`** — see the Execution Model's cross-phase gate for the module-by-module reason. The controller must confirm this before creating Task 1's worktree; Task 1 Step 0 is the machine check.
+
+**`messaging/masking.py` is Phase 7's and this plan never imports it.** It is listed here only so a reader of the merged tree does not mistake it for a Phase 6 module this plan should be reconciling against. Contact masking is Phase 7's `GET /api/v1/contacts/<target-type>/<id>/`; nothing in this phase renders a contact value at all.
 
 **Files this plan opens that it did not create:**
 
@@ -77,14 +83,16 @@ Concurrent phases are editing `listings/`, `platform_settings/`, `finance/`, `br
 |---|---|---|---|
 | `backend/messaging/exceptions.py` | **Append** two `APIException` subclasses. | 1 | Spec §28's Archived filter needs a producer, and Phase 6 contract rule 10 requires a named code to be an `APIException` subclass. |
 | `backend/messaging/services.py` | **Append** `ARCHIVABLE_STATUSES` and `set_conversation_status()`. | 1 | Phase 6 contract rule 9: *"Never write a `Message` or a `Conversation` outside `messaging.services`."* The writer has to live here. |
-| `backend/messaging/serializers.py` | **Append** `ConversationStatusSerializer`; **edit** `ConversationSerializer.get_context()` to add one `"url"` key. | 1 | Spec §28's thread requires a "listing/profile link"; the row already carries `{type,id,label}` and the URL must be derived server-side (spec §2.1). The edit adds a key and changes no existing one. |
-| `backend/messaging/views.py` | **Append** `ConversationStatusView`. | 1 | Phase 6 contract rule 11: a messaging view must extend `MessagingAPIView`, which lives here. |
+| `backend/messaging/serializers.py` | **Append** `ConversationStatusSerializer`; **edit** `ConversationSerializer` to add one `viewer_is_initiator` field and one `"url"` key inside `get_context()`. | 1 | Spec §28's thread requires a "listing/profile link", and spec §2.1 requires a backend source for the archive control's own visibility. Both edits add; neither changes an existing field. |
+| `backend/messaging/views.py` | **Append** `ConversationDetailView` and `ConversationStatusView`. | 1 | Phase 6 contract rule 11: a messaging view must extend `MessagingAPIView`, which lives here. |
 | `backend/messaging/urls.py` | **Append** one `path(...)`. | 1 | — |
 | `backend/brokers/permissions.py` | **New file.** | 2 | Avoids editing `accounts/permissions.py`. |
 | `backend/brokers/dashboard.py` | **New file.** | 2 | Keeps the metric aggregation out of `brokers/selectors.py`, which Phase 12 owns. |
 | `backend/brokers/views.py` | **Append** `BrokerDashboardView`. | 2 | House style: one views module per app. |
 | `backend/brokers/urls.py` | **Append** one `path(...)`. | 2 | — |
 | `backend/config/settings/base.py` | **Append two one-liners** to `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`. Nothing reordered, reformatted or removed. | 1, 2 | The tracker's "Known cross-phase risk" names this file; append-only is the agreed protocol. |
+| `backend/brokers/tests/conftest.py` | **New file** (this package has none today — verified). | 2 | Global Constraints require named-key cache deletes around tests that flip a feature flag; `brokers/tests/` flips `unified_inquiries`. |
+| `frontend/src/components/auth/RequirePermission.tsx` + `.test.tsx` | Make the `permission` prop **optional**; when it is absent the component is the project's existing sign-in redirect and nothing else. Backwards compatible — every current caller passes a permission. | 7 | See ruling 13. There is no `PermissionKey` for "has conversations", and inventing one would be the client-side inference spec §2.2 forbids. Phase 3 owns this file; no in-flight phase edits it. |
 | `frontend/src/components/layout/PrimaryNav.tsx` + `.test.tsx` | **Append** one gated `LINKS` entry and widen the visibility predicate. | 8 | Without an entry point the broker dashboard is unreachable. No other phase edits this file. |
 | `frontend/next.config.ts` + `next.config.test.ts` | Add spec §4.3's third redirect; update the pinned redirect **count** from 2 to 3. | 10 | Spec §4.3 row 5. The count assertion is at `next.config.test.ts:13`. |
 | `ACTIVITY.md`, `docs/superpowers/PHASE-TRACKER.md` | Handoff note and status row. | 11 | Append-only; every phase does this. |
@@ -95,7 +103,7 @@ Concurrent phases are editing `listings/`, `platform_settings/`, `finance/`, `br
 
 ## Phase 6 reconciliation required
 
-**Every name in this list is taken from the Phase 6 plan's "Contract summary for later phases" and is NOT verified against merged code, because Phase 6 Tasks 3–15 were not merged when this plan was written.** Verified as merged today: `backend/messaging/{__init__,admin,apps,enums,models}.py`, `migrations/0001_conversation.py`, `migrations/0002_seed_unified_inquiries_flag.py`, `tests/{conftest,factories,test_conversation_model,test_enums,test_seed_migration}.py`. Nothing else in `messaging/` exists yet.
+**Every name in this list is taken from the Phase 6 plan's "Contract summary for later phases" and is NOT verified against merged code, because Phase 6 Tasks 3–15 were not merged when this plan was written.** Verified present on `dev` at merge commit `6dec1e6`: `backend/messaging/{__init__,admin,apps,enums,masking,models}.py`, `migrations/0001_conversation.py`, `migrations/0002_seed_unified_inquiries_flag.py`, `tests/{conftest,factories,test_conversation_model,test_enums,test_masking,test_seed_migration}.py`. Verified **absent**: `views.py`, `serializers.py`, `selectors.py`, `services.py`, `permissions.py`, `exceptions.py`, `pagination.py`, `urls.py`; the `Message` and `ContactAccessGrant` models; `include("messaging.urls")` in `config/urls.py`; and the `messaging_read` / `message_send` throttle scopes in `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` (that dict holds six keys today: `taxonomy_search`, `public_listing_read`, `auth`, `auth-refresh`, `services_directory`, `finance_quote`). `masking.py` is **Phase 7's**, not Phase 6's, and nothing in this plan imports it.
 
 **Task 1, Step 0 is a reconciliation gate** that greps each of these out of the merged tree and stops the task if any is missing or differently shaped. If a name drifted, fix this plan's call site — do not rename Phase 6's symbol.
 
@@ -109,9 +117,10 @@ Concurrent phases are editing `listings/`, `platform_settings/`, `finance/`, `br
 | 6 | `messaging.serializers.MessageSerializer` → `{id, body, is_system, created_at, read_at, sender: {display_name, is_you}}`. | Task 4 | Adjust `MessageRow` in `lib/api/conversations.ts`. |
 | 7 | `messaging.exceptions.ConversationClosed` — 409, `default_code="conversation_closed"`. | Tasks 1, 3, 4 | — |
 | 8 | `messaging.enums.ConversationStatus`, `ConversationType`, `UNIFIED_INQUIRIES_FLAG`, `conversation_url()`, `SENDER_CONVERSATION_URL_TEMPLATE = "/dashboard/messages/{conversation_id}/"`. | Tasks 1, 2, 7 | **Merged and verified** (`backend/messaging/enums.py`). Task 7 mounts a real page at that template's path, so the constant stays as-is. |
-| 9 | `messaging.models.Message` with `read_at`, `sender`, `conversation`, `is_system`, `sender_name_snapshot`. | Tasks 1, 2 | — |
-| 10 | Routes `conversation-list`, `conversation-messages`, `conversation-read` at `/api/v1/conversations/…`, with filters `?status=OPEN\|ARCHIVED\|BLOCKED\|ALL` (default `OPEN`), `?unread=true`, repeated `?type=`, `?broker=<uuid>`, and `ConversationPagination` (`page_size=20`, `page_size_query_param="page_size"`). | Tasks 1, 2, 4 | Task 4's query-string tests are the tripwire. |
-| 11 | Throttle scopes `messaging_read` (120/min) and `message_send` (60/hour) already exist in `DEFAULT_THROTTLE_RATES`. | Tasks 1, 2 | This plan appends `conversation_status` and `broker_dashboard` beside them. |
+| 9 | `messaging.models.Message` with `read_at`, `sender`, `conversation`, `is_system`, `sender_name_snapshot`, and `messaging.models.ContactAccessGrant`. **Neither model exists today** — `messaging/models.py` defines only `Conversation`. Phase 6 Task 3 creates both. | Tasks 1, 2, 11 | Task 11's `test_this_phase_added_no_second_message_store` pins the app's model list to exactly these three; if Phase 6 shipped a different set, update that assertion to Phase 6's real set — never add a model to make it pass. |
+| 10 | Routes `conversation-list`, `conversation-messages`, `conversation-read` at `/api/v1/conversations/…`, with filters `?status=OPEN\|ARCHIVED\|BLOCKED\|ALL` (default `OPEN`), `?unread=true`, repeated `?type=`, `?broker=<uuid>`. Reached through `path("api/v1/", include("messaging.urls"))` in `config/urls.py`, which Phase 6 Task 7 adds and which is **not there today**. | Tasks 1, 2, 4 | Task 4's query-string tests are the tripwire. |
+| 10a | `messaging.pagination.ConversationPagination` (`page_size=20`, `page_size_query_param="page_size"`, `max_page_size=100`) — in **`messaging/pagination.py`**, its own module, not in `views.py`. | Task 1 | Import it from `messaging.pagination`; the earlier draft of this table wrongly implied `views.py`. |
+| 11 | Throttle scopes `messaging_read` (120/min) and `message_send` (60/hour) in `DEFAULT_THROTTLE_RATES`. **Neither is there today** — Phase 6 Tasks 7 and 10 append them. This plan's two views reuse `messaging_read` and add `conversation_status` and `broker_dashboard`. | Tasks 1, 2 | A view whose `throttle_scope` names a key absent from `DEFAULT_THROTTLE_RATES` raises at request time, so Step 0 checks the key, not just the file. |
 | 12 | `messaging/tests/factories.py` exports `make_message(conversation=…, sender=…, body=…)` alongside the already-merged `make_conversation`. | Tasks 1, 2, 11 | If the kwargs differ, adapt this plan's tests; do not add a second factory. |
 | 13 | `frontend/src/lib/i18n/inquiry.ts` exports `INQUIRY_MESSAGES` and may contain `inquiry.sender_unnamed`. | Task 3 | Task 3 ships `messages.sender_unnamed`. **If `inquiry.sender_unnamed` exists in `INQUIRY_MESSAGES`, delete ours and import `tInquiry` instead** — spec §37 must not carry two keys for one string. |
 | 14 | `frontend/src/lib/api/inquiries.ts` exports `fetchInquiryConfig()` returning `{ enabled: boolean, … }`. | Task 9 | Broker home uses `dashboard.messages.enabled` from Task 2's own endpoint instead, so this is a fallback only. |
@@ -133,13 +142,39 @@ Where spec §28 is silent, ambiguous or in tension with another section, the rul
 
 **Ruling 1 — spec §28's "Remove" section has nothing to remove, and the plan says so rather than pretending otherwise.** `rg -i surveyor` over `frontend/src` and `backend` returns exactly one hit today: the string `"Phase6 Surveyors"` inside `backend/messaging/tests/test_conversation_model.py:47`, a professional profile's display name in a Phase 6 unit test. There is no `Services & Surveyors` navigation item, no broker dashboard, no `/dashboard/broker/services/` route, no service/survey metric and no permission for any of it — `frontend/src/app/` contains only `403`, `health`, `login`, `professionals/profile`, `services`, `verify-email`, `layout.tsx`, `page.tsx` and `sitemap.ts`. §28's "Remove" list describes the **Stitch static prototype** that `ACTIVITY.md` records as the visual reference, not this repository. So this phase implements the removal as **two durable guarantees instead of a deletion**: (a) the 301 in Task 10, which spec §4.3 requires whether or not the old page ever existed here, and (b) a nav test in Task 8 that pins the broker navigation's link set **exactly**, so the item can never be added. Task 10 Step 1 re-runs the `rg` sweep as evidence, not as a claim.
 
-**Ruling 2 — Phase 19 builds the role-neutral `/dashboard/messages/…` routes as well as the broker ones, and this is scope *reduction*, not creep.** Phase 6's `SENDER_CONVERSATION_URL_TEMPLATE` is `/dashboard/messages/{conversation_id}/`; it is returned as `next_url` from every successful inquiry and written into every `Notification.target_url`. Today it is a 404 (Phase 6 Known Limitation 2). Spec §28's definition of done says "Broker messages and private seller messages share components/services where practical". Building the shared components and mounting them *only* under `/dashboard/broker/` would mean either (a) leaving the dangling link, or (b) changing Phase 6's constant to a broker-only URL, which is wrong for the private-seller and professional halves of the same store. Mounting the same components at both paths costs two thin `page.tsx` files and fixes the link. **The constant is not changed.**
+**Ruling 2 — two routes, because there are two seats; `SENDER_CONVERSATION_URL_TEMPLATE` keeps its value, and Phase 6's in-code comment about it is wrong on its premise.**
 
-**Ruling 3 — the broker dashboard navigation contains exactly two entries: Dashboard and Messages.** Spec §4.2's broker row also lists `/fleet/`, `/leads/`, `/team/`, `/profile/` and `/subscription/`. None of those pages exists and none is in this phase's scope (Phases 16, 17 and 20 own them). Spec §39 and §2.1 forbid shipping a control that leads nowhere, and `PrimaryNav.test.tsx:80` already encodes the project's own precedent — *"links to no page that does not exist yet"*. Task 8's nav test pins the set to exactly these two, plus Phase 12's staff broker screen link **only if** reconciliation item C confirms it merged.
+The comment in question, `backend/messaging/enums.py:101-103` (merged, verbatim):
+
+> `# Spec 15.5's next_url. One constant, because spec 4.2 names /messages/ and`
+> `# spec 28 names /dashboard/broker/messages/ for the same destination - the`
+> `# phase that finally builds the page changes this line and nothing else.`
+
+**The premise "for the same destination" is false**, and the three spec passages do not actually conflict once you ask *whose screen each one names*:
+
+- **§15.5** (line 1104) fixes `"next_url": "/dashboard/messages/<conversation-id>/"` as a literal JSON value in the response to `POST /api/v1/inquiries/`. That response goes to the person who **sent** the inquiry. Per §5's capability table the sender is any authenticated account — typically a **buyer**, and §4.2 has **no row for a buyer at all**. There is no role-prefixed dashboard to put a buyer's conversation under, which is precisely why §15.5's path carries no role segment.
+- **§28** (line 1918) fixes `/dashboard/broker/messages/` as the **recipient broker's** screen, and §4.2 (line 176) repeats it for the 301.
+- **§4.2**'s `/messages/` cells are role-prefixed shorthand, exactly like the Staff row's `/boats/` and `/users/`, which §26.1 writes out in full as `/dashboard/staff/...` and which Phase 12 already built as `/dashboard/staff/brokers/<id>/`.
+
+So §15.5 and §28 name **two different seats on the same conversation**, not one destination spelled two ways. A single constant cannot serve both, and changing it to `/dashboard/broker/messages/` would send every buyer to a broker screen they have no membership for.
+
+**Decision:** this phase builds `/dashboard/broker/messages/…` for brokers (§28's literal path) **and** `/dashboard/messages/…` as the sender-side, role-neutral path (§15.5's literal path), from the same components. `SENDER_CONVERSATION_URL_TEMPLATE` is **not changed**, so `backend/messaging/tests/test_enums.py:108` and `:113` — the two merged assertions that pin its value, found by `rg -n SENDER_CONVERSATION_URL_TEMPLATE backend/` — stay green and untouched. Phase 6 Known Limitation 2 ("`next_url` points at a page that does not exist") is closed by Task 7, not by editing the constant. The stale comment is a Phase 6 file; **Task 1 Step 6 corrects it in this phase's own diff**, since leaving a merged comment that instructs the next reader to change a line we deliberately kept is how the line gets changed by accident later.
+
+**Ruling 3 — the broker dashboard navigation contains exactly two entries: Dashboard and Messages.** Spec §4.2's broker row also lists `/fleet/`, `/leads/`, `/team/`, `/profile/` and `/subscription/`. None of those pages exists and none is in this phase's scope (Phases 16, 17 and 20 own them). Spec §39 and §2.1 forbid shipping a control that leads nowhere.
+
+**Correction to an earlier draft of this ruling, which cited a precedent that does not exist.** `PrimaryNav.test.tsx:80` is titled *"links to no page that does not exist yet"*, but it asserts only the absence of `Sell` and `Fleet`. The component itself (`frontend/src/components/layout/PrimaryNav.tsx:15-32`) links to `/boats/`, `/brokers/`, `/services/professionals/`, `/financing/`, `/dashboard/staff/`, `/settings/` and `/account/`, and of those **only `/services/professionals/` has a page** — `frontend/src/app/` contains `403`, `health`, `login`, `professionals/profile`, `services`, `verify-email`, `layout.tsx`, `page.tsx` and `sitemap.ts` and nothing else. So the project's actual practice is the opposite of the precedent that was claimed. The ruling stands on spec §39 and §2.1 alone, and on the narrower point that this phase is *authoring* this navigation now, so it has no legacy to preserve. PrimaryNav's six dead links are pre-existing, out of this phase's scope, and recorded as Known Limitation 16 for Phase 20, which builds most of those pages.
+
+Task 8's nav test pins the set to exactly these two. Phase 12's staff broker screen is **not** linked from here — it is a staff screen, and Phase 12's own contract rule 8 assigns its navigation to Phase 17.
 
 **Ruling 4 — spec §28's "Archived" filter gets a producer, because a filter for an unreachable state is a decoration.** Phase 6 modelled and constrained `ConversationStatus.ARCHIVED` but shipped nothing that writes it (its Known Limitation 9, which assigns the affordance to this phase). Task 1 adds `PATCH /api/v1/conversations/<id>/status/`, restricted to `OPEN ↔ ARCHIVED`. **`BLOCKED` is deliberately unreachable from this endpoint**: spec §36.6 makes blocking a moderation act with contact-revocation consequences, and `ContactAccessGrant.revoked_at` is Phase 7's column — an inbox toggle that silently revokes somebody's contact access is not an inbox toggle. Blocking stays unbuilt and stays in Known Limitations.
 
-**Ruling 5 — archiving is per-conversation, not per-participant, because spec §11.8 gives `Conversation` one `status` column.** If a broker archives a thread, the sender sees it archived too. The alternative — a per-participant archive flag — is a table spec §11.8 does not define, and §28 does not ask for one. Recorded as Known Limitation 2 rather than invented.
+**Ruling 5 — archiving is per-conversation (spec §11.8 gives `Conversation` one `status` column), and *because* of that only the RECIPIENT side may archive.**
+
+The one-column fact is not negotiable: a per-participant archive flag is a table §11.8 does not define and §28 does not ask for. But a shared column plus an unrestricted control is an abuse vector, and an earlier draft of this plan shipped exactly that. Concretely: a buyer sends an inquiry to a brokerage, then archives the thread. The brokerage's default inbox is `status=OPEN`, so the lead **disappears from the broker's screen** — the one screen spec §28 exists to build — and the buyer, not the broker, decided that. Spec §36.6 ("Contact access and abuse") is the section this falls under, and spec §2.2 ("Server authority") is what makes it the server's job to refuse rather than the UI's to hide.
+
+**Decision:** `set_conversation_status` refuses when `actor.pk == conversation.initiator_id`, with the named code `conversation_filing_forbidden` (403). Filing a conversation is a property of the inbox that *received* it. `ConversationSerializer` grows a `viewer_is_initiator` boolean so the control's visibility has a backend source (spec §2.1) instead of the client guessing, and `ConversationThread` renders no archive button when it is true.
+
+**What this costs, stated plainly:** a sender cannot file their own inbox at all. That is the honest price of one shared `status` column, it is strictly better than the alternative (letting a sender hide a broker's live lead), and the real fix — a per-participant flag — needs an amendment to §11.8. Known Limitation 1 records both halves.
 
 **Ruling 6 — unread counts are per-recipient-side, not per-team-member, for the same reason.** Spec §11.8 gives `Message` one nullable `read_at` (Phase 6 Known Limitation 7). Broker member A opening a thread marks it read for member B as well. A per-member badge needs a `MessageRead` join table §11.8 does not define. The UI therefore labels the count as the conversation's unread count, never "your unread", and Known Limitation 3 records it.
 
@@ -149,11 +184,33 @@ Where spec §28 is silent, ambiguous or in tension with another section, the rul
 
 **Ruling 9 — the thread's "listing/profile link" ships for professionals only, and the backend still returns every derivable URL.** Spec §28's thread wants a listing/profile link. Three facts, each verified: `BoatListing` has **no slug column** (`backend/listings/models.py:35-95`) while spec §4.1's canonical boat URL is `/boats/<listing-slug>/`; `frontend/src/app/` has **no `/boats/` route**; and it has **no `/brokers/` route** either. So Task 1 has the backend return a truthful canonical `url` for BROKER (`/brokers/<slug>/`) and PROFESSIONAL (`/services/professionals/<slug>/`) and `null` for LISTING and SUPPORT, and Task 6 keeps a **one-line allowlist of route prefixes that exist today** (`/services/professionals/`) so the component never renders a link to a 404. Phase 20, which builds `/boats/` and `/brokers/`, deletes that allowlist line. Each layer is honest about what it actually knows.
 
+**On the inconsistency with `PrimaryNav`, which links to six pages that do not exist** (ruling 3's correction): this plan does **not** reach into `PrimaryNav` to fix it, and the two are therefore inconsistent until Phase 20. That is a deliberate scope call, not an oversight, and the asymmetry has a reason worth stating: a dead nav link reads as "coming soon" and costs a back button, whereas a dead link *on the boat the conversation is about*, inside a thread where the whole point is to look at that boat, reads as a broken product. Where this plan authors the surface (the thread, the broker nav) it holds the line; where it does not, it records the gap (Known Limitation 16) rather than silently widening its own diff into a merged Phase 3 component.
+
 **Ruling 10 — no staff read path, following Phase 6's ruling exactly.** `accounts.services.can_read_broker_messages()` returns `True` for any staff moderator *before* it looks at a membership, and Phase 6 deliberately did not use that shortcut in `can_view_conversation()`. Task 2's `IsBrokerMember` matches: a staff moderator with no membership gets `403 not_broker_member` on a broker's dashboard. Staff already have Phase 12's `GET /api/v1/staff/brokers/<id>/`, which spec §21 specifies with a screen in front of it. If this is ever judged wrong, the fix is one branch in `IsBrokerMember` **and** the matching branch in `messaging.selectors.can_view_conversation` — they must change together or a list will show a row a detail view refuses.
 
 **Ruling 11 — no WebSocket, no live polling.** Spec §27.2's real-time layer is Phase 18's. The inbox refetches on filter change, on navigation and after a mutation, and the thread refetches after a reply. No `setInterval`. A polling loop here would be a second, undisclosed load source on `messaging_read`'s 120/min bucket and would be ripped out by Phase 18 anyway.
 
 **Ruling 12 — no `Idempotency-Key` on this phase's two mutations.** Spec §30.3 requires it for Checkout creation, listing submit and staff decisions. Archiving is idempotent by construction (`set_conversation_status` returns early when the status already matches) and the dashboard endpoint is a read.
+
+**Ruling 13 — the dashboard routes are guarded by `RequirePermission` with *no* permission, and the `permission` prop becomes optional to allow it.**
+
+Phase 3 shipped `frontend/src/components/auth/RequirePermission.tsx`, which does two things: redirect an unauthenticated visitor to `/login?next=<safeNextUrl(pathname)>`, and show `ForbiddenScreen` when `can(permission)` is false. An earlier draft of this plan used neither, so a guest landing on `/dashboard/messages/` got a dead-end sentence instead of the sign-in flow every other private route in this project uses.
+
+The obvious fix — pass a `PermissionKey` — does not work, and the reason matters. `PermissionKey` (`frontend/src/lib/auth/types.ts:1-13`) is exactly spec §5's capability table, and **§5 has no row for reading conversations**; `can_read_messages` is defined in §11.1 as a `BrokerMembership` column, and `accounts/selectors.py:33-53` correctly does not surface it as a permission. The nearest candidate, `submit_inquiry`, evaluates to `verified` (`accounts/selectors.py:38`), so using it would show `ForbiddenScreen` to a broker member with an unverified email who has perfectly readable conversations — a client-side authorization rule the server does not hold, which spec §2.2 forbids.
+
+**Decision:** make `permission` optional — `permission?: PermissionKey`, with `const allowed = permission === undefined || can(permission)`. Backwards compatible (every existing caller passes one, and every existing test keeps passing), one line of behaviour, and it gives this project a reusable "signed-in only" guard it was missing. All four of this phase's dashboard routes wrap their screen in `<RequirePermission>` with no permission; **the authorization that matters stays on the server**, where `conversations_visible_to` and `IsBrokerMember` already enforce `can_read_messages` and membership. A member of the wrong organization sees an empty inbox and a 403 with a specific message (ruling 15), not a client-side guess.
+
+**Ruling 14 — Phase 19 adds `GET /api/v1/conversations/<id>/`, because the thread screen cannot be correct without it.**
+
+Phase 6 shipped the inbox and the thread but no conversation detail, so an earlier draft of this plan found a thread's row by scanning `fetchConversations("ALL", {})`. `ConversationPagination.page_size` is 20, so **a broker opening their 21st conversation would have seen "This conversation is not available."** — a data-dependent bug that no test with a handful of fixtures would ever catch, on the exact screen this phase exists to build. Paging the whole inbox client-side to find one row would be worse.
+
+**Decision:** Task 1 ships it, in the file it is already opening. It is a `ConversationScopedView` subclass, so it inherits the flag gate first (rule 11a), `can_view_conversation`, and 404-not-403; it returns `ConversationSerializer` read through the same annotated, visibility-scoped queryset the list uses, so the two can never disagree; it carries `throttle_scope = "messaging_read"`, Phase 6's existing read scope. Flagged in the Contract summary as a §30.1 addition, on the same footing as Phase 6's own four.
+
+**Ruling 15 — a SUSPENDED brokerage's member gets a specific, translated explanation, and Phase 3's selector is not touched.**
+
+`accounts/selectors.py:63-65` returns every `is_active=True` membership **regardless of the organization's status**, while `accounts/services.py:150-159`'s `active_broker_membership` requires `broker__status=ACTIVE`. Both are right for their own job — the session payload describes what the account *is*, the capability helper decides what it may *do* — but together they mean a member of a SUSPENDED brokerage sees the Messages nav, opens it, and gets a 403 their screen would render as "Something went wrong."
+
+**Decision:** do not change Phase 3's selector (it feeds screens this phase cannot see, and narrowing it would silently remove a suspended brokerage from every other consumer). Instead `not_broker_member` joins the client's known-code list with its own EN/IT/ES copy naming the two real causes — the organization is suspended, or the membership was removed — so the screen tells the truth. Tested in Tasks 5 and 10 and recorded as Known Limitation 15.
 
 ---
 
@@ -167,18 +224,22 @@ nautelo/
 ├── backend/
 │   ├── config/settings/base.py            (modify: Tasks 1, 2 — one throttle rate each)
 │   ├── messaging/
-│   │   ├── exceptions.py                  (append: Task 1 — two APIException subclasses)
+│   │   ├── enums.py                       (modify: Task 1 — one stale comment, ruling 2)
+│   │   ├── exceptions.py                  (append: Task 1 — three APIException subclasses)
 │   │   ├── services.py                    (append: Task 1 — set_conversation_status)
-│   │   ├── serializers.py                 (append + one-key edit: Task 1)
-│   │   ├── views.py                       (append: Task 1 — ConversationStatusView)
-│   │   ├── urls.py                        (append: Task 1 — one route)
-│   │   └── tests/test_conversation_status_api.py                    (new: Task 1)
+│   │   ├── serializers.py                 (append + two additive edits: Task 1)
+│   │   ├── views.py                       (append: Task 1 — ConversationDetailView, ConversationStatusView)
+│   │   ├── urls.py                        (append: Task 1 — two routes)
+│   │   └── tests/
+│   │       ├── test_conversation_detail_api.py                      (new: Task 1)
+│   │       └── test_conversation_status_api.py                      (new: Task 1)
 │   └── brokers/
 │       ├── permissions.py                 (new: Task 2 — IsBrokerMember)
 │       ├── dashboard.py                   (new: Task 2 — the metric selectors)
 │       ├── views.py                       (append: Task 2 — BrokerDashboardView)
 │       ├── urls.py                        (append: Task 2 — one route)
 │       └── tests/
+│           ├── conftest.py                                          (new: Task 2 — named-key cache fixture)
 │           ├── test_broker_dashboard_api.py                         (new: Task 2)
 │           └── test_phase_19_acceptance.py                          (new: Task 11)
 └── frontend/
@@ -196,6 +257,7 @@ nautelo/
         │           ├── page.tsx + page.test.tsx                     (new: Task 8)
         │           └── [conversationId]/page.tsx + page.test.tsx    (new: Task 8)
         ├── components/
+        │   ├── auth/RequirePermission.tsx + .test.tsx               (modify: Task 7 — optional prop, ruling 13)
         │   ├── layout/PrimaryNav.tsx + .test.tsx                    (modify: Task 8)
         │   ├── broker/
         │   │   ├── BrokerDashboardNav.tsx + .test.tsx               (new: Task 8)
@@ -224,83 +286,110 @@ Responsibilities, so the decomposition is not just a list:
 
 ---
 
-### Task 1: A producer for `ARCHIVED`, and a context URL for the thread's link
+### Task 1: The three messaging extensions spec §28 needs — detail, context URL, and a producer for `ARCHIVED`
 
 **Files:**
 - Modify (append): `backend/messaging/exceptions.py`, `backend/messaging/services.py`, `backend/messaging/views.py`, `backend/messaging/urls.py`
-- Modify (append + one-key edit): `backend/messaging/serializers.py`
+- Modify (two additive edits + append): `backend/messaging/serializers.py`
+- Modify (one stale comment): `backend/messaging/enums.py`
 - Modify (append one line): `backend/config/settings/base.py`
-- Test: `backend/messaging/tests/test_conversation_status_api.py`
+- Test: `backend/messaging/tests/test_conversation_detail_api.py`, `backend/messaging/tests/test_conversation_status_api.py`
+
+**Why these three ship as one task.** They are not three features; they are the three places Phase 6's read surface is one step short of what spec §28 asks for, and all three land in the same four files and the same serializer. `get_context()` in particular would otherwise be edited by two tasks in a row, which is a guaranteed rebase of one task onto the other for no review benefit. A reviewer rejecting any one of them rejects the same diff hunk neighbourhood, so there is nothing to gain by splitting.
 
 **Interfaces:**
-- Consumes: `messaging.enums.ConversationStatus`; `messaging.models.Conversation`; `messaging.exceptions.ConversationClosed`; `messaging.views.MessagingAPIView`, `ConversationScopedView`; `messaging.selectors.annotate_last_message`, `annotate_unread`, `conversations_visible_to`; `messaging.serializers.ConversationSerializer`; `messaging.tests.factories.make_conversation`, `make_message`; the merged `unified_inquiries_disabled` fixture in `messaging/tests/conftest.py`.
+- Consumes: `messaging.enums.ConversationStatus`; `messaging.models.Conversation`; `messaging.exceptions.ConversationClosed`; `messaging.views.MessagingAPIView`, `ConversationScopedView`; `messaging.selectors.annotate_last_message`, `annotate_unread`, `conversations_visible_to`; `messaging.serializers.ConversationSerializer`; `messaging.pagination.ConversationPagination` (in `messaging/pagination.py`, its own module); `messaging.tests.factories.make_conversation`, `make_message`; the merged `unified_inquiries_disabled` fixture in `messaging/tests/conftest.py`.
 - Produces:
   - `messaging.exceptions.InvalidConversationStatus` — `APIException`, 400, `default_code="invalid_conversation_status"`
   - `messaging.exceptions.ConversationSuperseded` — `APIException`, 409, `default_code="conversation_superseded"`
+  - `messaging.exceptions.ConversationFilingForbidden` — `APIException`, 403, `default_code="conversation_filing_forbidden"`
   - `messaging.services.ARCHIVABLE_STATUSES: frozenset[str]`
   - `messaging.services.set_conversation_status(*, actor, conversation, new_status: str) -> Conversation`
   - `messaging.serializers.ConversationStatusSerializer` (one field: `status`)
-  - `ConversationSerializer.get_context()` gains a **`"url": str | None`** key
-  - `messaging.views.ConversationStatusView` (route name `conversation-status`)
+  - `ConversationSerializer` gains a **`viewer_is_initiator: bool`** field; its `get_context()` gains a **`"url": str | None`** key
+  - `messaging.views.ConversationDetailView` (route name `conversation-detail`), `messaging.views.ConversationStatusView` (route name `conversation-status`)
   - throttle scope `conversation_status` = `120/hour`
 
-- [ ] **Step 0: Reconciliation gate — confirm Phase 6 and Phase 12 are fully merged, and that every assumed name exists**
+- [ ] **Step 0: Reconciliation gate — machine-checked, and it fails the task**
+
+This is not advisory. Every module below is one Phase 6 task's output, and this task appends to all of them. Run from the worktree root:
 
 ```bash
 cd backend
-git log --oneline dev -40 | grep -iE "phase 6|messaging|handoff" | head
 python - <<'PY'
-import pathlib, sys
-required = {
-  "messaging/views.py": ["class MessagingAPIView", "class ConversationScopedView", "class ConversationMessagesView"],
-  "messaging/selectors.py": ["def conversations_visible_to", "def can_view_conversation", "def annotate_unread", "def annotate_last_message"],
-  "messaging/serializers.py": ["class ConversationSerializer", "class MessageSerializer", "def get_context"],
+import pathlib, re, sys
+
+FILE_NEEDLES = {
+  "messaging/views.py": ["class MessagingAPIView", "class ConversationScopedView",
+                         "class ConversationMessagesView", "class ConversationListView"],
+  "messaging/selectors.py": ["def conversations_visible_to", "def can_view_conversation",
+                             "def annotate_unread", "def annotate_last_message"],
+  "messaging/serializers.py": ["class ConversationSerializer", "class MessageSerializer",
+                               "def get_context"],
+  "messaging/services.py": ["def post_reply", "def mark_conversation_read"],
   "messaging/exceptions.py": ["class ConversationClosed"],
   "messaging/permissions.py": ["class UnifiedInquiriesEnabled"],
+  "messaging/pagination.py": ["class ConversationPagination"],
   "messaging/urls.py": ["conversation-list", "conversation-messages", "conversation-read"],
+  "messaging/models.py": ["class Conversation", "class Message", "class ContactAccessGrant"],
   "messaging/tests/factories.py": ["def make_message"],
+  "config/urls.py": ['include("messaging.urls")'],
   "brokers/selectors.py": ["def broker_listing_counts", "def pending_revision_count"],
+  "brokers/moderation.py": ["def bulk_approve_pending_broker_revisions"],
 }
 missing = []
-for path, needles in required.items():
-    text = pathlib.Path(path).read_text(encoding="utf-8") if pathlib.Path(path).exists() else ""
+for path, needles in FILE_NEEDLES.items():
+    target = pathlib.Path(path)
+    text = target.read_text(encoding="utf-8") if target.exists() else ""
     for needle in needles:
         if needle not in text:
             missing.append(f"{path}: {needle}")
-print("MISSING:" if missing else "ALL PRESENT")
+
+# Throttle SCOPES, not just the file: a view whose throttle_scope names a key
+# absent from DEFAULT_THROTTLE_RATES raises at request time.
+settings_text = pathlib.Path("config/settings/base.py").read_text(encoding="utf-8")
+for scope in ("messaging_read", "message_send", "inquiry_submit"):
+    if f'"{scope}"' not in settings_text:
+        missing.append(f"config/settings/base.py: DEFAULT_THROTTLE_RATES[{scope!r}]")
+
+print("ALL PRESENT" if not missing else "MISSING:")
 for item in missing:
     print(" -", item)
 sys.exit(1 if missing else 0)
 PY
 ```
 
-Expected: `ALL PRESENT`, exit 0. **If anything is missing, stop.** Phase 6 or Phase 12 has not finished merging and this plan's dependency (spec §7) is not met. Report which names drifted; the controller decides whether to wait or to amend this plan's call sites.
+Expected: `ALL PRESENT`, exit 0.
 
-- [ ] **Step 1: Write the failing test**
+**If anything is missing, STOP and do not start the task.** As of this plan's revision (merge commit `6dec1e6`) this gate **fails**: `messaging/` has no `views.py`, `serializers.py`, `selectors.py`, `services.py`, `permissions.py`, `exceptions.py`, `pagination.py` or `urls.py`; `messaging/models.py` defines only `Conversation`; `config/urls.py` has no messaging include; and none of the three throttle scopes exists. That is the expected state until Phase 6 Tasks 3–10 merge — the gate exists to make "Phase 6 is ready" a fact somebody checked rather than a date somebody assumed. Report which names are missing; the controller decides whether to wait or amend this plan's call sites. Never rename a Phase 6 symbol to satisfy this gate.
 
-`backend/messaging/tests/test_conversation_status_api.py`:
+- [ ] **Step 1: Write the failing detail-endpoint test**
+
+`backend/messaging/tests/test_conversation_detail_api.py`:
 
 ```python
-"""PATCH /api/v1/conversations/<id>/status/ — the producer spec 28's "Archived"
-filter needs, plus the `url` key spec 28's thread link needs.
+"""GET /api/v1/conversations/<id>/ — the endpoint the thread screen reads.
 
-Spec 28 lists Archived among the five filters the broker inbox must offer. Phase
-6 modelled and constrained ConversationStatus.ARCHIVED but shipped nothing that
-writes it, so the filter existed with no way to reach the state. This module is
-that producer's contract, including the cross-broker negative cases spec 33.1
+Phase 6 shipped the inbox and the thread but no conversation detail, so a
+client wanting one thread's subject, status and context had to scan the inbox.
+ConversationPagination.page_size is 20, which makes that approach silently wrong
+for anyone with 21 conversations — see the plan's ruling 14. This module is the
+endpoint's contract, including the cross-broker negative cases spec 33.1
 requires of every conversation-addressed route.
 """
 
+import uuid
+
 import pytest
+from django.contrib.auth.models import Group
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from accounts.enums import UserRole
+from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
 from brokers.enums import BrokerMembershipRole
 from brokers.tests.factories import make_broker, make_membership
 from messaging.enums import ConversationStatus, ConversationType
-from messaging.models import Conversation
 from messaging.tests.factories import make_conversation, make_message
 from professionals.tests.factories import make_professional
 
@@ -317,15 +406,15 @@ def scene():
     """Two unrelated brokerages, one asker, one reader in each.
 
     Every slug, name and address is phase19-prefixed: make_broker defaults to
-    "blue-marine-brokers" and make_professional to "marine-survey-co", both of
-    which other packages' tests already take.
+    "blue-marine-brokers", make_professional to "marine-survey-co" and make_user
+    to "user@example.com", all of which other packages' tests already take.
     """
-    asker = make_user(email="status-asker@phase19.example", full_name="Ada Rossi")
-    broker_a = make_broker(name="Phase19 Alpha Brokers", slug="phase19-alpha-brokers")
-    broker_b = make_broker(name="Phase19 Beta Brokers", slug="phase19-beta-brokers")
-    reader_a = make_user(email="status-reader-a@phase19.example")
-    reader_b = make_user(email="status-reader-b@phase19.example")
-    agent_a = make_user(email="status-agent-a@phase19.example")
+    asker = make_user(email="detail-asker@phase19.example", full_name="Ada Rossi")
+    broker_a = make_broker(name="Phase19 Detail Alpha", slug="phase19-detail-alpha")
+    broker_b = make_broker(name="Phase19 Detail Beta", slug="phase19-detail-beta")
+    reader_a = make_user(email="detail-reader-a@phase19.example")
+    reader_b = make_user(email="detail-reader-b@phase19.example")
+    agent_a = make_user(email="detail-agent-a@phase19.example")
     make_membership(
         reader_a, broker_a, role=BrokerMembershipRole.MANAGER, can_read_messages=True
     )
@@ -336,15 +425,15 @@ def scene():
         agent_a, broker_a, role=BrokerMembershipRole.AGENT, can_edit_listings=True
     )
 
-    thread_a = make_conversation(
+    thread = make_conversation(
         initiator=asker,
         conversation_type=ConversationType.BROKER_INQUIRY,
         broker=broker_a,
         subject="Alpha fleet question",
     )
-    message = make_message(conversation=thread_a, sender=asker)
-    thread_a.last_message_at = message.created_at
-    thread_a.save(update_fields=["last_message_at", "updated_at"])
+    message = make_message(conversation=thread, sender=asker)
+    thread.last_message_at = message.created_at
+    thread.save(update_fields=["last_message_at", "updated_at"])
     return {
         "asker": asker,
         "broker_a": broker_a,
@@ -352,18 +441,31 @@ def scene():
         "reader_a": reader_a,
         "reader_b": reader_b,
         "agent_a": agent_a,
-        "thread_a": thread_a,
+        "thread": thread,
     }
 
 
 def url_for(conversation):
-    return reverse("conversation-status", args=[conversation.pk])
+    return reverse("conversation-detail", args=[conversation.pk])
+
+
+def make_moderator(email):
+    """A REAL staff moderator.
+
+    accounts.services.is_staff_moderator (accounts/services.py:122-126) requires
+    BOTH primary_role == STAFF AND membership of the staff_moderator or
+    staff_admin group. A make_user(role=UserRole.STAFF) with no group is not a
+    moderator at all, so a test that only sets the role proves nothing about the
+    staff branch it claims to exercise. The Group rows are re-seeded for every
+    test by messaging/tests/conftest.py's `_messaging_reference_rows` fixture.
+    """
+    moderator = make_user(email=email, role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    return moderator
 
 
 def test_a_guest_gets_401_authentication_required(api, scene):
-    response = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
+    response = api.get(url_for(scene["thread"]))
     assert response.status_code == 401
     assert response.data["error"]["code"] == "authentication_required"
 
@@ -373,169 +475,55 @@ def test_the_flag_off_answer_precedes_every_other_permission(
 ):
     """Phase 6 contract rule 11a: UnifiedInquiriesEnabled is FIRST, so the flag
     speaks for an anonymous caller too."""
-    anonymous = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
+    anonymous = api.get(url_for(scene["thread"]))
     assert anonymous.status_code == 403
     assert anonymous.data["error"]["code"] == "feature_disabled"
 
     api.force_authenticate(scene["reader_a"])
-    signed_in = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
+    signed_in = api.get(url_for(scene["thread"]))
     assert signed_in.status_code == 403
     assert signed_in.data["error"]["code"] == "feature_disabled"
 
 
-def test_a_broker_reader_archives_and_gets_the_updated_row_back(api, scene):
-    """Spec 30.2: mutations return the updated resource."""
+def test_a_broker_reader_gets_the_same_row_the_inbox_returns(api, scene):
+    """The point of reading through the inbox's own queryset: the thread screen
+    and the list can never disagree about a conversation."""
     api.force_authenticate(scene["reader_a"])
-    response = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
-    assert response.status_code == 200
-    assert response.data["status"] == ConversationStatus.ARCHIVED
-    assert response.data["id"] == str(scene["thread_a"].pk)
-    assert response.data["unread_count"] == 1
-    assert response.data["counterparty_name"] == "Ada Rossi"
-    scene["thread_a"].refresh_from_db()
-    assert scene["thread_a"].status == ConversationStatus.ARCHIVED
-
-
-def test_the_initiator_may_archive_their_own_thread(api, scene):
-    api.force_authenticate(scene["asker"])
-    response = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
-    assert response.status_code == 200
-    assert response.data["status"] == ConversationStatus.ARCHIVED
-
-
-def test_unarchiving_returns_the_thread_to_open(api, scene):
-    scene["thread_a"].status = ConversationStatus.ARCHIVED
-    scene["thread_a"].save(update_fields=["status", "updated_at"])
-    api.force_authenticate(scene["reader_a"])
-    response = api.patch(url_for(scene["thread_a"]), {"status": "OPEN"}, format="json")
-    assert response.status_code == 200
-    assert response.data["status"] == ConversationStatus.OPEN
-
-
-def test_setting_the_status_it_already_has_is_a_no_op_200(api, scene):
-    api.force_authenticate(scene["reader_a"])
-    response = api.patch(url_for(scene["thread_a"]), {"status": "OPEN"}, format="json")
-    assert response.status_code == 200
-    assert response.data["status"] == ConversationStatus.OPEN
-
-
-def test_another_brokers_reader_gets_404_never_403(api, scene):
-    """Spec 33.1 IDOR: a 403 would confirm this conversation id exists."""
-    api.force_authenticate(scene["reader_b"])
-    response = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
-    assert response.status_code == 404
-    scene["thread_a"].refresh_from_db()
-    assert scene["thread_a"].status == ConversationStatus.OPEN
-
-
-def test_an_agent_without_can_read_messages_gets_404(api, scene):
-    """can_edit_listings must never leak message access (spec 5, 28)."""
-    api.force_authenticate(scene["agent_a"])
-    response = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
-    assert response.status_code == 404
-
-
-def test_a_staff_moderator_gets_404_too(api, scene):
-    """Phase 6's ruling: this project ships no staff messaging read path."""
-    moderator = make_user(email="status-moderator@phase19.example", role=UserRole.STAFF)
-    api.force_authenticate(moderator)
-    response = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
-    )
-    assert response.status_code == 404
-
-
-def test_blocked_is_refused_with_its_own_named_code(api, scene):
-    """Spec 36.6 makes blocking a moderation act with contact-revocation
-    consequences; it is not an inbox toggle."""
-    api.force_authenticate(scene["reader_a"])
-    response = api.patch(url_for(scene["thread_a"]), {"status": "BLOCKED"}, format="json")
-    assert response.status_code == 400
-    assert response.data["error"]["code"] == "invalid_conversation_status"
-
-
-def test_a_missing_status_field_gets_the_same_named_code_not_validation_error(
-    api, scene
-):
-    """Phase 6 contract rule 10: this project's envelope collapses every DRF
-    ValidationError to code "validation_error", so the field is declared
-    required=False/allow_blank and the SERVICE names the error."""
-    api.force_authenticate(scene["reader_a"])
-    response = api.patch(url_for(scene["thread_a"]), {}, format="json")
-    assert response.status_code == 400
-    assert response.data["error"]["code"] == "invalid_conversation_status"
-
-
-def test_a_blocked_thread_cannot_be_reopened(api, scene):
-    scene["thread_a"].status = ConversationStatus.BLOCKED
-    scene["thread_a"].save(update_fields=["status", "updated_at"])
-    api.force_authenticate(scene["reader_a"])
-    response = api.patch(url_for(scene["thread_a"]), {"status": "OPEN"}, format="json")
-    assert response.status_code == 409
-    assert response.data["error"]["code"] == "conversation_closed"
-
-
-def test_reopening_a_superseded_thread_is_409_not_500(api, scene):
-    """Conversation's three unique indexes are PARTIAL on status=OPEN, so a
-    newer OPEN thread about the same context makes re-opening an archived one a
-    real conflict. Without the savepoint in set_conversation_status this test
-    fails with a 500 and a TransactionManagementError, not a 409."""
-    scene["thread_a"].status = ConversationStatus.ARCHIVED
-    scene["thread_a"].save(update_fields=["status", "updated_at"])
-    make_conversation(
-        initiator=scene["asker"],
-        conversation_type=ConversationType.BROKER_INQUIRY,
-        broker=scene["broker_a"],
-        subject="Alpha fleet question, again",
-    )
-
-    api.force_authenticate(scene["reader_a"])
-    response = api.patch(url_for(scene["thread_a"]), {"status": "OPEN"}, format="json")
-    assert response.status_code == 409
-    assert response.data["error"]["code"] == "conversation_superseded"
-    scene["thread_a"].refresh_from_db()
-    assert scene["thread_a"].status == ConversationStatus.ARCHIVED
-
-
-def test_archiving_makes_the_thread_reachable_only_through_the_archived_filter(
-    api, scene
-):
-    """The whole point of this endpoint: spec 28's Archived filter now has a
-    producer, and the default OPEN inbox stops showing the row."""
-    api.force_authenticate(scene["reader_a"])
-    api.patch(url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json")
-
-    default_rows = api.get(reverse("conversation-list")).data["results"]
-    assert default_rows == []
-
-    archived_rows = api.get(
-        reverse("conversation-list"), {"status": "ARCHIVED"}
-    ).data["results"]
-    assert [row["id"] for row in archived_rows] == [str(scene["thread_a"].pk)]
-
-
-def test_the_context_carries_a_canonical_url_for_a_broker_thread(api, scene):
-    api.force_authenticate(scene["asker"])
+    detail = api.get(url_for(scene["thread"]))
+    assert detail.status_code == 200
     row = api.get(reverse("conversation-list")).data["results"][0]
-    assert row["context"]["url"] == "/brokers/phase19-alpha-brokers/"
+    assert detail.data == row
 
 
-def test_the_context_carries_a_canonical_url_for_a_professional_thread(api, scene):
-    owner = make_user(email="status-pro-owner@phase19.example")
+def test_the_row_carries_every_field_the_thread_screen_reads(api, scene):
+    api.force_authenticate(scene["reader_a"])
+    data = api.get(url_for(scene["thread"])).data
+    assert data["id"] == str(scene["thread"].pk)
+    assert data["subject"] == "Alpha fleet question"
+    assert data["status"] == ConversationStatus.OPEN
+    assert data["conversation_type"] == ConversationType.BROKER_INQUIRY
+    assert data["unread_count"] == 1
+    assert data["counterparty_name"] == "Ada Rossi"
+    assert data["viewer_is_initiator"] is False
+    assert data["context"] == {
+        "type": "BROKER",
+        "id": str(scene["broker_a"].pk),
+        "label": "Phase19 Detail Alpha",
+        "url": "/brokers/phase19-detail-alpha/",
+    }
+
+
+def test_the_initiator_is_told_they_are_the_initiator(api, scene):
+    """Spec 2.1: the archive control's visibility needs a backend source, not a
+    client-side guess about who started the thread (ruling 5)."""
+    api.force_authenticate(scene["asker"])
+    assert api.get(url_for(scene["thread"])).data["viewer_is_initiator"] is True
+
+
+def test_a_professional_context_carries_its_canonical_url(api, scene):
+    owner = make_user(email="detail-pro-owner@phase19.example")
     professional = make_professional(
-        owner, display_name="Phase19 Survey Co", slug="phase19-survey-co"
+        owner, display_name="Phase19 Detail Survey", slug="phase19-detail-survey"
     )
     thread = make_conversation(
         initiator=scene["asker"],
@@ -546,8 +534,9 @@ def test_the_context_carries_a_canonical_url_for_a_professional_thread(api, scen
     make_message(conversation=thread, sender=scene["asker"])
 
     api.force_authenticate(owner)
-    row = api.get(reverse("conversation-list")).data["results"][0]
-    assert row["context"]["url"] == "/services/professionals/phase19-survey-co/"
+    assert api.get(url_for(thread)).data["context"]["url"] == (
+        "/services/professionals/phase19-detail-survey/"
+    )
 
 
 def test_a_listing_context_has_a_null_url(api, scene):
@@ -566,16 +555,336 @@ def test_a_listing_context_has_a_null_url(api, scene):
     make_message(conversation=thread, sender=scene["asker"])
 
     api.force_authenticate(scene["asker"])
-    rows = {row["id"]: row for row in api.get(reverse("conversation-list")).data["results"]}
-    assert rows[str(thread.pk)]["context"]["url"] is None
+    assert api.get(url_for(thread)).data["context"]["url"] is None
+
+
+def test_another_brokers_reader_gets_404_never_403(api, scene):
+    """Spec 33.1 IDOR: a 403 would confirm this conversation id exists."""
+    api.force_authenticate(scene["reader_b"])
+    assert api.get(url_for(scene["thread"])).status_code == 404
+
+
+def test_an_agent_without_can_read_messages_gets_404(api, scene):
+    api.force_authenticate(scene["agent_a"])
+    assert api.get(url_for(scene["thread"])).status_code == 404
+
+
+def test_a_real_staff_moderator_gets_404_too(api, scene):
+    """Ruling 10 / Phase 6's Task 9 ruling: no staff messaging read path.
+
+    The moderator below is a REAL one — see make_moderator — and the positive
+    control underneath proves it, so this 404 is evidence about messaging
+    authorization rather than an accident of an under-built fixture.
+    """
+    moderator = make_moderator("detail-moderator@phase19.example")
+    api.force_authenticate(moderator)
+    assert api.get(url_for(scene["thread"])).status_code == 404
+
+
+def test_the_same_moderator_can_reach_a_staff_only_endpoint(api, scene):
+    """Positive control for the test above.
+
+    Phase 12's GET /api/v1/staff/brokers/<id>/ is IsStaffModerator-gated. If this
+    ever fails, the 404 above is telling us the fixture is not really a
+    moderator, not that messaging refuses moderators — which is exactly the
+    vacuous test this pair exists to prevent.
+    """
+    moderator = make_moderator("detail-moderator-control@phase19.example")
+    api.force_authenticate(moderator)
+    response = api.get(reverse("staff-broker-detail", args=[scene["broker_a"].pk]))
+    assert response.status_code == 200
+    assert response.data["slug"] == "phase19-detail-alpha"
+
+
+def test_an_unknown_id_is_404_and_indistinguishable_from_a_forbidden_one(api, scene):
+    api.force_authenticate(scene["reader_a"])
+    assert api.get(reverse("conversation-detail", args=[uuid.uuid4()])).status_code == 404
+
+
+def test_no_contact_value_appears_in_the_detail_payload(api, scene):
+    """Phase 6 contract rule 3: a conversation row carries no contact value of
+    any kind. Contact reveal is Phase 7's own endpoint, after a grant."""
+    api.force_authenticate(scene["reader_a"])
+    rendered = api.get(url_for(scene["thread"])).content.decode()
+    assert scene["broker_a"].public_email not in rendered
+    assert scene["broker_a"].public_phone not in rendered
+    assert scene["asker"].email not in rendered
+```
+
+- [ ] **Step 2: Write the failing status-endpoint test**
+
+`backend/messaging/tests/test_conversation_status_api.py`:
+
+```python
+"""PATCH /api/v1/conversations/<id>/status/ — the producer spec 28's "Archived"
+filter needs.
+
+Spec 28 lists Archived among the five filters the broker inbox must offer. Phase
+6 modelled and constrained ConversationStatus.ARCHIVED but shipped nothing that
+writes it, so the filter existed with no way to reach the state.
+
+Filing is RECIPIENT-SIDE ONLY (the plan's ruling 5). Conversation has one status
+column (spec 11.8), so an initiator who could archive would be hiding a live lead
+from the broker's default inbox — the one screen spec 28 exists to build.
+"""
+
+import pytest
+from django.contrib.auth.models import Group
+from django.urls import reverse
+from rest_framework.test import APIClient
+
+from accounts.enums import StaffGroup, UserRole
+from accounts.tests.factories import make_user
+from brokers.enums import BrokerMembershipRole
+from brokers.tests.factories import make_broker, make_membership
+from messaging.enums import ConversationStatus, ConversationType
+from messaging.models import Conversation
+from messaging.tests.factories import make_conversation, make_message
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def api():
+    return APIClient()
+
+
+@pytest.fixture
+def scene():
+    asker = make_user(email="status-asker@phase19.example", full_name="Ada Rossi")
+    broker_a = make_broker(name="Phase19 Status Alpha", slug="phase19-status-alpha")
+    broker_b = make_broker(name="Phase19 Status Beta", slug="phase19-status-beta")
+    reader_a = make_user(email="status-reader-a@phase19.example")
+    reader_b = make_user(email="status-reader-b@phase19.example")
+    agent_a = make_user(email="status-agent-a@phase19.example")
+    make_membership(
+        reader_a, broker_a, role=BrokerMembershipRole.MANAGER, can_read_messages=True
+    )
+    make_membership(
+        reader_b, broker_b, role=BrokerMembershipRole.MANAGER, can_read_messages=True
+    )
+    make_membership(
+        agent_a, broker_a, role=BrokerMembershipRole.AGENT, can_edit_listings=True
+    )
+
+    thread = make_conversation(
+        initiator=asker,
+        conversation_type=ConversationType.BROKER_INQUIRY,
+        broker=broker_a,
+        subject="Alpha fleet question",
+    )
+    message = make_message(conversation=thread, sender=asker)
+    thread.last_message_at = message.created_at
+    thread.save(update_fields=["last_message_at", "updated_at"])
+    return {
+        "asker": asker,
+        "broker_a": broker_a,
+        "broker_b": broker_b,
+        "reader_a": reader_a,
+        "reader_b": reader_b,
+        "agent_a": agent_a,
+        "thread": thread,
+    }
+
+
+def url_for(conversation):
+    return reverse("conversation-status", args=[conversation.pk])
+
+
+def test_a_guest_gets_401_authentication_required(api, scene):
+    response = api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+    assert response.status_code == 401
+    assert response.data["error"]["code"] == "authentication_required"
+
+
+def test_the_flag_off_answer_precedes_every_other_permission(
+    api, scene, unified_inquiries_disabled
+):
+    anonymous = api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+    assert anonymous.status_code == 403
+    assert anonymous.data["error"]["code"] == "feature_disabled"
+
+    api.force_authenticate(scene["reader_a"])
+    signed_in = api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+    assert signed_in.status_code == 403
+    assert signed_in.data["error"]["code"] == "feature_disabled"
+
+
+def test_a_broker_reader_archives_and_gets_the_updated_row_back(api, scene):
+    """Spec 30.2: mutations return the updated resource."""
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+    assert response.status_code == 200
+    assert response.data["status"] == ConversationStatus.ARCHIVED
+    assert response.data["id"] == str(scene["thread"].pk)
+    assert response.data["unread_count"] == 1
+    assert response.data["counterparty_name"] == "Ada Rossi"
+    scene["thread"].refresh_from_db()
+    assert scene["thread"].status == ConversationStatus.ARCHIVED
+
+
+def test_the_initiator_may_not_archive_the_recipients_thread(api, scene):
+    """Ruling 5, and the reason it exists.
+
+    Conversation has ONE status column (spec 11.8) and the broker's default
+    inbox is status=OPEN, so a sender who could archive would remove their own
+    live lead from the brokerage's screen. Spec 2.2 puts that refusal on the
+    server, not in the UI.
+    """
+    api.force_authenticate(scene["asker"])
+    response = api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "conversation_filing_forbidden"
+    scene["thread"].refresh_from_db()
+    assert scene["thread"].status == ConversationStatus.OPEN
+
+
+def test_the_initiator_may_not_unarchive_either(api, scene):
+    """The same rule in the other direction: an initiator must not be able to
+    pull a thread the brokerage filed back into its open inbox."""
+    scene["thread"].status = ConversationStatus.ARCHIVED
+    scene["thread"].save(update_fields=["status", "updated_at"])
+    api.force_authenticate(scene["asker"])
+    response = api.patch(url_for(scene["thread"]), {"status": "OPEN"}, format="json")
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "conversation_filing_forbidden"
+
+
+def test_unarchiving_returns_the_thread_to_open(api, scene):
+    scene["thread"].status = ConversationStatus.ARCHIVED
+    scene["thread"].save(update_fields=["status", "updated_at"])
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {"status": "OPEN"}, format="json")
+    assert response.status_code == 200
+    assert response.data["status"] == ConversationStatus.OPEN
+
+
+def test_setting_the_status_it_already_has_is_a_no_op_200(api, scene):
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {"status": "OPEN"}, format="json")
+    assert response.status_code == 200
+    assert response.data["status"] == ConversationStatus.OPEN
+
+
+def test_another_brokers_reader_gets_404_never_403(api, scene):
+    """Spec 33.1 IDOR. Note the contrast with the initiator's 403 above: the
+    initiator may SEE this thread, so hiding its existence would be theatre —
+    they are told why. Someone who may not see it is told nothing."""
+    api.force_authenticate(scene["reader_b"])
+    response = api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+    assert response.status_code == 404
+    scene["thread"].refresh_from_db()
+    assert scene["thread"].status == ConversationStatus.OPEN
+
+
+def test_an_agent_without_can_read_messages_gets_404(api, scene):
+    """can_edit_listings must never leak message access (spec 11.1, 28)."""
+    api.force_authenticate(scene["agent_a"])
+    assert (
+        api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json").status_code
+        == 404
+    )
+
+
+def test_a_real_staff_moderator_gets_404_too(api, scene):
+    """A REAL moderator: is_staff_moderator needs primary_role == STAFF AND the
+    staff_moderator group (accounts/services.py:122-126). The positive control
+    lives in test_conversation_detail_api.py."""
+    moderator = make_user(email="status-moderator@phase19.example", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    assert moderator.groups.filter(name=StaffGroup.MODERATOR).exists()
+    api.force_authenticate(moderator)
+    assert (
+        api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json").status_code
+        == 404
+    )
+
+
+def test_blocked_is_refused_with_its_own_named_code(api, scene):
+    """Spec 36.6 makes blocking a moderation act with contact-revocation
+    consequences; it is not an inbox toggle."""
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {"status": "BLOCKED"}, format="json")
+    assert response.status_code == 400
+    assert response.data["error"]["code"] == "invalid_conversation_status"
+
+
+def test_a_missing_status_field_gets_the_same_named_code(api, scene):
+    """Phase 6 contract rule 10: this project's envelope collapses every DRF
+    ValidationError to code "validation_error" (common/exceptions.py:107-110),
+    so the field is declared required=False/allow_blank and the SERVICE names
+    the error."""
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {}, format="json")
+    assert response.status_code == 400
+    assert response.data["error"]["code"] == "invalid_conversation_status"
+
+
+def test_an_absurdly_long_status_gets_the_named_code_not_validation_error(api, scene):
+    """The regression guard for a max_length that used to be on this field.
+
+    A CharField(max_length=20) turns a 21-character body into a DRF
+    ValidationError, which the envelope flattens to "validation_error" — so the
+    plan's own claim that every invalid status answers with the named code would
+    have been false for exactly the input an attacker sends first.
+    """
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(
+        url_for(scene["thread"]), {"status": "A" * 500}, format="json"
+    )
+    assert response.status_code == 400
+    assert response.data["error"]["code"] == "invalid_conversation_status"
+
+
+def test_a_blocked_thread_cannot_be_reopened(api, scene):
+    scene["thread"].status = ConversationStatus.BLOCKED
+    scene["thread"].save(update_fields=["status", "updated_at"])
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {"status": "OPEN"}, format="json")
+    assert response.status_code == 409
+    assert response.data["error"]["code"] == "conversation_closed"
+
+
+def test_reopening_a_superseded_thread_is_409_not_500(api, scene):
+    """Conversation's three unique indexes are PARTIAL on status=OPEN
+    (messaging/models.py:111-133), so a newer OPEN thread about the same context
+    makes re-opening an archived one a real conflict. Without the savepoint in
+    set_conversation_status this fails with a 500 and a
+    TransactionManagementError, not a 409."""
+    scene["thread"].status = ConversationStatus.ARCHIVED
+    scene["thread"].save(update_fields=["status", "updated_at"])
+    make_conversation(
+        initiator=scene["asker"],
+        conversation_type=ConversationType.BROKER_INQUIRY,
+        broker=scene["broker_a"],
+        subject="Alpha fleet question, again",
+    )
+
+    api.force_authenticate(scene["reader_a"])
+    response = api.patch(url_for(scene["thread"]), {"status": "OPEN"}, format="json")
+    assert response.status_code == 409
+    assert response.data["error"]["code"] == "conversation_superseded"
+    scene["thread"].refresh_from_db()
+    assert scene["thread"].status == ConversationStatus.ARCHIVED
+
+
+def test_archiving_makes_the_thread_reachable_only_through_the_archived_filter(
+    api, scene
+):
+    """The whole point of this endpoint: spec 28's Archived filter now has a
+    producer, and the default OPEN inbox stops showing the row."""
+    api.force_authenticate(scene["reader_a"])
+    api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
+
+    assert api.get(reverse("conversation-list")).data["results"] == []
+    archived = api.get(reverse("conversation-list"), {"status": "ARCHIVED"}).data
+    assert [row["id"] for row in archived["results"]] == [str(scene["thread"].pk)]
 
 
 def test_no_contact_value_appears_in_the_status_response(api, scene):
-    """Phase 6 contract rule 3: this endpoint returns a conversation row, and a
-    conversation row carries no contact value of any kind."""
     api.force_authenticate(scene["reader_a"])
     rendered = api.patch(
-        url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json"
+        url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json"
     ).content.decode()
     assert scene["broker_a"].public_email not in rendered
     assert scene["broker_a"].public_phone not in rendered
@@ -583,7 +892,12 @@ def test_no_contact_value_appears_in_the_status_response(api, scene):
 
 
 def test_the_write_is_scoped_to_one_row(api, scene):
-    """A sibling thread of the same brokerage must not be touched."""
+    """A sibling thread of the same brokerage must not be touched.
+
+    A DIFFERENT initiator, because Conversation's
+    `messaging_open_broker_thread_unique` partial index allows exactly one OPEN
+    thread per (initiator, broker).
+    """
     sibling = make_conversation(
         initiator=make_user(email="status-asker-2@phase19.example"),
         conversation_type=ConversationType.BROKER_INQUIRY,
@@ -591,20 +905,18 @@ def test_the_write_is_scoped_to_one_row(api, scene):
         subject="Another Alpha question",
     )
     api.force_authenticate(scene["reader_a"])
-    api.patch(url_for(scene["thread_a"]), {"status": "ARCHIVED"}, format="json")
+    api.patch(url_for(scene["thread"]), {"status": "ARCHIVED"}, format="json")
     sibling.refresh_from_db()
     assert sibling.status == ConversationStatus.OPEN
-    assert (
-        Conversation.objects.filter(status=ConversationStatus.ARCHIVED).count() == 1
-    )
+    assert Conversation.objects.filter(status=ConversationStatus.ARCHIVED).count() == 1
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run both tests to verify they fail**
 
-Run: `cd backend && uv run pytest messaging/tests/test_conversation_status_api.py -v`
-Expected: FAIL — `NoReverseMatch: Reverse for 'conversation-status' not found.`
+Run: `cd backend && uv run pytest messaging/tests/test_conversation_detail_api.py messaging/tests/test_conversation_status_api.py -v`
+Expected: FAIL — `NoReverseMatch: Reverse for 'conversation-detail' not found` and the same for `'conversation-status'`.
 
-- [ ] **Step 3a: Append to `backend/messaging/exceptions.py`**
+- [ ] **Step 4a: Append to `backend/messaging/exceptions.py`**
 
 Consolidate with the module's existing imports (it already imports `APIException` for `ConversationClosed`; add `status` only if it is not already there):
 
@@ -617,11 +929,14 @@ from rest_framework.exceptions import APIException
 class InvalidConversationStatus(APIException):
     """Spec 28's Archived filter needs a producer; BLOCKED is not one.
 
-    A ChoiceField would have been the obvious way to reject this, but every DRF
+    A ChoiceField would have been the obvious way to reject this, and a
+    max_length the obvious way to bound it. Both are wrong here: every DRF
     ValidationError collapses to code "validation_error" in
-    common.exceptions.nauta_exception_handler (Phase 6 contract rule 10), so the
-    named code spec 30.2 asks for would never reach a client. The serializer
-    therefore accepts any string and the service raises this.
+    common.exceptions.nauta_exception_handler (common/exceptions.py:107-110),
+    so the named code spec 30.2 asks for would never reach a client — and it
+    would fail exactly on the oversized input an attacker sends first. The
+    serializer therefore accepts any string of any length and the service
+    raises this.
     """
 
     status_code = status.HTTP_400_BAD_REQUEST
@@ -633,17 +948,35 @@ class ConversationSuperseded(APIException):
     """Re-opening an archived thread collided with a newer open one.
 
     Conversation's three uniqueness constraints are PARTIAL indexes conditioned
-    on status=OPEN (messaging/models.py), precisely so an archived thread does
-    not block a new inquiry. The consequence is that un-archiving is not always
-    possible, and that is a 409, not a 500.
+    on status=OPEN (messaging/models.py:111-133), precisely so an archived thread
+    does not block a new inquiry. The consequence is that un-archiving is not
+    always possible, and that is a 409, not a 500.
     """
 
     status_code = status.HTTP_409_CONFLICT
     default_detail = "A newer open conversation already exists for this context."
     default_code = "conversation_superseded"
+
+
+class ConversationFilingForbidden(APIException):
+    """Only the RECIPIENT side may file a conversation (the plan's ruling 5).
+
+    Spec 11.8 gives Conversation ONE status column, so archiving is shared. A
+    sender who could archive would remove their own live lead from the
+    brokerage's default OPEN inbox — the screen spec 28 exists to build. Spec
+    2.2 puts that refusal on the server.
+
+    403 rather than 404 on purpose: the initiator MAY see this conversation, so
+    pretending it does not exist would be theatre. 404 is reserved for callers
+    who may not see it at all.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Only the recipient of a conversation can file it."
+    default_code = "conversation_filing_forbidden"
 ```
 
-- [ ] **Step 3b: Append to `backend/messaging/services.py`**
+- [ ] **Step 4b: Append to `backend/messaging/services.py`**
 
 Add to the module's import section (`transaction` is already imported; `IntegrityError` is the new name):
 
@@ -653,6 +986,7 @@ from django.db import IntegrityError, transaction
 from messaging.enums import ConversationStatus
 from messaging.exceptions import (
     ConversationClosed,
+    ConversationFilingForbidden,
     ConversationSuperseded,
     InvalidConversationStatus,
 )
@@ -673,27 +1007,28 @@ ARCHIVABLE_STATUSES: frozenset[str] = frozenset(
 def set_conversation_status(*, actor, conversation, new_status: str) -> Conversation:
     """Archive or un-archive a thread (spec 28's Archived filter).
 
-    Authorization is the CALLER's job — messaging.selectors.can_view_conversation
-    decides who may see a thread and the view refuses before reaching here. This
-    mirrors post_reply exactly, deliberately: the two functions must not answer
-    the same question differently.
+    VISIBILITY is the caller's job — messaging.selectors.can_view_conversation
+    decides who may see a thread and the view refuses with 404 before reaching
+    here, mirroring post_reply exactly. FILING RIGHTS are this function's job,
+    because they are a rule about the conversation rather than about the route,
+    and a rule that lives only in a view is the thing spec 3's last paragraph
+    forbids.
 
     Spec 11.8 gives Conversation ONE status column, so archiving is per
-    conversation, not per participant: a broker archiving a thread archives it
-    for the sender too. A per-participant flag would be a table spec 11.8 does
-    not define and spec 28 does not ask for. See the plan's Known Limitations.
+    conversation, not per participant. That is why only the recipient side may
+    do it: a sender archiving their own inquiry would pull a live lead out of
+    the brokerage's default OPEN inbox. See the plan's ruling 5 and Known
+    Limitation 2.
 
     Not audited: spec 2.4's five audited categories are staff actions,
     permission-sensitive status transitions, contact reveals, entitlement
-    movements and listing decisions. Filing one's own inbox is none of them, and
-    Phase 6 made the same call for post_reply.
-
-    `actor` is accepted and unused on purpose — it keeps this signature shaped
-    like every other writer in this module, and it is what an audit or a
-    per-participant archive flag would need first.
+    movements and listing decisions. Filing an inbox is none of them, and Phase 6
+    made the same call for post_reply.
     """
     if new_status not in ARCHIVABLE_STATUSES:
         raise InvalidConversationStatus()
+    if actor.pk == conversation.initiator_id:
+        raise ConversationFilingForbidden()
 
     locked = Conversation.objects.select_for_update().get(pk=conversation.pk)
     if locked.status == ConversationStatus.BLOCKED:
@@ -718,28 +1053,25 @@ def set_conversation_status(*, actor, conversation, new_status: str) -> Conversa
     return locked
 ```
 
-- [ ] **Step 3c: Append to `backend/messaging/serializers.py`, and add one key to `get_context()`**
+- [ ] **Step 4c: Two additive edits and one append in `backend/messaging/serializers.py`**
 
-Append:
+**Edit 1 — add one field to `ConversationSerializer`** (beside the existing declared fields; change no existing one):
 
 ```python
-class ConversationStatusSerializer(serializers.Serializer):
-    """Body of PATCH /api/v1/conversations/<id>/status/.
-
-    A plain CharField with a blank default rather than a ChoiceField: DRF's
-    choice failure is a ValidationError, which this project's envelope collapses
-    to code "validation_error" (Phase 6 contract rule 10). Letting the value
-    through to services.set_conversation_status means a missing, blank or
-    nonsense status all answer with the same named `invalid_conversation_status`
-    code, which is what spec 30.2 asks of an error.
-    """
-
-    status = serializers.CharField(
-        required=False, allow_blank=True, default="", max_length=20
-    )
+    viewer_is_initiator = serializers.SerializerMethodField()
 ```
 
-Edit `ConversationSerializer.get_context()` — **add the `"url"` key to each of the four returned dicts and change nothing else**:
+```python
+    def get_viewer_is_initiator(self, conversation) -> bool:
+        """Whose seat is this? Spec 2.1: every visible state needs a backend
+        source, and the thread's archive control is a visible state — only the
+        recipient side may file a conversation (the plan's ruling 5). Without
+        this field the client would have to infer the seat from
+        `counterparty_name`, which is display text, not authorization data."""
+        return conversation.initiator_id == self._viewer().pk
+```
+
+**Edit 2 — add the `"url"` key to each of `get_context()`'s four returned dicts**, changing no existing key:
 
 ```python
     def get_context(self, conversation) -> dict:
@@ -795,11 +1127,29 @@ Edit `ConversationSerializer.get_context()` — **add the `"url"` key to each of
         return {"type": "SUPPORT", "id": "", "label": "", "url": None}
 ```
 
-**Note for the implementer:** `conversations_visible_to()` already `select_related`s `broker` and `professional`, and `ConversationScopedView.get_conversation()` `select_related`s `professional__owner_user`, so `.slug` on either object costs no extra query. Task 11's N+1 comparison test is the tripwire if that ever changes.
+**Append — the status body serializer:**
 
-**Note for the task reviewer:** Phase 6's `test_a_row_carries_every_field_spec_28_names` asserts `row["context"] == {"type": …, "id": …, "label": …}` with `==`, so **that one Phase 6 test must be updated in this commit** to include `"url"`. It is the only existing assertion this key breaks; find it with `rg -n '"label": "Phase6' backend/messaging/tests/`.
+```python
+class ConversationStatusSerializer(serializers.Serializer):
+    """Body of PATCH /api/v1/conversations/<id>/status/.
 
-- [ ] **Step 3d: Append to `backend/messaging/views.py`**
+    A plain CharField with a blank default and NO max_length. Both a ChoiceField
+    and a length bound would raise DRF ValidationError, which this project's
+    envelope collapses to code "validation_error" (Phase 6 contract rule 10) —
+    and the length bound would do it for precisely the oversized input that most
+    needs a stable code. Letting every value through to
+    services.set_conversation_status means a missing, blank, nonsense or
+    500-character status all answer with the named `invalid_conversation_status`.
+    """
+
+    status = serializers.CharField(required=False, allow_blank=True, default="")
+```
+
+**Note for the implementer.** `conversations_visible_to()` already `select_related`s `broker` and `professional`, and `ConversationScopedView.get_conversation()` `select_related`s `professional__owner_user`, so `.slug` on either object costs no extra query. Task 11's N+1 comparison test is the tripwire if that ever changes.
+
+**Note for the task reviewer.** Phase 6's `test_a_row_carries_every_field_spec_28_names` asserts `row["context"] == {...}` with `==`, so **that one Phase 6 test must be updated in this commit** to include `"url"`. Find it with `rg -n '"label": "Phase6' backend/messaging/tests/`. It is the only existing assertion these two edits break; `viewer_is_initiator` is a new key and `==` on the whole row is not something Phase 6's tests do.
+
+- [ ] **Step 4d: Append to `backend/messaging/views.py`**
 
 Add to the module's import section:
 
@@ -809,21 +1159,39 @@ from messaging.services import set_conversation_status
 ```
 
 ```python
+class ConversationDetailView(ConversationScopedView):
+    """GET /api/v1/conversations/<id>/ — one conversation's row.
+
+    An addition beyond spec 30.1's table. Phase 6 shipped the list and the
+    thread; without this, a client wanting one thread's subject, status and
+    context has to scan the inbox, and `ConversationPagination.page_size` is 20 —
+    so that approach is silently wrong for anybody with 21 conversations. See the
+    plan's ruling 14.
+
+    Authorization is inherited unchanged from ConversationScopedView: flag gate
+    first (Phase 6 contract rule 11a), then authentication, then
+    can_view_conversation() with 404 rather than 403 for anything else.
+    """
+
+    throttle_scope = "messaging_read"
+
+    def get(self, request, conversation_id):
+        self.get_conversation(conversation_id)
+        return Response(_annotated_row(request, conversation_id))
+
+
 class ConversationStatusView(ConversationScopedView):
     """PATCH /api/v1/conversations/<id>/status/ — spec 28's Archived filter.
 
-    An addition beyond spec 30.1's table, for the same reason Phase 6's
-    `read/` route is one: spec 28 lists Archived among the five filters the
-    broker inbox must offer, and a filter whose state nothing can produce is a
-    control that does nothing. Spec 30.1's closing sentence grants the latitude
-    ("Exact URL naming may follow an established API convention, but semantics,
-    authorization and errors must remain equivalent").
+    An addition beyond spec 30.1's table, for the same reason Phase 6's `read/`
+    route is one: spec 28 lists Archived among the five filters the broker inbox
+    must offer, and a filter whose state nothing can produce is a control that
+    does nothing. Spec 30.1's closing sentence grants the latitude.
 
-    Authorization is inherited unchanged from ConversationScopedView: the flag
-    gate first (Phase 6 contract rule 11a), then authentication, then
-    can_view_conversation() with a 404 rather than a 403 for anything else. That
-    is spec 28's "Mark-read and reply endpoints enforce broker organization
-    membership", applied to the third mutation on the same object.
+    Visibility is inherited from ConversationScopedView (404, never 403). The
+    narrower rule — only the recipient side may file — lives in
+    services.set_conversation_status, so it holds for every caller and not just
+    for this route.
     """
 
     throttle_scope = "conversation_status"
@@ -837,27 +1205,47 @@ class ConversationStatusView(ConversationScopedView):
             conversation=conversation,
             new_status=payload.validated_data["status"].strip().upper(),
         )
-        # Spec 30.2: "Mutations return updated resource/version". Re-read through
-        # the SAME annotated, visibility-scoped queryset the inbox uses, so the
-        # row the client swaps in is byte-for-byte the row the list would return
-        # — not a second, differently-shaped representation of the same thread.
-        row = (
-            annotate_last_message(
-                annotate_unread(
-                    conversations_visible_to(request.user), request.user
-                )
-            )
-            .filter(pk=conversation.pk)
-            .first()
-        )
-        return Response(
-            ConversationSerializer(row, context={"request": request}).data
-        )
+        # Spec 30.2: "Mutations return updated resource/version".
+        return Response(_annotated_row(request, conversation_id))
 ```
 
-- [ ] **Step 3e: Append the route to `backend/messaging/urls.py`**
+…and the one helper both views share, placed above them:
 
 ```python
+def _annotated_row(request, conversation_id):
+    """One conversation, read through the SAME annotated, visibility-scoped
+    queryset the inbox uses.
+
+    Two reasons it is not a second query shaped by hand. First, the row a detail
+    view returns and the row the list returned must be byte-for-byte identical
+    or the client is holding two representations of one thread — the detail
+    test asserts exactly that equality. Second, `ConversationSerializer` reads
+    `unread_count`, `first_sender_name` and `last_message_body` off annotations;
+    serializing a plain `Conversation` instance would quietly render an
+    incomplete row.
+
+    The caller has already run `get_conversation()`, so authorization has
+    happened; this re-read cannot widen it — `conversations_visible_to` applies
+    the same visibility filter a second time.
+    """
+    return ConversationSerializer(
+        annotate_last_message(
+            annotate_unread(conversations_visible_to(request.user), request.user)
+        )
+        .filter(pk=conversation_id)
+        .first(),
+        context={"request": request},
+    ).data
+```
+
+- [ ] **Step 4e: Append the two routes to `backend/messaging/urls.py`**
+
+```python
+    path(
+        "conversations/<uuid:conversation_id>/",
+        ConversationDetailView.as_view(),
+        name="conversation-detail",
+    ),
     path(
         "conversations/<uuid:conversation_id>/status/",
         ConversationStatusView.as_view(),
@@ -865,7 +1253,7 @@ class ConversationStatusView(ConversationScopedView):
     ),
 ```
 
-- [ ] **Step 3f: Append one line to `backend/config/settings/base.py`**
+- [ ] **Step 4f: Append one line to `backend/config/settings/base.py`**
 
 Inside `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`, **append only** — reorder nothing:
 
@@ -877,12 +1265,15 @@ Inside `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`, **append only** — reorder n
         "conversation_status": "120/hour",
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `cd backend && uv run pytest messaging/tests/test_conversation_detail_api.py -v`
+Expected: PASS — **13 collected test items**.
 
 Run: `cd backend && uv run pytest messaging/tests/test_conversation_status_api.py -v`
-Expected: PASS — **19 collected test items**.
+Expected: PASS — **18 collected test items**.
 
-Then the whole messaging app, which includes the Phase 6 assertion updated in Step 3c:
+Then the whole messaging app, which includes the Phase 6 assertion updated in Step 4c:
 
 Run: `cd backend && uv run pytest messaging -q`
 Expected: all pass, 0 failures.
@@ -892,11 +1283,30 @@ Then prove the footprint outside `messaging/` is the one line this task claims:
 Run: `cd backend && git diff --name-only dev -- . ':!messaging'`
 Expected: exactly `config/settings/base.py`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Correct the stale comment in `backend/messaging/enums.py`**
+
+Ruling 2 keeps `SENDER_CONVERSATION_URL_TEMPLATE` exactly as it is, and Task 7 builds the page it points at. The merged comment above it currently instructs the next reader to change that line, on a premise this plan showed to be false. Leaving it is how the line gets changed by accident later, so this task corrects it — **the constant's value is not touched**, and `messaging/tests/test_enums.py:108` and `:113`, which pin it, stay green and unedited.
+
+Replace lines 101–103 of `backend/messaging/enums.py`:
+
+```python
+# Spec 15.5's next_url: the URL given to the person who SENT an inquiry, who is
+# typically a buyer - and spec 4.2 has no buyer row, which is why this path
+# carries no role segment. It is NOT the same destination as spec 28's
+# /dashboard/broker/messages/, which is the RECIPIENT broker's screen; those are
+# two seats on one conversation, so they are two URLs. Phase 19 builds both
+# pages and deliberately leaves this line alone.
+SENDER_CONVERSATION_URL_TEMPLATE = "/dashboard/messages/{conversation_id}/"
+```
+
+Run: `cd backend && uv run pytest messaging/tests/test_enums.py -v`
+Expected: PASS, unchanged — the assertions read the value, not the comment.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add backend/messaging backend/config/settings/base.py
-git commit -m "feat(messaging): archive/unarchive endpoint and canonical context URL (Phase 19 Task 1)"
+git commit -m "feat(messaging): conversation detail, context URL and archive endpoint (Phase 19 Task 1)"
 ```
 
 ---
@@ -904,7 +1314,7 @@ git commit -m "feat(messaging): archive/unarchive endpoint and canonical context
 ### Task 2: `GET /api/v1/brokers/<id>/dashboard/` — the four metrics spec §28 permits
 
 **Files:**
-- Create: `backend/brokers/permissions.py`, `backend/brokers/dashboard.py`
+- Create: `backend/brokers/permissions.py`, `backend/brokers/dashboard.py`, `backend/brokers/tests/conftest.py`
 - Modify (append): `backend/brokers/views.py`, `backend/brokers/urls.py`, `backend/config/settings/base.py`
 - Test: `backend/brokers/tests/test_broker_dashboard_api.py`
 
@@ -920,7 +1330,44 @@ git commit -m "feat(messaging): archive/unarchive endpoint and canonical context
 
 **Note (ruling — every cross-app import in `brokers/dashboard.py` is function-local, and that is not style).** Phase 6's `messaging/selectors.py` imports `brokers.models.BrokerMembership` **at module level**. A module-level `from messaging.selectors import …` here would therefore close an app-loading cycle whose symptom is `AppRegistryNotReady` at `manage.py` start — and `brokers/admin.py` imports this app's modules at admin-autodiscover time, which is exactly when that bites. `brokers/selectors.py` already uses the same function-local pattern for `listings`, for the same reason (Phase 12 contract rule 2). Do not "clean these up".
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1a: Write `backend/brokers/tests/conftest.py`**
+
+This package has no conftest today (verified: `brokers/tests/` holds only `__init__.py`, `factories.py` and six `test_*.py` files). This task's tests flip `unified_inquiries`, and `platform_settings.services.is_feature_enabled` caches a persisted value with `timeout=None` — so a flag flipped in one test leaks into the next without this.
+
+```python
+import pytest
+from django.core.cache import cache
+
+from messaging.enums import UNIFIED_INQUIRIES_FLAG
+from platform_settings.services import SETTINGS_CACHE_KEY, feature_flag_cache_key
+
+#: Flags this package's tests toggle. Listed so the fixture below clears exactly
+#: these entries and nothing else.
+BROKER_FEATURE_FLAG_KEYS = [UNIFIED_INQUIRIES_FLAG]
+
+
+@pytest.fixture(autouse=True)
+def _clear_broker_caches():
+    """Delete this package's OWN cache keys around every test.
+
+    NEVER `cache.clear()`. Django's RedisCache.clear() is a FLUSHDB, and this
+    project's test Redis DB is shared by concurrently running worktrees — which
+    is why backend/conftest.py was rewritten to scan and delete only its own
+    KEY_PREFIX. The same narrow shape as messaging/tests/conftest.py and
+    listings/tests/conftest.py: named keys, by name.
+    """
+
+    def _clear():
+        cache.delete(SETTINGS_CACHE_KEY)
+        for key in BROKER_FEATURE_FLAG_KEYS:
+            cache.delete(feature_flag_cache_key(key))
+
+    _clear()
+    yield
+    _clear()
+```
+
+- [ ] **Step 1b: Write the failing test**
 
 `backend/brokers/tests/test_broker_dashboard_api.py`:
 
@@ -937,11 +1384,12 @@ forbids denormalising them onto the organization.
 from datetime import timedelta
 
 import pytest
+from django.contrib.auth.models import Group
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from accounts.enums import UserRole
+from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
 from brokers.enums import BrokerMembershipRole, BrokerOrganizationStatus
 from brokers.tests.factories import make_broker, make_membership
@@ -990,6 +1438,25 @@ def listing_for(broker, actor, status, tag):
         brand=make_brand(f"Phase19 {tag}"),
         status=status,
     )
+
+
+def make_moderator(email):
+    """A REAL staff moderator.
+
+    accounts.services.is_staff_moderator (accounts/services.py:122-126) requires
+    BOTH primary_role == STAFF AND membership of the staff_moderator or
+    staff_admin group. A make_user(role=UserRole.STAFF) with no group is not a
+    moderator, so a test that only sets the role proves nothing about the staff
+    branch it claims to exercise.
+
+    get_or_create, not get: this package's conftest seeds no Groups, and a
+    `@pytest.mark.django_db(transaction=True)` test anywhere in the session ends
+    with a flush that truncates rows a data migration inserted. The same
+    defensive spelling brokers/tests/test_admin.py:35 already uses.
+    """
+    moderator = make_user(email=email, role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get_or_create(name=StaffGroup.MODERATOR)[0])
+    return moderator
 
 
 @pytest.fixture
@@ -1079,12 +1546,28 @@ def test_a_member_of_another_broker_gets_403_not_broker_member(api, scene):
     assert response.data["error"]["code"] == "not_broker_member"
 
 
-def test_a_staff_moderator_with_no_membership_gets_403(api, scene):
+def test_a_real_staff_moderator_with_no_membership_gets_403(api, scene):
     """Ruling 10, matching Phase 6: no staff read path into a broker's inbox.
-    Staff read a brokerage through Phase 12's own staff endpoint."""
-    moderator = make_user(email="metrics-moderator@phase19.example", role=UserRole.STAFF)
+    Staff read a brokerage through Phase 12's own staff endpoint — which the
+    positive control below proves this very user can reach."""
+    moderator = make_moderator("metrics-moderator@phase19.example")
     api.force_authenticate(moderator)
     assert api.get(url_for(scene["broker_a"])).status_code == 403
+
+
+def test_the_same_moderator_can_reach_the_staff_broker_endpoint(api, scene):
+    """Positive control for the test above.
+
+    Phase 12's GET /api/v1/staff/brokers/<id>/ is IsStaffModerator-gated. If this
+    fails, the 403 above is telling us the fixture is not really a moderator —
+    not that the broker dashboard refuses moderators. That is the vacuous-test
+    failure mode this pair exists to close.
+    """
+    moderator = make_moderator("metrics-moderator-control@phase19.example")
+    api.force_authenticate(moderator)
+    response = api.get(reverse("staff-broker-detail", args=[scene["broker_a"].pk]))
+    assert response.status_code == 200
+    assert response.data["slug"] == "phase19-metrics-alpha"
 
 
 def test_a_member_of_a_suspended_organization_gets_403(api, scene):
@@ -1172,12 +1655,18 @@ def test_a_readers_own_reply_never_counts_as_unread_for_them(api, scene):
 
 def test_an_inquiry_older_than_the_window_is_not_new(api, scene):
     stale = make_conversation(
-        initiator=scene["asker"],
+        # A FRESH initiator, not scene["asker"]. The scene already holds an OPEN
+        # BROKER_INQUIRY from `asker` to `broker_a`, and Conversation's
+        # `messaging_open_broker_thread_unique` partial index
+        # (messaging/models.py:118-126) allows exactly one OPEN thread per
+        # (initiator, broker) — reusing the asker here raises IntegrityError
+        # before the assertion is ever reached.
+        initiator=make_user(email="stale-asker@phase19.example"),
         conversation_type=ConversationType.BROKER_INQUIRY,
         broker=scene["broker_a"],
         subject="An old Alpha question",
     )
-    # created_at is auto_now_add, so it has to be pushed back explicitly.
+    # created_at is auto_now_add, so it has to be pushed back with an UPDATE.
     type(stale).objects.filter(pk=stale.pk).update(
         created_at=timezone.now() - timedelta(days=30)
     )
@@ -1203,6 +1692,16 @@ def test_no_contact_value_appears_in_the_payload(api, scene):
     assert scene["broker_a"].public_phone not in rendered
     assert scene["asker"].email not in rendered
 ```
+
+- [ ] **Step 1c: Sweep this task's fixtures for the two collision classes**
+
+Before running anything, read the test file you just wrote against these two rules — they are the defect class this plan has already hit once:
+
+1. **One OPEN thread per (initiator, context).** `messaging/models.py:111-133` declares three *partial* unique indexes conditioned on `status=OPEN`: `(initiator, listing)`, `(initiator, broker)` and `(initiator, professional)`. A second OPEN conversation reusing an initiator **and** the same broker/professional/listing raises `IntegrityError` at creation, before any assertion runs. Every extra thread in this file uses a fresh `make_user`.
+2. **`BoatBrand` normalized names are globally unique.** `make_broker_listing` derives its default brand name from the broker's pk, so two default-brand listings for one brokerage collide. `listing_for()` gives each listing its own phase19-prefixed brand.
+
+Run: `cd backend && rg -n "make_conversation\(|make_broker_listing\(" brokers/tests/test_broker_dashboard_api.py`
+Expected: every `make_conversation` call passes either a distinct `initiator` or a distinct `broker`/`professional`; no bare `make_broker_listing` call appears (all go through `listing_for`).
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -1426,7 +1925,7 @@ Inside `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`, **append only**:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd backend && uv run pytest brokers/tests/test_broker_dashboard_api.py -v`
-Expected: PASS — **12 collected test items**.
+Expected: PASS — **13 collected test items**.
 
 Run: `cd backend && uv run pytest brokers messaging -q`
 Expected: all pass.
@@ -1443,6 +1942,8 @@ Expected: exactly `config/settings/base.py`.
 git add backend/brokers backend/config/settings/base.py
 git commit -m "feat(brokers): broker dashboard metrics endpoint (Phase 19 Task 2)"
 ```
+
+**Note on the new `brokers/tests/conftest.py` and test ordering.** It is autouse and package-scoped, so it also runs around Phase 12's six existing test modules in this package. That is safe — it deletes two named keys neither of those modules writes — and it is the reason it deletes *named* keys rather than calling `cache.clear()`, which would be a `FLUSHDB` against a Redis DB shared with other worktrees' suites. Do not "simplify" it.
 
 ---
 
@@ -1518,6 +2019,8 @@ describe("CONVERSATION_MESSAGES", () => {
       "conversation_closed",
       "conversation_superseded",
       "invalid_conversation_status",
+      "conversation_filing_forbidden",
+      "not_broker_member",
       "not_found",
       "validation_error",
       "unexpected_error",
@@ -1534,8 +2037,26 @@ describe("CONVERSATION_MESSAGES", () => {
     );
   });
 
-  it("falls back to English when a locale entry is blank", () => {
+  it("returns the requested locale's own string when it has one", () => {
     expect(tConversations("es", "broker.messages")).toBe("Mensajes");
+    expect(tConversations("it", "messages.filter.unread")).toBe("Non letti");
+  });
+
+  it("falls back to English for a blank locale entry", () => {
+    // The EN-fallback branch cannot be reached through the shipped dictionary,
+    // because the first test in this file forbids a blank locale anywhere in it.
+    // Asserting tConversations("es", ...) === "Mensajes" would therefore prove
+    // only that the Spanish string exists — it would never execute the `||`.
+    // So the branch is exercised against an INJECTED entry and cleaned up.
+    const KEY = "messages.__fallback_probe__";
+    CONVERSATION_MESSAGES[KEY] = { en: "English only", it: "", es: "" };
+    try {
+      expect(tConversations("es", KEY)).toBe("English only");
+      expect(tConversations("it", KEY)).toBe("English only");
+      expect(tConversations("en", KEY)).toBe("English only");
+    } finally {
+      delete CONVERSATION_MESSAGES[KEY];
+    }
   });
 });
 
@@ -1728,6 +2249,21 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
     it: "Questa modifica non è consentita.",
     es: "Ese cambio no está permitido.",
   },
+  "messages.error.conversation_filing_forbidden": {
+    // Ruling 5: one shared `status` column means only the recipient may file.
+    en: "Only the recipient of a conversation can archive it.",
+    it: "Solo il destinatario di una conversazione può archiviarla.",
+    es: "Solo el destinatario de una conversación puede archivarla.",
+  },
+  "messages.error.not_broker_member": {
+    // Ruling 15: the session lists a membership whose organization may be
+    // SUSPENDED (accounts/selectors.py:63-65 does not filter on broker status,
+    // while accounts/services.py:150-159 requires ACTIVE). Name both real causes
+    // instead of showing "Something went wrong".
+    en: "This broker organization is not available to your account. It may be suspended, or your membership may have been removed.",
+    it: "Questa organizzazione broker non è disponibile per il tuo account. Potrebbe essere sospesa oppure la tua iscrizione potrebbe essere stata rimossa.",
+    es: "Esta organización de bróker no está disponible para tu cuenta. Puede estar suspendida o tu membresía puede haberse eliminado.",
+  },
   "messages.error.not_found": {
     en: "This conversation is not available.",
     it: "Questa conversazione non è disponibile.",
@@ -1818,7 +2354,7 @@ export function formatConversationMessage(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd frontend && pnpm vitest run src/lib/i18n/conversations.test.ts`
-Expected: PASS — 8 tests.
+Expected: PASS — **9 tests**.
 
 Run: `cd frontend && pnpm lint`
 Expected: no errors.
@@ -1842,8 +2378,10 @@ git commit -m "feat(messages): EN/IT/ES dictionary for the broker messages scree
 - Produces:
   - Types `ConversationStatus`, `ConversationType`, `ConversationContextRef`, `ConversationRow`, `MessageRow`, `BrokerDashboard`, `ConversationFilter`
   - `CONVERSATION_FILTERS: readonly ConversationFilter[]`
+  - `resolveFilter(raw: string | undefined) -> ConversationFilter`
   - `conversationListQuery(filter, options) -> string`
   - `fetchConversations(filter, options?) -> Promise<Paginated<ConversationRow>>`
+  - `fetchConversation(conversationId) -> Promise<ConversationRow>`
   - `fetchThread(conversationId, page?) -> Promise<Paginated<MessageRow>>`
   - `postReply(conversationId, body) -> Promise<MessageRow>`
   - `markConversationRead(conversationId) -> Promise<{ marked_read: number }>`
@@ -1865,11 +2403,13 @@ import {
   CONVERSATION_FILTERS,
   conversationListQuery,
   fetchBrokerDashboard,
+  fetchConversation,
   fetchConversations,
   fetchThread,
   markConversationRead,
   messageErrorKey,
   postReply,
+  resolveFilter,
   setConversationStatus,
 } from "@/lib/api/conversations";
 
@@ -1938,6 +2478,29 @@ describe("fetchConversations", () => {
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/conversations/?type=BROKER_INQUIRY&type=PROFESSIONAL_INQUIRY&broker=b-1",
     );
+  });
+});
+
+describe("resolveFilter", () => {
+  it("accepts a known filter, case-insensitively", () => {
+    expect(resolveFilter("ARCHIVED")).toBe("ARCHIVED");
+    expect(resolveFilter("unread")).toBe("UNREAD");
+  });
+
+  it("falls back to ALL for anything else", () => {
+    expect(resolveFilter(undefined)).toBe("ALL");
+    expect(resolveFilter("")).toBe("ALL");
+    expect(resolveFilter("NONSENSE")).toBe("ALL");
+  });
+});
+
+describe("fetchConversation", () => {
+  it("calls the detail endpoint rather than scanning the inbox", async () => {
+    // Ruling 14: ConversationPagination.page_size is 20, so finding a row by
+    // paging the inbox is silently wrong for anyone with 21 conversations.
+    apiFetch.mockResolvedValue({ id: "c-1" });
+    await fetchConversation("c-1");
+    expect(apiFetch).toHaveBeenCalledWith("/api/v1/conversations/c-1/");
   });
 });
 
@@ -2022,6 +2585,15 @@ describe("messageErrorKey", () => {
       "messages.error.unexpected_error",
     );
   });
+
+  it("maps the two codes this phase's own endpoints introduce", () => {
+    expect(
+      messageErrorKey(new ApiError(403, "conversation_filing_forbidden", "x")),
+    ).toBe("messages.error.conversation_filing_forbidden");
+    expect(messageErrorKey(new ApiError(403, "not_broker_member", "x"))).toBe(
+      "messages.error.not_broker_member",
+    );
+  });
 });
 ```
 
@@ -2080,6 +2652,10 @@ export interface ConversationRow {
   context: ConversationContextRef;
   counterparty_name: string;
   last_message_excerpt: string;
+  /** Whose seat this is. Only the RECIPIENT side may archive (ruling 5), and
+   * spec 2.1 requires that control's visibility to have a backend source
+   * rather than being inferred from display text. */
+  viewer_is_initiator: boolean;
 }
 
 export interface MessageRow {
@@ -2129,6 +2705,20 @@ export const FILTER_MESSAGE_KEYS: Record<ConversationFilter, string> = {
   PROFILE: "messages.filter.profile_inquiries",
   ARCHIVED: "messages.filter.archived",
 };
+
+/** Turn a `?filter=` query value into a filter, defaulting to ALL.
+ *
+ * Lives HERE, beside CONVERSATION_FILTERS, and not in a page module: both the
+ * server page at /dashboard/messages/ and the client page at
+ * /dashboard/broker/messages/ need it, and a client component cannot import
+ * from a server page module (that module also exports `generateMetadata` and
+ * `dynamic`, which are route config, not values). */
+export function resolveFilter(raw: string | undefined): ConversationFilter {
+  const candidate = (raw ?? "").toUpperCase();
+  return (CONVERSATION_FILTERS as readonly string[]).includes(candidate)
+    ? (candidate as ConversationFilter)
+    : "ALL";
+}
 
 interface ListOptions {
   brokerId?: string;
@@ -2185,6 +2775,16 @@ export async function fetchConversations(
   );
 }
 
+/** One conversation's row, from the detail endpoint Task 1 adds.
+ *
+ * Never by scanning `fetchConversations("ALL")`: that returns one page of 20,
+ * so a broker's 21st conversation would report "not available" (ruling 14). */
+export async function fetchConversation(
+  conversationId: string,
+): Promise<ConversationRow> {
+  return apiFetch<ConversationRow>(`/api/v1/conversations/${conversationId}/`);
+}
+
 export async function fetchThread(
   conversationId: string,
   page?: number,
@@ -2239,6 +2839,12 @@ const KNOWN_ERROR_CODES = new Set([
   "conversation_closed",
   "conversation_superseded",
   "invalid_conversation_status",
+  "conversation_filing_forbidden",
+  // Ruling 15: the session payload lists memberships regardless of the
+  // organization's status, so a member of a SUSPENDED brokerage reaches a screen
+  // whose API then refuses them. Without this entry the screen would say
+  // "Something went wrong" for a condition that has a precise explanation.
+  "not_broker_member",
   "not_found",
   "validation_error",
 ]);
@@ -2260,7 +2866,7 @@ export function messageErrorKey(error: unknown): string {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd frontend && pnpm vitest run src/lib/api/conversations.test.ts`
-Expected: PASS — 19 tests.
+Expected: PASS — **23 tests**.
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit`
 Expected: no errors.
@@ -2393,18 +2999,25 @@ const ROW: ConversationRow = {
   },
   counterparty_name: "Ada Rossi",
   last_message_excerpt: "I would like to arrange a viewing next week.",
+  viewer_is_initiator: false,
 };
 
 describe("ConversationRowCard", () => {
   it("shows every field spec 28's row names", () => {
-    render(<ConversationRowCard locale="en" row={ROW} href="/dashboard/messages/c-1/" />);
+    const { container } = render(
+      <ConversationRowCard locale="en" row={ROW} href="/dashboard/messages/c-1/" />,
+    );
     expect(screen.getByText("Ada Rossi")).toBeInTheDocument();
     expect(screen.getByText("Phase19 Alpha Brokers")).toBeInTheDocument();
     expect(
       screen.getByText("I would like to arrange a viewing next week."),
     ).toBeInTheDocument();
     expect(screen.getByText("2 unread")).toBeInTheDocument();
-    expect(screen.getByRole("time")).toHaveAttribute(
+    // querySelector, not getByRole("time"): `time` is not an ARIA role (it is
+    // not in the ARIA role vocabulary, and jsx-a11y's no-noninteractive-element-
+    // to-interactive-role / aria-role rules reject `role="time"` on the
+    // element), so there is no role to query and none to add.
+    expect(container.querySelector("time")).toHaveAttribute(
       "datetime",
       "2026-09-18T09:30:00Z",
     );
@@ -2442,15 +3055,15 @@ describe("ConversationRowCard", () => {
     expect(screen.getByText("Archived")).toBeInTheDocument();
   });
 
-  it("renders a dash instead of a broken date when there is no last message", () => {
-    render(
+  it("renders no timestamp at all when there is no last message", () => {
+    const { container } = render(
       <ConversationRowCard
         locale="en"
         row={{ ...ROW, last_message_at: null }}
         href="/x/"
       />,
     );
-    expect(screen.queryByRole("time")).not.toBeInTheDocument();
+    expect(container.querySelector("time")).toBeNull();
   });
 
   it("never renders an email address or a phone number", () => {
@@ -2490,6 +3103,7 @@ function row(id: string, name: string): ConversationRow {
     context: { type: "BROKER", id: "b-1", label: "Alpha", url: null },
     counterparty_name: name,
     last_message_excerpt: "Hello there, about the boat.",
+    viewer_is_initiator: false,
   };
 }
 
@@ -2640,10 +3254,10 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
           </span>
         ) : null}
         {row.last_message_at ? (
+          // No `role` attribute: `time` is not an ARIA role, and jsx-a11y
+          // rejects inventing one. The test addresses this with
+          // container.querySelector("time").
           <time
-            // `role="time"` is not implicit on <time>; the test queries by role
-            // so the timestamp stays addressable without a brittle text match.
-            role="time"
             dateTime={row.last_message_at}
             className="ml-auto font-body-sm text-on-surface-variant"
           >
@@ -2696,7 +3310,7 @@ export default function ConversationList({ locale, rows, hrefFor }: Props) {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run src/components/messages/`
-Expected: PASS — 12 tests.
+Expected: PASS — **12 tests** (4 filters, 6 row, 2 list).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit`
 Expected: no errors.
@@ -2897,6 +3511,7 @@ const CONVERSATION: ConversationRow = {
   context: { type: "BROKER", id: "b-1", label: "Phase19 Alpha Brokers", url: null },
   counterparty_name: "Ada Rossi",
   last_message_excerpt: "Hello",
+  viewer_is_initiator: false,
 };
 
 function message(id: string, overrides: Partial<MessageRow> = {}): MessageRow {
@@ -2969,6 +3584,28 @@ describe("ConversationThread", () => {
       />,
     );
     expect(screen.getByText("System note")).toBeInTheDocument();
+  });
+
+  it("offers no archive control to the sender of the inquiry", async () => {
+    // Ruling 5: Conversation has ONE status column, so only the recipient side
+    // may file. The server refuses with `conversation_filing_forbidden`; this is
+    // the UI half, driven by the backend's own `viewer_is_initiator` rather than
+    // by the client guessing from display text (spec 2.1).
+    render(
+      <ConversationThread
+        locale="en"
+        conversation={{ ...CONVERSATION, viewer_is_initiator: true }}
+        messages={[]}
+        onSend={vi.fn()}
+        onToggleArchive={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Move to inbox" }),
+    ).not.toBeInTheDocument();
+    // …but they can still reply. Filing is not participation.
+    expect(screen.getByLabelText("Reply")).toBeEnabled();
   });
 
   it("offers Archive on an open thread and Move to inbox on an archived one", async () => {
@@ -3235,6 +3872,13 @@ export default function ConversationThread({
 }: Props) {
   const isOpen = conversation.status === "OPEN";
   const archived = conversation.status === "ARCHIVED";
+  // Ruling 5: only the recipient side may file, because spec 11.8 gives
+  // Conversation one shared `status` column and a sender who archived would be
+  // pulling a live lead out of the brokerage's default inbox. `viewer_is_initiator`
+  // comes from the server (spec 2.1); this is the control's visibility, and
+  // messaging.services.set_conversation_status is the rule.
+  const canFile =
+    conversation.status !== "BLOCKED" && !conversation.viewer_is_initiator;
 
   return (
     <div className="grid gap-space-lg lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -3251,7 +3895,7 @@ export default function ConversationThread({
               {tConversations(locale, "messages.archived_badge")}
             </span>
           ) : null}
-          {conversation.status !== "BLOCKED" ? (
+          {canFile ? (
             <button
               type="button"
               onClick={() => void onToggleArchive(archived ? "OPEN" : "ARCHIVED")}
@@ -3308,7 +3952,7 @@ export default function ConversationThread({
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run src/components/messages/`
-Expected: PASS — 29 tests (12 from Task 5, 17 from this task).
+Expected: PASS — **30 tests** (12 from Task 5, 18 from this task).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit`
 Expected: no errors.
@@ -3329,10 +3973,12 @@ git commit -m "feat(messages): thread view, context panel and reply composer (Ph
 - Create: `frontend/src/components/messages/ThreadScreen.tsx` + `.test.tsx`
 - Create: `frontend/src/app/dashboard/messages/page.tsx` + `page.test.tsx`
 - Create: `frontend/src/app/dashboard/messages/[conversationId]/page.tsx` + `page.test.tsx`
+- Modify: `frontend/src/components/auth/RequirePermission.tsx` + `.test.tsx` (ruling 13 — one optional prop)
 
 **Interfaces:**
-- Consumes: everything from Tasks 4–6; `useSession` from `@/lib/auth/session`; `safeNextUrl` from `@/lib/auth/next-url`.
+- Consumes: everything from Tasks 4–6; `useSession` from `@/lib/auth/session`; `RequirePermission` from `@/components/auth/RequirePermission`.
 - Produces:
+  - `RequirePermission`'s `permission` prop becomes optional; with it absent the component is a sign-in guard and nothing more
   - `MessagesScreen` — props `{ brokerId?: string; basePath: string; filter: ConversationFilter }`
   - `ThreadScreen` — props `{ conversationId: string; basePath: string }`
   - Routes `/dashboard/messages/` and `/dashboard/messages/<conversationId>/`
@@ -3340,6 +3986,94 @@ git commit -m "feat(messages): thread view, context panel and reply composer (Ph
 **Note (ruling 2, restated where it is implemented).** Phase 6's `SENDER_CONVERSATION_URL_TEMPLATE` is `/dashboard/messages/{conversation_id}/` and is returned as `next_url` from every inquiry and written into every `Notification.target_url`. These two routes make that link real. **`SENDER_CONVERSATION_URL_TEMPLATE` is not changed.**
 
 **Note (session timing).** `SessionProvider` trades the refresh cookie for an access token *before* the first `/api/v1/session/` call, so on a fresh load `loading` is true while a signed-in broker still looks like a guest. Both screens branch on `loading` first and fetch nothing until it is false; a fetch fired earlier would carry no `Authorization` header and 401.
+
+**Note (ruling 13 — the guard, and why the screens still keep their guest branch).** The two route files wrap their screen in `<RequirePermission>`, which is Phase 3's existing redirect-to-`/login?next=…` component, so a guest lands in the sign-in flow instead of a dead-end sentence. The screens **keep** their own `!authenticated` branch anyway: `RequirePermission` performs the redirect inside a `useEffect` and returns `null` in the meantime, so the screen must still be safe to render for an unauthenticated session, and the components are used directly in tests without the wrapper. Belt and braces here is one line, and the alternative is a screen that fetches during the redirect frame.
+
+- [ ] **Step 0: Make `RequirePermission`'s `permission` prop optional**
+
+Three edits to `frontend/src/components/auth/RequirePermission.tsx`, none of which change behaviour for any existing caller (all of them pass a permission):
+
+```tsx
+interface Props {
+  /** Optional. When omitted, this component is purely the project's sign-in
+   * guard: it redirects an unauthenticated visitor to /login?next=… and renders
+   * nothing else of its own.
+   *
+   * Phase 19's dashboard routes need exactly that and cannot pass a permission.
+   * `PermissionKey` is spec §5's capability table, and §5 has NO row for reading
+   * conversations — `can_read_messages` is a §11.1 `BrokerMembership` column,
+   * deliberately not surfaced as a session permission. The nearest candidate,
+   * `submit_inquiry`, evaluates to `verified` (accounts/selectors.py:38), so
+   * using it would hide the inbox from a broker member with an unverified email
+   * who has perfectly readable conversations — a client-side authorization rule
+   * the server does not hold, which spec §2.2 forbids. The real authorization
+   * stays server-side in `conversations_visible_to` and `IsBrokerMember`. */
+  permission?: PermissionKey;
+  children: React.ReactNode;
+}
+```
+
+```tsx
+export default function RequirePermission({ permission, children }: Props) {
+```
+
+```tsx
+  const allowed = permission === undefined || can(permission);
+```
+
+Append two cases to `frontend/src/components/auth/RequirePermission.test.tsx`, inside its existing `describe("RequirePermission", …)`. They use that file's own helpers exactly as written — the `session(overrides)` factory, `mockSession(value, loading?)`, the hoisted `replace` spy, and its `usePathname` mock, which returns `"/dashboard/private-seller/"`. **Nothing existing is edited.**
+
+```tsx
+  it("with no permission, still redirects a guest to sign in", async () => {
+    // Ruling 13: this is the shape Phase 19's dashboard routes use. The
+    // expected next-url is the file's own usePathname mock value, not a Phase 19
+    // path — the assertion is about the redirect, not about the route.
+    mockSession(session());
+    render(
+      <RequirePermission>
+        <p>inbox</p>
+      </RequirePermission>,
+    );
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/login?next=%2Fdashboard%2Fprivate-seller%2F",
+      ),
+    );
+    expect(screen.queryByText("inbox")).not.toBeInTheDocument();
+  });
+
+  it("with no permission, renders children for an authenticated user holding none", () => {
+    // ALL_FALSE: the guard is "signed in", not a capability. The capability that
+    // matters (can_read_messages) is enforced server-side and has no
+    // PermissionKey by design — spec §5's table has no row for it.
+    mockSession(
+      session({
+        authenticated: true,
+        user: {
+          id: "1",
+          email: "member@example.com",
+          full_name: "",
+          primary_role: "BROKER",
+          locale: "EN",
+          email_verified: false,
+          is_active: true,
+        },
+      }),
+    );
+    render(
+      <RequirePermission>
+        <p>inbox</p>
+      </RequirePermission>,
+    );
+    expect(screen.getByText("inbox")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+```
+
+Note `email_verified: false` in the second case: that is the exact account `submit_inquiry` would have excluded, and the reason ruling 13 rejects borrowing that permission.
+
+Run: `cd frontend && pnpm vitest run src/components/auth/`
+Expected: PASS — **6 tests** (the file's existing 4, unedited, plus these 2).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3397,6 +4131,7 @@ const ROW = {
   context: { type: "BROKER", id: "b-1", label: "Alpha", url: null },
   counterparty_name: "Ada Rossi",
   last_message_excerpt: "Hello about the boat, please.",
+  viewer_is_initiator: false,
 };
 
 afterEach(() => {
@@ -3491,10 +4226,37 @@ describe("MessagesScreen", () => {
   });
 
   it("asks a guest to sign in rather than fetching", () => {
+    // The route wraps this screen in RequirePermission, which redirects a guest
+    // to /login (ruling 13). This branch covers the frame before that redirect
+    // lands, and the component's use in tests without the wrapper.
     session(false, false);
     render(<MessagesScreen basePath="/dashboard/messages/" filter="ALL" />);
     expect(fetchConversationsMock).not.toHaveBeenCalled();
     expect(screen.getByText("Sign in to see your messages.")).toBeInTheDocument();
+  });
+
+  it("explains a suspended or removed membership instead of a generic failure", async () => {
+    // Ruling 15: accounts/selectors.py:63-65 lists memberships regardless of the
+    // organization's status while accounts/services.py:150-159 requires ACTIVE,
+    // so a member of a SUSPENDED brokerage reaches this screen and is refused.
+    // "Something went wrong" would be true and useless.
+    session(false);
+    fetchConversationsMock.mockRejectedValue(
+      new ApiError(403, "not_broker_member", "You are not a member."),
+    );
+    render(
+      <MessagesScreen
+        brokerId="b-1"
+        basePath="/dashboard/broker/messages/"
+        filter="ALL"
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/suspended, or your membership may have been removed/),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("You are not a member.")).not.toBeInTheDocument();
   });
 });
 ```
@@ -3510,14 +4272,14 @@ import { ApiError } from "@/lib/api/client";
 
 const {
   useSessionMock,
-  fetchConversationsMock,
+  fetchConversationMock,
   fetchThreadMock,
   markReadMock,
   postReplyMock,
   setStatusMock,
 } = vi.hoisted(() => ({
   useSessionMock: vi.fn(),
-  fetchConversationsMock: vi.fn(),
+  fetchConversationMock: vi.fn(),
   fetchThreadMock: vi.fn(),
   markReadMock: vi.fn(),
   postReplyMock: vi.fn(),
@@ -3530,7 +4292,7 @@ vi.mock("@/lib/api/conversations", async (importOriginal) => {
     await importOriginal<typeof import("@/lib/api/conversations")>();
   return {
     ...actual,
-    fetchConversations: (...a: unknown[]) => fetchConversationsMock(...a),
+    fetchConversation: (...a: unknown[]) => fetchConversationMock(...a),
     fetchThread: (...a: unknown[]) => fetchThreadMock(...a),
     markConversationRead: (...a: unknown[]) => markReadMock(...a),
     postReply: (...a: unknown[]) => postReplyMock(...a),
@@ -3554,6 +4316,7 @@ const CONVERSATION = {
   context: { type: "BROKER", id: "b-1", label: "Alpha", url: null },
   counterparty_name: "Ada Rossi",
   last_message_excerpt: "Hello",
+  viewer_is_initiator: false,
 };
 
 function readySession() {
@@ -3571,7 +4334,7 @@ function readySession() {
 afterEach(() => {
   [
     useSessionMock,
-    fetchConversationsMock,
+    fetchConversationMock,
     fetchThreadMock,
     markReadMock,
     postReplyMock,
@@ -3582,12 +4345,7 @@ afterEach(() => {
 describe("ThreadScreen", () => {
   it("loads the thread and marks it read once", async () => {
     readySession();
-    fetchConversationsMock.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [CONVERSATION],
-    });
+    fetchConversationMock.mockResolvedValue(CONVERSATION);
     fetchThreadMock.mockResolvedValue({
       count: 1,
       next: null,
@@ -3613,11 +4371,29 @@ describe("ThreadScreen", () => {
     expect(markReadMock).toHaveBeenCalledWith("c-1");
   });
 
+  it("reads the conversation from the detail endpoint, never by scanning the inbox", async () => {
+    // Ruling 14. The inbox returns one page of 20, so a scan silently fails for
+    // a broker's 21st conversation — a bug no fixture-sized test would catch,
+    // which is why the assertion is about WHICH call is made.
+    readySession();
+    fetchConversationMock.mockResolvedValue(CONVERSATION);
+    fetchThreadMock.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    });
+    markReadMock.mockResolvedValue({ marked_read: 0 });
+
+    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/messages/" />);
+    await waitFor(() => expect(fetchConversationMock).toHaveBeenCalledWith("c-1"));
+  });
+
   it("shows the not-found copy for a conversation the caller may not see", async () => {
     // Spec 33.1: the server answers 404 rather than 403 so an id cannot be
     // probed. The screen must not invent a different story.
     readySession();
-    fetchConversationsMock.mockRejectedValue(new ApiError(404, "not_found", "x"));
+    fetchConversationMock.mockRejectedValue(new ApiError(404, "not_found", "x"));
     fetchThreadMock.mockRejectedValue(new ApiError(404, "not_found", "x"));
     render(<ThreadScreen conversationId="c-9" basePath="/dashboard/messages/" />);
     await waitFor(() =>
@@ -3630,12 +4406,7 @@ describe("ThreadScreen", () => {
   it("posts a reply and appends it without a full reload", async () => {
     const userEvent = (await import("@testing-library/user-event")).default;
     readySession();
-    fetchConversationsMock.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [CONVERSATION],
-    });
+    fetchConversationMock.mockResolvedValue(CONVERSATION);
     fetchThreadMock.mockResolvedValue({
       count: 0,
       next: null,
@@ -3669,12 +4440,7 @@ describe("ThreadScreen", () => {
   it("surfaces a 409 conversation_closed in the reader's language", async () => {
     const userEvent = (await import("@testing-library/user-event")).default;
     readySession();
-    fetchConversationsMock.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [CONVERSATION],
-    });
+    fetchConversationMock.mockResolvedValue(CONVERSATION);
     fetchThreadMock.mockResolvedValue({
       count: 0,
       next: null,
@@ -3701,12 +4467,7 @@ describe("ThreadScreen", () => {
   it("archives through the status endpoint and re-renders the new state", async () => {
     const userEvent = (await import("@testing-library/user-event")).default;
     readySession();
-    fetchConversationsMock.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [CONVERSATION],
-    });
+    fetchConversationMock.mockResolvedValue(CONVERSATION);
     fetchThreadMock.mockResolvedValue({
       count: 0,
       next: null,
@@ -3733,12 +4494,7 @@ describe("ThreadScreen", () => {
 
   it("links back to the inbox it was opened from", async () => {
     readySession();
-    fetchConversationsMock.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [CONVERSATION],
-    });
+    fetchConversationMock.mockResolvedValue(CONVERSATION);
     fetchThreadMock.mockResolvedValue({
       count: 0,
       next: null,
@@ -3778,7 +4534,25 @@ vi.mock("@/components/messages/MessagesScreen", () => ({
   ),
 }));
 
+// The guard is Phase 3's and has its own tests; here it is a passthrough so
+// these assertions are about this route's own wiring. Its presence IS asserted,
+// once, by the first test below.
+vi.mock("@/components/auth/RequirePermission", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="guard">{children}</div>
+  ),
+}));
+
 describe("/dashboard/messages/", () => {
+  it("wraps the screen in the sign-in guard", async () => {
+    // Ruling 13: a guest must land in /login?next=…, not on a dead-end
+    // sentence. Without this assertion the guard could be dropped silently.
+    render(await MessagesPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByTestId("guard")).toContainElement(
+      screen.getByTestId("screen"),
+    );
+  });
+
   it("awaits searchParams and defaults to the ALL filter", async () => {
     // Next 16: searchParams is a Promise. Verify against
     // node_modules/next/dist/docs/ before changing this signature.
@@ -3823,12 +4597,25 @@ vi.mock("@/components/messages/ThreadScreen", () => ({
   ),
 }));
 
+vi.mock("@/components/auth/RequirePermission", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="guard">{children}</div>
+  ),
+}));
+
 describe("/dashboard/messages/<id>/", () => {
   it("awaits params and passes the conversation id through", async () => {
     render(await ThreadPage({ params: Promise.resolve({ conversationId: "c-1" }) }));
     const el = screen.getByTestId("thread");
     expect(el).toHaveAttribute("data-conversation-id", "c-1");
     expect(el).toHaveAttribute("data-base-path", "/dashboard/messages/");
+  });
+
+  it("wraps the thread in the sign-in guard", async () => {
+    render(await ThreadPage({ params: Promise.resolve({ conversationId: "c-1" }) }));
+    expect(screen.getByTestId("guard")).toContainElement(
+      screen.getByTestId("thread"),
+    );
   });
 });
 ```
@@ -3969,7 +4756,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import ConversationThread from "@/components/messages/ConversationThread";
 import {
-  fetchConversations,
+  fetchConversation,
   fetchThread,
   markConversationRead,
   messageErrorKey,
@@ -3992,20 +4779,6 @@ function sessionLocale(locale: string | undefined): Locale {
   return lower === "it" || lower === "es" ? (lower as Locale) : DEFAULT_LOCALE;
 }
 
-/** Find this conversation's row.
- *
- * There is no `GET /api/v1/conversations/<id>/` endpoint — Phase 6 shipped the
- * list and the thread, not a conversation detail — so the row comes from the
- * `status=ALL` inbox, which is already visibility-scoped to this viewer. That is
- * deliberate rather than a workaround: reusing the inbox queryset means the
- * subject, status, context and counterparty a thread shows can never disagree
- * with the row the list showed. If a later phase adds a detail endpoint, this is
- * the one function to change. */
-async function loadConversation(id: string): Promise<ConversationRow | null> {
-  const page = await fetchConversations("ALL", {});
-  return page.results.find((row) => row.id === id) ?? null;
-}
-
 export default function ThreadScreen({ conversationId, basePath }: Props) {
   const { session, loading } = useSession();
   const [conversation, setConversation] = useState<ConversationRow | null>(null);
@@ -4019,14 +4792,15 @@ export default function ThreadScreen({ conversationId, basePath }: Props) {
   const load = useCallback(async () => {
     setFetching(true);
     try {
+      // fetchConversation, NOT a scan of fetchConversations("ALL"): the inbox
+      // returns one page of 20, so scanning it would report "not available" for
+      // a broker's 21st conversation (ruling 14). Both calls are
+      // visibility-scoped server-side and both answer 404 for a thread this
+      // viewer may not see.
       const [row, thread] = await Promise.all([
-        loadConversation(conversationId),
+        fetchConversation(conversationId),
         fetchThread(conversationId),
       ]);
-      if (row === null) {
-        setErrorKey("messages.error.not_found");
-        return;
-      }
       setConversation(row);
       setMessages(thread.results);
       setErrorKey(null);
@@ -4128,11 +4902,9 @@ export default function ThreadScreen({ conversationId, basePath }: Props) {
 ```tsx
 import type { Metadata } from "next";
 
+import RequirePermission from "@/components/auth/RequirePermission";
 import MessagesScreen from "@/components/messages/MessagesScreen";
-import {
-  CONVERSATION_FILTERS,
-  type ConversationFilter,
-} from "@/lib/api/conversations";
+import { resolveFilter } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
@@ -4152,13 +4924,6 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function resolveFilter(raw: string | undefined): ConversationFilter {
-  const candidate = (raw ?? "").toUpperCase();
-  return (CONVERSATION_FILTERS as readonly string[]).includes(candidate)
-    ? (candidate as ConversationFilter)
-    : "ALL";
-}
-
 export default async function MessagesPage({
   searchParams,
 }: {
@@ -4167,10 +4932,16 @@ export default async function MessagesPage({
   const params = await searchParams;
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <MessagesScreen
-        basePath="/dashboard/messages/"
-        filter={resolveFilter(first(params.filter))}
-      />
+      {/* Ruling 13: no permission argument. There is no PermissionKey for
+          "has conversations", and the real authorization is server-side. This
+          is the sign-in redirect every other private route in this project
+          uses. */}
+      <RequirePermission>
+        <MessagesScreen
+          basePath="/dashboard/messages/"
+          filter={resolveFilter(first(params.filter))}
+        />
+      </RequirePermission>
     </main>
   );
 }
@@ -4179,6 +4950,7 @@ export default async function MessagesPage({
 `frontend/src/app/dashboard/messages/[conversationId]/page.tsx`:
 
 ```tsx
+import RequirePermission from "@/components/auth/RequirePermission";
 import ThreadScreen from "@/components/messages/ThreadScreen";
 
 export const dynamic = "force-dynamic";
@@ -4190,7 +4962,12 @@ export default async function ThreadPage({ params }: { params: Params }) {
   const { conversationId } = await params;
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <ThreadScreen conversationId={conversationId} basePath="/dashboard/messages/" />
+      <RequirePermission>
+        <ThreadScreen
+          conversationId={conversationId}
+          basePath="/dashboard/messages/"
+        />
+      </RequirePermission>
     </main>
   );
 }
@@ -4198,8 +4975,8 @@ export default async function ThreadPage({ params }: { params: Params }) {
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd frontend && pnpm vitest run src/components/messages/ src/app/dashboard/`
-Expected: PASS — 45 tests (29 from Tasks 5–6, 12 screen tests, 4 route tests).
+Run: `cd frontend && pnpm vitest run src/components/messages/ src/app/dashboard/ src/components/auth/`
+Expected: PASS — **56 tests**, made up of: 44 under `components/messages/` (30 from Tasks 5–6, plus 7 `MessagesScreen` and 7 `ThreadScreen`), 6 under `app/dashboard/` (4 in the inbox route, 2 in the thread route), and 6 under `components/auth/` (the 4 that were already there, unedited, plus this task's 2).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit && pnpm build`
 Expected: no errors; the build output lists `/dashboard/messages` and `/dashboard/messages/[conversationId]`.
@@ -4385,7 +5162,9 @@ describe("primaryBrokerMembership", () => {
 `frontend/src/app/dashboard/broker/messages/page.test.tsx`:
 
 ```tsx
-import { render, screen } from "@testing-library/react";
+import { Suspense } from "react";
+
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import BrokerMessagesPage from "@/app/dashboard/broker/messages/page";
@@ -4403,6 +5182,29 @@ vi.mock("@/components/messages/MessagesScreen", () => ({
     />
   ),
 }));
+vi.mock("@/components/auth/RequirePermission", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="guard">{children}</div>
+  ),
+}));
+
+/** Render the page as an ELEMENT, not by calling it.
+ *
+ * This page is a `"use client"` component: it calls `use(searchParams)` and
+ * `useSession()`. `render(await BrokerMessagesPage({...}))` invokes it as a
+ * plain function outside React's render phase, which throws "Invalid hook
+ * call" — and `use()` on a pending promise must suspend, so it needs a
+ * Suspense boundary above it. The server pages under /dashboard/messages/ are
+ * async server components and ARE called directly in their own tests; the two
+ * shapes are different on purpose and must not be copied across.
+ */
+function renderPage(params: Record<string, string | string[] | undefined> = {}) {
+  return render(
+    <Suspense fallback={<p>loading</p>}>
+      <BrokerMessagesPage searchParams={Promise.resolve(params)} />
+    </Suspense>,
+  );
+}
 
 function mockSession(memberships: unknown[]) {
   useSessionMock.mockReturnValue({
@@ -4437,8 +5239,8 @@ afterEach(() => useSessionMock.mockReset());
 describe("/dashboard/broker/messages/", () => {
   it("scopes the inbox to the caller's organization", async () => {
     mockSession([MEMBERSHIP]);
-    render(await BrokerMessagesPage({ searchParams: Promise.resolve({}) }));
-    const el = screen.getByTestId("screen");
+    renderPage();
+    const el = await screen.findByTestId("screen");
     expect(el).toHaveAttribute("data-broker-id", "b-1");
     expect(el).toHaveAttribute("data-base-path", "/dashboard/broker/messages/");
     expect(el).toHaveAttribute("data-filter", "ALL");
@@ -4446,23 +5248,40 @@ describe("/dashboard/broker/messages/", () => {
 
   it("passes a known filter through", async () => {
     mockSession([MEMBERSHIP]);
-    render(
-      await BrokerMessagesPage({
-        searchParams: Promise.resolve({ filter: "UNREAD" }),
-      }),
+    renderPage({ filter: "UNREAD" });
+    expect(await screen.findByTestId("screen")).toHaveAttribute(
+      "data-filter",
+      "UNREAD",
     );
-    expect(screen.getByTestId("screen")).toHaveAttribute("data-filter", "UNREAD");
+  });
+
+  it("falls back to ALL for an unknown filter", async () => {
+    mockSession([MEMBERSHIP]);
+    renderPage({ filter: "NONSENSE" });
+    expect(await screen.findByTestId("screen")).toHaveAttribute(
+      "data-filter",
+      "ALL",
+    );
+  });
+
+  it("wraps the screen in the sign-in guard", async () => {
+    mockSession([MEMBERSHIP]);
+    renderPage();
+    await screen.findByTestId("screen");
+    expect(screen.getByTestId("guard")).toContainElement(
+      screen.getByTestId("screen"),
+    );
   });
 
   it("explains itself instead of rendering an inbox for a non-member", async () => {
     mockSession([]);
-    render(await BrokerMessagesPage({ searchParams: Promise.resolve({}) }));
+    renderPage();
+    await waitFor(() =>
+      expect(
+        screen.getByText("Your account is not a member of a broker organization."),
+      ).toBeInTheDocument(),
+    );
     expect(screen.queryByTestId("screen")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Your account is not a member of a broker organization.",
-      ),
-    ).toBeInTheDocument();
   });
 });
 ```
@@ -4484,9 +5303,16 @@ vi.mock("@/components/messages/ThreadScreen", () => ({
     />
   ),
 }));
+vi.mock("@/components/auth/RequirePermission", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="guard">{children}</div>
+  ),
+}));
 
 describe("/dashboard/broker/messages/<id>/", () => {
   it("awaits params and sends the reader back to the broker inbox", async () => {
+    // Called directly, unlike the inbox page beside it: this one is an async
+    // SERVER component with no hooks. See the comment in its page.tsx.
     render(
       await BrokerThreadPage({
         params: Promise.resolve({ conversationId: "c-1" }),
@@ -4495,6 +5321,17 @@ describe("/dashboard/broker/messages/<id>/", () => {
     const el = screen.getByTestId("thread");
     expect(el).toHaveAttribute("data-conversation-id", "c-1");
     expect(el).toHaveAttribute("data-base-path", "/dashboard/broker/messages/");
+  });
+
+  it("wraps the thread in the sign-in guard", async () => {
+    render(
+      await BrokerThreadPage({
+        params: Promise.resolve({ conversationId: "c-1" }),
+      }),
+    );
+    expect(screen.getByTestId("guard")).toContainElement(
+      screen.getByTestId("thread"),
+    );
   });
 });
 ```
@@ -4697,13 +5534,20 @@ export default function BrokerDashboardLayout({
 ```tsx
 "use client";
 
-import MessagesScreen from "@/components/messages/MessagesScreen";
+import { use } from "react";
+
+import RequirePermission from "@/components/auth/RequirePermission";
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
-import { resolveFilter } from "@/app/dashboard/messages/page";
+import MessagesScreen from "@/components/messages/MessagesScreen";
+// resolveFilter comes from lib/api/conversations, NOT from
+// app/dashboard/messages/page.tsx. That module is a server route file: it also
+// exports `generateMetadata` and `dynamic`, which are route configuration
+// rather than values, and importing it from a "use client" module drags a
+// server page into the client graph and breaks the build.
+import { resolveFilter } from "@/lib/api/conversations";
 import { useSession } from "@/lib/auth/session";
 import { tConversations } from "@/lib/i18n/conversations";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
-import { use } from "react";
 
 // Next 16: searchParams is a Promise, including in a client component, where it
 // is unwrapped with React's `use()`.
@@ -4730,29 +5574,34 @@ export default function BrokerMessagesPage({
 
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      {membership === null ? (
-        <p className="font-body-md text-on-surface-variant">
-          {tConversations(locale, "broker.dashboard.no_organization")}
-        </p>
-      ) : (
-        <MessagesScreen
-          brokerId={membership.broker_id}
-          basePath="/dashboard/broker/messages/"
-          filter={resolveFilter(first(params.filter))}
-        />
-      )}
+      <RequirePermission>
+        {membership === null ? (
+          <p className="font-body-md text-on-surface-variant">
+            {tConversations(locale, "broker.dashboard.no_organization")}
+          </p>
+        ) : (
+          <MessagesScreen
+            brokerId={membership.broker_id}
+            basePath="/dashboard/broker/messages/"
+            filter={resolveFilter(first(params.filter))}
+          />
+        )}
+      </RequirePermission>
     </main>
   );
 }
 ```
 
-**Implementer's note on `resolveFilter`'s import.** It is a pure helper exported from a server page module. If Next.js objects to importing from `app/dashboard/messages/page.tsx` in a client component, **move `resolveFilter` into `@/lib/api/conversations`** (beside `CONVERSATION_FILTERS`, which it reads) and import it from there in both pages. Make that decision by running `pnpm build` in Step 4 and record which spelling shipped in the commit message — do not leave both.
-
 `frontend/src/app/dashboard/broker/messages/[conversationId]/page.tsx`:
 
 ```tsx
+import RequirePermission from "@/components/auth/RequirePermission";
 import ThreadScreen from "@/components/messages/ThreadScreen";
 
+// An async SERVER component, unlike its sibling inbox page: it needs no session
+// and no searchParams, only the route param. Its test therefore calls it
+// directly, while the inbox page's test renders it as an element inside
+// Suspense. The difference is deliberate; do not unify them.
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ conversationId: string }>;
@@ -4761,10 +5610,12 @@ export default async function BrokerThreadPage({ params }: { params: Params }) {
   const { conversationId } = await params;
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <ThreadScreen
-        conversationId={conversationId}
-        basePath="/dashboard/broker/messages/"
-      />
+      <RequirePermission>
+        <ThreadScreen
+          conversationId={conversationId}
+          basePath="/dashboard/broker/messages/"
+        />
+      </RequirePermission>
     </main>
   );
 }
@@ -4809,7 +5660,7 @@ interface NavLink {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run`
-Expected: PASS — the whole frontend suite, with **15 new tests** from this task (9 in `BrokerDashboardNav.test.tsx`, 3 in the broker inbox page, 1 in the broker thread page, 2 appended to `PrimaryNav.test.tsx`) and the existing `PrimaryNav` tests still green.
+Expected: PASS — the whole frontend suite, with **18 new tests** from this task: 9 in `BrokerDashboardNav.test.tsx` (6 for the nav, 3 for `primaryBrokerMembership`), 5 in the broker inbox page, 2 in the broker thread page, and 2 appended to `PrimaryNav.test.tsx`, whose existing 4 stay green and unedited.
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit && pnpm build`
 Expected: no errors; the build output lists `/dashboard/broker/messages` and `/dashboard/broker/messages/[conversationId]`.
@@ -4984,6 +5835,11 @@ vi.mock("@/lib/api/conversations", async (importOriginal) => {
     fetchBrokerDashboard: (...a: unknown[]) => fetchDashboardMock(...a),
   };
 });
+vi.mock("@/components/auth/RequirePermission", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="guard">{children}</div>
+  ),
+}));
 
 const MEMBERSHIP = {
   broker_id: "b-1",
@@ -5061,7 +5917,12 @@ describe("/dashboard/broker/", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows localized copy for an API failure, never the server's string", async () => {
+  it("names the real cause of a 403, never the server's English string", async () => {
+    // Ruling 15. The session lists memberships regardless of the organization's
+    // status (accounts/selectors.py:63-65) while the API requires ACTIVE
+    // (accounts/services.py:150-159), so a member of a SUSPENDED brokerage
+    // reaches this screen and is refused. "Something went wrong" would be true
+    // and useless.
     mockSession([MEMBERSHIP]);
     fetchDashboardMock.mockRejectedValue(
       new ApiError(403, "not_broker_member", "You are not a member."),
@@ -5069,10 +5930,44 @@ describe("/dashboard/broker/", () => {
     render(<BrokerHomePage />);
     await waitFor(() =>
       expect(
-        screen.getByText("Something went wrong. Try again."),
+        screen.getByText(/suspended, or your membership may have been removed/),
       ).toBeInTheDocument(),
     );
     expect(screen.queryByText("You are not a member.")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic message for a code it does not know", async () => {
+    mockSession([MEMBERSHIP]);
+    fetchDashboardMock.mockRejectedValue(new ApiError(500, "teapot", "boom"));
+    render(<BrokerHomePage />);
+    await waitFor(() =>
+      expect(
+        screen.getByText("Something went wrong. Try again."),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("wraps its content in the sign-in guard", () => {
+    mockSession([MEMBERSHIP]);
+    fetchDashboardMock.mockResolvedValue({
+      broker: {
+        id: "b-1",
+        name: "Phase19 Alpha Brokers",
+        slug: "phase19-alpha-brokers",
+        status: "ACTIVE",
+      },
+      published_listings: 0,
+      pending_approvals: 0,
+      messages: {
+        enabled: false,
+        can_read: false,
+        unread_conversations: null,
+        unread_messages: null,
+        new_inquiries_7d: null,
+      },
+    });
+    render(<BrokerHomePage />);
+    expect(screen.getByTestId("guard")).toBeInTheDocument();
   });
 });
 ```
@@ -5183,6 +6078,7 @@ export default function BrokerMetrics({ locale, dashboard }: Props) {
 
 import { useCallback, useEffect, useState } from "react";
 
+import RequirePermission from "@/components/auth/RequirePermission";
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
 import BrokerMetrics from "@/components/broker/BrokerMetrics";
 import {
@@ -5228,27 +6124,29 @@ export default function BrokerHomePage() {
 
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      {membership === null ? (
-        <p className="font-body-md text-on-surface-variant">
-          {tConversations(locale, "broker.dashboard.no_organization")}
-        </p>
-      ) : (
-        <>
-          <h1 className="font-headline-md text-headline-md text-primary">
-            {membership.broker_name}
-          </h1>
-          {errorKey ? (
-            <p role="alert" className="mt-space-lg font-body-md text-error">
-              {tConversations(locale, errorKey)}
-            </p>
-          ) : null}
-          {dashboard ? (
-            <div className="mt-space-lg">
-              <BrokerMetrics locale={locale} dashboard={dashboard} />
-            </div>
-          ) : null}
-        </>
-      )}
+      <RequirePermission>
+        {membership === null ? (
+          <p className="font-body-md text-on-surface-variant">
+            {tConversations(locale, "broker.dashboard.no_organization")}
+          </p>
+        ) : (
+          <>
+            <h1 className="font-headline-md text-headline-md text-primary">
+              {membership.broker_name}
+            </h1>
+            {errorKey ? (
+              <p role="alert" className="mt-space-lg font-body-md text-error">
+                {tConversations(locale, errorKey)}
+              </p>
+            ) : null}
+            {dashboard ? (
+              <div className="mt-space-lg">
+                <BrokerMetrics locale={locale} dashboard={dashboard} />
+              </div>
+            ) : null}
+          </>
+        )}
+      </RequirePermission>
     </main>
   );
 }
@@ -5257,7 +6155,7 @@ export default function BrokerHomePage() {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cd frontend && pnpm vitest run`
-Expected: PASS — the whole suite, with 10 new tests from this task.
+Expected: PASS — the whole suite, with **12 new tests** from this task (6 in `BrokerMetrics.test.tsx`, 6 in the broker home page).
 
 Run: `cd frontend && pnpm lint && pnpm exec tsc --noEmit && pnpm build`
 Expected: no errors; the build output lists `/dashboard/broker`.
@@ -5370,13 +6268,25 @@ Append inside the returned array — reorder nothing:
 Run: `cd frontend && pnpm vitest run next.config.test.ts`
 Expected: PASS — **5 tests** (the file's existing four, one of them renamed and widened, plus the new destination test).
 
-Run: `cd frontend && pnpm build && pnpm start &` then, in another shell:
+Run this as **one command** from `frontend/` — it starts the server, waits for it, probes both URL shapes and always stops the server again:
 
 ```bash
-curl -sS -o /dev/null -D - http://127.0.0.1:3000/dashboard/broker/services/
+cd frontend && pnpm build && \
+( pnpm start & echo $! > .redirect-probe.pid ) && \
+until curl -sSf -o /dev/null http://127.0.0.1:3000/health/; do sleep 1; done && \
+echo "=== canonical (slashed), the form spec 4.3 names ===" && \
+curl -sS -o /dev/null -D - -L http://127.0.0.1:3000/dashboard/broker/services/ ; \
+echo "=== slashless, for the record ===" ; \
+curl -sS -o /dev/null -D - -L http://127.0.0.1:3000/dashboard/broker/services ; \
+kill "$(cat .redirect-probe.pid)" && rm -f .redirect-probe.pid
 ```
 
-Expected: a single `HTTP/1.1 301` whose `location` is `/dashboard/broker/messages/`, and **no second redirect** when that location is followed (`curl -sS -o /dev/null -D - -L …` shows exactly one 301 followed by one 200). Stop the server afterwards. Paste both header blocks into the PR description — spec §4.3 requires redirect destinations to be covered and to create no chain, and only the running server proves the second half.
+Expected, and **paste both blocks into the PR description** — spec §4.3 requires redirect destinations to be covered and to create no chain, and only a running server proves the second half:
+
+- **Slashed** (`/dashboard/broker/services/`): exactly one `HTTP/1.1 301` with `location: /dashboard/broker/messages/`, then one `200`. One hop, which is what §4.3's "Status 301" row and §28's "Legacy route redirects **once**" require.
+- **Slashless** (`/dashboard/broker/services`): a `308` to the slashed form, then the `301`, then `200` — **two hops**. This is inherent to `trailingSlash: true` and is already true of the two Phase 5 redirects merged in `next.config.ts`; spec §4.3's table names only the slashed URL, so the slashless shape is not a route this project publishes. Recorded as Known Limitation 17 rather than left for a reviewer to discover, and **not** "fixed" by dropping `trailingSlash`, which would un-canonicalise every §4.1 route.
+
+If `/health/` is not the right readiness URL in this checkout, substitute the one `frontend/src/app/health/page.tsx` serves; do not replace the `until` loop with a fixed `sleep`.
 
 - [ ] **Step 6: Commit**
 
@@ -5574,6 +6484,10 @@ def test_scenario_l_reading_a_thread_moves_the_dashboard_count(api, two_brokerag
     ]
     assert [row["id"] for row in rows] == [str(thread.pk)]
 
+    # The thread screen's own two reads, in the order it makes them.
+    detail = api.get(reverse("conversation-detail", args=[thread.pk]))
+    assert detail.status_code == 200
+    assert detail.data == rows[0]
     api.get(reverse("conversation-messages", args=[thread.pk]))
     api.post(reverse("conversation-read", args=[thread.pk]))
 
@@ -5601,7 +6515,8 @@ def test_a_broker_never_sees_another_brokers_conversations_from_any_surface(
         api.get(reverse("conversation-list"), {"broker": str(alpha.pk)}).data["results"]
         == []
     )
-    # Thread read, reply, mark-read, archive: 404 every time, never 403.
+    # Detail, thread read, reply, mark-read, archive: 404 every time, never 403.
+    assert api.get(reverse("conversation-detail", args=[thread.pk])).status_code == 404
     assert api.get(reverse("conversation-messages", args=[thread.pk])).status_code == 404
     assert (
         api.post(
@@ -5709,6 +6624,47 @@ def test_the_dashboard_is_a_fixed_number_of_queries(api, two_brokerages):
     assert len(large) == len(small), [entry["sql"] for entry in large]
 
 
+def test_a_sender_cannot_hide_a_live_lead_from_the_brokers_inbox(api, two_brokerages):
+    """Ruling 5's abuse scenario, end to end.
+
+    Conversation has ONE status column (spec 11.8), so an initiator who could
+    archive would remove their own live inquiry from the brokerage's default
+    OPEN inbox — the screen spec 28 exists to build. Spec 2.2 puts that refusal
+    on the server, and this test is the proof it is there rather than only in
+    the UI that hides the button.
+    """
+    alpha = two_brokerages["alpha"]
+    reader = two_brokerages["alpha_reader"]
+    thread = thread_from("abuse-asker@phase19.example", alpha, "Alpha question")
+
+    api.force_authenticate(thread.initiator)
+    response = api.patch(
+        reverse("conversation-status", args=[thread.pk]),
+        {"status": "ARCHIVED"},
+        format="json",
+    )
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "conversation_filing_forbidden"
+
+    # The broker's inbox still shows the lead.
+    api.force_authenticate(reader)
+    rows = api.get(reverse("conversation-list"), {"broker": str(alpha.pk)}).data[
+        "results"
+    ]
+    assert [row["id"] for row in rows] == [str(thread.pk)]
+    assert rows[0]["viewer_is_initiator"] is False
+
+    # …and the broker, who IS the recipient side, can file it.
+    assert (
+        api.patch(
+            reverse("conversation-status", args=[thread.pk]),
+            {"status": "ARCHIVED"},
+            format="json",
+        ).status_code
+        == 200
+    )
+
+
 def test_an_archived_thread_still_belongs_to_the_same_single_store(api, two_brokerages):
     """Archiving changes one column on the shared Conversation row. Nothing is
     copied, moved or duplicated — which is what spec 28's "shared model" means
@@ -5765,7 +6721,7 @@ def test_the_inquiry_window_boundary_is_the_documented_seven_days(
 - [ ] **Step 2: Run the acceptance tests**
 
 Run: `cd backend && uv run pytest brokers/tests/test_phase_19_acceptance.py -v`
-Expected: PASS — **8 collected test items**.
+Expected: PASS — **9 collected test items**.
 
 - [ ] **Step 3: Full regression, both halves**
 
@@ -5787,11 +6743,13 @@ Prepend to the Log section of `ACTIVITY.md` (newest at the top, matching every p
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-19-broker-dashboard-messages.md` in full (11 tasks).
 - **No second message store, no new model, no migration** (spec §28 Backend). The broker inbox is Phase 6's `GET /api/v1/conversations/` with `?broker=<id>`, and its five spec §28 filters are Phase 6's existing query parameters.
-- Backend additions: `PATCH /api/v1/conversations/<id>/status/` (the producer spec §28's "Archived" filter needed — `OPEN ↔ ARCHIVED` only; `BLOCKED` is deliberately unreachable because spec §36.6 makes blocking a moderation act with contact-revocation consequences) and `GET /api/v1/brokers/<id>/dashboard/` (spec §28's four metrics, every one a live query). `ConversationSerializer`'s `context` gained a `url` key. Two throttle scopes appended: `conversation_status` 120/hour, `broker_dashboard` 120/min.
-- Frontend: one role-neutral `components/messages/` layer mounted twice — at `/dashboard/messages/…`, which is the path Phase 6's `SENDER_CONVERSATION_URL_TEMPLATE` already returns as `next_url` and writes into every `Notification.target_url` (it was a 404 until now), and at `/dashboard/broker/messages/…` inside broker chrome. Broker home at `/dashboard/broker/`. `/dashboard/broker/services/` now 301s to Messages (spec §4.3 row 5), verified against a running server as a single hop.
+- Backend additions, all three flagged in the plan as beyond spec §30.1's table: `GET /api/v1/conversations/<id>/` (the thread screen's own read — scanning the paginated inbox instead would have failed silently at a broker's 21st conversation), `PATCH /api/v1/conversations/<id>/status/` (the producer spec §28's "Archived" filter needed — `OPEN ↔ ARCHIVED` only; `BLOCKED` is deliberately unreachable because spec §36.6 makes blocking a moderation act with contact-revocation consequences), and `GET /api/v1/brokers/<id>/dashboard/` (spec §28's four metrics, every one a live query). `ConversationSerializer` gained `viewer_is_initiator` and a `context.url`. Two throttle scopes appended: `conversation_status` 120/hour, `broker_dashboard` 120/min.
+- **Filing is recipient-side only.** Spec §11.8 gives `Conversation` one `status` column, so an initiator who could archive would pull their own live lead out of the brokerage's default inbox. `set_conversation_status` refuses with `403 conversation_filing_forbidden` and the control is hidden via `viewer_is_initiator`; the price, recorded as a Known Limitation, is that a sender cannot file their own inbox at all.
+- Frontend: one role-neutral `components/messages/` layer mounted twice — at `/dashboard/messages/…`, which is the path Phase 6's `SENDER_CONVERSATION_URL_TEMPLATE` already returns as `next_url` and writes into every `Notification.target_url` (it was a 404 until now), and at `/dashboard/broker/messages/…` inside broker chrome. Broker home at `/dashboard/broker/`. All four routes are wrapped in Phase 3's `RequirePermission`, whose `permission` prop became optional: `PermissionKey` is spec §5's capability table and §5 has no row for reading conversations, so borrowing `submit_inquiry` would have hidden the inbox from an unverified broker member — a client-side rule the server does not hold. `/dashboard/broker/services/` now 301s to Messages (spec §4.3 row 5), verified against a running server as a single hop for the canonical slashed URL.
+- **`SENDER_CONVERSATION_URL_TEMPLATE` was kept, not changed**, and the merged comment telling the next reader to change it was corrected: spec §15.5's sender URL and spec §28's `/dashboard/broker/messages/` are two seats on one conversation (the sender is usually a buyer, for whom spec §4.2 has no row at all), so they are two routes. `messaging/tests/test_enums.py`'s two assertions on the constant stayed green and unedited.
 - Spec §28's "Remove" section had nothing to remove: `rg -i surveyor` over `frontend/src` and `backend` returns only a Phase 6 test fixture's display name. The removal is guaranteed instead by a pinned broker-navigation link set (exactly Dashboard and Messages) and the 301.
-- Known limitations: archiving and unread state are per-conversation, not per-participant (spec §11.8 gives `Conversation` one `status` and `Message` one `read_at`); no organization switcher for a person in two brokerages; no thread link for a listing context (`BoatListing` has no slug column and `/boats/` has no page); no WebSocket (Phase 18); no blocking affordance; no staff read path (Phase 6's ruling, upheld). Full list in the plan.
-- Next: Phase 18 (notifications) can now attach a real `target_url` destination, and Phase 20 should delete `NAVIGABLE_URL_PREFIXES` in `ConversationContextPanel.tsx` once `/boats/` and `/brokers/` exist.
+- Known limitations: archiving and unread state are per-conversation, not per-participant (spec §11.8 gives `Conversation` one `status` and `Message` one `read_at`), and senders cannot file at all; no organization switcher; no thread link for a listing context (`BoatListing` has no slug column and `/boats/` has no page); no inbox pagination controls; no WebSocket (Phase 18); no blocking affordance; no staff read path (Phase 6's ruling, upheld, with a positive control proving the moderator fixtures are real); a SUSPENDED brokerage's member still sees the nav before being refused, but is now told why. Full list of 17 in the plan.
+- Next: Phase 18 (notifications) can now attach a real `target_url` destination; Phase 20 should delete `NAVIGABLE_URL_PREFIXES` in `ConversationContextPanel.tsx` once `/boats/` and `/brokers/` exist, and should close `PrimaryNav`'s six pre-existing dead links (Known Limitation 16).
 ```
 
 Update `docs/superpowers/PHASE-TRACKER.md` row 19 to `**done**` with the plan path and a one-paragraph note in the established style.
@@ -5807,24 +6765,24 @@ git commit -m "test(brokers): Phase 19 acceptance suite and handoff note (Phase 
 
 ## Known Limitations (carried forward, not fixed by this plan)
 
-1. **No `GET /api/v1/conversations/<id>/`.** Phase 6 shipped the list and the thread, not a conversation detail. `ThreadScreen.loadConversation()` therefore reads the row out of the `status=ALL` inbox. That is correct (the queryset is already visibility-scoped and the row can never disagree with the list's) but it costs one extra request per thread open, and a person whose inbox exceeds one page of 20 conversations may open a thread whose row is on page 2 and see the not-found copy. **This is the sharpest limitation in the phase.** The fix is one endpoint; it belongs to whoever next opens `messaging/views.py`. Until then, `ThreadScreen` is the only caller and the only place to change.
-2. **Archiving is per conversation, not per participant.** Spec §11.8 gives `Conversation` one `status` column, so a broker archiving a thread archives it for the sender too. A per-participant flag would be a table §11.8 does not define.
-3. **Unread is per recipient side, not per team member.** Spec §11.8 gives `Message` one nullable `read_at` (Phase 6 Known Limitation 7). Broker member A opening a thread clears it for member B. A per-person badge needs a `MessageRead` join table §11.8 does not define. The UI never says "your unread" for this reason.
-4. **No organization switcher.** A person with memberships in two brokerages sees the first (`primaryBrokerMembership`). Spec §28 does not ask for a switcher and `broker_memberships` has no "primary" marker. A `?broker=` override on `/dashboard/broker/…` is the natural shape when one is wanted.
-5. **No listing link in the thread context panel.** `BoatListing` has no slug column while spec §4.1's canonical boat URL is `/boats/<listing-slug>/`, and `frontend/src/app/` has no `/boats/` route. The backend returns `url: null` for a listing context and the panel renders the label as text. Phase 20 owns both halves.
-6. **No broker-profile link either, for now.** The backend returns the canonical `/brokers/<slug>/`, but `NAVIGABLE_URL_PREFIXES` in `ConversationContextPanel.tsx` does not yet include it because that page does not exist. **Phase 20 deletes one array entry and the link appears.**
-7. **No WebSocket and no polling.** Spec §27.2 is Phase 18's. The inbox refetches on navigation, filter change and mutation; nothing pushes.
-8. **No blocking affordance.** `ConversationStatus.BLOCKED` remains modelled, enforced on reply and on the status endpoint, and produced by nothing. Spec §36.6's "recipient blocking a user … may revoke access" needs Phase 7's `revoked_at` and a moderation surface; ruled out of this phase deliberately (ruling 4).
-9. **No staff read path.** Upheld from Phase 6's Task 9 ruling and extended to `IsBrokerMember`: a staff moderator with no membership sees no conversations and no broker dashboard. If that is ever judged wrong, the fix is a branch in `IsBrokerMember` **and** a matching branch in `messaging.selectors.can_view_conversation` plus its `Q` in `conversations_visible_to` — all three change together or a list will show a row a detail view refuses.
-10. **No pagination controls on the inbox.** `ConversationPagination` is 20 per page and the screen renders page 1. The API returns `next`/`previous`; the controls are a small follow-up, and Phase 5's directory page has the worked pattern (rebuild the href against the page's own URL, never render the API's absolute `next`). This interacts with limitation 1.
-11. **No `/dashboard/private-seller/` shell.** `/dashboard/messages/…` exists and works for a private seller or a professional, but there is no private-seller navigation around it. Spec §4.2's private-seller row is Phase 16's.
-12. **Spec §15.4's "broker's configured notification recipients" is still `BrokerOrganization.public_email`** (Phase 6 Known Limitation 6). This phase builds a broker screen but not a team-settings screen, so the field to configure a recipient list still has nowhere to live. Phase 17's staff broker tooling or a later broker settings screen owns it.
-13. **A brokerage whose members all lack `can_read_messages` is still notified by nobody** (Phase 6 Known Limitation 5). The broker dashboard now makes the condition *visible* — `messages.can_read` is false and the screen says so — but the team-capability editor that fixes it is Phase 17's.
-14. **API error messages remain English on the wire.** Spec §30.2 asks for a localized message; `common.exceptions.nauta_exception_handler` returns English. This phase does what Phase 6 did: the client maps `error.code` to its own EN/IT/ES copy and never renders `error.message`. The project-wide gap is unchanged.
-15. **No browser end-to-end test.** `frontend/package.json` has no Playwright, Cypress or WebDriver (`pnpm test` is `vitest run`). Spec §34.5 lives inside §34, which is Phase 23. Scenario L is covered at component level (`BrokerDashboardNav.test.tsx`), at config level (`next.config.test.ts`, plus a real `curl` against a running server in Task 10) and at API level (`test_phase_19_acceptance.py`).
-16. **`new_inquiries_7d`'s window is not configurable.** It is a module constant, not a `PlatformSetting`, because `platform_settings.registry.SettingValueType` has `BOOLEAN`/`INTEGER`/`DECIMAL` members and an integer setting with no staff screen to edit it would be invented configuration (spec §2.1). Whoever adds a staff settings screen for it should move the constant.
+1. **Archiving is per conversation, not per participant, and only the recipient side may do it.** Spec §11.8 gives `Conversation` one `status` column. Ruling 5 makes the consequence safe rather than pretending it away: a sender cannot hide a broker's live lead, and the price is that **a sender cannot file their own inbox at all** — `Archive` simply does not appear for them, and `PATCH .../status/` answers `403 conversation_filing_forbidden`. The real fix is a per-participant flag, which needs an amendment to §11.8; it is not something a screen may invent.
+2. **Unread is per recipient side, not per team member.** Spec §11.8 gives `Message` one nullable `read_at` (Phase 6 Known Limitation 7). Broker member A opening a thread clears it for member B. A per-person badge needs a `MessageRead` join table §11.8 does not define. The UI never says "your unread" for this reason.
+3. **No organization switcher.** A person with memberships in two brokerages sees the first (`primaryBrokerMembership`). Spec §28 does not ask for a switcher and `broker_memberships` has no "primary" marker. A `?broker=` override on `/dashboard/broker/…` is the natural shape when one is wanted.
+4. **No listing link in the thread context panel.** `BoatListing` has no slug column while spec §4.1's canonical boat URL is `/boats/<listing-slug>/`, and `frontend/src/app/` has no `/boats/` route. The backend returns `url: null` for a listing context and the panel renders the label as text. Phase 20 owns both halves.
+5. **No broker-profile link either, for now.** The backend returns the canonical `/brokers/<slug>/`, but `NAVIGABLE_URL_PREFIXES` in `ConversationContextPanel.tsx` does not yet include it because that page does not exist. **Phase 20 deletes one array entry and the link appears.**
+6. **No WebSocket and no polling.** Spec §27.2 is Phase 18's. The inbox refetches on navigation, filter change and mutation; nothing pushes.
+7. **No blocking affordance.** `ConversationStatus.BLOCKED` remains modelled, enforced on reply and on the status endpoint, and produced by nothing. Spec §36.6's "recipient blocking a user … may revoke access" needs Phase 7's `revoked_at` and a moderation surface; ruled out of this phase deliberately (ruling 4).
+8. **No staff read path.** Upheld from Phase 6's Task 9 ruling and extended to `IsBrokerMember`: a staff moderator with no membership sees no conversations and no broker dashboard. Both tests that assert this build a **real** moderator (`primary_role == STAFF` **and** the `staff_moderator` group, which `accounts/services.py:122-126` both require) and are paired with a positive control proving the same user can reach Phase 12's staff broker endpoint — without that pairing the assertion would pass for the wrong reason. If the ruling is ever reversed, the fix is a branch in `IsBrokerMember` **and** a matching branch in `messaging.selectors.can_view_conversation` plus its `Q` in `conversations_visible_to` — all three change together, or a list will show a row a detail view refuses.
+9. **No pagination controls on the inbox.** `ConversationPagination` is 20 per page and the screen renders page 1. The API returns `next`/`previous`; the controls are a small follow-up, and Phase 5's directory page has the worked pattern (rebuild the href against the page's own URL, never render the API's absolute `next`). This no longer breaks the *thread* screen — ruling 14's detail endpoint removed that coupling — it only means a broker with more than 20 conversations cannot reach the older ones from the list.
+10. **No `/dashboard/private-seller/` shell.** `/dashboard/messages/…` exists and works for a private seller, a buyer or a professional, but there is no role navigation around it. Spec §4.2's private-seller row is Phase 16's.
+11. **Spec §15.4's "broker's configured notification recipients" is still `BrokerOrganization.public_email`** (Phase 6 Known Limitation 6). This phase builds a broker screen but not a team-settings screen, so the field to configure a recipient list still has nowhere to live. Phase 17's staff broker tooling or a later broker settings screen owns it.
+12. **A brokerage whose members all lack `can_read_messages` is still notified by nobody** (Phase 6 Known Limitation 5). The broker dashboard now makes the condition *visible* — `messages.can_read` is false and the screen says so — but the team-capability editor that fixes it is Phase 17's.
+13. **API error messages remain English on the wire.** Spec §30.2 asks for a localized message; `common.exceptions.nauta_exception_handler` returns English. This phase does what Phase 6 did: the client maps `error.code` to its own EN/IT/ES copy and never renders `error.message`. The project-wide gap is unchanged.
+14. **No browser end-to-end test.** `frontend/package.json` has no Playwright, Cypress or WebDriver (`pnpm test` is `vitest run`). Spec §34.5 lives inside §34, which is Phase 23. Scenario L is covered at component level (`BrokerDashboardNav.test.tsx`), at config level (`next.config.test.ts`, plus a real `curl` against a running server in Task 10) and at API level (`test_phase_19_acceptance.py`).
+15. **A SUSPENDED brokerage's member still sees the Messages navigation before being refused.** `accounts/selectors.py:63-65` returns every `is_active=True` membership regardless of the organization's status, while `accounts/services.py:150-159` requires `broker__status=ACTIVE`. Both are right for their own job, so ruling 15 changes neither: the screen now names the real cause (`messages.error.not_broker_member` says the organization may be suspended or the membership removed) instead of showing a generic failure. Hiding the nav entry as well would mean teaching `PrimaryNav` and `BrokerDashboardNav` a status rule the session payload does not carry — a change to Phase 3's contract, not this phase's.
+16. **`PrimaryNav` links to six pages that do not exist.** `frontend/src/components/layout/PrimaryNav.tsx:15-32` offers `/boats/`, `/brokers/`, `/financing/`, `/dashboard/staff/`, `/settings/` and `/account/`; of its link set only `/services/professionals/` has a page today. An earlier draft of this plan cited that component as a *precedent* for avoiding dead links, which was the opposite of the truth (see ruling 3's correction). This phase holds the line on the surfaces it authors — the broker nav and the thread's context link — and deliberately does not widen its diff into a merged Phase 3 component to fix the rest. Phase 20 builds most of those pages and should close this.
+17. **`/dashboard/broker/services` (no trailing slash) reaches Messages in two hops, not one.** With `trailingSlash: true` Next.js 308s the slashless form to the slashed one, which then 301s to Messages. Spec §4.3's table names only `/dashboard/broker/services/`, and the same two-hop shape already applies to the two Phase 5 redirects merged in `next.config.ts`, so this is a property of the project's canonical-URL setting rather than of this redirect. Task 10's probe prints both shapes so the behaviour is recorded rather than discovered. Dropping `trailingSlash` would un-canonicalise every §4.1 route and is not the fix.
 
----
 
 ## Contract summary for later phases
 
@@ -5838,10 +6796,14 @@ from brokers.dashboard import (
 )
 from brokers.permissions import IsBrokerMember
 from brokers.views import BrokerDashboardView
-from messaging.exceptions import ConversationSuperseded, InvalidConversationStatus
+from messaging.exceptions import (
+    ConversationFilingForbidden,
+    ConversationSuperseded,
+    InvalidConversationStatus,
+)
 from messaging.serializers import ConversationStatusSerializer
 from messaging.services import ARCHIVABLE_STATUSES, set_conversation_status
-from messaging.views import ConversationStatusView
+from messaging.views import ConversationDetailView, ConversationStatusView
 ```
 
 ```ts
@@ -5869,11 +6831,13 @@ import {
   FILTER_MESSAGE_KEYS,
   conversationListQuery,
   fetchBrokerDashboard,
+  fetchConversation,
   fetchConversations,
   fetchThread,
   markConversationRead,
   messageErrorKey,
   postReply,
+  resolveFilter,
   setConversationStatus,
   type BrokerDashboard,
   type ConversationContextRef,
@@ -5893,7 +6857,9 @@ import {
 ```python
 set_conversation_status(*, actor, conversation, new_status: str) -> Conversation
     # new_status ∈ ARCHIVABLE_STATUSES ("OPEN", "ARCHIVED")
-    # raises InvalidConversationStatus (400) | ConversationClosed (409)
+    # RECIPIENT SIDE ONLY: raises ConversationFilingForbidden (403) when
+    #   actor.pk == conversation.initiator_id (ruling 5)
+    # also raises InvalidConversationStatus (400) | ConversationClosed (409)
     #      | ConversationSuperseded (409)
 
 broker_dashboard_metrics(broker, *, viewer) -> dict
@@ -5909,10 +6875,13 @@ broker_message_metrics(broker, *, viewer) -> dict
 
 | Endpoint | §30.1 | Route name | Permission |
 |---|---|---|---|
-| `PATCH /api/v1/conversations/<id>/status/` | **addition** | `conversation-status` | `UnifiedInquiriesEnabled` → `IsAuthenticated` → `IsActiveUser` → `can_view_conversation` (404) |
+| `GET /api/v1/conversations/<id>/` | **addition** | `conversation-detail` | `UnifiedInquiriesEnabled` → `IsAuthenticated` → `IsActiveUser` → `can_view_conversation` (404) |
+| `PATCH /api/v1/conversations/<id>/status/` | **addition** | `conversation-status` | the same four, **plus** recipient-side-only inside the service (403 `conversation_filing_forbidden`) |
 | `GET /api/v1/brokers/<id>/dashboard/` | **addition** | `broker-dashboard` | `IsAuthenticated` → `IsActiveUser` → `IsBrokerMember` |
 
-Both are flagged as additions rather than presented as spec-literal, exactly as Phase 6 flagged its four and Phase 12 its two. §30.1's closing sentence grants the latitude; §28's own text is what requires them (an Archived filter with no producer, and dashboard metrics with no backend source, are both things §2.1 forbids).
+All three are flagged as additions rather than presented as spec-literal, exactly as Phase 6 flagged its four and Phase 12 its two. §30.1's closing sentence grants the latitude; §28's own text is what requires them (an Archived filter with no producer, dashboard metrics with no backend source, and a thread screen that cannot read its own conversation past row 20, are all things §2.1 forbids).
+
+**Error codes added to the messaging vocabulary by this phase:** `invalid_conversation_status` (400), `conversation_filing_forbidden` (403), `conversation_superseded` (409), and `not_broker_member` (403, from `brokers.permissions.IsBrokerMember`). Each is an `APIException` subclass with a `default_code`, per Phase 6 contract rule 10, and each has a `messages.error.<code>` key in all three languages.
 
 **Rules a later phase must follow:**
 
@@ -5924,7 +6893,10 @@ Both are flagged as additions rather than presented as spec-literal, exactly as 
 6. **New UI strings go in `CONVERSATION_MESSAGES` with all three languages.** The dictionary test fails on any key missing a locale (spec §37). `Locale` is still declared once, in `frontend/src/lib/api/directory.ts` — import it.
 7. **Never render `error.message`.** Map `error.code` through `messageErrorKey()` and a dictionary key. The backend's strings are English-only and developer-facing.
 8. **`IsBrokerMember` gates membership, not capability.** Per-capability narrowing happens inside the payload (`messages.can_read`), so an AGENT can still load their own dashboard. A new broker-facing endpoint that needs `can_read_messages` uses `messaging.selectors` for the data and `IsBrokerMember` for the door — do **not** widen `IsBrokerMember` itself.
-9. **Phase 18's `Notification.target_url` now resolves.** `/dashboard/messages/<id>/` is a real page. Do not change `messaging.enums.SENDER_CONVERSATION_URL_TEMPLATE`; if a role-specific destination is ever wanted, route it in the frontend from the neutral path rather than forking the constant.
+9. **Phase 18's `Notification.target_url` now resolves, and `SENDER_CONVERSATION_URL_TEMPLATE` is settled.** `/dashboard/messages/<id>/` is a real page. The constant is **not** a placeholder awaiting "the phase that builds the page" — ruling 2 shows spec §15.5's sender URL and spec §28's broker URL are two seats on one conversation, so they are two routes, and Task 1 Step 6 rewrites the comment that said otherwise. Do not change its value. If a role-specific destination is ever wanted, redirect in the frontend from the neutral path rather than forking the constant, because it is written into rows already in the database.
+13. **Only the recipient side may file a conversation.** `set_conversation_status` refuses the initiator with `conversation_filing_forbidden`, and `ConversationSerializer.viewer_is_initiator` is how a client knows whether to render the control. A phase that adds a per-participant archive flag (which needs an amendment to spec §11.8) should remove both together, not just the client half.
+14. **Use `fetchConversation(id)`, never a scan of the inbox, to load one conversation.** The list is paginated at 20; scanning it is correct only until somebody has 21 conversations. `GET /api/v1/conversations/<id>/` exists for this.
+15. **`RequirePermission`'s `permission` prop is optional.** With it omitted the component is a sign-in guard. Do not "fix" that by inventing a `PermissionKey` for a membership capability — `PermissionKey` is spec §5's table, and §5 has no row for reading conversations.
 10. **Any new messaging error code is an `APIException` subclass with a `default_code`** (Phase 6 contract rule 10, restated because this phase added two). A `ValidationError` collapses to `validation_error`.
 11. **Views declare `throttle_scope` only.** This phase owns `conversation_status` (120/hour) and `broker_dashboard` (120/min), both in `DEFAULT_THROTTLE_RATES`.
 12. **Query-count tests compare, never budget.** Both N+1 tests in `test_phase_19_acceptance.py` assert `len(large) == len(small)` after a discarded warm-up request. Copy that shape; an absolute budget cannot fail on an N+1.
@@ -5944,10 +6916,10 @@ Both are flagged as additions rather than presented as spec-literal, exactly as 
 | Add — conversation list and thread layout consistent with private-seller messages | Task 7 mounts the identical `MessagesScreen`/`ThreadScreen` at `/dashboard/messages/…`; Task 8 mounts them at `/dashboard/broker/messages/…`. "Consistent" is enforced by their being the same files |
 | Add — filters: All, Unread, Listing inquiries, Profile inquiries, Archived | Task 4 (`CONVERSATION_FILTERS` + `conversationListQuery`, one test per filter incl. the repeated `type` parameter), Task 5 (`ConversationFilters`), Task 1 (the Archived producer) |
 | Add — row: sender display name, context/listing, last message excerpt, timestamp, unread count | Task 5 `ConversationRowCard`, `test_shows_every_field_spec_28_s_row_names` |
-| Add — thread: messages, context sidebar, listing/profile link, reply composer | Task 6 (`ConversationThread`, `ConversationContextPanel`, `ReplyComposer`); the link is ruled (ruling 9) and its two gaps are Known Limitations 5 and 6 |
+| Add — thread: messages, context sidebar, listing/profile link, reply composer | Task 6 (`ConversationThread`, `ConversationContextPanel`, `ReplyComposer`); the link is ruled (ruling 9) and its two gaps are Known Limitations 4 and 5. The thread reads its conversation through Task 1's detail endpoint (ruling 14), not by scanning a 20-row page |
 | Add — broker team access according to `can_read_messages` | Phase 6's `conversations_visible_to`/`can_view_conversation` (reused, never re-implemented); Task 1's `test_an_agent_without_can_read_messages_gets_404`; Task 2's `test_a_member_without_can_read_messages_sees_no_counts` |
 | Backend — use the shared `Conversation`/`Message` model; no second store | Global Constraints; Task 11's `test_this_phase_added_no_second_message_store`; no migration in the whole plan (Task 11 Step 3's `makemigrations --check`) |
-| Backend — mark-read and reply endpoints enforce broker organization membership | Phase 6's `ConversationScopedView`; Task 11's cross-broker sweep exercises `messages`, `read/` and `status/` from another brokerage's seat |
+| Backend — mark-read and reply endpoints enforce broker organization membership | Phase 6's `ConversationScopedView`; Task 11's cross-broker sweep exercises the detail route, `messages`, `read/` and `status/` from another brokerage's seat and asserts nothing was written |
 | Dashboard metrics — published listings, pending approvals, unread messages, new inquiries | Task 2 (`broker_dashboard_metrics`), Task 9 (`BrokerMetrics`), Task 11's Scenario L test recomputing each number from rows |
 | Dashboard metrics — only backend-derived; remove surveyor/service widgets | Task 9's `test_shows_exactly_spec_28_s_four_metrics_and_nothing_else` (asserts the `<dt>` list exactly) and `test_never_renders_a_hard_coded_zero_in_place_of_an_unknown_count` |
 | DoD — no visible or API navigation remains for broker Services & Surveyors | Ruling 1 + Task 10 Step 1's sweep + Task 8's pinned nav set |
@@ -5958,7 +6930,7 @@ Both are flagged as additions rather than presented as spec-literal, exactly as 
 **2. Spec coverage — the sections §28 references.**
 
 - **§3** — no new app; `messaging` and `brokers` are both on §3's suggested list. No business rule lives in a view: the archive rule is in `messaging.services`, the metrics in `brokers.dashboard`.
-- **§4.2** — the broker row's `/dashboard/broker/` and `/messages/` are built; the other five are ruled out with reasons (ruling 3, Known Limitation 11). §4.2's own sentence about `/dashboard/broker/services/` is Task 10.
+- **§4.2** — the broker row's `/dashboard/broker/` and `/messages/` are built; `/fleet/`, `/leads/`, `/team/`, `/profile/` and `/subscription/` are ruled out with reasons and assigned to Phases 16, 17 and 20 (ruling 3). The private-seller row is Known Limitation 10. §4.2's own sentence about `/dashboard/broker/services/` is Task 10.
 - **§4.3 row 5** — Task 10, with the no-chain requirement proved against a running server.
 - **§5** — "Browse public content" is untouched; no capability is added, because a broker dashboard is not a §5 capability (Task 8's `requiresBrokerMembership`, with a test that a member holding *zero* permissions still sees the link). Staff get no conversation capability, matching §5's table (ruling 10).
 - **§11.1** — `can_read_messages` is read, never written. `BrokerMembership` is unchanged.
@@ -5972,18 +6944,21 @@ Both are flagged as additions rather than presented as spec-literal, exactly as 
 - **§33.1** — every conversation route answers 404 for an unauthorised id; the dashboard answers 403 before any lookup so ids cannot be enumerated. Task 11 sweeps all five routes from another brokerage's seat and asserts nothing was written.
 - **§33.2** — no contact value appears in any payload or any DOM this phase renders; there are four separate assertions to that effect (Tasks 1, 2, 5, 6).
 - **§33.3** — two equal-query-count tests with a warm-up request (Task 11).
-- **§34.1–§34.3** — unit (dictionary, query builder), API (Tasks 1, 2), integration (Task 11). §34.5's browser tier is Known Limitation 15, assigned to Phase 23.
+- **§34.1–§34.3** — unit (dictionary, query builder), API (Tasks 1, 2), integration (Task 11). §34.5's browser tier is Known Limitation 14, assigned to Phase 23.
 - **§35.1/§35.2** — no new flag; `unified_inquiries` gates the messaging surfaces and is seeded **disabled**; ruling 8 explains why the dashboard endpoint is not gated and what it reports when the flag is off, with a test for that exact state.
-- **§36.6** — blocking is deliberately not built and deliberately unreachable from the status endpoint (ruling 4, Known Limitation 8), with a test that `BLOCKED` is refused by name.
-- **§37** — one dictionary, EN/IT/ES, with a coverage test; the literal key `broker.messages` has its own assertion.
-- **§39** — no control leads to a page that does not exist: ruling 3 (nav), ruling 9 (context link), Known Limitation 11.
+- **§36.6** — blocking is deliberately not built and deliberately unreachable from the status endpoint (ruling 4, Known Limitation 7), with a test that `BLOCKED` is refused by name. The section's abuse concern is also what ruling 5 answers: a sender cannot file a broker's live lead out of sight, and Task 11 proves it end to end.
+- **§37** — one dictionary, EN/IT/ES, with a coverage test; the literal key `broker.messages` has its own assertion; the EN-fallback branch is exercised against an injected entry rather than against a key the dictionary guarantees is populated.
+- **§39** — no control leads to a page that does not exist **on the surfaces this phase authors**: ruling 3 (nav), ruling 9 (context link). `PrimaryNav`'s six pre-existing dead links are out of scope and recorded as Known Limitation 16 rather than claimed as a precedent, which an earlier draft wrongly did.
 - **§40 Scenario L** — Task 11's first two tests plus `BrokerDashboardNav.test.tsx` plus `next.config.test.ts` plus Task 10's `curl`.
+- **§2.2 (server authority)** — every rule this phase adds is enforced server-side and only *mirrored* in the UI: filing rights live in `set_conversation_status` (not in the hidden button), reply length lives in Phase 6's `MessageCreateSerializer` (the composer's check is usability), and the route guard is a sign-in redirect rather than a client-side capability check, because no `PermissionKey` expresses `can_read_messages` (ruling 13).
 
-**3. Placeholder scan.** No "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere. Every code step carries the actual code; every test step carries the actual test. Two steps are genuine decision procedures rather than deferrals, and each names the command that decides and requires the outcome in the commit message: Task 3 Step 0 (`inquiry.sender_unnamed` exists or it does not — `rg` decides) and Task 8's `resolveFilter` import note (`pnpm build` decides; both spellings are written out and one must be deleted).
+**3. Placeholder scan.** No "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere. Every code step carries the actual code; every test step carries the actual test. **One** step is a decision procedure rather than a deferral, and it names the command that decides and requires the outcome in the commit message: Task 3 Step 0 (`inquiry.sender_unnamed` exists in `INQUIRY_MESSAGES` or it does not — `rg` decides, and the losing branch is deleted). An earlier draft carried a second such step, Task 8's "let `pnpm build` decide where `resolveFilter` lives"; that was a real deferral dressed as a procedure, and it is now settled — `resolveFilter` is exported from `lib/api/conversations.ts`, with the reason (a `"use client"` module cannot import a server page module, which also exports `generateMetadata` and `dynamic`) written at both the definition and the import.
 
-**4. Type consistency.** `ConversationRow`, `MessageRow`, `ConversationContextRef` and `BrokerDashboard` are declared once, in `lib/api/conversations.ts`, and every component's props reference them by those names. `ConversationFilter`'s five members are the same five in `CONVERSATION_FILTERS`, `FILTER_MESSAGE_KEYS` and `conversationListQuery`'s `switch`, and the switch is exhaustive over the union. `basePath` and `brokerId` keep those names from `MessagesScreen` through `ThreadScreen` to both route pairs. `set_conversation_status`'s parameter is `new_status` (never `status`, which would shadow `rest_framework.status` at any future import) and the HTTP field is `status`; `ConversationStatusView` is the single place the two meet. `NEW_INQUIRY_WINDOW_DAYS` is defined once and the wire field `new_inquiries_7d` names it; both appear in Task 11's boundary test. `primaryBrokerMembership` is exported from `BrokerDashboardNav.tsx` and imported by both broker pages — one implementation, not two. `messageErrorKey`'s `KNOWN_ERROR_CODES` set and the `messages.error.*` keys in `CONVERSATION_MESSAGES` are the same nine strings, and Task 3's test enumerates them.
+**4. Type consistency.** `ConversationRow`, `MessageRow`, `ConversationContextRef` and `BrokerDashboard` are declared once, in `lib/api/conversations.ts`, and every component's props reference them by those names. `ConversationRow.viewer_is_initiator` is produced by `ConversationSerializer.get_viewer_is_initiator` and consumed by exactly one expression, `ConversationThread`'s `canFile`; the five embedded TypeScript fixtures all carry it. `ConversationContextRef.url` is produced by `get_context()` for all four context kinds and consumed only through `NAVIGABLE_URL_PREFIXES`. `ConversationFilter`'s five members are the same five in `CONVERSATION_FILTERS`, `FILTER_MESSAGE_KEYS`, `resolveFilter` and `conversationListQuery`'s `switch`, and the switch is exhaustive over the union. `basePath` and `brokerId` keep those names from `MessagesScreen` through `ThreadScreen` to both route pairs. `set_conversation_status`'s parameter is `new_status` (never `status`, which would shadow `rest_framework.status` at any future import) and the HTTP field is `status`; `ConversationStatusView` is the single place the two meet. `_annotated_row` is defined once and used by both new views, so the detail and status payloads cannot drift. `NEW_INQUIRY_WINDOW_DAYS` is defined once and the wire field `new_inquiries_7d` names it; both appear in Task 11's boundary test. `primaryBrokerMembership` is exported from `BrokerDashboardNav.tsx` and imported by both broker pages — one implementation, not two. `messageErrorKey`'s `KNOWN_ERROR_CODES` holds **ten** wire codes and `CONVERSATION_MESSAGES` holds **eleven** `messages.error.*` keys — the ten, plus `unexpected_error`, which is the fallback `messageErrorKey` returns for anything it does not recognise and therefore never appears in the set. Task 3's test enumerates all eleven.
 
-**5. Right-sizing.** Eleven tasks. Each ends with an independently testable deliverable and a commit, and each could be rejected by a reviewer without rejecting its neighbour: Task 1 is an endpoint, Task 2 is an endpoint, Tasks 3–4 are pure modules with unit tests, Tasks 5–6 are component groups that render without a network, Task 7 is the first thing a person can actually use, Task 8 is the broker chrome spec §28 names, Task 9 is broker home, Task 10 is one redirect, Task 11 is evidence. Setup is folded in rather than split out: Task 1 carries its own reconciliation gate, Task 2 carries its own feature-flag fixture, Task 8 carries the `PrimaryNav` edit its nav entry needs.
+**5. Right-sizing.** Eleven tasks, unchanged in number by this revision: ruling 14's detail endpoint went into Task 1 rather than becoming a twelfth, because it edits the same four files and the same `get_context()` method as the other two deliverables there — splitting would have meant rebasing one task onto another for no review benefit, and Task 1 says so in as many words. Each task ends with an independently testable deliverable and a commit, and each could be rejected by a reviewer without rejecting its neighbour: Task 1 is the messaging read/write extension, Task 2 is an endpoint, Tasks 3–4 are pure modules with unit tests, Tasks 5–6 are component groups that render without a network, Task 7 is the first thing a person can actually use, Task 8 is the broker chrome spec §28 names, Task 9 is broker home, Task 10 is one redirect, Task 11 is evidence. Setup is folded in rather than split out: Task 1 carries its own reconciliation gate, Task 2 carries its own cache conftest, Task 7 carries the one-prop `RequirePermission` change its routes need, Task 8 carries the `PrimaryNav` edit its nav entry needs.
+
+**6. Counts.** Every "Expected: PASS — N" line in this plan was re-derived programmatically from the embedded test bodies after this revision (counting `^def test_` in each Python block and `^\s*it\(` in each TypeScript block), not carried forward by hand. Backend: 13 + 18 (Task 1), 13 (Task 2), 9 (Task 11) = **53 new backend tests**. Frontend: 9 + 23 + 12 + 18 + 14 + 6 + 2 (routes, Task 7) + 18 (Task 8) + 12 (Task 9) + 1 net new in `next.config.test.ts` = **115 new frontend tests**, plus 4 existing `RequirePermission` tests and 4 existing `PrimaryNav` tests that must stay green unedited.
 
 
 
