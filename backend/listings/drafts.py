@@ -2,14 +2,20 @@
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from rest_framework.exceptions import ErrorDetail, ValidationError
+from rest_framework import status
+from rest_framework.exceptions import APIException, ErrorDetail, ValidationError
 
 from accounts.services import resolve_seller_context
 from taxonomy.models import BoatBrand, BoatModel
 
 from .enums import ListingStatus, RevisionOrigin, RevisionStatus
+from .locking import bump_version
 from .models import BoatListing, ListingRevision
-from .payloads import validate_revision_payload
+from .payloads import (
+    TAXONOMY_FIELDS,
+    allowed_payload_fields,
+    validate_revision_payload,
+)
 
 # `current_public_snapshot` is unset on a brand-new row and is never written from
 # a payload, so it is excluded from every full_clean() call in this module.
@@ -167,3 +173,145 @@ def create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing
     )
     listing.open_revision = revision
     return listing
+
+
+class InvalidWorkflowState(APIException):
+    """A well-formed request against a record in the wrong state (spec §26.2's
+    "return conflict and refresh")."""
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "This listing is not in a state that allows the requested change."
+    default_code = "invalid_revision_state"
+
+    def __init__(self, detail=None, code=None):
+        super().__init__(detail=detail, code=code or self.default_code)
+
+
+def _payload_from_snapshot(snapshot) -> dict:
+    """Seed a new revision with the live public content it is proposing to change.
+
+    A revision is a complete proposed document, not a sparse patch: approving a
+    price-only edit must not publish a snapshot with no title (spec §20.2, and
+    spec §26.2's before/after diff presupposes a whole document).
+    """
+    if snapshot is None:
+        return {}
+    payload = {
+        "title_en": snapshot.title_en,
+        "title_it": snapshot.title_it,
+        "title_es": snapshot.title_es,
+        "description_en": snapshot.description_en,
+        "description_it": snapshot.description_it,
+        "description_es": snapshot.description_es,
+        "specifications": snapshot.specifications,
+        "location_country": snapshot.location_country,
+        "location_region": snapshot.location_region,
+        "location_city": snapshot.location_city,
+        "currency": snapshot.currency,
+        "price": f"{snapshot.price:f}",
+        "media_ids": [entry["media_id"] for entry in snapshot.media_manifest],
+    }
+    return {key: value for key, value in payload.items() if value not in ("", None)}
+
+
+@transaction.atomic
+def update_listing_draft(
+    *, listing: BoatListing, actor, expected_version: int, payload: dict
+) -> ListingRevision:
+    listing = BoatListing.objects.select_for_update().get(pk=listing.pk)
+    revision = open_revision_for(listing)
+
+    if revision is not None and revision.state == RevisionStatus.SUBMITTED:
+        raise InvalidWorkflowState(
+            "Withdraw the submitted revision before editing it again.",
+            code="invalid_revision_state",
+        )
+
+    if revision is None:
+        # Opening a new edit cycle. The client has no revision version to send
+        # yet, so the compare-and-swap runs against the listing itself.
+        target_status = (
+            ListingStatus.DRAFT
+            if listing.status in (ListingStatus.DRAFT, ListingStatus.REJECTED)
+            else listing.status
+        )
+        bump_version(
+            listing,
+            expected_version=expected_version,
+            resource="listing",
+            status=target_status,
+            updated_by=actor,
+        )
+        revision = ListingRevision.objects.create(
+            listing=listing,
+            revision_number=(
+                ListingRevision.objects.filter(listing=listing)
+                .order_by("-revision_number")
+                .values_list("revision_number", flat=True)
+                .first()
+                or 0
+            )
+            + 1,
+            base_snapshot=listing.current_public_snapshot,
+            state=RevisionStatus.DRAFT,
+            origin=RevisionOrigin.OWNER,
+            payload=_payload_from_snapshot(listing.current_public_snapshot),
+        )
+        revision_expected_version = revision.version
+    else:
+        revision_expected_version = expected_version
+
+    # A `null` means "delete this key", so there is nothing to type-check and
+    # `validate_revision_payload` never sees it. The key must still be one this
+    # caller is *allowed* to touch, or a private seller could erase a locked
+    # taxonomy field from a published listing's payload by sending it as null —
+    # spec §11.4's "locked field manipulation fails server-side". This guard is
+    # the only thing standing in front of that path; do not move or skip it.
+    removals = {key for key, value in payload.items() if value is None}
+    allowed = allowed_payload_fields(listing=listing, origin=RevisionOrigin.OWNER)
+    illegal = sorted(removals - allowed)
+    if illegal:
+        raise ValidationError(
+            {
+                field: [
+                    ErrorDetail(
+                        "This field cannot be changed.",
+                        code=(
+                            "immutable_after_publication"
+                            if field in TAXONOMY_FIELDS
+                            else "unknown_field"
+                        ),
+                    )
+                ]
+                for field in illegal
+            }
+        )
+
+    cleaned = validate_revision_payload(
+        {key: value for key, value in payload.items() if value is not None},
+        listing=listing,
+        origin=RevisionOrigin.OWNER,
+        for_submission=False,
+    )
+
+    merged = dict(revision.payload)
+    merged.update(cleaned)
+    for key in removals:
+        merged.pop(key, None)
+
+    bump_version(
+        revision,
+        expected_version=revision_expected_version,
+        resource="revision",
+        payload=merged,
+    )
+
+    _apply_payload_to_listing(listing, cleaned)
+    listing.updated_by = actor
+    try:
+        listing.full_clean(exclude=FULL_CLEAN_EXCLUDED_FIELDS)
+    except DjangoValidationError as exc:
+        raise_as_drf_validation_error(exc)
+    listing.save()
+    listing.open_revision = revision
+    return revision
