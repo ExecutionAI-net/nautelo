@@ -5,6 +5,7 @@ from .views import (
     ListingDraftUpdateView,
     ListingSubmitView,
     ListingWithdrawView,
+    StaffRevisionDecisionView,
 )
 
 urlpatterns = [
@@ -23,5 +24,10 @@ urlpatterns = [
         "listings/<uuid:listing_id>/withdraw/",
         ListingWithdrawView.as_view(),
         name="listing-withdraw",
+    ),
+    path(
+        "staff/revisions/<uuid:revision_id>/decision/",
+        StaffRevisionDecisionView.as_view(),
+        name="staff-revision-decision",
     ),
 ]
