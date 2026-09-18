@@ -1,11 +1,15 @@
 from django.db.models import Count, Q
+from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from professionals.enums import ProfessionalProfileStatus
 from professionals.models import ProfessionalProfile
 
-from .models import ServiceCategory
+from .models import LegacyDirectoryMapping, ServiceCategory
 from .pagination import ProfessionalDirectoryPagination
 from .permissions import CombinedDirectoryEnabled
 from .serializers import (
@@ -122,3 +126,43 @@ class ProfessionalDetailView(LocalizedContextMixin, RetrieveAPIView):
                 )
             )
         )
+
+
+class LegacyProfessionalRedirectView(APIView):
+    """Resolve spec §4.3's /professionals/profile/?id=<legacy> to a canonical URL.
+
+    200 with the destination when resolvable, 404 otherwise; the Next.js route
+    handler turns a 200 into a single-hop 301 and anything else into a 404.
+    """
+
+    permission_classes = [AllowAny, CombinedDirectoryEnabled]
+    throttle_scope = "services_directory"
+
+    def get(self, request):
+        legacy_id = request.query_params.get("id", "").strip()
+        if not legacy_id:
+            raise DRFValidationError({"id": "This query parameter is required."})
+
+        mapping = (
+            LegacyDirectoryMapping.objects.filter(
+                legacy_kind=LegacyDirectoryMapping.LegacyKind.PROVIDER,
+                legacy_identifier=legacy_id,
+                resolution=LegacyDirectoryMapping.Resolution.MAPPED,
+                target_type=LegacyDirectoryMapping.TargetType.PROFESSIONAL_PROFILE,
+            )
+            .exclude(target_id=None)
+            .first()
+        )
+
+        active = ProfessionalProfile.objects.filter(status=ProfessionalProfileStatus.ACTIVE)
+        profile = (
+            active.filter(pk=mapping.target_id).first()
+            if mapping
+            # Spec §14.3 step 4: a slug that survived the migration unchanged
+            # resolves without needing a mapping row.
+            else active.filter(slug=legacy_id).first()
+        )
+        if profile is None:
+            raise NotFound()
+
+        return Response({"url": profile.get_absolute_url()})

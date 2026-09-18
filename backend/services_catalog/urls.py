@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    LegacyProfessionalRedirectView,
     ProfessionalDetailView,
     ProfessionalDirectoryListView,
     ServiceCategoryDetailView,
@@ -8,6 +9,11 @@ from .views import (
 )
 
 urlpatterns = [
+    path(
+        "legacy/professional-redirect/",
+        LegacyProfessionalRedirectView.as_view(),
+        name="legacy-professional-redirect",
+    ),
     path(
         "professionals/",
         ProfessionalDirectoryListView.as_view(),
