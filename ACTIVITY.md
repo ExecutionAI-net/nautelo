@@ -89,6 +89,13 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 12 broker auto-approval policy complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-12-broker-policy.md` (10 tasks; last PRs #160 switch UI, #161 audit history and bulk approve, plus this acceptance PR).
+- **What exists:** `BrokerOrganization.auto_approve_listings` (default off, audited toggle with mandatory reason), auto-publication on submit under policy (`publication_source=BROKER_POLICY`, atomic snapshot), staff endpoints `PATCH .../approval-policy/`, `GET .../brokers/<id>/`, `POST .../pending-approvals/`, and the staff broker screen (overview, switch with confirmation, audit history, bulk approve).
+- **Tests:** spec 21 acceptance tests 1-4 and rules 2-7 in `backend/brokers/tests/test_phase_12_acceptance.py` (12 tests over real HTTP); `makemigrations --check` reports no changes (no migration in this phase).
+- **Known limitations:** bulk-approve UI cannot send `expected_count` (backend lacks it); staff navigation is Phase 17; bulk approve is synchronous; entitlement gate is still the Phase 11 stub until Phase 13; see the plan's Known Limitations list.
+
 ### 2026-09-19 — Phase 10 listing view analytics complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-10-listing-analytics.md` (8 tasks: PRs #107, #112, #127, #146, #150, #157, #158 plus this acceptance PR).
