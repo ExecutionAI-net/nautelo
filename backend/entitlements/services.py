@@ -6,22 +6,26 @@ and records the audit event. Django admin, Celery tasks and (from Phase 17) the
 staff API all call these rather than touching `state` directly.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ErrorDetail, ValidationError
 
 from audit.models import AuditEvent
 from audit.services import record_audit_event
 
 from .enums import (
     RESERVATION_TIMEOUT_MINUTES,
+    EntitlementSource,
     EntitlementState,
+    EntitlementType,
     can_transition_entitlement,
 )
 from .models import UserEntitlement
+from .policy import paid_validity_days
 
 
 class InvalidEntitlementState(APIException):
@@ -214,3 +218,216 @@ def release_stale_reservations(*, now: datetime | None = None) -> int:
         ):
             moved += 1
     return moved
+
+
+class EntitlementReasonRequired(ValidationError):
+    """Spec §26.3 and §36.3: every staff operation on the ledger is a
+    compensation decision and must say why, in the audit trail and on the row.
+
+    A ValidationError (400) rather than a bespoke APIException, so it renders
+    through spec §30.2's `fields` map with the offending field named. The
+    consequence, stated because it is easy to get wrong: common.exceptions maps
+    EVERY ValidationError to `code: "validation_error"`, and its `_field_map`
+    flattens each detail item with `str()` — which on an ErrorDetail yields the
+    MESSAGE, not the code. So the wire reads
+    `{"code": "validation_error",
+      "fields": {"reason": ["Explain why this entitlement is being changed."]}}`
+    and the string "entitlement_reason_required" never leaves Python. It is the
+    internal DRF code, assertable as `exc.detail["reason"][0].code`. That is the
+    intended contract — a blank reason is a form error about one field, not a
+    distinct API failure mode — and it is why `get_codes()` on this exception
+    returns a dict, not a string.
+    """
+
+    def __init__(self):
+        super().__init__(
+            {
+                "reason": [
+                    ErrorDetail(
+                        "Explain why this entitlement is being changed.",
+                        code="entitlement_reason_required",
+                    )
+                ]
+            }
+        )
+
+
+def _require_reason(reason: str) -> str:
+    cleaned = (reason or "").strip()
+    if not cleaned:
+        raise EntitlementReasonRequired()
+    return cleaned
+
+
+@transaction.atomic
+def grant_listing_right(
+    *,
+    user,
+    actor,
+    reason: str,
+    entitlement_type: str = EntitlementType.PAID_LISTING,
+    valid_days: int | None = None,
+    now: datetime | None = None,
+) -> UserEntitlement:
+    """Spec §26.3 item 2: "Grant a compensatory listing/media right with
+    mandatory reason."
+
+    Always AVAILABLE and always STAFF_GRANT — a grant hands someone a usable
+    right, it never back-dates a consumption, and it is never attributed to
+    Stripe.
+    """
+    cleaned = _require_reason(reason)
+    now = now or timezone.now()
+    valid_days = valid_days if valid_days is not None else paid_validity_days()
+
+    entitlement = UserEntitlement.objects.create(
+        user=user,
+        entitlement_type=entitlement_type,
+        source=EntitlementSource.STAFF_GRANT,
+        state=EntitlementState.AVAILABLE,
+        valid_from=now,
+        valid_until=now + timedelta(days=valid_days),
+        granted_by=actor if getattr(actor, "is_authenticated", False) else None,
+        metadata={"reason": cleaned},
+    )
+    _audit(
+        entitlement=entitlement,
+        action="entitlement.granted",
+        before_state=None,
+        actor=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        source=AuditEvent.Source.ADMIN,
+        extra={"reason": cleaned, "valid_days": valid_days},
+    )
+    return entitlement
+
+
+def revoke_entitlement(
+    *,
+    entitlement,
+    actor,
+    reason: str,
+    now: datetime | None = None,
+    actor_type: str | None = None,
+    source: str | None = None,
+) -> UserEntitlement:
+    """Spec §26.3 item 3, and spec §6.3's `CONSUMED -> REVOKED`.
+
+    Works from AVAILABLE/RESERVED (an unused grant withdrawn) and from CONSUMED
+    (a refund, chargeback or staff remedy). Spec §26.4's rule that staff must
+    not hand-edit Stripe-paid order status is unaffected: this revokes the
+    *entitlement*, never a PaymentOrder.
+    """
+    cleaned = _require_reason(reason)
+    now = now or timezone.now()
+    return _revoke(
+        entitlement=entitlement,
+        actor=actor,
+        reason=cleaned,
+        now=now,
+        action="entitlement.revoked",
+        extra_metadata={},
+        actor_type=actor_type,
+        source=source,
+    )
+
+
+def _revoke(
+    *,
+    entitlement,
+    actor,
+    reason,
+    now,
+    action,
+    extra_metadata,
+    actor_type=None,
+    source=None,
+):
+    with transaction.atomic():
+        locked = UserEntitlement.objects.select_for_update().get(pk=entitlement.pk)
+        before_state = locked.state
+        if before_state == EntitlementState.REVOKED or not (
+            can_transition_entitlement(before_state, EntitlementState.REVOKED)
+            or before_state
+            in (EntitlementState.AVAILABLE, EntitlementState.RESERVED)
+        ):
+            raise InvalidEntitlementState(current_state=before_state)
+
+        locked.state = EntitlementState.REVOKED
+        locked.revoked_at = now
+        locked.metadata = {
+            **locked.metadata,
+            "revocation_reason": reason,
+            **extra_metadata,
+        }
+        locked.save(
+            update_fields=["state", "revoked_at", "metadata", "updated_at"]
+        )
+        _audit(
+            entitlement=locked,
+            action=action,
+            before_state=before_state,
+            actor=actor,
+            actor_type=actor_type or AuditEvent.ActorType.USER,
+            source=source or AuditEvent.Source.ADMIN,
+            extra={"reason": reason, **extra_metadata},
+        )
+        return locked
+
+
+@dataclass(frozen=True)
+class RestoreResult:
+    revoked: UserEntitlement
+    replacement: UserEntitlement | None
+
+
+@transaction.atomic
+def restore_consumed_right(
+    *, entitlement, actor, reason: str, now: datetime | None = None
+) -> RestoreResult:
+    """Spec §26.3 item 4: "Restore a right after documented staff error."
+
+    Two shapes, because the two right types are restored differently:
+      * FREE_LISTING — revoking the consumed row is the whole remedy, because
+        free eligibility is recomputed from consumption history (spec §22.1)
+        and a REVOKED row no longer counts.
+      * PAID_LISTING — revoking alone would leave the buyer with nothing, so a
+        replacement AVAILABLE/STAFF_GRANT row is issued with fresh validity.
+
+    The listing this right published is deliberately untouched: spec §36.4
+    keeps moderation decisions and entitlement remedies separate.
+    """
+    cleaned = _require_reason(reason)
+    now = now or timezone.now()
+
+    entitlement.refresh_from_db()
+    if entitlement.state != EntitlementState.CONSUMED:
+        raise InvalidEntitlementState(
+            "Only a consumed right can be restored.", current_state=entitlement.state
+        )
+
+    revoked = _revoke(
+        entitlement=entitlement,
+        actor=actor,
+        reason=cleaned,
+        now=now,
+        action="entitlement.restored",
+        extra_metadata={"restored": True},
+    )
+
+    replacement = None
+    if revoked.entitlement_type == EntitlementType.PAID_LISTING:
+        replacement = grant_listing_right(
+            user=revoked.user,
+            actor=actor,
+            reason=cleaned,
+            entitlement_type=EntitlementType.PAID_LISTING,
+            now=now,
+        )
+        replacement.metadata = {
+            **replacement.metadata,
+            "restored_from": str(revoked.pk),
+        }
+        replacement.save(update_fields=["metadata", "updated_at"])
+
+    return RestoreResult(revoked=revoked, replacement=replacement)

@@ -1,0 +1,18 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <ul>
+    {% for entitlement in queryset %}
+      <li>{{ entitlement }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    {% for entitlement in queryset %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ entitlement.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="{{ request.POST.action }}">
+    <input type="submit" name="apply_reason" value="Confirm">
+  </form>
+{% endblock %}
