@@ -141,6 +141,13 @@ REST_FRAMEWORK = {
         # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
         "auth-refresh": "30/min",
         "services_directory": "60/min",
+        # Spec §30.4 lists finance quote logging among the rate-limited
+        # surfaces while allowing "the calculation itself [to] remain
+        # reasonably accessible". The finance page recalculates on every
+        # assumption change and each boat card's details disclosure fires one
+        # request when it is opened, so the bucket is well above a browsing
+        # session and well below scripted enumeration of the catalogue.
+        "finance_quote": "120/min",
     },
     "EXCEPTION_HANDLER": "common.exceptions.nauta_exception_handler",
 }

@@ -35,6 +35,21 @@ def test_finance_quote_endpoint_matches_spec_worked_example():
         # ruling note.
         "configuration_version": None,
         "disclaimer_key": "finance.illustrative_disclaimer",
+        # Added by Phase 9 (docs/superpowers/plans/2026-09-18-phase-9-finance-ui
+        # .md, Task 5). FinanceQuoteView._quote_response now builds ONE response
+        # shape for both of spec §17.4's contexts, so `assumption_sources` is
+        # present on a manual quote too — and is None here, because a manual
+        # quote reads no stored configuration and no listing override, so there
+        # is no platform source (§17.2's GLOBAL / LISTING_OVERRIDE) to report.
+        #
+        # This exact-dict assertion is Phase 8's locked contract for the manual
+        # context and it is widened deliberately, in the same commit as the
+        # change that widens the response. The alternative — omitting the key on
+        # the manual path — would leave two response shapes behind one endpoint
+        # and force the frontend's FinanceQuote type into an optional field or a
+        # second type, for no gain. Every other key above is unchanged, and the
+        # money values are the proof that the calculation itself did not move.
+        "assumption_sources": None,
     }
 
 
