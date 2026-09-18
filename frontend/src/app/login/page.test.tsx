@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import LoginPage from "./page";
 
@@ -17,6 +17,20 @@ vi.mock("@/lib/auth/session", () => ({
   useSession: () => ({ login: loginMock }),
 }));
 
+beforeAll(async () => {
+  // First render/interaction in a fresh jsdom environment pays a one-time
+  // React + testing-library warm-up cost (~2-4s under Vitest's parallel
+  // workers) that otherwise lands inside whichever `it()` runs first and
+  // trips its waitFor/testTimeout. Absorb that cost here, under the more
+  // generous hookTimeout, so no test's timing budget depends on run order.
+  loginMock.mockResolvedValue(undefined);
+  const { unmount } = render(<LoginPage />);
+  await submit();
+  unmount();
+  cleanup();
+  loginMock.mockReset();
+});
+
 beforeEach(() => {
   replaceMock.mockReset();
   loginMock.mockReset().mockResolvedValue(undefined);
@@ -24,7 +38,11 @@ beforeEach(() => {
 });
 
 async function submit() {
-  const user = userEvent.setup();
+  // delay: null skips userEvent's real setTimeout between keystrokes, so
+  // typing resolves via microtasks instead of the macrotask timer queue —
+  // under Vitest's parallel jsdom workers that queue backs up and blows
+  // past waitFor/testTimeout (see the flakiness investigation in Task 14).
+  const user = userEvent.setup({ delay: null });
   await user.type(screen.getByLabelText(/email/i), "pilot@example.com");
   await user.type(screen.getByLabelText(/password/i), "n4uta-test-Passw0rd");
   await user.click(screen.getByRole("button", { name: /sign in/i }));
