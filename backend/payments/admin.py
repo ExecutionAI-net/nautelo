@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MarketplaceProduct
+from .models import MarketplaceProduct, PaymentOrder, ProcessedWebhookEvent
 
 
 @admin.register(MarketplaceProduct)
@@ -35,3 +35,51 @@ class MarketplaceProductAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(PaymentOrder)
+class PaymentOrderAdmin(admin.ModelAdmin):
+    """Read-only by design. Spec §26.3: "Staff must not edit Stripe-paid order
+    status manually. Payment corrections follow Stripe/service workflows."
+    Spec §23.1: "Staff does not ... manually mark a browser redirect as paid."
+    Both sentences are the same rule, and this class is where it is enforced."""
+
+    list_display = (
+        "id", "user", "product", "status", "amount", "currency",
+        "stripe_checkout_session_id", "paid_at", "fulfilled_at",
+    )
+    list_filter = ("status", "product__code", "currency")
+    search_fields = (
+        "id", "user__email", "stripe_checkout_session_id",
+        "stripe_payment_intent_id", "client_idempotency_key",
+    )
+    raw_id_fields = ("user", "product", "listing", "fulfilled_entitlement")
+    date_hierarchy = "created_at"
+    readonly_fields = tuple(field.name for field in PaymentOrder._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ProcessedWebhookEvent)
+class ProcessedWebhookEventAdmin(admin.ModelAdmin):
+    list_display = ("stripe_event_id", "event_type", "result", "processed_at")
+    list_filter = ("result", "event_type")
+    search_fields = ("stripe_event_id",)
+    date_hierarchy = "processed_at"
+    readonly_fields = tuple(field.name for field in ProcessedWebhookEvent._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

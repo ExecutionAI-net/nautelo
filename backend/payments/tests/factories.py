@@ -1,9 +1,11 @@
 from decimal import Decimal
 
+from django.utils import timezone
+
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
-from payments.enums import ProductCode
-from payments.models import MarketplaceProduct
+from payments.enums import PaymentOrderStatus, ProductCode
+from payments.models import MarketplaceProduct, PaymentOrder
 
 
 def make_payments_seller(email="p14-seller@example.com", **extra):
@@ -58,3 +60,61 @@ def media_upgrade_product(**overrides):
         MarketplaceProduct.objects.get(code=ProductCode.LISTING_MEDIA_UPGRADE),
         **overrides,
     )
+
+
+_UNSET = object()
+
+
+def make_order(
+    *,
+    user,
+    product,
+    status=PaymentOrderStatus.CREATED,
+    amount=Decimal("49.00"),
+    currency="EUR",
+    listing=None,
+    stripe_checkout_session_id="",
+    stripe_payment_intent_id="",
+    client_idempotency_key="",
+    paid_at=_UNSET,
+    fulfilled_at=_UNSET,
+    fulfilled_entitlement=None,
+    metadata=None,
+    idempotency_key=None,
+):
+    """Build one PaymentOrder.
+
+    `paid_at`/`fulfilled_at` default to a value consistent with `status` so an
+    ordinary caller does not have to think about the database constraints — pass
+    an explicit `None` to build the inconsistent row a constraint test needs. `amount` is
+    coerced so a caller may pass a plain string.
+    """
+    order = PaymentOrder(
+        user=user,
+        product=product,
+        listing=listing,
+        status=status,
+        amount=Decimal(amount),
+        currency=currency,
+        stripe_checkout_session_id=stripe_checkout_session_id,
+        stripe_payment_intent_id=stripe_payment_intent_id,
+        client_idempotency_key=client_idempotency_key,
+        fulfilled_entitlement=fulfilled_entitlement,
+        metadata=metadata or {},
+        paid_at=None if paid_at is _UNSET else paid_at,
+        fulfilled_at=None if fulfilled_at is _UNSET else fulfilled_at,
+    )
+    if paid_at is _UNSET and status in {
+        PaymentOrderStatus.PAID,
+        PaymentOrderStatus.FULFILLED,
+        PaymentOrderStatus.REFUNDED,
+        PaymentOrderStatus.DISPUTED,
+    }:
+        order.paid_at = timezone.now()
+    if fulfilled_at is _UNSET and status == PaymentOrderStatus.FULFILLED:
+        order.fulfilled_at = timezone.now()
+    order.idempotency_key = (
+        idempotency_key if idempotency_key is not None else f"checkout:{order.pk}"
+    )
+    order.save()
+    return order
