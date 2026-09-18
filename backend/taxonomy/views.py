@@ -1,10 +1,12 @@
+import uuid
+
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
-from rest_framework.throttling import ScopedRateThrottle
 
-from .models import BoatBrand
+from .models import BoatBrand, BoatModel
 from .pagination import TaxonomySearchPagination
-from .serializers import BoatBrandSerializer
+from .serializers import BoatBrandSerializer, BoatModelSerializer
 from .services import normalize_taxonomy_name
 
 
@@ -12,7 +14,6 @@ class BoatBrandListView(ListAPIView):
     serializer_class = BoatBrandSerializer
     permission_classes = [AllowAny]
     pagination_class = TaxonomySearchPagination
-    throttle_classes = [ScopedRateThrottle]
     throttle_scope = "taxonomy_search"
 
     def get_queryset(self):
@@ -25,19 +26,10 @@ class BoatBrandListView(ListAPIView):
         return queryset
 
 
-import uuid
-
-from rest_framework.exceptions import ValidationError as DRFValidationError
-
-from .models import BoatModel
-from .serializers import BoatModelSerializer
-
-
 class BoatModelListView(ListAPIView):
     serializer_class = BoatModelSerializer
     permission_classes = [AllowAny]
     pagination_class = TaxonomySearchPagination
-    throttle_classes = [ScopedRateThrottle]
     throttle_scope = "taxonomy_search"
 
     def get_queryset(self):
