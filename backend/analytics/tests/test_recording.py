@@ -5,6 +5,8 @@ using the same anonymous IP" is the sentence this file exists to prove, and it i
 proved for both identity kinds and under a simulated race.
 """
 
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError
@@ -412,6 +414,62 @@ def test_the_loser_of_a_race_still_touches_last_seen_at(
     refreshed = ListingView.objects.get(pk=winner.pk)
     assert refreshed.last_seen_at > stamped
     assert refreshed.first_viewed_at == stamped
+
+
+def test_a_race_loser_with_a_lagging_clock_touches_without_moving_time_backwards(
+    factory, listing, view_counting_enabled, settings
+):
+    """Clock skew must not turn a lost race into a 500 on a public listing GET.
+
+    `record_listing_view` captures `now` BEFORE attempting the INSERT. Under a
+    real race the winner may capture a LATER `now` and still commit first — two
+    web workers' clocks are not the same clock, and NTP corrections move them in
+    both directions. The loser then arrives with an OLDER `now`, and a fallback
+    that wrote `last_seen_at = now` verbatim would set `last_seen_at` earlier than
+    the row's `first_viewed_at`, violating
+    `analytics_view_last_seen_not_before_first_viewed`. That IntegrityError is
+    raised by the UPDATE itself, so it is not a uniqueness race the handler can
+    recognise: it propagates, and spec §19's acceptance test 5 scenario becomes a
+    500 on the listing detail page.
+
+    The winner here is stamped five seconds into the future relative to the
+    `now` the recorder is about to capture, which is exactly that situation.
+    `Greatest(last_seen_at, now)` makes the touch monotonic: it never rewinds.
+    """
+    settings.TRUSTED_PROXY_COUNT = 0
+    request = _request(factory)
+    identity = resolve_viewer_identity(request=request, listing=listing)
+    ahead = timezone.now() + timedelta(seconds=5)
+    winner = ListingView.objects.create(
+        listing=listing,
+        viewer_type=identity.viewer_type,
+        viewer_user=identity.viewer_user,
+        viewer_hash=identity.viewer_hash,
+        first_viewed_at=ahead,
+        last_seen_at=ahead,
+        user_agent_class=identity.user_agent_class,
+    )
+    BoatListing.objects.filter(pk=listing.pk).update(view_count_cached=1)
+
+    result = record_listing_view(listing=listing, request=request)
+
+    assert result.counted is False
+    assert ListingView.objects.count() == 1
+    assert _count(listing) == 1
+    refreshed = ListingView.objects.get(pk=winner.pk)
+    assert refreshed.last_seen_at == ahead  # held, not rewound
+    assert refreshed.last_seen_at >= refreshed.first_viewed_at
+
+    # ...and the clamp is a floor, not a freeze: once the row is genuinely in the
+    # past again, the next touch moves it FORWARD as normal.
+    behind = timezone.now() - timedelta(seconds=5)
+    ListingView.objects.filter(pk=winner.pk).update(
+        first_viewed_at=behind, last_seen_at=behind
+    )
+
+    record_listing_view(listing=listing, request=request)
+
+    assert ListingView.objects.get(pk=winner.pk).last_seen_at > behind
 
 
 def test_a_non_uniqueness_integrity_error_propagates_instead_of_being_swallowed(

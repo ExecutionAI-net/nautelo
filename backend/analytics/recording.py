@@ -32,7 +32,8 @@ path that fails silently is an analytics path nobody ever fixes.
 from dataclasses import dataclass
 
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import F, Value
+from django.db.models.functions import Greatest
 from django.utils import timezone
 
 from listings.models import BoatListing
@@ -91,9 +92,22 @@ def _insert_or_touch(*, listing, identity: ViewerIdentity, now) -> bool:
         # returning False would be exactly the silent, permanent undercount the
         # "recording failures are not swallowed" ruling forbids, so it is
         # re-raised with its original traceback.
+        #
+        # `Greatest`, not a bare assignment: `now` was captured BEFORE the INSERT
+        # attempt, and the thread that won this race may have captured a LATER
+        # `now` and still committed first — two web workers do not share a clock,
+        # and an NTP correction moves one in either direction. Writing `now`
+        # verbatim would then set `last_seen_at` earlier than this row's
+        # `first_viewed_at` and violate
+        # `analytics_view_last_seen_not_before_first_viewed`. That IntegrityError
+        # comes from the UPDATE itself, so the handler below cannot recognise it
+        # as a race and it would propagate — turning a lost race (spec §19's
+        # acceptance test 5) into a 500 on a public listing GET. The clamp makes
+        # the touch monotonic: recency only ever moves forward. The matched-row
+        # count is unaffected, so it still serves as the existence probe.
         touched = ListingView.objects.filter(
             listing=listing, **identity.lookup()
-        ).update(last_seen_at=now)
+        ).update(last_seen_at=Greatest(F("last_seen_at"), Value(now)))
         if not touched:
             raise
         return False
