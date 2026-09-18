@@ -69,10 +69,19 @@ class UserEntitlement(UUIDTimeStampedModel):
         max_length=16, choices=EntitlementType.choices
     )
     source = models.CharField(max_length=16, choices=EntitlementSource.choices)
-    # Loose reference to Phase 14's payments.PaymentOrder (spec §11.9), which
-    # does not exist yet. Phase 14 converts it to a real ForeignKey, exactly as
-    # this phase converts Phase 11's BoatListing.consumed_entitlement_id.
-    source_payment_id = models.UUIDField(null=True, blank=True)
+    # Phase 14 converted this from a loose UUIDField into a real FK (Phase 13
+    # contract rule 6). PROTECT, not CASCADE or SET_NULL: spec §35.3 says "Do
+    # not roll back a fulfilled Stripe entitlement by deleting it; preserve
+    # ledger and reconcile", and the order is half of that ledger. The column
+    # name is unchanged (`source_payment_id`), so every existing query and the
+    # test factory keep working verbatim.
+    source_payment = models.ForeignKey(
+        "payments.PaymentOrder",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="granted_entitlements",
+    )
     listing = models.ForeignKey(
         "listings.BoatListing",
         null=True,
@@ -139,6 +148,21 @@ class UserEntitlement(UUIDTimeStampedModel):
                 fields=["listing", "entitlement_type"],
                 condition=Q(listing__isnull=False) & ~Q(state=EntitlementState.REVOKED),
                 name="entitlements_one_live_right_per_listing_and_type",
+            ),
+            # Spec §6.4's "an entitlement was created exactly once", as a
+            # database invariant rather than a Python guard. Partial on two
+            # axes: rows with no payment behind them (free and staff-granted
+            # rights) are unconstrained, and a REVOKED row stops counting so
+            # that §23.4's refund-then-repurchase and §26.3's staff restore
+            # both stay possible. Disjoint from
+            # entitlements_one_live_right_per_listing_and_type, which is keyed
+            # on (listing, entitlement_type) and is NULL for every listing-right
+            # purchase.
+            models.UniqueConstraint(
+                fields=["source_payment"],
+                condition=Q(source_payment__isnull=False)
+                & ~Q(state=EntitlementState.REVOKED),
+                name="entitlements_one_live_right_per_payment",
             ),
         ]
 

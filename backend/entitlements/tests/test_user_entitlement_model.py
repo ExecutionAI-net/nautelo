@@ -22,7 +22,7 @@ def test_every_spec_11_9_field_exists_with_the_spec_name():
         "user",
         "entitlement_type",
         "source",
-        "source_payment_id",
+        "source_payment",
         "listing",
         "state",
         "valid_from",
