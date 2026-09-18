@@ -77,7 +77,7 @@ Every task's requirements implicitly include this section.
 - **Exact publication window, copied verbatim from spec §1/§10.1:** a free private-seller publication lasts **30** days (`individual.free_publish_days`), read at runtime from `platform_settings`.
 - **Exact optimistic-locking contract (spec §20.5):** "All edit submissions include listing/revision version. Stale updates return `409 conflict` with current version metadata. Do not silently overwrite another browser/session edit." Mechanism is fully specified in Task 6.
 - **Exact decision rules, copied verbatim from spec §26.2:** "Approval reason/note optional unless warning override exists. Request changes and reject require a user-visible reason. Decisions are atomic and idempotent; repeated click cannot create multiple snapshots. If another moderator already decided, return conflict and refresh."
-- **Error envelope** (spec §30.2): every error response is rendered by Phase 3's `common.exceptions.nauta_exception_handler` as `{"error": {"code", "message", "fields", "request_id"}}`. Task 6 adds one optional `meta` key to it. Machine codes introduced by this phase are stable and must not be renamed: `immutable_after_publication`, `unknown_field`, `stale_version`, `feature_disabled`, `invalid_listing_state`, `invalid_revision_state`, `media_not_ready`, `media_allowance_exceeded`, `decision_note_required`, `finance_not_allowed_for_private_seller`.
+- **Error envelope** (spec §30.2): every error response is rendered by Phase 3's `common.exceptions.nauta_exception_handler` as `{"error": {"code", "message", "fields", "request_id"}}`. Task 6 adds one optional `meta` key to it. Machine codes introduced by this phase are stable and must not be renamed: `immutable_after_publication`, `unknown_field`, `stale_version`, `feature_disabled`, `invalid_listing_state`, `invalid_revision_state`, `media_not_ready`, `media_allowance_exceeded`, `decision_note_required`, `finance_not_allowed_for_private_seller`, `invalid_brand`, `invalid_model`. (The last two come from `listings.drafts._resolve_taxonomy` and are now reachable from draft create, draft update and staff corrections alike — see Task 8.) Field-level *schema* codes raised by `listings.payloads` — `invalid_text`, `invalid_price`, `invalid_percent`, `invalid_media_ids`, `invalid_specifications`, `invalid_country`, `unsupported_currency`, `invalid_identifier`, `invalid_manufacture_year`, `invalid_boolean`, `invalid_term`, `invalid_payload`, `required_for_submission` — are equally stable and are defined once, in Task 5.
 - **Feature flag** (spec §35.1): the four mutation endpoints are gated behind the `listing_revisions` flag, seeded **disabled** so the deployment sequence in §35.2 step 4 ("Deploy code with features off/read-compatible") is possible. Public read endpoints are not gated.
 - **No finance UI or calculation in this plan.** `BoatListing` stores `show_finance_estimate` and the three override columns because spec §11.4 puts them there, and the payload validator refuses them for private sellers (spec §1, §18.4, §40 Scenario D). Rendering a `finance` block on a listing response is spec Phase 9 and is deliberately absent — see Known Limitations.
 - Localization: user-facing strings this phase emits (decision notes are staff-authored free text, so they are exempt) use the translation keys spec §37 already reserves — `listing.pending_approval`, `listing.approved_version_live`, `listing.immutable_field_help`. No new English copy is invented in backend responses beyond the stable error messages listed above.
@@ -88,7 +88,7 @@ Every task's requirements implicitly include this section.
 
 Per the standing project convention recorded in `ACTIVITY.md` and repeated in every earlier plan: each task is implemented on its own branch off the current tip of `dev` (`git checkout -b listings-task-N-<slug> dev`), run through `subagent-driven-development`'s implementer → task-reviewer → fix-loop cycle, opened as a PR (`gh pr create`), and merged by the controller only when the CI workflow (`.github/workflows/ci.yml`) is green and the branch is cleanly mergeable. Tasks run strictly sequentially — never two branches in flight at once — and each new task branches from the just-merged `dev` tip (run `git fetch && git merge origin/dev --ff-only` first; the Phase 4 retrospective records a real bug caused by branching a worktree off a stale local `dev`).
 
-This plan touches exactly three files outside `backend/listings/`: `backend/config/settings/base.py` (one line: register the app), `backend/config/urls.py` (one import + one include), and `backend/common/exceptions.py` (a four-line `meta` passthrough in Task 6). Each is called out per-task with its exact expected current content.
+This plan touches exactly three files outside `backend/listings/`: `backend/config/settings/base.py` (one line: register the app), `backend/config/urls.py` (one import + one include), and `backend/common/exceptions.py` (a four-line `meta` passthrough in Task 6). Each is called out per-task. `backend/common/exceptions.py` is a **Phase 3 deliverable that does not exist in this worktree yet**, so Task 6 describes the edit as a procedure anchored on a landmark inside `nauta_exception_handler` rather than as a literal before/after diff that could go stale if Phase 3's implementation shifts during its own review cycle. Read the real file before editing it.
 
 ---
 
@@ -186,7 +186,7 @@ Migration filenames above are what Django's auto-numbering produces for a fresh 
 - Delete: `backend/listings/tests.py`, `backend/listings/views.py`, `backend/listings/admin.py`, `backend/listings/models.py` (Django `startapp` boilerplate — recreated with real content in later tasks)
 
 **Interfaces:**
-- Produces: `listings.enums.ListingStatus`, `listings.enums.RevisionStatus`, `listings.enums.RevisionOrigin`, `listings.enums.PublicationSource`, `listings.enums.MediaType`, `listings.enums.MediaStatus` (all `django.db.models.TextChoices`), plus `listings.enums.LISTING_TRANSITIONS: dict[str, frozenset[str]]`, `listings.enums.REVISION_TRANSITIONS: dict[str, frozenset[str]]`, `listings.enums.OPEN_REVISION_STATES: frozenset[str]`, `listings.enums.DECIDED_REVISION_STATES: frozenset[str]`, `listings.enums.NOTE_REQUIRED_REVISION_STATES: frozenset[str]`, and the helpers `can_transition_listing(current, target) -> bool` / `can_transition_revision(current, target) -> bool`.
+- Produces: `listings.enums.ListingStatus`, `listings.enums.RevisionStatus`, `listings.enums.RevisionOrigin`, `listings.enums.PublicationSource`, `listings.enums.MediaType`, `listings.enums.MediaStatus` (all `django.db.models.TextChoices`), plus `listings.enums.LISTING_TRANSITIONS: dict[str, frozenset[str]]`, `listings.enums.REVISION_TRANSITIONS: dict[str, frozenset[str]]`, `listings.enums.OPEN_REVISION_STATES: frozenset[str]`, `listings.enums.DECIDED_REVISION_STATES: frozenset[str]`, `listings.enums.NOTE_REQUIRED_REVISION_STATES: frozenset[str]`, and the helpers `can_transition_listing(current, target) -> bool` / `can_transition_revision(current, target) -> bool`. The maps are the tested statement of §6.1/§6.2; of the two helpers only `can_transition_listing` has a runtime caller in this phase (`decisions._change_suspension`, Task 13) — see the ruling on enforcement scope below before assuming either one gates a path.
 - Produces: `listings` registered in `INSTALLED_APPS`.
 
 **Note:** Phase 0/1's retrospective in `ACTIVITY.md` records a real bug from `django-admin startapp`: it generates a flat `tests.py` that silently shadows a `tests/` package. Delete it immediately after `startapp`, before creating the package.
@@ -203,7 +203,20 @@ DRAFT
 
 which could be read as a fan-out from `DRAFT` or as a chain. It is read here as a **chain** (`DRAFT → PENDING_APPROVAL → PUBLISHED → EXPIRED → ARCHIVED`), because the fan-out reading would allow `DRAFT → EXPIRED` and `DRAFT → ARCHIVED`, which no rule in the spec describes, and because §6.1's own rule list separately names the only sanctioned direct `DRAFT → PUBLISHED` path ("A broker initial publication enters `PUBLISHED` only if its broker has `auto_approve_listings=true`"). `DRAFT → PUBLISHED` is therefore included in the map, reserved for Phase 12; nothing in this phase triggers it, because `policies.requires_staff_approval()` always returns `True` (see Task 7).
 
-**Note (ruling — `PENDING_APPROVAL → DRAFT` is required and §6.1 omits it):** §6.2 says a revision may go `SUBMITTED → CHANGES_REQUESTED → DRAFT`, and §36.4 says "'Request changes' permits resubmission in the same entitlement/submission chain." For an *initial* submission the listing is sitting in `PENDING_APPROVAL`; if that status did not change, the listing would remain in the moderation queue while it is actually back with the seller, and the seller could not edit it. `PENDING_APPROVAL → DRAFT` is therefore in the map. It mirrors the `REJECTED → DRAFT` return path §6.1 does print. The same transition carries an owner **withdrawal** of an initial submission (§6.2 `SUBMITTED → WITHDRAWN`, §36.4 "they may withdraw submission, preserving audit").
+**Note (ruling — `PENDING_APPROVAL → DRAFT` is required and §6.1 omits it):** §6.2 says a revision may go `SUBMITTED → CHANGES_REQUESTED → DRAFT`, and §36.4 says "'Request changes' permits resubmission in the same entitlement/submission chain." For an *initial* submission the listing is sitting in `PENDING_APPROVAL`; if that status did not change, the listing would remain in the moderation queue while it is actually back with the seller, and the seller could not edit it. `PENDING_APPROVAL → DRAFT` is therefore in the map. It mirrors the `REJECTED → DRAFT` return path §6.1 does print. The same transition carries an owner **withdrawal** of an initial submission (§6.2 `SUBMITTED → WITHDRAWN`, §36.4 "they may withdraw submission, preserving audit"). This listing-level edge is also where §6.2's `CHANGES_REQUESTED → DRAFT` actually lands — see the next ruling.
+
+**Note (ruling — §6.2's `CHANGES_REQUESTED → DRAFT` is a listing-level return, not a revision-row one):** §6.2 prints `SUBMITTED -> CHANGES_REQUESTED -> DRAFT`, which reads naturally as one revision row cycling back to `DRAFT`. This plan does **not** implement it that way, and `REVISION_TRANSITIONS[CHANGES_REQUESTED]` is therefore empty. Reverting the row would mean carrying `decided_by`, `decided_at` and `decision_note` on a row that claims to be an undecided draft, and then overwriting them on the next submit — destroying the very record §26.2 ("Every decision records actor, note and timestamps") and §36.4 ("preserving audit") require, and re-occupying the listing's single open-revision slot with a row that has already been ruled on. What §6.2 is describing — the seller getting the listing back and being able to edit and resubmit it — is instead realised as:
+- the **revision** row stays `CHANGES_REQUESTED` forever, as the permanent record of that one submit/decision cycle;
+- the **listing** returns to `DRAFT` (`PENDING_APPROVAL → DRAFT`, ruled above) at the moment of the decision, for an initial submission;
+- the seller's next edit opens the **next revision number** in `DRAFT`, seeded from the live snapshot where one exists (Task 9).
+
+The observable behaviour §36.4 asks for — "'Request changes' permits resubmission in the same entitlement/submission chain" — is identical, because the entitlement and the submission chain are properties of the **listing**, not of a revision row: nothing re-consumes an entitlement and the listing never leaves the chain. Every decided revision state (`APPROVED`, `CHANGES_REQUESTED`, `REJECTED`, `WITHDRAWN`) is terminal for the same reason, which is what makes `ListingRevision` an append-only audit trail.
+
+**Note (ruling — the transition maps are a tested description of §6.1/§6.2; `can_transition_*` is a guard at one call site, not a universal gate):** `LISTING_TRANSITIONS` / `REVISION_TRANSITIONS` and their two `can_transition_*` helpers serve two purposes, and it is worth being exact about which is which, so no later phase assumes a safety net that is not there:
+1. **As a specification.** They are the machine-readable, unit-tested statement of §6.1 and §6.2 (`test_sanctioned_listing_transitions_are_allowed`, `test_unsanctioned_listing_transitions_are_refused`, `test_revision_transitions_follow_spec_6_2`), and they are what a reviewer reads to check that a service's target state is legal. `test_listing_transition_map_covers_every_status_exactly_once` keeps them in step with the enums.
+2. **As a runtime guard.** `can_transition_listing` is *called* at exactly one place in this phase: `listings.decisions._change_suspension` (Task 13), which is the only service that takes its target status **as an argument from a caller** and therefore the only one that can be handed an illegal one. Every other state-changing service derives its target from the workflow itself (submit → `PENDING_APPROVAL`; approve → `PUBLISHED` on first publication only; request-changes → `DRAFT`; reject → `REJECTED`; withdraw → `DRAFT`), after a state precondition it checks directly (`open_revision_for` returning a `DRAFT` revision; `_locked_submitted_revision` refusing anything that is not `SUBMITTED`). Adding a second, redundant guard over a constant would not catch a bug; it would only duplicate the precondition. `can_transition_revision` has **no** runtime caller in this phase at all — it exists for the maps' tests and for Phase 12/17, which will accept target states from a moderation UI.
+
+This is why `approve_revision` must not re-write `status=PUBLISHED` on an already-published listing: there is no `PUBLISHED → PUBLISHED` edge, and a no-op write that the map forbids would become a real bug the day someone does wire the guard in. Task 11 writes `status` only on first publication for exactly that reason. The paths that rely on a per-service precondition rather than the map are named in Known Limitations item 14.
 
 **Note (ruling — changes-requested vs rejected leave the listing in different states):** on an initial submission, *request changes* returns the listing to `DRAFT` (an invitation to edit — the seller can immediately continue), while *reject* sets the listing to `REJECTED` (a refusal, which §6.1 prints explicitly), and the listing only returns to `DRAFT` when the seller actively opens a new draft revision (Task 9). Both are spec-grounded; the asymmetry is intentional and is what makes `REJECTED → DRAFT` in §6.1 mean something. For a listing that already has a public snapshot, **no** decision changes the listing status at all — it stays `PUBLISHED` (spec §20.2: "Existing approved snapshot remains live", "Rejection leaves the approved public snapshot untouched").
 
@@ -312,7 +325,13 @@ def test_revision_transitions_follow_spec_6_2():
     assert can_transition_revision(RevisionStatus.SUBMITTED, RevisionStatus.CHANGES_REQUESTED)
     assert can_transition_revision(RevisionStatus.SUBMITTED, RevisionStatus.REJECTED)
     assert can_transition_revision(RevisionStatus.SUBMITTED, RevisionStatus.WITHDRAWN)
-    assert can_transition_revision(RevisionStatus.CHANGES_REQUESTED, RevisionStatus.DRAFT)
+    # §6.2's `CHANGES_REQUESTED -> DRAFT` is a *listing*-level return (asserted
+    # as PENDING_APPROVAL -> DRAFT in test_sanctioned_listing_transitions_are_allowed
+    # above), not a revision-row one: a decided row never reverts, the seller's
+    # next edit opens the next revision number. See the ruling in this task.
+    assert not can_transition_revision(
+        RevisionStatus.CHANGES_REQUESTED, RevisionStatus.DRAFT
+    )
     assert not can_transition_revision(RevisionStatus.APPROVED, RevisionStatus.DRAFT)
     assert not can_transition_revision(RevisionStatus.REJECTED, RevisionStatus.SUBMITTED)
     assert not can_transition_revision(RevisionStatus.WITHDRAWN, RevisionStatus.SUBMITTED)
@@ -418,7 +437,10 @@ LISTING_TRANSITIONS: dict[str, frozenset[str]] = {
     ListingStatus.ARCHIVED: frozenset(),
 }
 
-# Spec §6.2.
+# Spec §6.2. Every decided state is terminal *for the row*: §6.2's
+# `CHANGES_REQUESTED -> DRAFT` edge is realised as the listing returning to
+# DRAFT plus a fresh revision number, never as a decided row reverting to DRAFT
+# (see the ruling in this task).
 REVISION_TRANSITIONS: dict[str, frozenset[str]] = {
     RevisionStatus.DRAFT: frozenset({RevisionStatus.SUBMITTED}),
     RevisionStatus.SUBMITTED: frozenset(
@@ -429,7 +451,7 @@ REVISION_TRANSITIONS: dict[str, frozenset[str]] = {
             RevisionStatus.WITHDRAWN,
         }
     ),
-    RevisionStatus.CHANGES_REQUESTED: frozenset({RevisionStatus.DRAFT}),
+    RevisionStatus.CHANGES_REQUESTED: frozenset(),
     RevisionStatus.APPROVED: frozenset(),
     RevisionStatus.REJECTED: frozenset(),
     RevisionStatus.WITHDRAWN: frozenset(),
@@ -552,7 +574,7 @@ git commit -m "feat(listings): scaffold listings app with spec-exact status enum
 
 **Note (ruling — a `BROKER` listing must have `owner_user` NULL):** spec §11.4 says only "`seller_type=BROKER` requires `broker`", leaving `owner_user` unconstrained for broker listings. It is constrained to `NULL` here for a security reason: Phase 3's `can_edit_owned_object(user, owner_user_id=…, broker_id=…)` grants edit rights if **either** the user is `owner_user` **or** the user holds an active `can_edit_listings` membership. A broker listing that also recorded an individual `owner_user` would grant that person permanent edit rights over organization property even after they left the organization. Who created the row is already recorded in `created_by`.
 
-**Note (ruling — which constraints can live in the database and which cannot):** three of spec §11.4's seven rules cannot be `CheckConstraint`s:
+**Note (not a ruling — where each of spec §11.4's seven rules lands):** this is a direct reading of the spec rather than a resolved ambiguity: §11.4's own heading is "Database/**application** constraints", so it already says some of its rules are enforced in application code. The mechanical detail below is only *which* three, and why each one is not expressible as a `CheckConstraint`:
 - *"A non-Other model requires blank `custom_model_name`"* and its inverse depend on `BoatModel.is_other_placeholder`, a column on a **different table**; Postgres check constraints cannot reference another row. Enforced in `BoatListing.clean()` and again in the payload validator (Task 5), with tests for both.
 - *"Manufacture year must be between 1900 and current year + 1"* has a moving upper bound; a static `CheckConstraint` would need a migration every January. The **lower** bound (`>= 1900`) is a database constraint; the upper bound is checked in `clean()` and in the payload validator against `BoatListing.max_manufacture_year()`.
 - *"Price must be positive when publication is submitted"* is conditional on the workflow, not on the row; the database constraint is the unconditional half (`price IS NULL OR price > 0`) and the submit service enforces "present and positive" (Task 10).
@@ -2382,7 +2404,14 @@ MAX_DESCRIPTION_LENGTH = 20_000
 MAX_SPECIFICATION_KEYS = 50
 MAX_SPECIFICATION_STRING_LENGTH = 500
 MAX_LOCATION_LENGTH = 120
-MAX_MEDIA_IDS = 21  # 20 images + 1 video, the largest allowance in spec §24.1
+# A structural ceiling on the *list*, not the per-listing allowance. The real
+# allowance is staff-configurable and enforced against live media rows at submit
+# time (listings.policies.effective_media_allowance + validate_submission_media),
+# so this constant only has to be large enough never to contradict it: it is the
+# largest allowance the platform_settings registry can ever hold
+# (media.broker_image_limit max 50 + media.broker_video_limit max 3), which keeps
+# a raised setting from being silently capped here.
+MAX_MEDIA_IDS = 53
 SPECIFICATION_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,49}$")
 COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
 
@@ -2757,7 +2786,11 @@ git commit -m "feat(listings): add explicit revision payload schema enforcing im
 
 1. **Where the version lives:** an integer column `version`, default `1`, on both `BoatListing` and `ListingRevision` (declared in Tasks 2 and 4).
 2. **How it is transmitted:** as a required integer field named `version` in the JSON request body of every state-changing endpoint (`PATCH /api/v1/listings/<id>/draft/`, `POST /api/v1/listings/<id>/submit/`, `POST /api/v1/listings/<id>/withdraw/`, `POST /api/v1/staff/revisions/<id>/decision/`). **Not** an `If-Match`/ETag header: spec §30.3 offers "resource version/ETag **or explicit `version`** for edits", a body field is the simpler of the two to test end to end, and supporting both would create two sources of truth.
-3. **Which object's version:** always the **revision's**. Every edit in this phase flows through the listing's single open `ListingRevision`, and the staff decision endpoint addresses a revision directly. `BoatListing.version` exists and is bumped whenever the listing's own status/publication columns change, so later phases can expose a listing-level ETag, but no request in this phase is validated against it.
+3. **Which object's version:** the **revision's** whenever the listing has an open (`DRAFT` or `SUBMITTED`) revision, and the **listing's** when it does not. Two cases, because a client that is *opening* a new edit cycle on a published listing has no revision to quote a version from yet:
+   - `POST /listings/<id>/submit/`, `POST /listings/<id>/withdraw/` and `POST /staff/revisions/<id>/decision/` always address an existing revision, so their `version` is always the revision's.
+   - `PATCH /listings/<id>/draft/` sends the **revision's** version when one is open, and the **listing's** version when none is (Task 9: no open revision → the compare-and-swap runs against `BoatListing`, and the new revision is created at version 1). Both `BoatListing.version` and `ListingRevision.version` are therefore live optimistic-locking tokens in this phase; neither is decorative.
+
+   **The client's discriminator is explicit, not guesswork:** every mutation response is a `ListingWorkflowSerializer` document carrying both a top-level `"version"` (the listing's) and a `"revision"` object that is `null` exactly when no revision is open (Task 8). So the rule a client follows is "send `revision.version` if `revision` is non-null, otherwise send the top-level `version`", and the `409` body names which one the server checked: `meta.resource` is `"revision"` or `"listing"` — asserted for the listing case in Task 9's `test_opening_a_revision_on_a_published_listing_uses_the_listing_version`, and for the revision case in Task 9's `test_a_stale_version_is_refused_with_409_and_current_version_metadata` and Task 12's `test_a_stale_version_returns_current_version_metadata`.
 4. **How the check is performed:** one conditional `UPDATE` (`QuerySet.filter(pk=…, version=expected).update(version=F("version") + 1, **updates)`). A single statement is atomic on its own, so it is safe even without a prior read; where a service must also read related rows before deciding (approval), it additionally takes `select_for_update()` on the revision, so a concurrent moderator blocks until the first transaction commits and then loses the compare-and-swap.
 5. **What the client gets back:** HTTP `409` with the standard envelope plus a `meta` object — `{"error": {"code": "stale_version", "message": …, "fields": {}, "request_id": …, "meta": {"resource": "revision", "current_version": 4}}}`. Spec §30.2's envelope has no slot for "current version metadata", so this task adds the general-purpose `meta` passthrough, exactly as Phase 3's own note anticipated ("Phase 13/14 … will extend this handler to copy an `action` attribute off exceptions that define one").
 6. **What a successful mutation returns:** the updated resource **including its new `version`**, per spec §30.2 ("Mutations return updated resource/version"), so a client can chain edits without an extra GET.
@@ -2931,32 +2964,13 @@ def bump_version(instance, *, expected_version: int, resource: str, **updates) -
 
 - [ ] **Step 4: Add the `meta` passthrough to the shared error envelope**
 
-`backend/common/exceptions.py` (created by Phase 3's Task 2) currently ends `nauta_exception_handler` with:
+**Do not diff this file against a quoted "before" block — read it and anchor on the landmark.** `backend/common/exceptions.py` is created by Phase 3's Task 2 and is not in this worktree until Phase 3 merges, so any literal copy of its body reproduced here would be a guess about code that may still change during Phase 3's own review cycle. The procedure instead is:
+
+1. Open `backend/common/exceptions.py` and find `nauta_exception_handler`.
+2. Locate the **final** `response.data = {...}` assignment — the one that installs the `{"error": {...}}` envelope with the `code` / `message` / `fields` / `request_id` keys. That assignment is the landmark; everything after it in the function is the return path (setting the `X-Request-ID` response header and `return response`).
+3. Insert the passthrough **immediately after that assignment** and **before** the return path, changing nothing else in the file:
 
 ```python
-    response.data = {
-        "error": {
-            "code": code,
-            "message": message,
-            "fields": fields,
-            "request_id": request_id,
-        }
-    }
-    response["X-Request-ID"] = request_id
-    return response
-```
-
-Change it to (six added lines plus a comment, nothing else touched):
-
-```python
-    response.data = {
-        "error": {
-            "code": code,
-            "message": message,
-            "fields": fields,
-            "request_id": request_id,
-        }
-    }
     # Optional, exception-supplied extra context. Spec §20.5 requires a stale
     # edit to return "current version metadata", for which §30.2's envelope has
     # no other slot. Only exceptions that explicitly define a non-empty dict
@@ -2965,9 +2979,9 @@ Change it to (six added lines plus a comment, nothing else touched):
     meta = getattr(exc, "meta", None)
     if isinstance(meta, dict) and meta:
         response.data["error"]["meta"] = meta
-    response["X-Request-ID"] = request_id
-    return response
 ```
+
+4. If the handler builds the envelope through a local variable rather than assigning `response.data` directly, or if the envelope's key names differ from the four above, apply the same insert against whatever that file actually does — the requirement is only that a non-empty `exc.meta` ends up at `response.data["error"]["meta"]` in the response Phase 3's handler already returns. `test_the_error_envelope_carries_meta` (Step 1) is the check that it landed correctly, and Step 5 re-runs Phase 3's own `common` tests to prove the change is additive.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -3032,6 +3046,7 @@ git commit -m "feat(listings): add version compare-and-swap locking with 409 sta
 import pytest
 
 from accounts.tests.factories import make_user
+from brokers.services import set_broker_auto_approval
 from brokers.tests.factories import make_broker
 from listings.enums import MediaStatus, MediaType, PublicationSource
 from listings.policies import (
@@ -3099,10 +3114,11 @@ def test_a_broker_listing_has_no_configured_publication_window():
 @pytest.mark.django_db
 def test_every_submission_requires_staff_approval_in_this_phase():
     private_listing = make_private_listing(owner=make_user())
-    broker = make_broker()
-    broker.auto_approve_listings = True
-    broker.auto_approve_changed_at = None
-    broker.save(update_fields=["auto_approve_listings"])
+    staff_admin = make_user()
+    # Phase 3 makes brokers.services.set_broker_auto_approval the ONLY permitted
+    # writer of auto_approve_listings: it is what stamps the paired
+    # auto_approve_changed_by / _at audit columns. Never set the field directly.
+    broker = set_broker_auto_approval(make_broker(), enabled=True, actor=staff_admin)
     broker_listing = make_broker_listing(broker=broker, actor=make_user())
 
     assert requires_staff_approval(private_listing) is True
@@ -3283,11 +3299,15 @@ git commit -m "feat(listings): add entitlement, approval and media-allowance pol
 - Consumes: `listings.models.{BoatListing, ListingRevision}`; `listings.payloads.validate_revision_payload`; `listings.enums.{ListingStatus, RevisionOrigin, RevisionStatus}`; `accounts.services.resolve_seller_context`; `accounts.permissions.{IsActiveUser, IsEmailVerified}`; `platform_settings.services.is_feature_enabled`; `taxonomy.models.{BoatBrand, BoatModel}`.
 - Produces: `listings.drafts.create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing` (the created listing, with `listing.open_revision` set on the returned instance for convenience).
 - Produces: `listings.drafts.open_revision_for(listing: BoatListing) -> ListingRevision | None` — the single `DRAFT`-or-`SUBMITTED` revision, or `None`.
+- Produces: `listings.drafts._resolve_taxonomy(payload: dict, *, listing: BoatListing | None = None) -> tuple[BoatBrand, BoatModel]` — resolves `brand_id`/`model_id` into active, brand-matching rows, falling back to `listing`'s current values for a key the payload omits.
+- Produces: `listings.drafts._apply_payload_to_listing(listing: BoatListing, cleaned: dict) -> None` — the **single** place that mirrors a validated payload onto `BoatListing`'s own columns, taxonomy included. Reused by Task 9 and Task 13.
 - Produces: `listings.permissions.ListingWorkflowEnabled` (DRF permission returning `is_feature_enabled("listing_revisions", default=False)`, `code = "feature_disabled"`).
 - Produces: `listings.serializers.{ListingDraftCreateSerializer, ListingWorkflowSerializer}` — the latter is the shared owner-facing representation `{"id", "status", "seller_type", "version", "revision": {"id", "revision_number", "state", "version", "payload", "decision_note"}, "policy": {"requires_approval", "immutable_fields", "image_limit", "video_limit"}}`.
 - Produces: `listings.views.ListingDraftCreateView`; `listings.urls.urlpatterns` mounted at `api/v1/`.
 
 **Note (ruling — the create payload must carry brand, model and year):** `BoatListing.brand`, `.model` and `.manufacture_year` are `NOT NULL` columns (spec §11.4 lists no nullability for them), so a draft cannot exist without them. `POST /api/v1/listings/drafts/` therefore requires `brand_id`, `model_id` and `manufacture_year` in its payload, and everything else is optional. This matches spec §25.2's form order, where brand/model/year is step 2 and price is step 7.
+
+**Note (ruling — `_apply_payload_to_listing` is the single writer of `BoatListing`'s payload-backed columns, taxonomy included):** the four fields spec §11.4 makes immutable-after-publication — `brand`, `model`, `custom_model_name`, `manufacture_year` — live as **columns on `BoatListing`**, not in the revision payload, because the snapshot builder (Task 11) copies `brand_name_snapshot` / `model_name_snapshot` / `custom_model_name_snapshot` / `manufacture_year_snapshot` straight off the listing row. So an accepted change to any of them that never reaches the columns would be silently dropped at approval time: the new snapshot would publish the *old* brand/model/year. Every service that accepts a payload therefore routes it through this one function — `create_listing_draft` (Task 8), `update_listing_draft` (Task 9) and `create_staff_correction_revision` (Task 13) — and the function owns both the column mirroring and the `brand_id`/`model_id` → real-row resolution. `validate_revision_payload` deliberately does **not** resolve taxonomy: it only proves the two ids are well-formed UUIDs, because it is a pure schema check with no database access to the taxonomy tables.
 
 **Note (ruling — `seller_type` is never accepted from the client):** per Phase 3's contract rule 3 and spec §12 acceptance test 2 ("A private seller cannot send `seller_type=BROKER` … through a crafted request"), the create endpoint accepts at most an optional `broker_id` and calls `accounts.services.resolve_seller_context(request.user, broker_id=…)`. A `seller_type` key in the request body is rejected as an unknown field.
 
@@ -3651,17 +3671,39 @@ def open_revision_for(listing: BoatListing) -> ListingRevision | None:
     )
 
 
-def _resolve_taxonomy(payload: dict) -> tuple[BoatBrand, BoatModel]:
+def _resolve_taxonomy(
+    payload: dict, *, listing: BoatListing | None = None
+) -> tuple[BoatBrand, BoatModel]:
+    """Turn `brand_id` / `model_id` into real, active, brand-matching rows.
+
+    A key the payload does not mention falls back to `listing`'s current value,
+    so a PATCH that sends only `model_id` is still checked against the listing's
+    existing brand, and a staff correction that sends only `brand_id` is refused
+    unless the listing's existing model belongs to the new brand (spec §13.3's
+    remap flow supplies both ids together).
+    """
     errors: dict[str, list[ErrorDetail]] = {}
-    brand = BoatBrand.objects.filter(pk=payload.get("brand_id"), is_active=True).first()
+
+    if "brand_id" in payload:
+        brand = BoatBrand.objects.filter(
+            pk=payload["brand_id"], is_active=True
+        ).first()
+    else:
+        brand = listing.brand if listing is not None and listing.brand_id else None
     if brand is None:
         errors["brand_id"] = [
             ErrorDetail("Select an active brand.", code="invalid_brand")
         ]
+
     model = None
     if brand is not None:
+        model_id = (
+            payload["model_id"]
+            if "model_id" in payload
+            else (listing.model_id if listing is not None else None)
+        )
         model = BoatModel.objects.filter(
-            pk=payload.get("model_id"), brand=brand, is_active=True
+            pk=model_id, brand=brand, is_active=True
         ).first()
     if model is None:
         errors["model_id"] = [
@@ -3678,9 +3720,23 @@ def _resolve_taxonomy(payload: dict) -> tuple[BoatBrand, BoatModel]:
 def _apply_payload_to_listing(listing: BoatListing, cleaned: dict) -> None:
     """Mirror the payload's BoatListing-backed fields onto the row's columns.
 
-    The payload stays the source of truth for content; these columns exist so
-    the database constraints in spec §11.4 and later phases' queries work.
+    The payload stays the source of truth for free-text content; these columns
+    exist so the database constraints in spec §11.4, later phases' queries and —
+    critically — the snapshot builder work. `listings.snapshots` reads
+    `brand_name_snapshot` / `model_name_snapshot` / `custom_model_name_snapshot` /
+    `manufacture_year_snapshot` off **these columns**, so any accepted change to
+    the four taxonomy fields has to land here or an approval would publish a
+    snapshot carrying the old values. That is why `brand_id` / `model_id` are
+    resolved to real rows here rather than left as bare UUIDs in the payload:
+    `validate_revision_payload` only checks that they *look* like identifiers.
+
+    The resolve runs only when the payload actually touches taxonomy (or the row
+    has no brand yet, i.e. a brand-new draft), so an ordinary price edit is never
+    refused because someone deactivated the brand after publication.
     """
+    if "brand_id" in cleaned or "model_id" in cleaned or listing.brand_id is None:
+        listing.brand, listing.model = _resolve_taxonomy(cleaned, listing=listing)
+
     column_fields = (
         "custom_model_name",
         "manufacture_year",
@@ -3700,15 +3756,10 @@ def _apply_payload_to_listing(listing: BoatListing, cleaned: dict) -> None:
 def create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing:
     context = resolve_seller_context(actor, broker_id=broker_id)
 
-    brand, model = _resolve_taxonomy(payload)
-
     listing = BoatListing(
         owner_user=context.owner_user,
         broker=context.broker,
         seller_type=context.seller_type,
-        brand=brand,
-        model=model,
-        manufacture_year=payload.get("manufacture_year"),
         status=ListingStatus.DRAFT,
         created_by=actor,
         updated_by=actor,
@@ -3717,6 +3768,11 @@ def create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing
     cleaned = validate_revision_payload(
         payload, listing=listing, origin=RevisionOrigin.OWNER, for_submission=False
     )
+    # The shell above carries no brand/model/year yet; this is the single place
+    # that fills every BoatListing column from the validated payload. Because
+    # `listing.brand_id is None` on a fresh row, the taxonomy resolve always runs
+    # here, which is what makes `brand_id` and `model_id` *required* on create
+    # (spec §11.4 declares all three columns NOT NULL).
     _apply_payload_to_listing(listing, cleaned)
 
     try:
@@ -3906,7 +3962,7 @@ git commit -m "feat(listings): add draft creation endpoint behind the listing_re
 - Test: `backend/listings/tests/test_draft_update.py`
 
 **Interfaces:**
-- Consumes: `listings.drafts.{open_revision_for, _apply_payload_to_listing}` (Task 8); `listings.locking.bump_version` (Task 6); `listings.payloads.validate_revision_payload` (Task 5); `accounts.permissions.IsOwnerOrBrokerEditor`.
+- Consumes: `listings.drafts.{open_revision_for, _apply_payload_to_listing, _resolve_taxonomy}` (Task 8); `listings.locking.bump_version` (Task 6); `listings.payloads.{allowed_payload_fields, validate_revision_payload, TAXONOMY_FIELDS}` (Task 5); `accounts.permissions.IsOwnerOrBrokerEditor`.
 - Produces: `listings.drafts.update_listing_draft(*, listing, actor, expected_version: int, payload: dict) -> ListingRevision` — merges `payload` into the open revision's stored payload, mirrors the listing columns, and bumps the revision's `version`.
 - Produces: `listings.serializers.ListingDraftUpdateSerializer` (fields: `version` required integer; everything else is the revision payload).
 - Produces: `listings.views.ListingDraftUpdateView` at `PATCH /api/v1/listings/<uuid:listing_id>/draft/`, route name `listing-draft-update`.
@@ -3936,6 +3992,8 @@ from accounts.tests.factories import make_user
 from listings.enums import ListingStatus, RevisionStatus
 from listings.models import ListingRevision
 from listings.tests.factories import (
+    make_brand,
+    make_model,
     make_private_listing,
     make_revision,
     make_snapshot,
@@ -4134,6 +4192,92 @@ def test_a_published_private_listing_rejects_locked_fields(api, workflow_enabled
 
 
 @pytest.mark.django_db
+def test_a_null_cannot_delete_a_locked_field(api, workflow_enabled):
+    """A removal bypasses validate_revision_payload, so the allow-list guard
+    inside update_listing_draft is the only thing refusing it."""
+    owner = _seller()
+    listing = make_private_listing(owner=owner, status=ListingStatus.PUBLISHED)
+    listing.current_public_snapshot = make_snapshot(listing, approved_by=make_user())
+    listing.save(update_fields=["current_public_snapshot"])
+    api.force_authenticate(owner)
+
+    response = api.patch(
+        _url(listing), {"version": listing.version, "manufacture_year": None},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.data["error"]["fields"]["manufacture_year"][0].code
+        == "immutable_after_publication"
+    )
+
+
+@pytest.mark.django_db
+def test_a_pre_publication_model_change_is_resolved_and_applied(api, workflow_enabled):
+    """Before first publication the taxonomy fields are editable, and an accepted
+    change has to reach the BoatListing columns the snapshot builder reads."""
+    owner = _seller()
+    brand = make_brand("Beneteau")
+    listing = make_private_listing(
+        owner=owner, brand=brand, model=make_model(brand, "Oceanis 40")
+    )
+    replacement = make_model(brand, "Oceanis 46.1")
+    revision = make_revision(listing)
+    api.force_authenticate(owner)
+
+    response = api.patch(
+        _url(listing),
+        {"version": revision.version, "model_id": str(replacement.pk)},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    listing.refresh_from_db()
+    assert listing.model_id == replacement.pk
+
+
+@pytest.mark.django_db
+def test_a_patched_model_must_belong_to_the_listings_brand(api, workflow_enabled):
+    owner = _seller()
+    brand = make_brand("Beneteau")
+    listing = make_private_listing(owner=owner, brand=brand, model=make_model(brand))
+    revision = make_revision(listing)
+    foreign_model = make_model(make_brand("Jeanneau"), "Sun Odyssey 410")
+    api.force_authenticate(owner)
+
+    response = api.patch(
+        _url(listing),
+        {"version": revision.version, "model_id": str(foreign_model.pk)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["error"]["fields"]["model_id"]
+    listing.refresh_from_db()
+    assert listing.model_id != foreign_model.pk
+
+
+@pytest.mark.django_db
+def test_an_untouched_taxonomy_is_not_re_resolved(api, workflow_enabled):
+    """A price edit must not fail just because staff deactivated the brand after
+    publication — the resolve runs only when the payload touches taxonomy."""
+    owner = _seller()
+    brand = make_brand("Beneteau")
+    listing = make_private_listing(owner=owner, brand=brand, model=make_model(brand))
+    revision = make_revision(listing)
+    brand.is_active = False
+    brand.save(update_fields=["is_active"])
+    api.force_authenticate(owner)
+
+    response = api.patch(
+        _url(listing), {"version": revision.version, "price": "99000.00"}, format="json"
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
 def test_the_policy_block_reports_the_locked_names_once_published(api, workflow_enabled):
     owner = _seller()
     listing = make_private_listing(owner=owner, status=ListingStatus.PUBLISHED)
@@ -4199,7 +4343,7 @@ Expected: collection `ERROR` — `NoReverseMatch: Reverse for 'listing-draft-upd
 
 - [ ] **Step 3: Implement the service**
 
-Append to `backend/listings/drafts.py` (and extend its imports with `from rest_framework import status`, `from rest_framework.exceptions import APIException`, `from .locking import bump_version`, `from .payloads import CONTENT_FIELDS`):
+Append to `backend/listings/drafts.py` (and extend its imports with `from rest_framework import status`, `from rest_framework.exceptions import APIException`, `from .locking import bump_version`, and widen the existing `from .payloads import validate_revision_payload` line to `from .payloads import TAXONOMY_FIELDS, allowed_payload_fields, validate_revision_payload`):
 
 ```python
 class InvalidWorkflowState(APIException):
@@ -4288,7 +4432,32 @@ def update_listing_draft(
     else:
         revision_expected_version = expected_version
 
+    # A `null` means "delete this key", so there is nothing to type-check and
+    # `validate_revision_payload` never sees it. The key must still be one this
+    # caller is *allowed* to touch, or a private seller could erase a locked
+    # taxonomy field from a published listing's payload by sending it as null —
+    # spec §11.4's "locked field manipulation fails server-side". This guard is
+    # the only thing standing in front of that path; do not move or skip it.
     removals = {key for key, value in payload.items() if value is None}
+    allowed = allowed_payload_fields(listing=listing, origin=RevisionOrigin.OWNER)
+    illegal = sorted(removals - allowed)
+    if illegal:
+        raise ValidationError(
+            {
+                field: [
+                    ErrorDetail(
+                        "This field cannot be changed.",
+                        code=(
+                            "immutable_after_publication"
+                            if field in TAXONOMY_FIELDS
+                            else "unknown_field"
+                        ),
+                    )
+                ]
+                for field in illegal
+            }
+        )
+
     cleaned = validate_revision_payload(
         {key: value for key, value in payload.items() if value is not None},
         listing=listing,
@@ -4321,30 +4490,7 @@ def update_listing_draft(
     return revision
 ```
 
-**Note (why the removal keys bypass `validate_revision_payload`):** a `null` means "delete this key", so there is nothing to type-check; but the key must still be one the caller is *allowed* to touch. Add that guard immediately before the `validate_revision_payload` call:
-
-```python
-    allowed = allowed_payload_fields(listing=listing, origin=RevisionOrigin.OWNER)
-    illegal = sorted(removals - allowed)
-    if illegal:
-        raise ValidationError(
-            {
-                field: [
-                    ErrorDetail(
-                        "This field cannot be changed.",
-                        code=(
-                            "immutable_after_publication"
-                            if field in TAXONOMY_FIELDS
-                            else "unknown_field"
-                        ),
-                    )
-                ]
-                for field in illegal
-            }
-        )
-```
-
-and extend the module's imports with `from .payloads import TAXONOMY_FIELDS, allowed_payload_fields, validate_revision_payload`.
+**Note (why the removal keys need their own allow-list guard, inline above):** `validate_revision_payload` is handed `{k: v for k, v in payload.items() if v is not None}` — the removal keys are stripped out before it runs, because a `null` carries no value to type-check. That means `_reject_disallowed_fields` never sees them, and without the guard now inlined in the function body a private seller could send `{"manufacture_year": null}` against a published listing and have a locked field quietly deleted from the stored payload. The guard is deliberately written **inside** `update_listing_draft`, immediately before the validation call and after `removals` is computed, rather than as a separate snippet: it is a security check, and a check an implementer can skip by overlooking a note is a check that will eventually be skipped. Task 15's acceptance test 2 and Task 9's `test_a_published_private_listing_rejects_locked_fields` cover the non-null half; the null half is covered by `test_a_null_cannot_delete_a_locked_field` in Step 1.
 
 - [ ] **Step 4: Implement the serializer, the view and the route**
 
@@ -5169,7 +5315,9 @@ git commit -m "feat(listings): add submit/withdraw services, media gating and po
 
   ```python
   def build_media_manifest(listing, media_ids: list[str]) -> list[dict]: ...
-  def create_snapshot_from_revision(*, listing, revision, approved_by, approved_at) -> ListingSnapshot: ...
+  def create_snapshot_from_revision(
+      *, listing, revision, cleaned_payload: dict, approved_by, approved_at
+  ) -> ListingSnapshot: ...
   ```
 
 - Produces, in `listings.decisions`:
@@ -5197,6 +5345,8 @@ ordered by `media_type` then `sort_order`, which is exactly the ordering `Listin
 | `listing.expires_at` | now + `publication_days` (`None` for brokers) | unchanged |
 | revision | `SUBMITTED → APPROVED` | `SUBMITTED → APPROVED` |
 | signals | `listing_revision_approved`, `listing_published` | `listing_revision_approved` |
+
+All three of `status`, `published_at` and `expires_at` are written **only** on first publication, in one `if is_first_publication:` branch. A post-publication approval writes neither a status nor a publication window: the listing is already `PUBLISHED`, `LISTING_TRANSITIONS` has no `PUBLISHED → PUBLISHED` edge, and re-asserting the status would also silently un-suspend a listing that staff suspended while its revision sat in the queue.
 
 `published_at` is set only on first publication because spec §36.2 fixes the related rule for view counts ("Republishing the same listing after expiration does not reset lifetime unique count") and because spec §11.4 describes `published_at` as the listing's publication moment, not the most recent snapshot's.
 
@@ -5402,15 +5552,37 @@ def test_approval_revalidates_and_refuses_media_rejected_after_submission():
 
 @pytest.mark.django_db
 def test_a_second_moderator_decision_conflicts_and_creates_no_second_snapshot():
+    """The state guard fires before the version compare-and-swap: after the first
+    approval the revision is APPROVED, so `_locked_submitted_revision` refuses it
+    with `invalid_revision_state` and `bump_version` is never reached. (Both are
+    409s and both are "conflict" to the client; the HTTP-level test in Task 12
+    accepts either code for exactly that reason.)"""
     listing, revision, _ = _submitted_listing()
     first_version = revision.version
     approve_revision(revision_id=revision.pk, actor=_staff(), expected_version=first_version)
 
-    with pytest.raises(StaleVersionConflict):
+    with pytest.raises(InvalidWorkflowState) as exc_info:
         approve_revision(revision_id=revision.pk, actor=_staff(),
                          expected_version=first_version)
 
+    assert exc_info.value.get_codes() == "invalid_revision_state"
     assert ListingSnapshot.objects.filter(listing=listing).count() == 1
+
+
+@pytest.mark.django_db
+def test_a_stale_version_on_a_still_submitted_revision_raises_a_version_conflict():
+    """The other half of the pair: the revision is still SUBMITTED, so the state
+    guard passes and the compare-and-swap is what refuses the decision."""
+    listing, revision, _ = _submitted_listing()
+
+    with pytest.raises(StaleVersionConflict) as exc_info:
+        approve_revision(revision_id=revision.pk, actor=_staff(),
+                         expected_version=revision.version + 7)
+
+    assert exc_info.value.meta == {
+        "resource": "revision", "current_version": revision.version,
+    }
+    assert ListingSnapshot.objects.filter(listing=listing).count() == 0
 
 
 @pytest.mark.django_db
@@ -5546,6 +5718,16 @@ def create_snapshot_from_revision(
     approved_by,
     approved_at,
 ) -> ListingSnapshot:
+    """Freeze the approved content into the next immutable snapshot version.
+
+    Two sources, deliberately: free-text content comes from `cleaned_payload`
+    (the revision's own re-validated document), while the four taxonomy fields
+    come from the **listing columns**, which are where spec §11.4 puts them.
+    Those columns are kept in step with every accepted payload by
+    `listings.drafts._apply_payload_to_listing`, which every service that
+    accepts a payload calls — including `create_staff_correction_revision`, so a
+    §20.3 correction of a locked field really does reach this snapshot.
+    """
     previous_version = (
         ListingSnapshot.objects.filter(listing=listing)
         .order_by("-version")
@@ -5694,11 +5876,17 @@ def approve_revision(
 
     updates = {
         "current_public_snapshot": snapshot,
-        "status": ListingStatus.PUBLISHED,
         "updated_by": actor,
     }
     if is_first_publication:
+        # PENDING_APPROVAL -> PUBLISHED, the only listing-status move approval
+        # makes. A post-publication revision leaves `status` alone: the listing
+        # is already PUBLISHED and LISTING_TRANSITIONS has no PUBLISHED ->
+        # PUBLISHED edge, so re-writing it would be a no-op that contradicts the
+        # state map (and would silently un-suspend a SUSPENDED listing whose
+        # queued revision is approved later).
         publication_days = ListingEntitlementGate.publication_days(listing=listing)
+        updates["status"] = ListingStatus.PUBLISHED
         updates["published_at"] = decided_at
         updates["expires_at"] = (
             decided_at + timedelta(days=publication_days)
@@ -6104,7 +6292,7 @@ Expected: collection `ERROR` — `NoReverseMatch: Reverse for 'staff-revision-de
 
 - [ ] **Step 3: Implement the serializers**
 
-Append to `backend/listings/serializers.py`:
+Append to `backend/listings/serializers.py` (and extend its imports with `from rest_framework.exceptions import ErrorDetail`, the same import the rest of this phase uses):
 
 ```python
 class RevisionDecisionSerializer(serializers.Serializer):
@@ -6123,7 +6311,7 @@ class RevisionDecisionSerializer(serializers.Serializer):
         if attrs["decision"] != self.APPROVE and not attrs.get("note", "").strip():
             raise serializers.ValidationError(
                 {
-                    "note": serializers.ErrorDetail(
+                    "note": ErrorDetail(
                         "Explain what the seller needs to change.",
                         code="decision_note_required",
                     )
@@ -6244,7 +6432,8 @@ git commit -m "feat(listings): add the staff revision decision endpoint with man
 - Test: `backend/listings/tests/test_staff_corrections.py`
 
 **Interfaces:**
-- Consumes: everything Task 11 produced, plus `listings.enums.RevisionOrigin`.
+- Consumes: everything Task 11 produced, plus `listings.enums.{RevisionOrigin, can_transition_listing}` and `listings.drafts.{_apply_payload_to_listing, open_revision_for, payload_from_snapshot}`.
+- Renames: `listings.drafts._payload_from_snapshot` → `listings.drafts.payload_from_snapshot` (Task 9 created it private with one caller; it now has two, in two modules). Step 3a does the rename, Step 4 re-runs Task 9's suite to prove nothing broke.
 - Produces:
 
   ```python
@@ -6258,6 +6447,8 @@ git commit -m "feat(listings): add the staff revision decision endpoint with man
 **Note (ruling — a correction refuses to run while the seller has an open revision):** the `listings_revision_one_open_per_listing` constraint means a correction cannot be created while the seller holds a `DRAFT` or `SUBMITTED` revision. Rather than surfacing an `IntegrityError`, the service checks first and raises `409 invalid_revision_state` with a message telling staff to decide the pending revision first. That is the honest ordering: spec §13.3's taxonomy-mapping flow (Phase 17) also decides the pending submission before mapping.
 
 **Note (ruling — a correction seeds itself from the live snapshot):** like any post-publication revision (Task 9), the correction's payload starts as the current snapshot's content and the staff-supplied `payload` is merged over it, so approving a brand-only correction does not blank the description.
+
+**Note (ruling — a correction mirrors the corrected fields onto the listing columns immediately, not at approval):** the four fields a §20.3 correction exists to fix are `BoatListing` **columns**, and `listings.snapshots.create_snapshot_from_revision` reads them from there. So `create_staff_correction_revision` calls the same `listings.drafts._apply_payload_to_listing` an owner edit uses, inside its own transaction, before the revision row is written. Without that, `approve_revision` would faithfully publish a brand-new snapshot version carrying the **old** brand/model/year — the exact bug §20.3 exists to prevent — and the listing row itself would stay permanently wrong for every later query and database constraint. The correction therefore follows the same working-state/published-state split as every other edit in this phase: `BoatListing`'s columns are the current working document, `current_public_snapshot` is what the public sees, and only approval moves content from one to the other. A refused correction leaves the corrected column in place while the live snapshot keeps the old value, exactly as a refused *owner* price edit does (Task 9 mirrors `price` on PATCH, and spec §20.2's "Rejection leaves the approved public snapshot untouched" is a statement about the snapshot, not the draft columns).
 
 **Note (ruling — suspension has services and audit but no HTTP endpoint in this phase):** spec §6.1 puts `SUSPENDED` in the listing state machine ("Suspension is staff-only and requires a reason") and §36.4 says "Staff can suspend a live listing without modifying snapshot content", so the state machine this phase owns is incomplete without it. But the moderation queue and its action buttons are spec §26.2 — Phase 17 — and §30.1 lists no suspension endpoint. This task therefore ships `suspend_listing` / `unsuspend_listing` as fully tested, fully audited domain services with no route; Phase 17 wires its queue to them. Neither service touches `current_public_snapshot`, so the snapshot content survives suspension exactly as §36.4 requires; what changes is that Task 14's public queries filter on `status=PUBLISHED`, so a suspended listing disappears from public read paths.
 
@@ -6337,6 +6528,45 @@ def test_a_correction_revision_may_change_a_locked_field():
     assert revision.payload["manufacture_year"] == 2018
     # Seeded from the live snapshot, so the rest of the content survives.
     assert revision.payload["title_en"] == snapshot.title_en
+    # Mirrored onto the BoatListing column the snapshot builder reads.
+    listing.refresh_from_db()
+    assert listing.manufacture_year == 2018
+    # ...and the live snapshot is untouched until the correction is approved.
+    assert listing.current_public_snapshot.manufacture_year_snapshot != 2018
+
+
+@pytest.mark.django_db
+def test_a_correction_may_remap_the_brand_and_model():
+    """Spec §13.3's staff taxonomy remap needs both ids together, because a new
+    brand invalidates the old model."""
+    listing, _, _ = _published_listing()
+    correct_brand = make_brand("Jeanneau")
+    correct_model = make_model(correct_brand, "Sun Odyssey 410")
+
+    revision = create_staff_correction_revision(
+        listing=listing, actor=_staff(),
+        payload={"brand_id": str(correct_brand.pk), "model_id": str(correct_model.pk)},
+        note="Listed under the wrong manufacturer.",
+    )
+
+    listing.refresh_from_db()
+    assert listing.brand_id == correct_brand.pk
+    assert listing.model_id == correct_model.pk
+    assert revision.payload["brand_id"] == str(correct_brand.pk)
+
+
+@pytest.mark.django_db
+def test_a_correction_refuses_a_brand_whose_model_no_longer_matches():
+    listing, _, _ = _published_listing()
+
+    with pytest.raises(ValidationError) as exc_info:
+        create_staff_correction_revision(
+            listing=listing, actor=_staff(),
+            payload={"brand_id": str(make_brand("Jeanneau").pk)},
+            note="Listed under the wrong manufacturer.",
+        )
+
+    assert "model_id" in exc_info.value.detail
 
 
 @pytest.mark.django_db
@@ -6370,23 +6600,25 @@ def test_a_correction_records_an_audit_event_with_actor_and_note():
 
 @pytest.mark.django_db
 def test_approving_a_correction_creates_a_new_snapshot_and_keeps_history():
+    """The whole point of spec §20.3: the correction must reach the *public*
+    snapshot through the ordinary approval flow, with nothing patched by hand."""
     listing, original_snapshot, _ = _published_listing()
     staff = _staff()
+    original_year = original_snapshot.manufacture_year_snapshot
+    assert original_year != 2018
     revision = create_staff_correction_revision(
         listing=listing, actor=staff, payload={"manufacture_year": 2018},
         note="Registration document supplied.",
     )
-    listing.refresh_from_db()
-    listing.manufacture_year = 2018
-    listing.save(update_fields=["manufacture_year"])
 
     approve_revision(revision_id=revision.pk, actor=staff, expected_version=revision.version)
 
     listing.refresh_from_db()
     assert listing.current_public_snapshot.version == 2
     assert listing.current_public_snapshot.manufacture_year_snapshot == 2018
+    assert listing.current_public_snapshot.approved_revision_id == revision.pk
     historical = ListingSnapshot.objects.get(pk=original_snapshot.pk)
-    assert historical.manufacture_year_snapshot == original_snapshot.manufacture_year_snapshot
+    assert historical.manufacture_year_snapshot == original_year
 
 
 @pytest.mark.django_db
@@ -6457,9 +6689,24 @@ uv run pytest listings/tests/test_staff_corrections.py -v
 
 Expected: `ImportError: cannot import name 'create_staff_correction_revision' from 'listings.decisions'`.
 
-- [ ] **Step 3: Implement the three services**
+**Step 3 is two ordered halves. Do Step 3a before Step 3b** — the rename has to land first, or Step 3b's import names a symbol that does not exist yet.
 
-Append to `backend/listings/decisions.py` (extend its imports with `from .drafts import _payload_from_snapshot, open_revision_for` and `from .enums import RevisionOrigin` and `from .locking import bump_version`, and rename `drafts._payload_from_snapshot` to the public `drafts.payload_from_snapshot` in the same commit so the cross-module import is not reaching into a private name):
+- [ ] **Step 3a: Make `payload_from_snapshot` public**
+
+In `backend/listings/drafts.py`, rename `_payload_from_snapshot` (created private in Task 9, when it had one caller) to the public `payload_from_snapshot`, and update its one existing reference inside `update_listing_draft`. It now has a second caller in another module, so the leading underscore would be a lie.
+
+- [ ] **Step 3b: Implement the three services**
+
+Append to `backend/listings/decisions.py`, extending its imports with:
+
+```python
+from .drafts import _apply_payload_to_listing, open_revision_for, payload_from_snapshot
+from .enums import ListingStatus, RevisionOrigin, RevisionStatus, can_transition_listing
+from .locking import bump_version
+from .signals import listing_revision_submitted
+```
+
+(`ListingStatus`, `RevisionStatus`, `bump_version` and the `.signals` module are already imported by Task 11's version of the file — widen the existing lines rather than adding duplicates.)
 
 ```python
 @transaction.atomic
@@ -6490,6 +6737,22 @@ def create_staff_correction_revision(
         for_submission=False,
     )
     merged.update(cleaned)
+
+    # The whole point of a §20.3 correction is the four taxonomy fields, and
+    # those live on BoatListing's own columns — which is where
+    # listings.snapshots reads brand/model/custom-model/year from. Mirroring
+    # them here, exactly as an owner edit does (Task 9), is what makes approving
+    # this revision publish a snapshot carrying the *corrected* values instead
+    # of silently re-publishing the wrong ones.
+    _apply_payload_to_listing(listing, cleaned)
+    listing.updated_by = actor
+    try:
+        listing.full_clean(exclude=["current_public_snapshot"])
+    except Exception as exc:  # django.core.exceptions.ValidationError
+        raise ValidationError(
+            getattr(exc, "message_dict", {"non_field_errors": [str(exc)]})
+        )
+    listing.save()
 
     submitted_at = timezone.now()
     revision = ListingRevision.objects.create(
@@ -6595,9 +6858,7 @@ def unsuspend_listing(*, listing: BoatListing, actor, reason: str) -> BoatListin
     )
 ```
 
-Extend `backend/listings/decisions.py`'s imports with `from .enums import can_transition_listing` — or, since `can_transition_listing` lives in `listings.enums`, add it to the existing `from .enums import ...` line.
-
-In `backend/listings/drafts.py`, rename `_payload_from_snapshot` to `payload_from_snapshot` (it now has a second caller) and update the one reference inside `update_listing_draft`.
+(Every import this code needs is listed in Step 3b's block above; nothing else in `decisions.py` changes.)
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -6644,6 +6905,8 @@ git commit -m "feat(listings): add staff correction revisions and audited listin
 `backend/listings/tests/test_public_read_api.py`:
 
 ```python
+from datetime import timedelta
+
 import pytest
 from django.urls import reverse
 from django.utils import timezone
@@ -6778,7 +7041,7 @@ def test_the_list_returns_only_published_listings_newest_first(api):
     newer, _ = _published()
     newer.published_at = timezone.now()
     newer.save(update_fields=["published_at"])
-    older.published_at = timezone.now() - timezone.timedelta(days=1)
+    older.published_at = timezone.now() - timedelta(days=1)
     older.save(update_fields=["published_at"])
     make_private_listing(owner=_owner())  # a draft that must not appear
 
@@ -7322,10 +7585,10 @@ Add a new entry at the top of `ACTIVITY.md`'s `## Log` section, matching the for
 - Implemented `docs/superpowers/plans/2026-09-18-phase-11-listing-workflow.md` in full (Tasks 1-15).
 - New `listings` app: `BoatListing`, `ListingSnapshot` (immutable, versioned public content), `ListingRevision` (one open revision per listing, DB-enforced) and `ListingMedia` (model only — the upload/scan/transcode pipeline is Phase 15).
 - Migrations added: `listings/0001_*` (BoatListing), `0002_*` (ListingMedia), `0003_*` (ListingSnapshot + ListingRevision + `boatlisting.current_public_snapshot`), `0004_seed_listing_revisions_flag` (data). All additive; the data migration is reversible and idempotent.
-- New endpoints: `POST /api/v1/listings/drafts/`, `PATCH /api/v1/listings/<id>/draft/`, `POST /api/v1/listings/<id>/submit/`, `POST /api/v1/listings/<id>/withdraw/`, `POST /api/v1/staff/revisions/<id>/decision/`, `GET /api/v1/listings/`, `GET /api/v1/listings/<id>/`.
+- New endpoints: `POST /api/v1/listings/drafts/`, `PATCH /api/v1/listings/<id>/draft/`, `POST /api/v1/listings/<id>/submit/`, `POST /api/v1/listings/<id>/withdraw/`, `POST /api/v1/staff/revisions/<id>/decision/`, `GET /api/v1/listings/`, `GET /api/v1/listings/<id>/`. All are spec §30.1 endpoints except `.../withdraw/`, which this phase adds to reach §6.2's `SUBMITTED -> WITHDRAWN` edge (§36.4); it is flagged as an addition in the plan's Contract summary.
 - Permissions: mutations require `IsAuthenticated + IsActiveUser + IsEmailVerified + ListingWorkflowEnabled` and object-level `IsOwnerOrBrokerEditor`; staff decisions require `IsStaffModerator`; public reads are `AllowAny` and serve only approved snapshots.
 - Audit events added: `listing.submitted`, `listing.revision_withdrawn`, `listing.revision_approved`, `listing.revision_changes_requested`, `listing.revision_rejected`, `listing.correction_revision_created`, `listing.suspended`, `listing.unsuspended`.
-- Optimistic locking: an integer `version` on `BoatListing` and `ListingRevision`, sent as a required `version` body field, checked by a conditional `UPDATE`, returning `409 stale_version` with `meta.current_version`. `common.exceptions.nauta_exception_handler` gained a generic `meta` passthrough for this.
+- Optimistic locking: an integer `version` on `BoatListing` and `ListingRevision`, sent as a required `version` body field, checked by a conditional `UPDATE`, returning `409 stale_version` with `meta.resource` + `meta.current_version`. Clients send the **revision's** version when the workflow response's `revision` is non-null and the **listing's** version when it is `null` (opening a new edit cycle on a published listing). `common.exceptions.nauta_exception_handler` gained a generic `meta` passthrough for this.
 - Feature flag state: `listing_revisions` seeded **disabled**; every mutation endpoint returns `403 feature_disabled` until staff enable it.
 - Tests added: <N> in `backend/listings/tests/`, including spec §20's four definition-of-done items, §40 Scenario I and §34.2's "two staff decisions yield one success and one conflict". Full backend suite: <TOTAL> passed.
 - Known limitations (all documented in the plan): entitlement consumption is a stub that always allows (Phase 13); broker auto-approval is never read, so every submission requires approval (Phase 12); media allowance uses the base tier only and there is no upload pipeline (Phase 15); no `finance` block on listing responses (Phase 9); no listing slug or public preview URL (Phase 20/21); no `Idempotency-Key` replay store (Phase 14); notifications are emitted as Django signals with no receivers (Phase 18).
@@ -7360,11 +7623,26 @@ Each item names the phase that closes it. None of them breaks a MUST requirement
 11. **No "contact preference" field.** Spec §20.2 lists it among editable fields, but no such field exists in the spec's own data model (§11.4), so the payload schema has none. → whichever phase owns contact policy (spec §11.8 / Phase 7), if the field is ever specified.
 12. **No rate limit on listing mutations.** Spec §30.4's enumerated list does not include them, and unbounded draft creation is closed by Phase 13's entitlement gate (`403 listing_entitlement_required` on `POST /api/v1/listings/drafts/`, spec §22.4). → **Phase 13**, or **Phase 22** if a broader limit is wanted.
 13. **No staff taxonomy-mapping transaction.** Spec §13.3's "Create model and map listing" / "Map to existing model" flows are not built; this phase provides the mechanism they need (`create_staff_correction_revision`, which may touch the immutable taxonomy fields and produces a new audited snapshot on approval). → **Phase 17**.
-14. **No frontend.** `/sell/`, `/sell/create/`, the role-aware form, field-locking UI, autosave, the staff moderation screens and the public boat detail page are all Next.js work. This plan is backend-only, matching the Django-headless architecture recorded in `ACTIVITY.md`. → **Phases 16, 17, 20**.
+14. **The state-transition maps are enforced at one call site, not everywhere.** `can_transition_listing` is called only by `listings.decisions._change_suspension` — the only service that receives its target status from a caller. Submit, withdraw, approve, request-changes, reject and draft-update all derive their target state internally and guard it with a direct state precondition instead (`open_revision_for` must return a `DRAFT` revision; `_locked_submitted_revision` refuses anything not `SUBMITTED`), so a wrong target would be a typo in the service, not something a user can provoke. `can_transition_revision` has no runtime caller at all in this phase. Wiring the guard into every write path would additionally require the map to carry self-edges the workflow legitimately performs, and is only worth doing when a caller-supplied target state appears — which is **Phase 12** (auto-approval branching on `requires_staff_approval`) and **Phase 17** (the moderation queue's action buttons and bulk actions). Until then, the maps are a specification and a test fixture, and the per-service preconditions are the enforcement; both are tested, nothing is unenforced.
+15. **No frontend.** `/sell/`, `/sell/create/`, the role-aware form, field-locking UI, autosave, the staff moderation screens and the public boat detail page are all Next.js work. This plan is backend-only, matching the Django-headless architecture recorded in `ACTIVITY.md`. → **Phases 16, 17, 20**.
 
 ---
 
 ## Contract summary for later phases
+
+**Endpoints shipped by this phase**, against spec §30.1's literal inventory:
+
+| Endpoint | §30.1 |
+|---|---|
+| `GET /api/v1/listings/` | listed |
+| `GET /api/v1/listings/<id>/` | listed |
+| `POST /api/v1/listings/drafts/` | listed |
+| `PATCH /api/v1/listings/<id>/draft/` | listed |
+| `POST /api/v1/listings/<id>/submit/` | listed |
+| `POST /api/v1/staff/revisions/<id>/decision/` | listed |
+| `POST /api/v1/listings/<id>/withdraw/` | **added by this phase — not in §30.1's table** |
+
+The one addition is deliberate and is flagged here rather than presented as spec-literal: §30.1 lists no withdraw route, but §6.2 defines the edge (`SUBMITTED -> WITHDRAWN (owner before staff decision)`) and §36.4 makes it a requirement ("Seller cannot delete an item under active staff review; they may withdraw submission, preserving audit"), so the state machine this phase owns cannot be completed without a way to reach it. §30.1's own closing sentence grants the latitude: "Exact URL naming may follow an established API convention, but semantics, authorization and errors must remain equivalent." A later phase that publishes an API inventory should list it as a Phase 11 addition, not as a §30.1 endpoint.
 
 Everything a downstream phase imports from Phase 11, in one place.
 
@@ -7440,6 +7718,8 @@ Rules a later phase must follow:
 8. **Phase 18** connects receivers to `listings.signals`. Do not add notification calls inside the services; every signal already fires inside `transaction.on_commit()`.
 9. **Phase 9** extends `listings.serializers.PublicListingSerializer` with the `finance` block. Do not create a second public listing representation (spec §29.1: "Every boat card uses one component and one API representation").
 10. **Any new listing-related error code must be stable and documented** in this plan's Global Constraints list, and any exception needing extra response context sets a dict attribute named `meta` (the envelope passthrough added in Task 6).
+11. **Never write `BoatListing`'s payload-backed columns by hand** — `brand`, `model`, `custom_model_name`, `manufacture_year`, `price`, `currency` and the three finance overrides. Route a validated payload through `listings.drafts._apply_payload_to_listing`, which also resolves `brand_id`/`model_id` into real, active, brand-matching rows. The snapshot builder reads the four taxonomy columns off the listing row, so a change that skips this function is a change that never reaches the public snapshot.
+12. **A decided `ListingRevision` is append-only.** `APPROVED`, `CHANGES_REQUESTED`, `REJECTED` and `WITHDRAWN` are terminal for the row; a seller resuming work gets the **next revision number**, never a reverted row. Phase 17's moderation queue and any "reopen" affordance must respect that — the decision stamps are the audit trail §26.2 requires.
 
 ---
 
@@ -7478,7 +7758,7 @@ Rules a later phase must follow:
 | Done 3 — old public content survives rejected edits | Task 11, Task 15 test 3 |
 | Done 4 — every decision records actor, note and timestamps | Task 11, Task 13, Task 15 test 4 |
 
-**2. Spec coverage — cross-referenced sections:** §6.1 and §6.2 state machines → Task 1 (with two documented readings recorded as rulings). §11.4's `BoatListing` (all 21 listed fields) → Task 2; `ListingSnapshot` (all listed fields, with `title_*`/`description_*`/`location fields` expanded by ruling) → Task 4; `ListingRevision` (all listed fields plus `origin` and `version`) → Task 4. §11.5's `ListingMedia` (all 13 listed fields) → Task 3. §11.4's "Only fields explicitly allowed by role… `immutable_after_publication`" → Task 5 verbatim. §13.4's `listing.other_model_submitted` (deferred to this phase by the Phase 4 plan) → Task 10. §25.1's policy-capability payload → Task 8 (`policy` block). §26.2's four decision rules → Tasks 11, 12 and the Task 4 database constraint. §30.1's six listing endpoints → Tasks 8, 9, 10, 12, 14. §30.2's envelope, decimal-string money and "mutations return updated resource/version" → Tasks 6, 8, 12. §34.1's "Listing/revision transitions" and "Immutable field validation" → Tasks 1, 5. §34.2's "Two staff decisions on one revision yield one success and one conflict" → Task 15. §34.3's "Pending listing is absent publicly" and "Validation/error codes are stable" → Tasks 14, 15 and the Global Constraints code list. §35.1's `listing_revisions` flag → Task 8. §36.4's four moderation rules → Tasks 10 (withdraw), 11 (request-changes chain), 13 (suspend). §36.5's "Primary image is the first ready image by explicit order" → Task 11 (`build_media_manifest`) and Task 3's per-type sort-order uniqueness. §40 Scenario I → Task 15.
+**2. Spec coverage — cross-referenced sections:** §6.1 and §6.2 state machines → Task 1 (with four documented readings recorded as rulings: §6.1's diagram read as a chain; `PENDING_APPROVAL → DRAFT` added; §6.2's `CHANGES_REQUESTED → DRAFT` realised at listing level with a fresh revision number; and the enforcement scope of `can_transition_*`). §11.4's `BoatListing` (all 21 listed fields) → Task 2; `ListingSnapshot` (all listed fields, with `title_*`/`description_*`/`location fields` expanded by ruling) → Task 4; `ListingRevision` (all listed fields plus `origin` and `version`) → Task 4. §11.5's `ListingMedia` (all 13 listed fields) → Task 3. §11.4's "Only fields explicitly allowed by role… `immutable_after_publication`" → Task 5 verbatim. §13.4's `listing.other_model_submitted` (deferred to this phase by the Phase 4 plan) → Task 10. §25.1's policy-capability payload → Task 8 (`policy` block). §26.2's four decision rules → Tasks 11, 12 and the Task 4 database constraint. §30.1's six listing endpoints → Tasks 8, 9, 10, 12, 14, plus one addition beyond its literal table (`POST /listings/<id>/withdraw/`, justified by §6.2/§36.4 and flagged as an addition in the Contract summary). §30.2's envelope, decimal-string money and "mutations return updated resource/version" → Tasks 6, 8, 12. §34.1's "Listing/revision transitions" and "Immutable field validation" → Tasks 1, 5. §34.2's "Two staff decisions on one revision yield one success and one conflict" → Task 15. §34.3's "Pending listing is absent publicly" and "Validation/error codes are stable" → Tasks 14, 15 and the Global Constraints code list. §35.1's `listing_revisions` flag → Task 8. §36.4's four moderation rules → Tasks 10 (withdraw), 11 (request-changes chain), 13 (suspend). §36.5's "Primary image is the first ready image by explicit order" → Task 11 (`build_media_manifest`) and Task 3's per-type sort-order uniqueness. §40 Scenario I → Task 15.
 
 **Gaps deliberately left, with the owning phase named:** §20.1.2/§20.1.4's real entitlement consumption (Phase 13), §20.4's auto-approval (Phase 12), §20.4's enumerated non-substantive fields (Phase 12), the §37 copy keys (Phase 16 frontend), and everything in Known Limitations above. No spec §20 requirement is unaccounted for.
 
@@ -7488,10 +7768,12 @@ Rules a later phase must follow:
 - `bump_version(instance, *, expected_version, resource, **updates)` — same signature in Tasks 6, 9, 10, 11, 13.
 - `validate_revision_payload(payload, *, listing, origin, for_submission)` — same in Tasks 5, 8, 9, 10, 11, 13.
 - `open_revision_for(listing)` — same in Tasks 8, 9, 10, 13.
-- `payload_from_snapshot(snapshot)` — created private as `_payload_from_snapshot` in Task 9 and renamed public in Task 13, which is called out explicitly in Task 13's Step 3 and re-tested there.
+- `payload_from_snapshot(snapshot)` — created private as `_payload_from_snapshot` in Task 9 and renamed public in Task 13, whose **Step 3a** performs the rename before **Step 3b** imports the public name, and whose Step 4 re-runs Task 9's suite to prove it. Task 13's import block names only `payload_from_snapshot`; no task imports the underscored name across a module boundary.
+- `_apply_payload_to_listing(listing, cleaned)` — defined in Task 8 as the single writer of `BoatListing`'s payload-backed columns (taxonomy included, resolved through `_resolve_taxonomy`), called by all three services that accept a payload: `create_listing_draft` (Task 8), `update_listing_draft` (Task 9), `create_staff_correction_revision` (Task 13). This is what makes the snapshot builder's four taxonomy columns correct.
+- `_resolve_taxonomy(payload, *, listing=None)` — defined in Task 8, called only from `_apply_payload_to_listing`.
 - `InvalidWorkflowState` — defined once (Task 9), imported by Tasks 10, 11, 13.
 - `validate_submission_media(listing, media_ids)` — defined in Task 10, reused unchanged by Task 11's `approve_revision`.
-- `create_snapshot_from_revision(*, listing, revision, cleaned_payload, approved_by, approved_at)` — Task 11's definition and its single call site agree (note the `cleaned_payload` argument, which the Interfaces block in Task 11 lists).
-- Error codes are a closed set, listed once in Global Constraints and used verbatim in Tasks 5, 6, 8, 9, 10, 11, 12, 13.
+- `create_snapshot_from_revision(*, listing, revision, cleaned_payload, approved_by, approved_at)` — Task 11's Interfaces block, its definition and its single call site (inside `approve_revision`) all carry the `cleaned_payload` keyword.
+- Error codes are a closed set, listed once in Global Constraints — workflow codes plus the field-level schema codes Task 5 defines — and used verbatim in Tasks 5, 6, 8, 9, 10, 11, 12, 13.
 - Enum member names (`ListingStatus.PENDING_APPROVAL`, `RevisionStatus.CHANGES_REQUESTED`, `RevisionOrigin.STAFF_CORRECTION`, `MediaStatus.READY`, `PublicationSource.FREE_ENTITLEMENT`) are identical everywhere they appear.
 - Route names (`listing-draft-create`, `listing-draft-update`, `listing-submit`, `listing-withdraw`, `staff-revision-decision`, `listing-list`, `listing-detail`) are identical in the URL definitions and in every test's `reverse()` call.
