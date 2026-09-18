@@ -2,7 +2,6 @@
 // GET /api/v1/listings/<id>/), plus the one POST the finance surfaces make.
 // Server-rendered pages call the fetch helpers; client components call
 // requestFinanceQuote through the browser client.
-import { apiFetch } from "@/lib/api/client";
 import { directoryFetch, type Paginated } from "@/lib/api/directory";
 import {
   requestFinanceQuote,
