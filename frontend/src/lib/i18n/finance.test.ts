@@ -25,8 +25,11 @@ const fm = (locale: Locale, amount: string, currency = "EUR") =>
 // scanning; every other key, and any extra text in the disclaimer, is scanned.
 const FORBIDDEN: Record<Locale, RegExp> = {
   en: /(approv|guarante|pre-?qualif|offer|your rate)/i,
-  it: /(approvat|approvazione|garant|offert|sicur|il tuo tasso)/i,
-  es: /(aprobad|aprobación|garant|oferta|segur|tu (tasa|tipo))/i,
+  // "sicur"/"segur" are deliberately not stems: sicurezza, assicurazione,
+  // seguridad, seguro, aseguradora are legitimate boat-marketplace copy. Only
+  // the promissory phrase forms are forbidden.
+  it: /(approv|garan|offert|il tuo tasso|i tuoi tassi|finanziamento sicuro|esito sicuro)/i,
+  es: /(aprob|aprueb|garant|oferta|tus? (tasas?|tipos?)|financiación segura)/i,
 };
 const MANDATED_SENTENCE: Record<Locale, string> = {
   en: "Not a credit offer.",
@@ -55,6 +58,14 @@ const HOSTILE: Record<Locale, string[]> = {
     "Finanziamento sicuro e la tua offerte",
     "Rata garantita",
     "Scopri il tuo tasso",
+    "Scopri i tuoi tassi",
+    "Con garanzia immediata",
+    "Puoi approvare la pratica",
+    "Rata approvabile",
+    "Il finanziamento verrà approvato",
+    "La banca approverà la richiesta",
+    "Finanziamento sicuro",
+    "Esito sicuro",
   ],
   es: [
     "Financiación aprobada",
@@ -62,6 +73,24 @@ const HOSTILE: Record<Locale, string[]> = {
     "Cuota garantizada",
     "Tu tipo de interés",
     "Aprobación inmediata",
+    "Puedes aprobar la solicitud",
+    "El banco aprueba tu cuota",
+    "Se aprobará en minutos",
+    "Descubre tus tasas",
+    "Con garantía total",
+    "Financiación segura",
+  ],
+};
+
+// Legitimate marketplace copy that must never be rejected.
+const BENIGN: Record<Locale, string[]> = {
+  en: ["Boat insurance", "Safety equipment included"],
+  it: ["Sicurezza a bordo", "Assicurazione dell'imbarcazione", "Dotazioni di sicurezza"],
+  es: [
+    "Seguridad a bordo",
+    "Seguro de la embarcación",
+    "Aseguradora recomendada",
+    "Equipo de seguridad incluido",
   ],
 };
 
@@ -131,6 +160,14 @@ describe("FINANCE_MESSAGES", () => {
     }
   });
 
+  it("the forbidden-language scan does not reject legitimate insurance and safety copy", () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const sample of BENIGN[locale]) {
+        expect(forbiddenHit(locale, "some.key", sample), `${locale}: ${sample}`).toBe(false);
+      }
+    }
+  });
+
   it("exempts only the spec-mandated sentence, and only in the disclaimer key", () => {
     for (const locale of SUPPORTED_LOCALES) {
       const sentence = MANDATED_SENTENCE[locale];
@@ -138,8 +175,8 @@ describe("FINANCE_MESSAGES", () => {
       expect(forbiddenHit(locale, "finance.calculate", sentence)).toBe(true);
     }
     expect(forbiddenHit("en", DISCLAIMER_KEY, "Not a credit offer. Best offer.")).toBe(true);
-    expect(forbiddenHit("it", DISCLAIMER_KEY, "Non è un'offerta di credito. Sicuro.")).toBe(true);
-    expect(forbiddenHit("es", DISCLAIMER_KEY, "No es una oferta de crédito. Segura.")).toBe(true);
+    expect(forbiddenHit("it", DISCLAIMER_KEY, "Non è un'offerta di credito. Garanzia totale.")).toBe(true);
+    expect(forbiddenHit("es", DISCLAIMER_KEY, "No es una oferta de crédito. Garantía total.")).toBe(true);
   });
 
   it("carries the spec 2.5 disclaimer verbatim in English", () => {

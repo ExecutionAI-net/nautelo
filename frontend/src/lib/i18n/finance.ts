@@ -6,7 +6,8 @@
 //
 // Spec §2.5: no string here may present the estimate as a lender decision.
 // finance.test.ts fails the build if "approved", "pre-approved", "guaranteed",
-// "offer" or "your rate" ever appears in the English copy.
+// "offer" or "your rate" (or their Italian/Spanish stems) appears in the EN, IT
+// or ES copy; only the spec-mandated disclaimer sentence is exempt.
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/directory";
 
 type Translations = Record<Locale, string>;
