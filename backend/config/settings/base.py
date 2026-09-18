@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "channels",
     "storages",
@@ -120,6 +121,11 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "taxonomy_search": "60/min",
         "auth": "10/min",
+        # Silent refresh runs on every fresh page load and requires an already-valid
+        # HttpOnly cookie, so it is not a credential-guessing surface. Sharing the
+        # stricter `auth` bucket would let a handful of reloads lock real people out
+        # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
+        "auth-refresh": "30/min",
     },
     "EXCEPTION_HANDLER": "common.exceptions.nauta_exception_handler",
 }
@@ -131,6 +137,9 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(
         days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7)
     ),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
 }
 
 STORAGES = {
@@ -156,6 +165,9 @@ STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
 
 CONTACT_HASH_SECRET = env("CONTACT_HASH_SECRET")
 PUBLIC_BASE_URL = env("PUBLIC_BASE_URL")
+
+# Secure-by-default: only the dev settings module opts out, and it does so out loud.
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=True)
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
