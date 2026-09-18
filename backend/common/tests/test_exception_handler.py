@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, ValidationError
@@ -10,6 +11,22 @@ from rest_framework_simplejwt.exceptions import InvalidToken
 from rest_framework_simplejwt.tokens import AccessToken
 
 from common.exceptions import nauta_exception_handler
+
+
+class _FakeUniqueViolation(Exception):
+    """Stands in for psycopg's UniqueViolation without needing a real DB hit."""
+
+    sqlstate = "23505"
+
+
+class _FakeNotNullViolation(Exception):
+    sqlstate = "23502"
+
+
+def _integrity_error(cause):
+    exc = IntegrityError("simulated")
+    exc.__cause__ = cause
+    return exc
 
 
 def _context():
@@ -104,3 +121,31 @@ def test_expired_jwt_yields_a_clean_message_not_a_python_repr():
 
 def test_unhandled_exception_returns_none_so_django_handles_it():
     assert nauta_exception_handler(RuntimeError("boom"), _context()) is None
+
+
+def test_a_unique_constraint_race_returns_a_conflict_envelope_not_a_500():
+    # Two concurrent requests can both pass an app-level uniqueness check and then
+    # race the database's own unique index (e.g. registration's duplicate-email
+    # check). The loser must still get spec 30.2's envelope, not a bare 500.
+    exc = _integrity_error(_FakeUniqueViolation())
+
+    response = nauta_exception_handler(exc, _context())
+
+    assert response is not None
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.data == {
+        "error": {
+            "code": "conflict",
+            "message": response.data["error"]["message"],
+            "fields": {},
+            "request_id": "req-test-1",
+        }
+    }
+
+
+def test_a_non_unique_integrity_error_is_not_swallowed():
+    # A NOT NULL or FK violation is a real bug, not a client-triggerable race - it
+    # must keep surfacing as Django's default 500 rather than being disguised as a
+    # routine 409 conflict.
+    exc = _integrity_error(_FakeNotNullViolation())
+    assert nauta_exception_handler(exc, _context()) is None
