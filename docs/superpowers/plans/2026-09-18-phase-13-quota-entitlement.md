@@ -43,15 +43,17 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 - **Product code:** `INDIVIDUAL_LISTING_RIGHT` (spec §22.2's `purchase_product_code`, §23.1's product list).
 - **Blocking reason vocabulary:** `FREE_ALLOWANCE_USED` is spec-literal (§22.2). This plan adds exactly one more, `NOT_AN_INDIVIDUAL_SELLER` (ruling below). `null` means nothing is blocking.
 - **Feature flag key for this phase:** `individual_entitlements` (spec §35.1), seeded **disabled** — matching the `listing_revisions` precedent and spec §35.2 step 4 ("Deploy code with features off/read-compatible"). The flag gates **refusal only**, never bookkeeping: ledger rows are written whether or not the flag is on (ruling below).
-- **Error codes added by this phase (closed set):** `listing_entitlement_required` (403, on `POST /api/v1/listings/drafts/` and `POST /api/v1/listings/<id>/submit/`), `invalid_entitlement_state` (409, a staff action against a row in the wrong state), and one **field-level** code, `entitlement_reason_required` (staff grant/revoke/restore without a reason). No other new codes. Phase 11's rule 10 applies: any new listing-related error code must be stable and documented here.
-- **`entitlement_reason_required` is a field-level code, not a top-level envelope code.** `EntitlementReasonRequired` subclasses DRF's `ValidationError` (see the ruling in Task 13), and `common.exceptions.nauta_exception_handler` maps **every** `ValidationError` — subclass or not — to `code: "validation_error"` plus a `fields` map built by `_field_map(exc.detail)`. So the wire shape is a **400 `validation_error` envelope carrying `fields: {"reason": ["entitlement_reason_required"]}`**, and `entitlement_reason_required` never appears as `error.code`:
+- **Error codes added by this phase (closed set):** `listing_entitlement_required` (403, on `POST /api/v1/listings/drafts/` and `POST /api/v1/listings/<id>/submit/`), `invalid_entitlement_state` (409, a staff action against a row in the wrong state), and one **internal, Python-level** DRF field code, `entitlement_reason_required` (staff grant/revoke/restore without a reason) — which, unlike the other two, never reaches the wire at all (next bullet). No other new codes. Phase 11's rule 10 applies: any new listing-related error code must be stable and documented here.
+- **`entitlement_reason_required` is an internal DRF error code that never appears in the response body.** `EntitlementReasonRequired` subclasses DRF's `ValidationError` (see the ruling in Task 13), and `common.exceptions.nauta_exception_handler` maps **every** `ValidationError` — subclass or not — to `code: "validation_error"` plus a `fields` map built by `_field_map(exc.detail)`. Read that helper before writing any assertion against it: it flattens each detail item with `str()`, and `str(ErrorDetail)` is the **message**, not the code. So the wire shape is a **400 `validation_error` envelope whose `fields["reason"]` holds the message text**, and the string `entitlement_reason_required` appears **nowhere** a client can see it — neither as `error.code` nor inside `error.fields`:
   ```json
   {"error": {"code": "validation_error",
              "message": "The submitted data is invalid.",
              "fields": {"reason": ["Explain why this entitlement is being changed."]},
              "request_id": "..."}}
   ```
-  That is deliberate — the reason is a *field* the staff user failed to fill in, and the `fields` map is the only thing that can say which field. Consequence for tests: DRF's `ValidationError.get_codes()` on a **dict** detail returns a **dict**, so an assertion must be `exc.get_codes() == {"reason": ["entitlement_reason_required"]}` (or `exc.detail["reason"][0].code == "entitlement_reason_required"`), never a bare string.
+  That is deliberate — the reason is a *field* the staff user failed to fill in, and the `fields` map is the only thing that can say which field. Where `entitlement_reason_required` *does* live is the `ErrorDetail.code` attached to that message inside the Python exception, which is useful to anyone testing the service function directly and is exactly what this plan's Task 13 tests assert. Two consequences, both easy to get wrong:
+  - **At the Python/test level**, DRF's `ValidationError.get_codes()` on a **dict** detail returns a **dict**, so an assertion must be `exc.get_codes() == {"reason": ["entitlement_reason_required"]}` (or `exc.detail["reason"][0].code == "entitlement_reason_required"`), never a bare string.
+  - **At the HTTP level**, there is nothing to assert the code against. A wire test must assert the *message*: `response.data["error"]["fields"]["reason"] == ["Explain why this entitlement is being changed."]`. An assertion looking for `"entitlement_reason_required"` in the JSON body will always fail. (This is unlike `listing_entitlement_required`, which is a scalar-detail `APIException` code and therefore *does* surface as `error.code`.)
 - **Error envelope:** spec §30.2, produced by `common.exceptions.nauta_exception_handler`. This phase adds the `action` passthrough the spec's own worked example requires:
   ```json
   {"error": {"code": "listing_entitlement_required",
@@ -95,7 +97,7 @@ Phases 9, 10 and 12 are being planned in parallel with this one. Phase 12 (broke
 | `tests/test_policies.py`, `tests/test_boat_listing_model.py` | Existing Phase 11 tests updated in place: the three `ListingEntitlementGate` stub assertions (Task 8) and two appended FK tests (Task 7). No Phase 11 test is deleted. | 7, 8 | Low. |
 | `enums.py`, `views.py`, `urls.py`, `serializers.py`, `decisions.py`, `payloads.py`, `locking.py`, `permissions.py`, `snapshots.py` | **Untouched.** | — | None. |
 
-Shared files outside `listings/`: `backend/config/settings/base.py` (append to `INSTALLED_APPS`, `CELERY_TASK_ROUTES`, `DEFAULT_THROTTLE_RATES`; add `CELERY_BEAT_SCHEDULE`), `backend/config/urls.py` (one `include`), `backend/common/exceptions.py` (one `action` passthrough block mirroring the existing `meta` one), `backend/conftest.py` (one appended `published_listing_with_snapshot` fixture, Task 10 — it must live at the repo-test root because it is consumed from **two different app test packages**, `listings/tests/` and `entitlements/tests/`, and a `conftest.py` fixture is only visible inside its own directory subtree). Expect trivial rebases, not real conflicts.
+Shared files outside `listings/`: `backend/config/settings/base.py` (append to `INSTALLED_APPS`, `CELERY_TASK_ROUTES`, `DEFAULT_THROTTLE_RATES`; add `CELERY_BEAT_SCHEDULE`), `backend/config/urls.py` (one `include`), `backend/common/exceptions.py` (one `action` passthrough block mirroring the existing `meta` one), `backend/conftest.py` (one appended `published_listing_with_snapshot` fixture, **Task 8** — the plan's first consumer of it; Tasks 10 and 14 only read it. It must live at the repo-test root because it is consumed from **two different app test packages**, `listings/tests/` and `entitlements/tests/`, and a `conftest.py` fixture is only visible inside its own directory subtree). Expect trivial rebases, not real conflicts.
 
 ---
 
@@ -158,9 +160,10 @@ nautelo/
 ├── ACTIVITY.md                                                (modify: Task 14)
 ├── docs/superpowers/plans/2026-09-18-phase-13-quota-entitlement.md   (this file)
 └── backend/
-    ├── conftest.py                 (modify: Task 10 — append the
+    ├── conftest.py                 (modify: Task 8 — append the
     │                                published_listing_with_snapshot fixture, which is
-    │                                used from BOTH listings/tests/ and entitlements/tests/)
+    │                                used from BOTH listings/tests/ and entitlements/tests/;
+    │                                Tasks 10 and 14 consume it unchanged)
     ├── config/
     │   ├── settings/base.py         (modify: Task 1 INSTALLED_APPS; Task 5 throttle rate;
     │   │                             Task 10 CELERY_BEAT_SCHEDULE + task routes;
@@ -2120,8 +2123,17 @@ from entitlements.consumption import (
 from entitlements.enums import EntitlementSource, EntitlementState, EntitlementType
 from entitlements.models import UserEntitlement
 from entitlements.tests.factories import make_entitlement, make_private_seller
-from listings.tests.factories import make_private_listing
+from listings.tests.factories import make_brand, make_private_listing
 from platform_settings.services import update_setting
+
+# `make_private_listing(owner=...)` with no explicit `brand=` derives the brand
+# name from the OWNER's pk (`f"Brand {owner.pk.hex[:8]}"`, see
+# listings/tests/factories.py), and `BoatBrand.normalized_name` is `unique=True`.
+# So a SECOND listing for the SAME owner in the SAME test must be given its own
+# brand, or the insert dies with an IntegrityError before the assertion under
+# test is ever reached. Every test below that creates two listings for one user
+# passes an explicit `brand=make_brand(...)` on the second one for that reason;
+# do not "simplify" it away.
 
 
 @pytest.mark.django_db
@@ -2165,7 +2177,7 @@ def test_a_second_listing_is_refused_once_the_free_right_is_gone(
     consume_listing_right(
         user=user, listing=make_private_listing(owner=user), actor=user
     )
-    second = make_private_listing(owner=user)
+    second = make_private_listing(owner=user, brand=make_brand("Sessa Marine"))
 
     with pytest.raises(ListingEntitlementRequired) as excinfo:
         consume_listing_right(user=user, listing=second, actor=user)
@@ -2214,7 +2226,7 @@ def test_a_paid_right_is_consumed_when_the_free_one_is_gone(entitlements_enforce
         valid_until=timezone.now() + timedelta(days=90),
     )
     update_setting(key="individual.paid_publish_days", value=60, actor=None)
-    second = make_private_listing(owner=user)
+    second = make_private_listing(owner=user, brand=make_brand("Fairline"))
 
     right = consume_listing_right(user=user, listing=second, actor=user)
 
@@ -2232,7 +2244,7 @@ def test_with_the_flag_off_an_over_allowance_use_is_still_recorded():
     consume_listing_right(
         user=user, listing=make_private_listing(owner=user), actor=user
     )
-    second = make_private_listing(owner=user)
+    second = make_private_listing(owner=user, brand=make_brand("Grand Banks"))
 
     right = consume_listing_right(user=user, listing=second, actor=user)
 
@@ -2791,7 +2803,7 @@ git commit -m "feat(listings): consumed_entitlement is a real FK to the ledger"
 **Files:**
 - Modify: `backend/listings/policies.py` (the `ListingEntitlementGate` class body only), `backend/listings/submissions.py` (the existing entitlement block inside `submit_listing_revision`, plus one keyword on one `bump_version` call)
 - Create: `backend/listings/tests/test_entitlement_enforcement.py`
-- Modify: `backend/listings/tests/conftest.py` (add a broker fixture, extend the flag list), `backend/listings/tests/test_policies.py` (update the stub assertions)
+- Modify: `backend/listings/tests/conftest.py` (add a broker fixture, extend the flag list), `backend/listings/tests/test_policies.py` (update the stub assertions), **`backend/conftest.py`** (append the `published_listing_with_snapshot` fixture — the repo test root; this task is the plan's **first** consumer of it, Tasks 10 and 14 then reuse it unchanged)
 
 **Interfaces:**
 - Consumes: `entitlements.consumption.{ListingEntitlementRequired, consume_listing_right}` (Task 6); `entitlements.eligibility.ListingEligibilityService` (Task 4); `entitlements.policy.{enforcement_enabled, free_publication_days}` (Task 3); `entitlements.enums.EntitlementType` (Task 1).
@@ -2861,22 +2873,42 @@ def _draft(api, *, brand):
     return response.data
 
 
+def _submission_payload(version, *, media_ids, **overrides):
+    """A COMPLETE, submission-valid PATCH body.
+
+    Every field in `listings.payloads.REQUIRED_FOR_SUBMISSION` is present —
+    `title_en`, `description_en`, `location_country`, `location_city`, `price`,
+    `media_ids`. That completeness is load-bearing, not tidiness: a revision is a
+    whole proposed document, and `submit_listing_revision` runs
+    `validate_revision_payload(revision.payload, for_submission=True)` and
+    `validate_submission_media(...)` BEFORE it ever reaches the entitlement
+    block. A PATCH that sends one field therefore yields a 400 that never
+    exercises the gate at all — which is exactly what a test re-opening an edit
+    cycle on a listing with NO public snapshot must avoid, because
+    `update_listing_draft` seeds such a cycle from `payload_from_snapshot(None)`
+    == `{}` and keeps nothing from the withdrawn draft (Known Limitation 16).
+    """
+    payload = {
+        "version": version,
+        "title_en": "Well kept cruiser",
+        "description_en": "A well kept cruiser with a recent service.",
+        "location_country": "ES",
+        "location_region": "Balearic Islands",
+        "location_city": "Palma",
+        "price": "125000.00",
+        "currency": "EUR",
+        "media_ids": [str(media_id) for media_id in media_ids],
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _fill_and_submit(api, created):
     listing = BoatListing.objects.get(pk=created["id"])
     image = make_media(listing)
     patched = api.patch(
         reverse("listing-draft-update", kwargs={"listing_id": listing.pk}),
-        {
-            "version": created["revision"]["version"],
-            "title_en": "Well kept cruiser",
-            "description_en": "A well kept cruiser with a recent service.",
-            "location_country": "ES",
-            "location_region": "Balearic Islands",
-            "location_city": "Palma",
-            "price": "125000.00",
-            "currency": "EUR",
-            "media_ids": [str(image.pk)],
-        },
+        _submission_payload(created["revision"]["version"], media_ids=[image.pk]),
         format="json",
     )
     assert patched.status_code == 200, patched.data
@@ -2943,6 +2975,17 @@ def test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right(
     submit the seller's free right is gone, so a bare
     `can_submit(user=actor, broker=...)` returns False and would 403 — even
     though `consume()` would correctly hand back the very same right.
+
+    **The correction PATCH must resend the WHOLE payload, and that is not
+    optional.** Withdrawing moves the revision to `WITHDRAWN`, which
+    `open_revision_for()` no longer returns, so the PATCH opens a *new* edit
+    cycle seeded with `payload_from_snapshot(listing.current_public_snapshot)`.
+    This listing was never published, so that snapshot is `None` and the seed is
+    `{}`. A one-field PATCH would leave the revision missing every one of
+    `REQUIRED_FOR_SUBMISSION`, and the re-submit would 400 inside
+    `validate_revision_payload` — before the `charges_a_right` guard this test
+    exists to prove. (That payload loss is a real Phase 11 gap; it is recorded
+    as Known Limitation 16 and is not this phase's to fix.)
     """
     seller = make_private_seller()
     api.force_authenticate(seller)
@@ -2961,9 +3004,19 @@ def test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right(
     assert withdrawn.status_code == 200, withdrawn.data
 
     listing.refresh_from_db()
+    # The withdraw bumped the LISTING's version (it was never published, so the
+    # listing itself went back to DRAFT), and the new edit cycle has no revision
+    # version for the client to send yet — so the compare-and-swap here runs
+    # against `listing.version`, which is what `update_listing_draft` expects on
+    # a `revision is None` path.
     reopened = api.patch(
         reverse("listing-draft-update", kwargs={"listing_id": listing.pk}),
-        {"version": listing.version, "title_en": "Well kept cruiser, reduced"},
+        _submission_payload(
+            listing.version,
+            media_ids=list(listing.media.values_list("pk", flat=True)),
+            title_en="Well kept cruiser, reduced",
+            price="119000.00",
+        ),
         format="json",
     )
     assert reopened.status_code == 200, reopened.data
@@ -2973,6 +3026,8 @@ def test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right(
         format="json",
     )
 
+    # A 400 here means the correction payload was incomplete and the test never
+    # reached the gate; a 403 means the `charges_a_right` guard is missing.
     assert again.status_code == 200, again.data
     listing.refresh_from_db()
     assert listing.consumed_entitlement_id == first_right_id
@@ -2999,9 +3054,14 @@ def test_a_legacy_published_listing_is_revisable_without_burning_a_right(
     assert listing.current_public_snapshot_id is not None
 
     # This owner has nothing available: one spent free right, no paid right.
+    # The explicit `brand=` is required, not decorative: the fixture already
+    # created this owner's default brand (`make_private_listing` derives the name
+    # from the OWNER's pk when none is given) and `BoatBrand.normalized_name` is
+    # `unique=True`, so a bare second `make_private_listing(owner=seller)` here
+    # raises IntegrityError before any assertion runs.
     make_entitlement(
         user=seller,
-        listing=make_private_listing(owner=seller),
+        listing=make_private_listing(owner=seller, brand=make_brand("Sunseeker")),
         entitlement_type=EntitlementType.FREE_LISTING,
         source=EntitlementSource.FREE_POLICY,
         state=EntitlementState.CONSUMED,
@@ -3152,6 +3212,84 @@ def broker_seller(db):
     )
     return actor, broker, make_brand("Azimut")
 ```
+
+Then add a `published_listing_with_snapshot` fixture to **`backend/conftest.py`** — the repo-wide test root, *not* `backend/listings/tests/conftest.py`. `test_a_legacy_published_listing_is_revisable_without_burning_a_right` above is the plan's first consumer, which is why the fixture is introduced here rather than in Task 10.
+
+**Why the root conftest:** pytest only makes a `conftest.py` fixture visible inside its own directory subtree. This fixture is consumed from two different Django apps' test packages — `backend/listings/tests/` (this task's `test_entitlement_enforcement.py`, and Task 10's `test_expiry.py`) and `backend/entitlements/tests/test_phase_acceptance.py` (Task 14's `test_done_4_...`) — so a `listings/tests/`-local definition would simply not resolve for the third one and Task 14 would error at collection with `fixture 'published_listing_with_snapshot' not found`. `backend/conftest.py` today holds only the autouse `clear_redis_cache` fixture; this is an **append**, and that fixture is untouched.
+
+**What the body does — and two corrections to earlier drafts of this plan, both verified against the real code:**
+- `ListingSnapshot.save()` (`backend/listings/models.py`, around line 361) does **not** refuse hand-construction. It refuses only a **re-save of an existing row**: `if not self._state.adding: raise ValueError("ListingSnapshot rows are immutable once created.")`. A fresh insert is perfectly legal, and `listings.tests.factories.make_snapshot` does exactly that.
+- `listings/tests/test_public_read_api.py`'s `_published()` helper does **not** drive the real workflow. It hand-constructs the snapshot via `make_snapshot(...)` and assigns `listing.current_public_snapshot` directly. It also takes `**snapshot_kwargs` and returns a `(listing, snapshot)` **tuple**, which its ~30 call sites in that module depend on.
+
+So: **mirror `_published()`'s construction, but return the listing alone**, and leave `test_public_read_api.py` completely untouched (it is not in this plan's footprint). Every consumer of this fixture treats it as a single `BoatListing`; the snapshot is reachable as `listing.current_public_snapshot`. Hand-construction is also the right choice on its own merits here: driving draft → submit → approve would make every consumer depend on the `listing_revisions` feature flag being enabled, which this task's `workflow_enabled` and Task 14's `both_flags_on` supply but Task 10's expiry tests do not.
+
+Append to `backend/conftest.py`:
+
+```python
+@pytest.fixture
+def published_listing_with_snapshot(db):
+    """A PUBLISHED listing with one READY photo and a live public snapshot.
+
+    Defined here, at the repo test root, because it is used from BOTH
+    listings/tests/ and entitlements/tests/ — a conftest fixture is only visible
+    inside its own directory subtree.
+
+    Mirrors listings/tests/test_public_read_api.py's `_published()` helper, which
+    stays where it is (it returns a tuple and takes snapshot kwargs that its own
+    module needs). Returns the listing alone; the snapshot is
+    `listing.current_public_snapshot`.
+
+    NOTE for consumers: this owner already has a brand, named after its own pk by
+    `make_private_listing`. `BoatBrand.normalized_name` is unique, so a test that
+    builds a SECOND listing for `listing.owner_user` must pass an explicit
+    `brand=make_brand(...)`.
+    """
+    from uuid import uuid4
+
+    from django.utils import timezone
+
+    from accounts.enums import UserRole
+    from accounts.tests.factories import make_user
+    from listings.enums import ListingStatus, MediaStatus, MediaType
+    from listings.tests.factories import make_media, make_private_listing, make_snapshot
+
+    suffix = uuid4().hex[:8]
+    owner = make_user(
+        f"published-owner-{suffix}@example.com",
+        role=UserRole.PRIVATE_SELLER,
+        verified=True,
+    )
+    moderator = make_user(
+        f"published-moderator-{suffix}@example.com",
+        role=UserRole.STAFF,
+        verified=True,
+    )
+    listing = make_private_listing(owner=owner, status=ListingStatus.PUBLISHED)
+    image = make_media(listing, media_type=MediaType.IMAGE, status=MediaStatus.READY)
+    snapshot = make_snapshot(
+        listing,
+        approved_by=moderator,
+        media_manifest=[
+            {
+                "media_id": str(image.pk),
+                "media_type": image.media_type,
+                "storage_key": image.storage_key,
+                "mime_type": image.mime_type,
+                "sort_order": image.sort_order,
+                "width": image.width,
+                "height": image.height,
+                "duration_seconds": image.duration_seconds,
+                "checksum_sha256": image.checksum_sha256,
+            }
+        ],
+    )
+    listing.current_public_snapshot = snapshot
+    listing.published_at = timezone.now()
+    listing.save(update_fields=["current_public_snapshot", "published_at"])
+    return listing
+```
+
+The imports live inside the function body deliberately: `backend/conftest.py` is loaded before Django's app registry is populated, so a module-level `from listings.models import ...` there would raise `AppRegistryNotReady`.
 
 **Use `backend/brokers/tests/factories.py`, never a raw `.create()`.** `make_broker(name, slug, *, status, **extra)` also fills `public_email` and `public_phone`, and `make_membership(user, broker, *, role, can_edit_listings, can_manage_team, can_read_messages, is_active)` fills the whole capability set — a bare `BrokerOrganization.objects.create(name=..., status=...)` would leave `slug`, `public_email` and `public_phone` unset and is likely to fail outright. This is the plan's own reuse rule (Contract summary, and the Phase 11 precedent): reuse an existing factory rather than duplicating construction logic. Note the argument order — `make_broker` takes `name` and `slug` positionally, `make_membership` takes `user` then `broker` positionally. If Phase 3 ever changes those signatures, read the real file; do not re-derive the model's fields from memory.
 
@@ -3450,7 +3588,7 @@ Expected: full suite green, including `listings/tests/test_submit_withdraw.py` a
 - [ ] **Step 7: Commit**
 
 ```bash
-git add backend/listings/policies.py backend/listings/submissions.py backend/listings/tests
+git add backend/listings/policies.py backend/listings/submissions.py backend/listings/tests backend/conftest.py
 git commit -m "feat(listings): consume a real entitlement inside the submit transaction"
 ```
 
@@ -3623,7 +3761,8 @@ git commit -m "feat(listings): gate draft creation on an available listing right
 
 **Files:**
 - Create: `backend/listings/expiry.py`, `backend/listings/tasks.py`, `backend/listings/tests/test_expiry.py`
-- Modify: `backend/listings/signals.py` (append two signals), `backend/conftest.py` (append the `published_listing_with_snapshot` fixture — the **repo test root**, because Task 14 uses it from `entitlements/tests/`), `backend/config/settings/base.py` (task routes + beat schedule)
+- Modify: `backend/listings/signals.py` (append two signals), `backend/config/settings/base.py` (task routes + beat schedule)
+- Reuses, does **not** create: the `published_listing_with_snapshot` fixture in `backend/conftest.py`, introduced by Task 8. `backend/conftest.py` is **not** edited by this task and is not in its commit.
 
 **Interfaces:**
 - Consumes: `listings.models.BoatListing`; `listings.enums.{ListingStatus, can_transition_listing}`; `listings.locking.bump_version`; `audit.services.record_audit_event`.
@@ -3790,78 +3929,9 @@ def test_an_expired_listing_disappears_from_the_public_api(
     assert api.get(reverse("listing-list")).data["count"] == 0
 ```
 
-Add a `published_listing_with_snapshot` fixture to **`backend/conftest.py`** — the repo-wide test root, *not* `backend/listings/tests/conftest.py`.
+`test_an_expired_listing_disappears_from_the_public_api` above uses the `published_listing_with_snapshot` fixture. **It already exists**: Task 8 appended it to `backend/conftest.py` (the repo-wide test root, so that `listings/tests/` and `entitlements/tests/` can both see it — a `conftest.py` fixture is only visible inside its own directory subtree). Nothing about it changes here and `backend/conftest.py` is **not** part of this task's diff or commit. It yields a single `BoatListing`; its snapshot is `listing.current_public_snapshot`. If it is missing when you run this task's tests, Task 8 was not applied — go back and apply it, do not redefine the fixture here or in `listings/tests/conftest.py`.
 
-**Why the root conftest:** pytest only makes a `conftest.py` fixture visible inside its own directory subtree. This fixture is consumed from two different Django apps' test packages — `backend/listings/tests/test_expiry.py` (this task) and `backend/entitlements/tests/test_phase_acceptance.py` (Task 14's `test_done_4_...`) — so a `listings/tests/`-local definition would simply not resolve for the second one and Task 14 would error at collection with `fixture 'published_listing_with_snapshot' not found`. `backend/conftest.py` today holds only the autouse `clear_redis_cache` fixture; this is an **append**, and that fixture is untouched.
-
-**What the body does — and two corrections to earlier drafts of this plan, both verified against the real code:**
-- `ListingSnapshot.save()` (`backend/listings/models.py`, around line 361) does **not** refuse hand-construction. It refuses only a **re-save of an existing row**: `if not self._state.adding: raise ValueError("ListingSnapshot rows are immutable once created.")`. A fresh insert is perfectly legal, and `listings.tests.factories.make_snapshot` does exactly that.
-- `listings/tests/test_public_read_api.py`'s `_published()` helper does **not** drive the real workflow. It hand-constructs the snapshot via `make_snapshot(...)` and assigns `listing.current_public_snapshot` directly. It also takes `**snapshot_kwargs` and returns a `(listing, snapshot)` **tuple**, which its ~30 call sites in that module depend on.
-
-So: **mirror `_published()`'s construction, but return the listing alone**, and leave `test_public_read_api.py` completely untouched (it is not in this plan's footprint). Every consumer of this fixture treats it as a single `BoatListing`; the snapshot is reachable as `listing.current_public_snapshot`. Hand-construction is also the right choice on its own merits here: driving draft → submit → approve would make every consumer of this fixture depend on the `listing_revisions` feature flag being enabled, which Task 14's `both_flags_on` supplies but Task 10's expiry tests do not.
-
-Append to `backend/conftest.py`:
-
-```python
-@pytest.fixture
-def published_listing_with_snapshot(db):
-    """A PUBLISHED listing with one READY photo and a live public snapshot.
-
-    Defined here, at the repo test root, because it is used from BOTH
-    listings/tests/ and entitlements/tests/ — a conftest fixture is only visible
-    inside its own directory subtree.
-
-    Mirrors listings/tests/test_public_read_api.py's `_published()` helper, which
-    stays where it is (it returns a tuple and takes snapshot kwargs that its own
-    module needs). Returns the listing alone; the snapshot is
-    `listing.current_public_snapshot`.
-    """
-    from uuid import uuid4
-
-    from django.utils import timezone
-
-    from accounts.enums import UserRole
-    from accounts.tests.factories import make_user
-    from listings.enums import ListingStatus, MediaStatus, MediaType
-    from listings.tests.factories import make_media, make_private_listing, make_snapshot
-
-    suffix = uuid4().hex[:8]
-    owner = make_user(
-        f"published-owner-{suffix}@example.com",
-        role=UserRole.PRIVATE_SELLER,
-        verified=True,
-    )
-    moderator = make_user(
-        f"published-moderator-{suffix}@example.com",
-        role=UserRole.STAFF,
-        verified=True,
-    )
-    listing = make_private_listing(owner=owner, status=ListingStatus.PUBLISHED)
-    image = make_media(listing, media_type=MediaType.IMAGE, status=MediaStatus.READY)
-    snapshot = make_snapshot(
-        listing,
-        approved_by=moderator,
-        media_manifest=[
-            {
-                "media_id": str(image.pk),
-                "media_type": image.media_type,
-                "storage_key": image.storage_key,
-                "mime_type": image.mime_type,
-                "sort_order": image.sort_order,
-                "width": image.width,
-                "height": image.height,
-                "duration_seconds": image.duration_seconds,
-                "checksum_sha256": image.checksum_sha256,
-            }
-        ],
-    )
-    listing.current_public_snapshot = snapshot
-    listing.published_at = timezone.now()
-    listing.save(update_fields=["current_public_snapshot", "published_at"])
-    return listing
-```
-
-The imports live inside the function body deliberately: `backend/conftest.py` is loaded before Django's app registry is populated, so a module-level `from listings.models import ...` there would raise `AppRegistryNotReady`.
+Note also that this fixture does **not** turn on the `listing_revisions` feature flag (it hand-constructs its snapshot rather than driving draft → submit → approve), which is exactly why this task's expiry tests can use it without the flag fixtures.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -4075,7 +4145,7 @@ Expected: PASS, unchanged (the conftest helper move must not alter its behaviour
 - [ ] **Step 8: Commit**
 
 ```bash
-git add backend/listings/expiry.py backend/listings/tasks.py backend/listings/signals.py backend/listings/tests backend/conftest.py backend/config/settings/base.py
+git add backend/listings/expiry.py backend/listings/tasks.py backend/listings/signals.py backend/listings/tests backend/config/settings/base.py
 git commit -m "feat(listings): daily expiry sweep per spec 22.5"
 ```
 
@@ -4772,7 +4842,7 @@ git commit -m "feat(entitlements): nightly ledger sweep for expiry and stale res
 **Interfaces:**
 - Consumes: `entitlements.services._transition`, `entitlements.services.InvalidEntitlementState` (Task 12); `entitlements.policy.paid_validity_days` (Task 3); `accounts.services.is_staff_admin`.
 - Produces:
-  - `entitlements.services.EntitlementReasonRequired(ValidationError)` — a DRF `ValidationError` subclass whose detail is `{"reason": [ErrorDetail(..., code="entitlement_reason_required")]}`. It renders as **400 `validation_error`** with `fields: {"reason": [...]}`, because `common.exceptions.nauta_exception_handler` routes every `ValidationError` — subclass or not — through `_field_map(exc.detail)`. `entitlement_reason_required` is therefore a **field-level** code, never the envelope's top-level `code`. See Global Constraints; that is deliberate, since the whole point is to name the field the staff user left blank.
+  - `entitlements.services.EntitlementReasonRequired(ValidationError)` — a DRF `ValidationError` subclass whose detail is `{"reason": [ErrorDetail(..., code="entitlement_reason_required")]}`. It renders as **400 `validation_error`** with `fields: {"reason": ["Explain why this entitlement is being changed."]}`, because `common.exceptions.nauta_exception_handler` routes every `ValidationError` — subclass or not — through `_field_map(exc.detail)`, which flattens each item with `str()`. `entitlement_reason_required` is therefore an **internal DRF code**, readable only in Python; it is never the envelope's top-level `code` and it is never in the serialized `fields` values either. See Global Constraints; that is deliberate, since the whole point on the wire is to name the field the staff user left blank.
   - `entitlements.services.grant_listing_right(*, user, actor, reason, entitlement_type=EntitlementType.PAID_LISTING, valid_days=None, now=None) -> UserEntitlement`
   - `entitlements.services.revoke_entitlement(*, entitlement, actor, reason, now=None) -> UserEntitlement`
   - `entitlements.services.RestoreResult` — frozen dataclass: `revoked: UserEntitlement`, `replacement: UserEntitlement | None`
@@ -5009,11 +5079,15 @@ class EntitlementReasonRequired(ValidationError):
     A ValidationError (400) rather than a bespoke APIException, so it renders
     through spec §30.2's `fields` map with the offending field named. The
     consequence, stated because it is easy to get wrong: common.exceptions maps
-    EVERY ValidationError to `code: "validation_error"`, so the envelope reads
-    `{"code": "validation_error", "fields": {"reason": [...]}}` and
-    "entitlement_reason_required" appears only as the FIELD-level code. That is
-    the intended contract — a blank reason is a form error about one field, not
-    a distinct API failure mode — and it is why `get_codes()` on this exception
+    EVERY ValidationError to `code: "validation_error"`, and its `_field_map`
+    flattens each detail item with `str()` — which on an ErrorDetail yields the
+    MESSAGE, not the code. So the wire reads
+    `{"code": "validation_error",
+      "fields": {"reason": ["Explain why this entitlement is being changed."]}}`
+    and the string "entitlement_reason_required" never leaves Python. It is the
+    internal DRF code, assertable as `exc.detail["reason"][0].code`. That is the
+    intended contract — a blank reason is a form error about one field, not a
+    distinct API failure mode — and it is why `get_codes()` on this exception
     returns a dict, not a string.
     """
 
@@ -5685,6 +5759,7 @@ Each item names the phase that closes it. None breaks a MUST requirement *of thi
 13. **No `Idempotency-Key` replay store on submit.** Unchanged from Phase 11's Known Limitation 7, and now slightly more load-bearing because a replayed submit consumes nothing but returns a 403 rather than the original 200 body. → **Phase 14**, whose Checkout creation is the mechanism's first real consumer.
 14. **The over-allowance ledger row is a rollout artefact.** A consumption recorded while the flag was off and beyond the configured allowance is marked `metadata["over_allowance"] = True`. Nothing reconciles those rows afterwards; they simply count toward the window, which blocks the user until it rolls. If product wants an amnesty at rollout, it is a one-off data task, not code. → operational, Phase 24 (spec §35.2 step 3, "bounded backfills and reconciliation").
 15. **Rate limiting on listing mutations is still absent.** Phase 11's Known Limitation 12 named this phase's entitlement gate as the thing that closes unbounded *draft creation* — and it does, for an individual seller with no right. It does not bound a broker (unlimited quota by spec §1) or a seller who still has a right. → **Phase 22** if a broader limit is wanted.
+16. **A correction after withdrawal or rejection loses the previously-submitted draft content — a Phase 11 gap, not an entitlement one.** When a listing that has **never been published** is withdrawn or rejected, its revision leaves `DRAFT`/`SUBMITTED`, so `listings.drafts.open_revision_for()` stops returning it and the next PATCH opens a *fresh* edit cycle seeded with `payload_from_snapshot(listing.current_public_snapshot)` — which is `{}`, because there is no snapshot yet. The corrected resubmission therefore has to re-send the **entire** payload (every field in `listings.payloads.REQUIRED_FOR_SUBMISSION`, media ids included), not just the one field the moderator asked about; a one-field PATCH followed by a submit returns `400 validation_error`, never reaching the entitlement gate. Spec §22.1's "a rejected submission can be corrected without consuming a second right" is satisfied *as an entitlement rule* by this phase (Task 6's existing-right short-circuit and Task 8's `charges_a_right` guard, both tested), but the correction flow it presupposes is currently only usable by a client that holds the full payload in memory. Fixing it means seeding a new edit cycle from the last non-open revision's `payload` when there is no public snapshot to seed from, in `listings/drafts.py`'s `update_listing_draft`. That file is Phase 11's and this phase deliberately does not touch it beyond Task 9's two lines in `create_listing_draft`. → **whichever phase next revisits `listings/drafts.py`'s edit-cycle payload seeding** (Phase 16 is the likely forcing function, since it is the first phase with a real correction UI).
 
 ---
 
@@ -5781,7 +5856,7 @@ Rules a later phase must follow:
 9. **Phase 17** builds the staff entitlement UI on `entitlements.services`' existing functions; it should add the *grant* affordance (which needs a target user) and may expose the ledger over `/api/v1/staff/...`. It must not add a second grant/revoke path.
 10. **Phase 18** connects receivers to `listings.signals.listing_expiring` and `listing_expired`. `listing_expiring` carries `threshold_days`, which is spec §27.1's dedup key component; `listing_expired` fires inside `transaction.on_commit()` and `listing_expiring` does not, because a reminder writes nothing.
 11. **Phase 12 must not remove the `is_initial` branch's `consumed_entitlement=consumed.entitlement` keyword** when it adds the auto-approval `else:` to `submit_listing_revision`, and must not remove or weaken the `charges_a_right` guard above the entitlement block. `is_initial` is assigned **above** that block (this phase moved it three lines up); if Phase 12 reorders that function, the assignment must stay above the guard. If Phase 12's auto-approval path publishes a private-seller listing directly (it should not — auto-approval is a broker policy), it must set `consumed_entitlement` too.
-12. **Any new entitlement-related error code must be stable and documented** in this plan's Global Constraints list. The closed set today is two **envelope** codes — `listing_entitlement_required` (403) and `invalid_entitlement_state` (409) — plus one **field-level** code, `entitlement_reason_required`, which surfaces inside a 400 `validation_error` envelope as `fields: {"reason": ["entitlement_reason_required"]}` and never as `error.code`. A phase that needs a distinct top-level code must raise a plain `APIException` subclass, not a `ValidationError`, and must accept losing the per-field `fields` map. Exceptions needing extra response context set a dict attribute named `meta`; exceptions offering the client a next step set one named `action` (both are envelope passthroughs in `common.exceptions`).
+12. **Any new entitlement-related error code must be stable and documented** in this plan's Global Constraints list. The closed set today is two **envelope** codes — `listing_entitlement_required` (403) and `invalid_entitlement_state` (409) — plus one **internal, Python-level** DRF field code, `entitlement_reason_required`, which is carried on the `ErrorDetail` under `fields["reason"]` of a 400 `validation_error` envelope but is **never serialized**: `common.exceptions._field_map` flattens every detail item with `str()`, so the wire body carries the *message* (`fields: {"reason": ["Explain why this entitlement is being changed."]}`) and the string `entitlement_reason_required` appears nowhere a JSON client can read it — neither as `error.code` nor inside `error.fields`. Assert it in Python (`exc.get_codes()` / `exc.detail["reason"][0].code`), never by parsing a response body. A phase that needs a code a client can actually branch on must raise a plain `APIException` subclass, not a `ValidationError`, and must accept losing the per-field `fields` map. Exceptions needing extra response context set a dict attribute named `meta`; exceptions offering the client a next step set one named `action` (both are envelope passthroughs in `common.exceptions`).
 13. **Never charge a right for a listing that already has a public snapshot.** Spec §6.3 charges "initial approval" only, and spec §20.2's post-publication edit shares the submit path. `ListingEntitlementGate.consume()` short-circuits on `listing.current_public_snapshot_id is not None`, and the call site's `charges_a_right` guard mirrors it. Checking `consumed_entitlement_id` alone is **not** sufficient: Phase 11's Known Limitation 1 means that column is NULL on every pre-Phase-13 published listing, so such a listing's first revision would be charged a fresh free right (flag off) or refused with a 403 (flag on).
 
 ---
@@ -5795,7 +5870,7 @@ Rules a later phase must follow:
 | §22.1 One free listing activation per rolling 365-day period | Task 3 (`free_quota_state`), Task 14 done-1 |
 | §22.1 Approved publication lasts 30 days | Task 8 (`publication_days`), consumed by Phase 11's `approve_revision` unchanged |
 | §22.1 Rolling period starts when the free entitlement is consumed on submission | Task 3 (window keyed on `consumed_at`), Task 6 (`consumed_at=now` at submit), Task 14 `test_spec_22_1_the_rolling_period_starts_at_consumption_not_publication` |
-| §22.1 A rejected submission can be corrected without consuming a second right | Task 6 (`consume_listing_right`'s existing-right short-circuit), **Task 8 Step 4's `charges_a_right` guard on the pre-check** (without it the unlocked `can_submit` would 403 before the short-circuit is ever reached), Task 8 `test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right` |
+| §22.1 A rejected submission can be corrected without consuming a second right | Task 6 (`consume_listing_right`'s existing-right short-circuit), **Task 8 Step 4's `charges_a_right` guard on the pre-check** (without it the unlocked `can_submit` would 403 before the short-circuit is ever reached), Task 8 `test_resubmitting_a_withdrawn_listing_does_not_burn_a_second_right` — whose correction PATCH resends the full `REQUIRED_FOR_SUBMISSION` payload, without which the re-submit 400s in payload validation and never reaches the guard. The *entitlement* half of §22.1 is met; the ergonomics of the correction flow itself are Known Limitation 16 |
 | §20.2 / §6.3 A post-publication edit of an already-PUBLISHED listing is neither charged nor refused | Task 8 (`consume()`'s `current_public_snapshot_id is not None` short-circuit + the call-site guard), Task 8 `test_a_legacy_published_listing_is_revisable_without_burning_a_right`. Gating on `consumed_entitlement_id` alone would regress every Phase 11-era published listing, whose column is always NULL |
 | §22.1 Permanent policy rejection leaves the right consumed unless staff restores it | Task 13 (`restore_consumed_right`), Task 3 (`REVOKED` rows are not counted) |
 | §22.1 Deleting/archiving/selling does not reset free quota | Task 3 (ledger-only arithmetic), Task 7 (`PROTECT` makes a hard delete impossible), Task 14 `test_spec_22_1_deleting_the_listing_does_not_reset_the_quota` |
@@ -5827,7 +5902,7 @@ Rules a later phase must follow:
 
 **Gaps deliberately left, with the owning phase named:** §22.3's rendered UI and its product/price content (Phases 16 and 14), §22.5's reactivation transition (undefined in §6.1), the `RESERVED` producer (Phases 14/15), `MEDIA_UPGRADE` behaviour (Phase 15), the staff ledger API and the grant affordance (Phase 17), notification delivery (Phase 18), and everything in Known Limitations above. No spec §22 requirement is unaccounted for.
 
-**3. Placeholder scan:** no task contains "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "similar to Task N", or a test described but not written. Every code step carries the real code, including both fixtures: the `broker_seller` fixture (Task 8) is written out in terms of the real `brokers/tests/factories.py` helpers `make_broker`/`make_membership`, and the `published_listing_with_snapshot` fixture (Task 10) is written out in full against `listings/tests/factories.py`'s `make_snapshot`. One place still tells the implementer to read an existing file rather than restating it — the `test_policies.py` edits (Task 8 Step 5), which change three named assertions in a Phase 11 file this plan does not otherwise own; that is a deliberate refusal to restate Phase 11's test module from memory, not an unwritten step. `release_stale_reservations` (Task 12) is a mechanism with no producer in this phase, built because spec §6.3 mandates the rule; it is complete, tested and flagged, following Phase 5's precedent for the §14.3 legacy-import mechanism. The one `xfail` in the plan (Task 6's envelope test) is created and removed within the plan, in Tasks 6 and 9, with both steps spelled out.
+**3. Placeholder scan:** no task contains "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "similar to Task N", or a test described but not written. Every code step carries the real code, including both fixtures: the `broker_seller` fixture (Task 8) is written out in terms of the real `brokers/tests/factories.py` helpers `make_broker`/`make_membership`, and the `published_listing_with_snapshot` fixture (**Task 8**, in `backend/conftest.py`) is written out in full against `listings/tests/factories.py`'s `make_snapshot`. Tasks 10 and 14 only consume it, and each says so rather than restating it. One place still tells the implementer to read an existing file rather than restating it — the `test_policies.py` edits (Task 8 Step 5), which change three named assertions in a Phase 11 file this plan does not otherwise own; that is a deliberate refusal to restate Phase 11's test module from memory, not an unwritten step. `release_stale_reservations` (Task 12) is a mechanism with no producer in this phase, built because spec §6.3 mandates the rule; it is complete, tested and flagged, following Phase 5's precedent for the §14.3 legacy-import mechanism. The one `xfail` in the plan (Task 6's envelope test) is created and removed within the plan, in Tasks 6 and 9, with both steps spelled out.
 
 **4. Type and name consistency (checked across every task's Interfaces block):**
 - `free_quota_state(user, *, now=None) -> FreeQuotaState` — same signature in Tasks 3, 4, 6, 13.
@@ -5836,8 +5911,9 @@ Rules a later phase must follow:
 - `consume_listing_right(*, user, listing, actor, now=None) -> UserEntitlement` — defined in Task 6, called once, from `ListingEntitlementGate.consume` in Task 8. It returns the **ledger row**, not a `ConsumedRight`; the `ConsumedRight` wrapper exists only in `listings.policies` so `entitlements` never imports `listings`.
 - `ListingEntitlementGate.consume(*, listing, user) -> ConsumedRight` — Task 8's definition, Task 8's single call site in `submit_listing_revision`, and Task 8's updated `test_policies.py` all use the `ConsumedRight` return type. Phase 11's `str` return is replaced everywhere it was read (one place: `publication_source = ...`).
 - `ListingEntitlementGate.can_submit(*, user, broker=None)` and `.publication_days(*, listing)` — signatures **unchanged** from Phase 11, so `listings.decisions.approve_revision` needs no edit and `listings/decisions.py` appears in no task. Because `can_submit` takes no listing, Task 8 Step 4's call site wraps it in a `charges_a_right` guard (`is_initial and listing.consumed_entitlement_id is None`); `consume()` re-checks the same two conditions itself, so the guard is an early exit and not the authority.
-- `published_listing_with_snapshot` — defined **once**, in `backend/conftest.py` (Task 10), and consumed from two app test packages: `listings/tests/test_expiry.py` (Task 10) and `entitlements/tests/test_phase_acceptance.py` (Task 14). It yields a single `BoatListing`, never a `(listing, snapshot)` tuple, and both consumers use it that way. `listings/tests/test_public_read_api.py`'s own `_published()` tuple helper is untouched and stays module-local.
-- `EntitlementReasonRequired` — a `ValidationError` subclass everywhere it appears (Task 13's Interfaces block, its code and its test), and described consistently in Global Constraints and Contract summary rule 12 as a **field-level** code inside a 400 `validation_error` envelope, never as a top-level envelope code. Its test asserts the dict form of `get_codes()`.
+- `published_listing_with_snapshot` — defined **once**, in `backend/conftest.py`, by **Task 8**, which is the first task that uses it. Consumed by three test modules across two app test packages: `listings/tests/test_entitlement_enforcement.py` (Task 8's `test_a_legacy_published_listing_is_revisable_without_burning_a_right`), `listings/tests/test_expiry.py` (Task 10) and `entitlements/tests/test_phase_acceptance.py` (Task 14). Tasks 10 and 14 do not redefine it and do not list `backend/conftest.py` in their files or commits; only Task 8 does. It yields a single `BoatListing`, never a `(listing, snapshot)` tuple, and all three consumers use it that way. `listings/tests/test_public_read_api.py`'s own `_published()` tuple helper is untouched and stays module-local.
+- **Brand uniqueness in tests.** `listings.tests.factories.make_private_listing(owner=…)` with no `brand=` names the brand after the OWNER's pk, and `taxonomy.models.BoatBrand.normalized_name` is `unique=True`. So any test creating a **second** listing for the **same** owner passes an explicit `brand=make_brand("…")`. The four places this applies are Task 6's `test_a_second_listing_is_refused_once_the_free_right_is_gone`, `test_a_paid_right_is_consumed_when_the_free_one_is_gone` and `test_with_the_flag_off_an_over_allowance_use_is_still_recorded`, and Task 8's `test_a_legacy_published_listing_is_revisable_without_burning_a_right` (whose first listing comes from the fixture) — plus, in Task 8's API tests, every `_draft(api, brand=make_brand("…"))` call, which already names its own brand.
+- `EntitlementReasonRequired` — a `ValidationError` subclass everywhere it appears (Task 13's Interfaces block, its code and its test), and described consistently in Global Constraints, Task 13 and Contract summary rule 12 as an **internal DRF code** carried on the `ErrorDetail` inside a 400 `validation_error` envelope — never a top-level envelope code, and never serialized into the response body either, because `common.exceptions._field_map` flattens each item with `str()` and emits the message text. Its test asserts the dict form of `get_codes()` and `exc.detail["reason"][0].code`, both Python-level; no test in this plan looks for that string in a JSON body.
 - `ListingEntitlementRequired` — an `APIException` subclass with a scalar detail, so `get_codes()` **does** return the bare string `"listing_entitlement_required"`, which is what Tasks 6 and 9 assert. The two exceptions differ deliberately; do not copy one's assertion style onto the other.
 - `listing.consumed_entitlement_id` — used in Tasks 6, 8, 9 and in every test; valid both before Task 7 (a `UUIDField` of that name) and after it (the FK's attname). `listing.consumed_entitlement` (the object) is used only in Tasks 7, 8 and their tests, all of which run after the conversion.
 - `_transition(...)` — defined once in Task 12, called by `expire_due_entitlements`, `release_reservation` and `release_stale_reservations` in Task 12; Task 13's `_revoke` deliberately does **not** use it, because it must widen the allowed source states and write three fields, and that divergence is documented at the ruling in Task 13 Step 3.
