@@ -28,15 +28,21 @@ from .enums import UserAgentClass, ViewerType
 # 1. BOT_USER_AGENT_PATTERN: a crawler that names itself "<name>bot" with a
 #    version or descriptor after it (Googlebot/2.1, bingbot/2.0, DuckDuckBot/1.1,
 #    YandexBot/3.0, Twitterbot/1.0, Slackbot-LinkExpanding, TelegramBot (like ..),
-#    Slackbot 1.0, ".../bot.html"). It does NOT match "CUBOT NOTE 21".
-BOT_USER_AGENT_PATTERN = re.compile(r"bot(?:[/)-]|\s+(?:v?\d|\()|\.html)")
+#    "Slackbot 1.0", ".../bot.html"). Each delimiter branch exists because a real
+#    crawler needs it (see the per-branch tests); it does NOT match "CUBOT NOTE
+#    21", "CUBOT_X30", "(Android 12; CUBOT)" or "Robot 2 Build/". The version
+#    branch demands "N.N" so a device name followed by a bare number is human.
+BOT_USER_AGENT_PATTERN = re.compile(r"bot(?:/|-|\s+v?\d+\.\d|\s+\(|\.html)")
 
 # 2. BOT_USER_AGENT_MARKERS: lowercase substrings that are unambiguous on their
 #    own (each is an automation identity a human browser never sends). Keep the
-#    groups; append, do not reorder. WhatsApp's link-preview crawler is
-#    deliberately absent: its "WhatsApp/2.x" token is not one we could verify
-#    is absent from the in-app browser, and link previews are not counted
-#    anyway (they are not human GETs of the page).
+#    groups; append, do not reorder. "whatsapp/" (WITH the slash) is the
+#    link-preview crawler's token ("WhatsApp/2.23.20.0 A"); it issues a real GET
+#    of the listing page, so it must be excluded like facebookexternalhit. The
+#    in-app browser people use after tapping a shared link (Phase 20) sends the
+#    platform WebView UA with no "WhatsApp/" token, so it still counts. A bare
+#    "whatsapp", "yandex", "pinterest" or "duckduckgo" must never be added:
+#    human browsers carry those words.
 BOT_USER_AGENT_MARKERS = (
     # Generic self-identification.
     "crawler",
@@ -46,6 +52,11 @@ BOT_USER_AGENT_MARKERS = (
     "slurp",  # Yahoo
     "baiduspider",
     "facebookexternalhit",
+    "facebot",
+    "chatgpt-user",
+    "yandeximages",
+    "petalbot",
+    "whatsapp/",
     "embedly",
     "quora link preview",
     # Headless browsers and automation drivers.

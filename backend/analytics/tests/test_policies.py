@@ -336,6 +336,13 @@ def test_every_bot_marker_is_lowercase_and_nonempty():
 
 
 REAL_BOT_USER_AGENTS = [
+    "WhatsApp/2.23.20.0 A",
+    "WhatsApp/2.19.258 A",
+    "WhatsApp/2.21.12.21 i",
+    "Mozilla/5.0 (compatible; Yahoo Ad monitoring; https://help.yahoo.com/kb/yahoo-ad-monitoring-SLN24857.html) Facebot",
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot",
+    "Mozilla/5.0 (compatible; YandexImages/3.0; +http://yandex.com/bots)",
+    "Mozilla/5.0 (Linux; Android 7.0;) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; PetalBot;+https://webmaster.petalsearch.com/site/petalbot)",
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
@@ -358,6 +365,16 @@ REAL_BOT_USER_AGENTS = [
 ]
 
 REAL_HUMAN_USER_AGENTS = [
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 YandexSearch/22.86 YandexSearchBrowser/22.86 Mobile Safari/537.36",
+    # WhatsApp's in-app browser uses the platform WebView UA, no "WhatsApp/" token.
+    "Mozilla/5.0 (Linux; Android 13; SM-A546B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.6478.122 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21E236",
+    # Accepted-boundary near misses: "bot" inside a device/app name, no delimiter.
+    "Mozilla/5.0 (Linux; Android 12; CUBOT) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 9; CUBOT_KINGKONG_5 Build/PPR1.180610.011) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; Robot 2 Build/SP1A.210812.016) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36 BabyMonitoring/3.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 (+http://example.com/about.html)",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
@@ -387,6 +404,49 @@ def test_real_bot_user_agents_are_bots(user_agent):
 def test_real_human_user_agents_are_human(user_agent):
     assert classify_user_agent(user_agent) == UserAgentClass.HUMAN
     assert classify_user_agent(user_agent.upper()) == UserAgentClass.HUMAN
+
+
+# One real bot UA that ONLY one delimiter branch of BOT_USER_AGENT_PATTERN
+# catches (no marker matches it either), so deleting that branch fails.
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",  # "/"
+        "Slackbot-LinkExpanding (+https://api.slack.com/robots)",  # "-"
+        "Slackbot 1.0 (+https://api.slack.com/robots)",  # whitespace + version
+        "TelegramBot (like TwitterBot)",  # whitespace + "("
+        "Pinterest/0.2 (+http://www.pinterest.com/bot.html)",  # ".html"
+    ],
+)
+def test_each_pattern_branch_catches_a_real_bot_on_its_own(user_agent):
+    assert classify_user_agent(user_agent) == UserAgentClass.BOT
+
+
+def test_removing_any_pattern_branch_would_lose_a_real_bot():
+    import re
+
+    from analytics.policies import BOT_USER_AGENT_PATTERN
+
+    branches = {
+        "/": "Googlebot/2.1",
+        "-": "slackbot-linkexpanding",
+        r"\s+v?\d+\.\d": "slackbot 1.0 (+https://api.slack.com/robots)",
+        r"\s+\(": "telegrambot (like twitterbot)",
+        r"\.html": "pinterest/0.2 (+http://www.pinterest.com/bot.html)",
+    }
+    source = BOT_USER_AGENT_PATTERN.pattern
+    for branch, sample in branches.items():
+        assert branch in source
+        without = re.compile(source.replace("|" + branch, "").replace(branch + "|", ""))
+        assert without.pattern != source
+        assert BOT_USER_AGENT_PATTERN.search(sample.lower())
+        assert not without.search(sample.lower()), branch
+
+
+def test_marker_list_holds_the_whatsapp_crawler_token_and_no_bare_human_words():
+    assert "whatsapp/" in BOT_USER_AGENT_MARKERS
+    for word in ("whatsapp", "yandex", "pinterest", "duckduckgo", "monitoring", "bot"):
+        assert word not in BOT_USER_AGENT_MARKERS
 
 
 def test_no_marker_is_a_token_a_genuine_human_browser_sends():
