@@ -29,6 +29,8 @@ Per the standing project convention recorded in `ACTIVITY.md`:
 
 - **One worktree per task.** Each task is implemented on its own branch cut from the current tip of `dev` (`git worktree add ../nautelo-worktree-p14-task-N -b task-N-<slug> dev`), run through `subagent-driven-development`'s implementer → task-reviewer → fix-loop cycle, opened as a PR (`gh pr create`), and merged by the controller only when CI is green and the branch is cleanly mergeable.
 - **Tasks run strictly sequentially.** Never two branches in flight at once; each new task branches from the just-merged `dev` tip. This includes Task 1, the scaffolding task. Tasks 4 and 11 additionally require a Phase 13 reconciliation check (below) before their branch is cut.
+- **Task 11 has a hard external GATE and must not be started before it opens.** `backend/entitlements/services.py` does not exist on `dev` (verified: the app contains `enums.py`, `models.py`, `policy.py`, `eligibility.py` and their tests, and `revoke_entitlement`, `release_reservation` and `InvalidEntitlementState` have **zero** definitions repo-wide). Those names are created by the Phase 13 plan's **Task 12** (`release_reservation`, `InvalidEntitlementState`, `expire_due_entitlements`, `release_stale_reservations`) and **Task 13** (`revoke_entitlement`, `grant_listing_right`, `restore_consumed_right`). **Both must be merged to `dev` before Task 11's branch is cut**, and Task 11 Step 0 re-proves it with a grep that must find all three. Tasks 1—10, 12 and 13 have no such dependency and proceed on the ordinary sequence; if the gate is still shut when Task 10 merges, the controller either waits or reorders Task 12 of *this* plan ahead of Task 11 — it does not work around the gate.
+- **Why a gate and not a fallback.** An earlier draft offered a `raise NotImplementedError` fallback for the `RESERVED` branch. That was wrong twice over: `payments/refunds.py` needs those names, `PaymentsConfig.ready()` imports `refunds`, and `ready()` runs on **every** management command — so a premature merge would break `manage.py check`, `migrate` and the whole project's test suite, not just this feature. The gate removes that failure mode, and Task 11's lazy import inside `revoke_for_refund` is belt-and-braces on top of it. The fallback is withdrawn: there is no `NotImplementedError` path and no `xfail` in this plan.
 - **CI gates (`.github/workflows/ci.yml`, runs on every PR to `dev`):** `uv run python manage.py check`, then `uv run pytest -v` against the job's own PostgreSQL 16 + Redis 7 services and a MinIO bucket. The Stripe env vars CI supplies are `STRIPE_SECRET_KEY=sk_test_ci`, `STRIPE_PUBLISHABLE_KEY=pk_test_ci`, `STRIPE_WEBHOOK_SECRET=whsec_test_ci` — placeholders that reach no Stripe account, which is why **every test in this plan must pass with them**. A task whose test needs a different webhook secret sets it per-test with pytest's `settings` fixture, never in a settings module. The frontend job runs `pnpm lint`, `pnpm test`, `pnpm build`; this phase changes no frontend file, so that job must stay green untouched.
 - **Local gate before opening any PR:** `cd backend && uv run pytest -q` must be green **in full**, not just the task's own file. Migrations must be additive and `uv run python manage.py makemigrations --check --dry-run` must report no missing migration.
 - **Mutation check (per task, before requesting review).** For each new guard the task adds, break it deliberately and confirm a *named* test fails — then revert. Each task lists its own mutations under "Mutation check". A guard whose mutation leaves the suite green is an untested guard, and the task is not done.
@@ -82,7 +84,7 @@ PAID/FULFILLED -> REFUNDED or DISPUTED
 - **`cache.clear()` is forbidden in any conftest or test.** The repo-root `backend/conftest.py` already clears only keys under this checkout's `KEY_PREFIX` (`clear_own_cache_keys`), because several worktrees share one Redis DB. This plan's `payments/tests/conftest.py` deletes **named keys only** (`SETTINGS_CACHE_KEY` and `feature_flag_cache_key("stripe_entitlement_checkout")`), copying the `entitlements/tests/conftest.py` pattern verbatim.
 - All primary keys are UUIDs; all timestamps are timezone-aware UTC (spec §11 preamble). Every new model inherits `common.models.UUIDTimeStampedModel`, except `ProcessedWebhookEvent`, which is append-only and inherits `common.models.UUIDModel` (the `audit.AuditEvent` precedent: an `updated_at` would imply the row may legitimately change).
 - User references use `settings.AUTH_USER_MODEL` in model fields and `django.contrib.auth.get_user_model()` in code/tests — never a hardcoded `"accounts.User"` string (Phase 3 contract rule 1).
-- **Rate limiting uses `common.throttling.HashedIPScopedRateThrottle`**, already installed as `DEFAULT_THROTTLE_CLASSES`. Views declare **only** `throttle_scope`, never `throttle_classes` (Phase 3 contract rule 9). **New scope added by this plan: `checkout_create` = `10/min`** (spec §30.4 lists "Checkout creation"). The webhook view declares **no** `throttle_scope` — `ScopedRateThrottle` allows any view without one, and throttling Stripe's retries would create exactly the paid-not-fulfilled state §35.4 tells us to watch for.
+- **Rate limiting uses `common.throttling.HashedIPScopedRateThrottle`**, already installed as `DEFAULT_THROTTLE_CLASSES`. Views declare **only** `throttle_scope`, never `throttle_classes` (Phase 3 contract rule 9). **New scope added by this plan: `checkout_create` = `30/min`** (spec §30.4 lists "Checkout creation"). Deliberately not tighter: `HashedIPScopedRateThrottle` keys on a hashed client IP rather than on the user, so every buyer behind one NAT shares the bucket and a per-person-looking limit would lock out real customers. The webhook view declares **no** `throttle_scope` — `ScopedRateThrottle` allows any view without one, and throttling Stripe's retries would create exactly the paid-not-fulfilled state §35.4 tells us to watch for.
 - **Money and time in JSON:** decimal strings for money, ISO 8601 UTC for times (spec §30.2). `amount` and `display_amount` serialize as strings (`"49.00"`), never as floats. Stripe's API speaks **minor units** (integer cents); the conversion lives in exactly one place, `payments.products.minor_units()` / `from_minor_units()`, and is tested against a currency with two decimals.
 - **Error envelope** (spec §30.2): produced by `common.exceptions.nauta_exception_handler` as `{"error": {"code", "message", "fields", "request_id"}}`, plus an optional `meta` key when the exception defines a non-empty dict attribute named `meta`. **Read `backend/common/exceptions.py` before writing any error assertion.** That handler flattens **every** DRF `ValidationError` — subclass or not — to the top-level code `validation_error`, so a code a client must branch on **cannot** be a `ValidationError`. Every named code below is therefore an `rest_framework.exceptions.APIException` subclass with an explicit `default_code`, declared in `backend/payments/errors.py`.
 - **New stable machine codes introduced by this phase (closed set; persisted in client code, never renamed):**
@@ -100,6 +102,7 @@ PAID/FULFILLED -> REFUNDED or DISPUTED
   | `feature_disabled` | 403 | `stripe_entitlement_checkout` is off (reused from Phase 11's `ListingWorkflowEnabled`, same string) |
 
   Codes reused unchanged: `validation_error`, `not_found`, `staff_admin_required`, `email_not_verified`, `authentication_required`, `throttled`.
+- **`PaymentOrder.metadata["staff_review_reason"]` is a closed, stable vocabulary** (Phase 17's payment-case queue branches on it, so it is renamed as carefully as a wire code): `amount_mismatch`, `currency_mismatch`, `mode_mismatch`, `user_mismatch`, `product_mismatch`, `listing_mismatch`, `grant_conflict`, `paid_event_on_terminal_order`, `refund_of_consumed_right`, `partial_refund`, `entitlement_state_conflict`, `dispute`. The `payment_needs_staff_review` signal carries the same string as its `reason`, plus `unknown_checkout_session` / `unknown_charge` for the case where no local order matched at all (there being no order to flag).
 - **New audit `action` values introduced by this phase (stable; queried by the staff product screen, never renamed):** `payment_order.created`, `payment_order.checkout_opened`, `payment_order.paid`, `payment_order.fulfilled`, `payment_order.mismatch`, `payment_order.failed`, `payment_order.expired`, `payment_order.refunded`, `payment_order.disputed`, `product.created`, `product.updated`, `product.deactivated`. Every one is written through `audit.services.record_audit_event()` **inside the same `transaction.atomic()` block** as the change it describes. Its real signature (read `backend/audit/services.py`, do not guess):
 
   ```python
@@ -128,13 +131,13 @@ Phases 6, 9, 10, 12 and 13 are in flight concurrently. This plan therefore state
 
 | File | This plan's change | Task | Collision risk |
 |---|---|---|---|
-| `backend/config/settings/base.py` | **Two append-only one-liners:** `"payments",` at the end of `INSTALLED_APPS`, and `"checkout_create": "10/min",` at the end of `DEFAULT_THROTTLE_RATES`. Nothing is reordered, reformatted or removed. | 1, 8 | Low — every concurrent phase appends here too. Trivial rebase, not a conflict. |
+| `backend/config/settings/base.py` | **Two append-only one-liners:** `"payments",` at the end of `INSTALLED_APPS`, and `"checkout_create": "30/min",` at the end of `DEFAULT_THROTTLE_RATES`. Nothing is reordered, reformatted or removed. | 1, 8 | Low — every concurrent phase appends here too. Trivial rebase, not a conflict. |
 | `backend/config/urls.py` | **One append-only one-liner** (`path("api/v1/", include("payments.urls"))`, Task 8) plus **two modified lines** (Task 9): the `from common.views import HealthCheckView, StripeWebhookView` import loses `StripeWebhookView`, and the existing `path("api/v1/stripe/webhook/", …)` line's view reference changes to `payments.views.StripeWebhookView`. **The URL string and the route `name="stripe-webhook"` do not change.** This is the only non-append edit to a shared file in this plan, and it is called out again in Task 9. | 8, 9 | Low, but **read the real file before editing** — Phases 6, 9 and 10 each add their own `include`. |
 | `backend/common/views.py` | Task 9 **removes** `StripeWebhookView` and the now-unused `import stripe`. `HealthCheckView` is untouched. | 9 | Low. `common/throttling.py`, `common/ip.py`, `common/exceptions.py` and `common/middleware.py` — the files concurrent phases touch — are **not** modified by this plan at all. |
 | `backend/common/tests/test_stripe_webhook.py` | **Deleted** in Task 9, superseded by `payments/tests/test_webhook_security.py`, which keeps both of its assertions and adds eight more. Deleting it in the same commit that moves the view is what keeps the suite honest — a test file still importing the removed view would fail collection. | 9 | None. |
 | `backend/common/tests/stripe_helpers.py` | **Append-only:** `generate_stripe_signature` gains a keyword-only `timestamp: int | None = None` parameter, defaulting to `int(time.time())`. Every existing call site keeps working unchanged. | 9 | None. |
 | `backend/entitlements/models.py` | **One field:** `source_payment_id = models.UUIDField(...)` → `source_payment = models.ForeignKey("payments.PaymentOrder", null=True, blank=True, on_delete=models.PROTECT, related_name="granted_entitlements")`. No constraint, index, queryset method or `Meta` change. | 4 | **Medium — `entitlements/` is in flight (Phase 13 Tasks 5–14).** Those tasks create `eligibility.py`, `consumption.py`, `services.py`, `tasks.py`, `views.py`, `urls.py` and extend `admin.py`; **none of them touches `models.py` or adds an `entitlements` migration after `0002`.** Task 4 must re-verify that before branching. |
-| `backend/entitlements/migrations/0003_userentitlement_source_payment.py` | **New file**, depending on `("entitlements", "0002_seed_individual_entitlements_flag")` and `("payments", "0001_initial")`. | 4 | Low — no other in-flight task adds an `entitlements` migration. If one has appeared, renumber. |
+| `backend/entitlements/migrations/000N_userentitlement_source_payment.py` | **New file**, depending on the current `entitlements` leaf (`0002_seed_individual_entitlements_flag` on `dev` at planning time) and on the `payments` migration that actually creates `PaymentOrder` — `0003_paymentorder_processedwebhookevent` (Task 3), **not** `0001_initial`, which creates only `MarketplaceProduct`. **Never hand-number and never hand-write the dependency list**: run `makemigrations entitlements`, read what it generated, and add the cross-app dependency only if Django did not infer it. Phase 13's remaining tasks may land an `entitlements` migration first, which is why this row says `000N`. | 4 | Medium — `entitlements/` is in flight; Task 4 re-checks the leaf before branching. |
 | `backend/entitlements/tests/test_user_entitlement_model.py` | **One string** in the spec-§11.9 field-name set: `"source_payment_id"` → `"source_payment"`. Nothing else in the file changes. | 4 | Low — no Phase 13 task modifies this file after its Task 2. |
 | `backend/entitlements/tests/factories.py` | **Unchanged.** `make_entitlement(..., source_payment_id=None)` keeps working verbatim after the FK conversion, because Django accepts `Model.objects.create(source_payment_id=<uuid or None>)` for a FK named `source_payment`. Task 4 proves this with a test rather than editing the factory, which is what keeps the merge with Phase 13's in-flight tasks clean. | 4 | None, deliberately. |
 | `backend/entitlements/admin.py` | **Unchanged.** `UserEntitlementAdmin.readonly_fields` is computed as `tuple(f.name for f in UserEntitlement._meta.fields)`, so it picks the renamed field up automatically. | — | None. |
@@ -155,10 +158,11 @@ Phases 6, 9, 10, 12 and 13 are in flight concurrently. This plan therefore state
 
 | Assumed interface | Phase 13 task | Used by | If it differs |
 |---|---:|---|---|
-| `entitlements.services.revoke_entitlement(*, entitlement, actor, reason, now=None) -> UserEntitlement` — `CONSUMED/AVAILABLE/RESERVED → REVOKED`, audited, transactional | 13 | **Task 11** (§23.4 refund revocation) | Task 11 must call whatever the merged service is named. It must **not** fall back to writing `UserEntitlement.state` directly — that violates Phase 13 contract rule 1. If no such service exists at Task 11's start, stop and escalate to the controller. |
-| `revoke_entitlement` accepts **`actor=None`** (a webhook has no user actor) | 13 | Task 11 | If it requires a non-null actor, Task 11 adds the keyword-only `actor=None` branch to `entitlements/services.py` as a minimal, separately-reviewed edit, and records it in the Contract summary. Prefer that over a second revocation path. |
-| `entitlements.services.release_reservation(*, entitlement, actor, reason) -> UserEntitlement` — `RESERVED → AVAILABLE` | 12 | **Task 11** (§23.4 "Reserved entitlement: release reservation, then revoke") | Same rule. This branch is defensive: **this phase produces no `RESERVED` rows** (ruling below), so the only rows it can encounter are staff- or Phase-15-produced ones. If the service is absent at Task 11's start, ship the `AVAILABLE` and `CONSUMED` branches, `raise NotImplementedError` on `RESERVED`, and record it as a Known Limitation — do not invent a transition. |
-| `entitlements.services.InvalidEntitlementState(APIException)` — 409, `default_code="invalid_entitlement_state"` | 12 | Task 11 (caught, converted to a staff-review outcome) | If absent, catch `Exception` narrowly at that one call site and record the mismatch as a staff-review case. |
+| `entitlements.services.revoke_entitlement(*, entitlement, actor, reason, now=None, actor_type=None, source=None)` | 13 | **Task 11** (§23.4 refund revocation) | **GATE, not a fallback** — see the Execution Model; Task 11 does not start until this exists. Never write `UserEntitlement.state` directly (Phase 13 contract rule 1). `actor_type`/`source` are an amendment this plan requires — see two rows down. |
+| `entitlements.services.release_reservation(*, entitlement, actor, reason, actor_type=None, source=None)` — `RESERVED → AVAILABLE` | 12 | **Task 11** (§23.4 "Reserved entitlement: release reservation, then revoke") | Same gate. This branch is defensive: **this phase produces no `RESERVED` rows** (ruling below), so the only rows it can meet are staff- or Phase-15-produced ones. |
+| Both accept **`actor=None`** (a webhook has no user actor) | 12, 13 | Task 11 | Expected to work as written: Phase 13's `_audit` already does `actor if getattr(actor, "is_authenticated", False) else None`. Task 11 Step 0 proves it against the merged source rather than assuming. |
+| **`actor_type` / `source` keyword overrides, defaulting to `None` (= today's behaviour)** | 12, 13 | **Task 11** | **A required amendment to the Phase 13 plan; the controller must coordinate it.** Phase 13's `_revoke` hard-codes `actor_type=AuditEvent.ActorType.USER, source=AuditEvent.Source.ADMIN`, and `release_reservation` hard-codes `source=AuditEvent.Source.ADMIN` with `actor_type` picked as USER-or-SYSTEM. A Stripe refund passing `actor=None` would therefore write **`actor_type=USER` with `actor_user=NULL`** for a machine-driven change: a self-contradicting immutable row that breaks spec §2.4 and this plan's own Global Constraint that webhook-driven events use `ActorType.STRIPE` / `Source.WEBHOOK` (both values exist in merged `audit/models.py`). **Exact signatures needed:** `revoke_entitlement(*, entitlement, actor, reason, now=None, actor_type: str | None = None, source: str | None = None)` and `release_reservation(*, entitlement, actor, reason, actor_type: str | None = None, source: str | None = None)`, each passing its value through to `_revoke`/`_transition`/`_audit` and falling back to today's literal when `None`. Task 11 passes `ActorType.STRIPE` / `Source.WEBHOOK` and asserts the resulting audit row. If the amendment has not landed when the gate opens, **stop and escalate** rather than shipping a mis-attributed audit trail. |
+| `entitlements.services.InvalidEntitlementState(APIException)` — 409, `default_code="invalid_entitlement_state"` | 12 | Task 11 | Caught at the call site and converted into a staff-review outcome. It must **never** escape the webhook: DRF would render a 409 error envelope to Stripe, which then retries for days. Covered by the gate. |
 | `entitlements.eligibility.ListingEligibilityService` / `Eligibility` | 4 | **Nothing in this plan.** Deliberately not consumed, to keep the assumption surface small. | — |
 | `entitlements.consumption.*` (`consume_listing_right`, `lock_user_quota`, `ensure_can_start_listing`, `ListingEntitlementRequired`) | 6 | **Nothing in this plan.** | — |
 | `common.exceptions.nauta_exception_handler`'s `action` passthrough | 6 | **Nothing in this plan.** Verified absent from merged `common/exceptions.py`, which today passes through `meta` only. Every error in this phase that needs extra context uses **`meta`**, which *is* merged. | — |
@@ -240,7 +244,7 @@ Nothing in §23 is time-driven. Stripe's own `checkout.session.expired` event mo
 | File | Responsibility |
 |---|---|
 | `__init__.py`, `apps.py` | App registration |
-| `enums.py` | §23.1 product codes and their entitlement mapping; §6.4 `PaymentOrderStatus` + `PAYMENT_TRANSITIONS` + `can_transition_payment`; `WebhookResult`; flag key; tolerance and retention constants |
+| `enums.py` | §23.1 product codes and their entitlement mapping; §6.4 `PaymentOrderStatus` + `PAYMENT_TRANSITIONS` + `can_transition_payment`; `WebhookResult` (ten values, closed set); flag key; tolerance and retention constants |
 | `models.py` | `MarketplaceProduct`, `PaymentOrder`, `ProcessedWebhookEvent` and their database constraints |
 | `admin.py` | Staff-editable `MarketplaceProductAdmin`; read-only order and webhook-event admin |
 | `errors.py` | Every named wire code, as `APIException` subclasses with `default_code` |
@@ -283,7 +287,7 @@ Splitting the domain logic across `products.py`, `checkout.py`, `webhooks.py`, `
   - `payments.enums.PaymentOrderStatus` — `TextChoices`: `CREATED`, `CHECKOUT_OPEN`, `PAID`, `FULFILLED`, `FAILED`, `EXPIRED`, `REFUNDED`, `DISPUTED`
   - `payments.enums.PAYMENT_TRANSITIONS: dict[str, frozenset[str]]`, `payments.enums.can_transition_payment(current: str, target: str) -> bool`
   - `payments.enums.PAID_STATES: frozenset[str]`, `payments.enums.TERMINAL_PAYMENT_STATES: frozenset[str]`
-  - `payments.enums.WebhookResult` — `TextChoices`: `RECEIVED`, `FULFILLED`, `ALREADY_FULFILLED`, `IGNORED`, `MISMATCH`, `ORDER_NOT_FOUND`, `EXPIRED`, `REFUND_HANDLED`, `DISPUTE_HANDLED`
+  - `payments.enums.WebhookResult` — `TextChoices`: `RECEIVED`, `FULFILLED`, `ALREADY_FULFILLED`, `IGNORED`, `MISMATCH`, `GRANT_CONFLICT`, `ORDER_NOT_FOUND`, `EXPIRED`, `REFUND_HANDLED`, `DISPUTE_HANDLED`
   - `payments.enums.STRIPE_CHECKOUT_FLAG = "stripe_entitlement_checkout"`
   - `payments.enums.STRIPE_SIGNATURE_TOLERANCE_SECONDS = 300`
   - `payments.enums.IDEMPOTENCY_RETENTION_DAYS = 30`
@@ -429,6 +433,7 @@ def test_webhook_results_are_a_closed_set():
         "ALREADY_FULFILLED",
         "IGNORED",
         "MISMATCH",
+        "GRANT_CONFLICT",
         "ORDER_NOT_FOUND",
         "EXPIRED",
         "REFUND_HANDLED",
@@ -590,6 +595,11 @@ class WebhookResult(models.TextChoices):
     ALREADY_FULFILLED = "ALREADY_FULFILLED", "Already fulfilled"
     IGNORED = "IGNORED", "Ignored"
     MISMATCH = "MISMATCH", "Mismatch"
+    # The database refused the entitlement write (Phase 13's
+    # entitlements_one_live_right_per_listing_and_type index). Distinct from
+    # MISMATCH: the session DID match the order, the grant collided. Money has
+    # moved, so the order stays PAID and a human resolves it.
+    GRANT_CONFLICT = "GRANT_CONFLICT", "Grant conflict"
     ORDER_NOT_FOUND = "ORDER_NOT_FOUND", "Order not found"
     EXPIRED = "EXPIRED", "Expired"
     REFUND_HANDLED = "REFUND_HANDLED", "Refund handled"
@@ -1927,7 +1937,11 @@ git commit -m "feat(payments): PaymentOrder and ProcessedWebhookEvent with their
 
 **Interfaces:**
 - Consumes: `payments.models.PaymentOrder` (Task 3); `entitlements.models.UserEntitlement` (Phase 13 Task 2, merged).
-- Produces: `UserEntitlement.source_payment` — `ForeignKey("payments.PaymentOrder", null=True, blank=True, on_delete=models.PROTECT, related_name="granted_entitlements")`. The column name stays `source_payment_id`, so `make_entitlement(source_payment_id=…)` and every existing query keep working.
+- Produces:
+  - `UserEntitlement.source_payment` — `ForeignKey("payments.PaymentOrder", null=True, blank=True, on_delete=models.PROTECT, related_name="granted_entitlements")`. The column name stays `source_payment_id`, so `make_entitlement(source_payment_id=…)` and every existing query keep working.
+  - `UserEntitlement`'s new partial `UniqueConstraint` **`entitlements_one_live_right_per_payment`** — the database backstop for spec §6.4's "an entitlement was created exactly once".
+
+> **Note (ruling — this task also adds the database backstop for "exactly once").** Spec §6.4 says *"`FULFILLED` means an entitlement was created exactly once. Repeated webhook delivery must return success without creating a second entitlement."* Task 3's `payments_order_fulfilled_requires_entitlement_and_stamp` proves a fulfilled order **has** a right; nothing yet proves one payment cannot produce **two**. Task 10's Python guards (the `FULFILLED` early return, the `can_transition_payment` check) and Task 9's event-id index all live above the database, so a bug or a hand-written shell command could still double-grant. This task therefore adds a partial unique index on `source_payment`, excluding `REVOKED` so that spec §23.4's refund-then-repurchase path and §26.3's staff restore stay possible. It does not overlap Phase 13's existing `entitlements_one_live_right_per_listing_and_type`, which is keyed on `(listing, entitlement_type)` and is `NULL` for every listing-right purchase.
 
 > **Note (Phase 13 reconciliation — run this before cutting the branch).** Phase 13's Tasks 5–14 are in flight. Confirm none of them has landed a change to `entitlements/models.py` or an `entitlements` migration after `0002`:
 > ```bash
@@ -1956,6 +1970,21 @@ from payments.tests.factories import (
     make_order,
     make_payments_seller,
 )
+
+
+@pytest.mark.django_db
+def test_the_exactly_once_constraint_exists_with_the_documented_name():
+    names = {c.name for c in UserEntitlement._meta.constraints}
+
+    assert "entitlements_one_live_right_per_payment" in names
+    # Phase 13's five constraints must all survive this task untouched.
+    assert {
+        "entitlements_validity_window_is_forward",
+        "entitlements_consumed_requires_consumed_at",
+        "entitlements_reserved_requires_reserved_at",
+        "entitlements_revoked_requires_revoked_at",
+        "entitlements_one_live_right_per_listing_and_type",
+    } <= names
 
 
 @pytest.mark.django_db
@@ -2020,6 +2049,68 @@ def test_an_order_that_granted_a_right_cannot_be_hard_deleted():
 
 
 @pytest.mark.django_db
+def test_one_payment_cannot_produce_two_live_rights():
+    """Spec §6.4: "an entitlement was created exactly once". Task 10's Python
+    guards all sit above the database; this is the backstop under them."""
+    seller = make_payments_seller("p14-once@example.com")
+    order = make_order(user=seller, product=listing_right_product())
+    make_entitlement(
+        user=seller,
+        entitlement_type=EntitlementType.PAID_LISTING,
+        source=EntitlementSource.STRIPE_PURCHASE,
+        source_payment_id=order.pk,
+    )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        make_entitlement(
+            user=seller,
+            entitlement_type=EntitlementType.PAID_LISTING,
+            source=EntitlementSource.STRIPE_PURCHASE,
+            source_payment_id=order.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_a_revoked_right_frees_its_payment_for_a_replacement():
+    """The cross-target negative. Spec §23.4 revokes on refund and §26.3 lets
+    staff restore a right after their own error; a constraint that counted
+    REVOKED rows would make both impossible."""
+    from entitlements.enums import EntitlementState
+
+    seller = make_payments_seller("p14-once-revoked@example.com")
+    order = make_order(user=seller, product=listing_right_product())
+    make_entitlement(
+        user=seller,
+        entitlement_type=EntitlementType.PAID_LISTING,
+        source=EntitlementSource.STRIPE_PURCHASE,
+        state=EntitlementState.REVOKED,
+        source_payment_id=order.pk,
+    )
+
+    replacement = make_entitlement(
+        user=seller,
+        entitlement_type=EntitlementType.PAID_LISTING,
+        source=EntitlementSource.STRIPE_PURCHASE,
+        source_payment_id=order.pk,
+    )
+
+    assert replacement.source_payment_id == order.pk
+    assert UserEntitlement.objects.filter(source_payment_id=order.pk).count() == 2
+
+
+@pytest.mark.django_db
+def test_many_rights_may_share_the_empty_payment():
+    """The other cross-target negative: free and staff-granted rights have no
+    payment, and a non-partial index would allow exactly one of them to exist in
+    the entire system."""
+    seller = make_payments_seller("p14-once-free@example.com")
+    make_entitlement(user=seller)
+    make_entitlement(user=seller)
+
+    assert UserEntitlement.objects.filter(source_payment__isnull=True).count() == 2
+
+
+@pytest.mark.django_db
 def test_a_free_entitlement_still_has_no_order():
     """Phase 13's ordinary free path must be untouched by this conversion."""
     seller = make_payments_seller("p14-free@example.com")
@@ -2040,7 +2131,7 @@ Expected: `FieldDoesNotExist: UserEntitlement has no field named 'source_payment
 
 - [ ] **Step 3: Change the one field**
 
-In `backend/entitlements/models.py`, replace the `source_payment_id` field and its comment with:
+In `backend/entitlements/models.py`, replace the `source_payment_id` field and its comment with the FK below, and append **one** constraint to the existing `Meta.constraints` list. Read the real `Meta` first: Phase 13 merged four `CheckConstraint`s and one `UniqueConstraint` there, and none of them is touched.
 
 ```python
     # Phase 14 converted this from a loose UUIDField into a real FK (Phase 13
@@ -2058,7 +2149,27 @@ In `backend/entitlements/models.py`, replace the `source_payment_id` field and i
     )
 ```
 
-Nothing else in the file changes. Do **not** touch `UserEntitlementQuerySet`, `Meta`, the constraints or the indexes.
+and append this to `Meta.constraints`:
+
+```python
+            # Spec §6.4's "an entitlement was created exactly once", as a
+            # database invariant rather than a Python guard. Partial on two
+            # axes: rows with no payment behind them (free and staff-granted
+            # rights) are unconstrained, and a REVOKED row stops counting so
+            # that §23.4's refund-then-repurchase and §26.3's staff restore
+            # both stay possible. Disjoint from
+            # entitlements_one_live_right_per_listing_and_type, which is keyed
+            # on (listing, entitlement_type) and is NULL for every listing-right
+            # purchase.
+            models.UniqueConstraint(
+                fields=["source_payment"],
+                condition=Q(source_payment__isnull=False)
+                & ~Q(state=EntitlementState.REVOKED),
+                name="entitlements_one_live_right_per_payment",
+            ),
+```
+
+Nothing else in the file changes. Do **not** touch `UserEntitlementQuerySet`, the four existing `CheckConstraint`s, `entitlements_one_live_right_per_listing_and_type`, or the indexes. `Q` and `EntitlementState` are already imported in that module — verify rather than re-adding them.
 
 - [ ] **Step 4: Update the one Phase 13 assertion that names the field**
 
@@ -2090,7 +2201,12 @@ The whole `entitlements` package must stay green — this task changes one field
 
 - [ ] **Step 7: Mutation check**
 
-Change `on_delete` to `models.SET_NULL` and confirm both `test_source_payment_is_a_foreign_key_to_payment_order` and `test_an_order_that_granted_a_right_cannot_be_hard_deleted` fail. Revert.
+1. Change `on_delete` to `models.SET_NULL` → both `test_source_payment_is_a_foreign_key_to_payment_order` and `test_an_order_that_granted_a_right_cannot_be_hard_deleted` must fail.
+2. Drop `entitlements_one_live_right_per_payment` from `Meta.constraints`, regenerate into a scratch migration, migrate → `test_one_payment_cannot_produce_two_live_rights` and `test_the_exactly_once_constraint_exists_with_the_documented_name` must fail. Revert and delete the scratch migration.
+3. Remove `~Q(state=EntitlementState.REVOKED)` from that condition → `test_a_revoked_right_frees_its_payment_for_a_replacement` must fail.
+4. Remove `Q(source_payment__isnull=False)` from it → `test_many_rights_may_share_the_empty_payment` must fail. (2—4 together are what prove the index is *partial on both axes* rather than merely present.)
+
+Revert each.
 
 - [ ] **Step 8: Commit**
 
@@ -2129,26 +2245,51 @@ Append to `backend/payments/tests/conftest.py`:
 ```python
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
-    """Make any accidental real Stripe API client construction fail loudly.
+    """Make ANY real Stripe HTTP call fail loudly, by any route.
 
     Tests must never open a socket. Every service in this app takes a `gateway`
     argument, so a test that forgets to pass one would otherwise fall through to
-    `default_gateway()` and hang CI on a connection timeout. This turns that
-    into an immediate, named failure.
+    `default_gateway()` and hang CI on a connection timeout.
+
+    Patching `stripe.StripeClient` alone is NOT enough: the library keeps its
+    legacy module-level surface (`stripe.checkout.Session.create`,
+    `stripe.Price.retrieve`, `stripe.Refund.create`, ...) which builds its own
+    requestor from `stripe.api_key` and never touches `StripeClient`. So the
+    real guard is the one chokepoint every HTTP call funnels through,
+    `stripe._api_requestor._APIRequestor.request_raw`, patched here for both the
+    sync and async paths. `StripeClient` is patched as well, purely so the more
+    common mistake gets the clearer message.
+
+    `stripe._api_requestor` is a private module. That is accepted for a test
+    guard; `test_an_unmocked_legacy_stripe_call_is_blocked` fails loudly if a
+    library upgrade moves it, which is exactly when this fixture needs revising.
 
     `stripe.Webhook.construct_event` is deliberately NOT patched: it performs no
     I/O, and verifying Stripe's real HMAC scheme is the entire point of
     test_webhook_security.py.
     """
     import stripe
+    from stripe import _api_requestor
 
-    def _forbidden(*args, **kwargs):
+    def _forbidden_http(*args, **kwargs):
+        raise AssertionError(
+            "A test tried to make a real Stripe HTTP request. Pass a "
+            "FakeStripeGateway via the service's `gateway=` argument instead."
+        )
+
+    def _forbidden_client(*args, **kwargs):
         raise AssertionError(
             "A test constructed a real Stripe API client. Pass a FakeStripeGateway "
             "via the service's `gateway=` argument instead."
         )
 
-    monkeypatch.setattr(stripe, "StripeClient", _forbidden)
+    monkeypatch.setattr(stripe, "StripeClient", _forbidden_client)
+    monkeypatch.setattr(
+        _api_requestor._APIRequestor, "request_raw", _forbidden_http, raising=True
+    )
+    monkeypatch.setattr(
+        _api_requestor._APIRequestor, "request_raw_async", _forbidden_http, raising=True
+    )
 
 
 @pytest.fixture
@@ -2280,10 +2421,28 @@ def test_default_gateway_builds_a_real_client_from_settings(settings, monkeypatc
 
 
 def test_the_no_network_fixture_blocks_a_real_client(db):
-    """Proves the guard in conftest.py is armed — without this, a later test
+    """Proves the guard in conftest.py is armed {EM} without this, a later test
     that forgot its `gateway=` argument would hang CI instead of failing."""
     with pytest.raises(AssertionError, match="real Stripe API client"):
         stripe.StripeClient("sk_test_anything")
+
+
+def test_an_unmocked_legacy_stripe_call_is_blocked(db, monkeypatch):
+    """The half `StripeClient` patching misses.
+
+    `stripe.Price.retrieve` is the legacy module-level surface: it builds its
+    own requestor from `stripe.api_key` and never touches `StripeClient`, so a
+    service written against it would have opened a real socket under the old
+    guard. If this test starts failing with something other than the
+    AssertionError below, a library upgrade has moved the chokepoint and
+    conftest's `no_network` needs revising before anything else in this app is
+    trusted.
+    """
+    # monkeypatch, not a bare assignment: `stripe.api_key` is module-global and
+    # a leaked value would follow every later test in the session.
+    monkeypatch.setattr(stripe, "api_key", "sk_test_anything")
+    with pytest.raises(AssertionError, match="real Stripe HTTP request"):
+        stripe.Price.retrieve("price_anything")
 
 
 def test_the_fake_records_what_the_caller_asked_for():
@@ -3154,6 +3313,13 @@ def test_a_missing_return_url_falls_back_to_the_default(settings):
         "/sell/../../etc/passwd",
         "/sell/%2e%2e/",
         "/sell/?next=https://evil.example",
+        # Response-splitting through the Location header Stripe will emit.
+        "/sell/%0d%0aSet-Cookie:session=attacker",
+        "/sell/\r\nSet-Cookie:session=attacker",
+        # userinfo tricks: everything before the @ is credentials, not a host.
+        "/sell/@evil.example",
+        "https://nautelo.example@evil.example/sell/",
+        "//user:pass@evil.example/sell/",
         "/sell",           # not the allowlisted spelling
         "/SELL/",          # case must match exactly
         "javascript:alert(1)",
@@ -3957,11 +4123,11 @@ git commit -m "feat(payments): return-URL allowlist, idempotent Checkout Session
   - `payments.serializers.CheckoutSessionRequestSerializer` — fields `product_code` (choice, required), `listing_id` (UUID, optional, nullable), `return_url` (char, optional, nullable)
   - `payments.serializers.PaymentOrderSerializer` — `id`, `status`, `product_code`, `listing_id`, `amount` (string), `currency`, `entitlement_id`, `created_at`, `paid_at`, `fulfilled_at`
   - `payments.serializers.CheckoutSessionResponseSerializer` — `checkout_url`, `order`
-  - `payments.views.{CheckoutSessionCreateView, PaymentOrderDetailView}`
+  - `payments.views.{CheckoutSessionCreateView, PaymentOrderDetailView}` — both declaring `IsAuthenticated` first, matching every merged view in this project
   - `payments.urls.urlpatterns` — `checkout-sessions/`, `payment-orders/<uuid:order_id>/`
-  - New throttle scope `checkout_create` = `10/min`
+  - New throttle scope `checkout_create` = `30/min`
 
-> **Note (ruling — permission ORDER, pinned by tests).** `permission_classes = [IsActiveUser, IsEmailVerified, StripeCheckoutEnabled]`. DRF stops at the **first** failing permission, so this order decides which code a caller sees: an anonymous stranger gets `authentication_required` (not an enumeration of our rollout state), an authenticated but unverified user gets `email_not_verified` (spec §12 item 3 requires verified email for Checkout creation), and only a fully-qualified caller learns the feature is off. This deliberately differs from Phase 6's rule 11a (flag first on messaging views) and Task 8 pins all three outcomes with named tests so a reviewer reordering the list breaks a test rather than a property.
+> **Note (ruling — permission ORDER, pinned by tests).** `permission_classes = [IsAuthenticated, IsActiveUser, IsEmailVerified, StripeCheckoutEnabled]`. DRF stops at the **first** failing permission, so this order decides which code a caller sees: an anonymous stranger gets `authentication_required` (not an enumeration of our rollout state), an authenticated but unverified user gets `email_not_verified` (spec §12 item 3 requires verified email for Checkout creation), and only a fully-qualified caller learns the feature is off. This deliberately differs from Phase 6's rule 11a (flag first on messaging views) and Task 8 pins all three outcomes with named tests so a reviewer reordering the list breaks a test rather than a property.
 
 > **Note (ruling — the poll endpoint returns the order, never a grant.)** Spec §23.3: "The success page polls/read-fetches order status … It must never grant the right itself." `PaymentOrderDetailView` is `GET`-only, has no `post`/`patch` handler, is scoped to `PaymentOrder.objects.for_user(request.user)` (so an id belonging to someone else is a 404, not a 403 — a 403 would confirm the id exists), and imports nothing from `payments.fulfillment`. Task 8's test asserts all four.
 
@@ -4079,6 +4245,19 @@ def test_a_missing_idempotency_key_is_refused(api_client, seller, checkout_enabl
         {"product_code": ProductCode.INDIVIDUAL_LISTING_RIGHT},
         format="json",
     )
+
+    assert response.status_code == 400
+    assert response.data["error"]["code"] == "idempotency_key_required"
+
+
+@pytest.mark.django_db
+def test_a_missing_key_beats_a_malformed_body(api_client, seller, checkout_enabled):
+    """The header is a precondition, not a field: a client making both mistakes
+    must be told about the systematic one."""
+    listing_right_product()
+    api_client.force_authenticate(user=seller)
+
+    response = api_client.post(CHECKOUT_URL, {"product_code": "NONSENSE"}, format="json")
 
     assert response.status_code == 400
     assert response.data["error"]["code"] == "idempotency_key_required"
@@ -4218,6 +4397,46 @@ def test_the_checkout_view_declares_only_a_throttle_scope(api_client):
 
     assert CheckoutSessionCreateView.throttle_scope == "checkout_create"
     assert "throttle_classes" not in CheckoutSessionCreateView.__dict__
+    # The scope must also EXIST in settings: ScopedRateThrottle with an unknown
+    # scope raises at request time, and a scope removed from settings would turn
+    # this endpoint unlimited without any test noticing.
+    from django.conf import settings as django_settings
+
+    assert (
+        django_settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["checkout_create"]
+        == "30/min"
+    )
+
+
+@pytest.mark.django_db
+def test_the_permission_stack_matches_the_house_order():
+    """Defence in depth, pinned structurally.
+
+    `IsActiveUser` already refuses an anonymous caller, so dropping
+    `IsAuthenticated` changes no response — which is exactly why this has to be
+    asserted on the class list. The ORDER is the load-bearing part: DRF stops at
+    the first failure, so a flag gate hoisted above authentication would let an
+    anonymous stranger enumerate our rollout state.
+    """
+    from rest_framework.permissions import IsAuthenticated
+
+    from accounts.permissions import IsActiveUser, IsEmailVerified, IsStaffAdmin
+    from payments.permissions import StripeCheckoutEnabled
+    from payments.views import (
+        CheckoutSessionCreateView,
+        PaymentOrderDetailView,
+        StaffProductDetailView,
+        StaffProductListView,
+    )
+
+    assert CheckoutSessionCreateView.permission_classes == [
+        IsAuthenticated, IsActiveUser, IsEmailVerified, StripeCheckoutEnabled,
+    ]
+    assert PaymentOrderDetailView.permission_classes == [IsAuthenticated, IsActiveUser]
+    for view in (StaffProductListView, StaffProductDetailView):
+        assert view.permission_classes == [
+            IsAuthenticated, IsActiveUser, IsEmailVerified, IsStaffAdmin,
+        ]
 
 
 @pytest.mark.django_db
@@ -4270,7 +4489,15 @@ def test_polling_grants_nothing(api_client, seller):
     # Structural, not just behavioural: the poll view has no write handler and
     # the module does not even import the fulfilment path.
     assert views.PaymentOrderDetailView.http_method_names == ["get", "options"]
-    assert "fulfillment" not in inspect.getsource(views)
+    # Assert on the IMPORT, not on the word: payments/views.py legitimately
+    # contains the word "fulfilment" in prose (reporting fulfilment state is
+    # this endpoint's whole job), so a bare substring check would fail against
+    # the module's own docstrings. What must be absent is any way to REACH the
+    # granting code from here.
+    source = inspect.getsource(views)
+    assert "payments.fulfillment" not in source
+    assert "from .fulfillment" not in source
+    assert "import fulfillment" not in source
 
 
 @pytest.mark.django_db
@@ -4397,6 +4624,7 @@ class PaymentOrderSerializer(serializers.ModelSerializer):
 ```python
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -4418,17 +4646,32 @@ class CheckoutSessionCreateView(APIView):
     §12 item 3) and the feature flag last.
     """
 
-    permission_classes = [IsActiveUser, IsEmailVerified, StripeCheckoutEnabled]
+    # `IsAuthenticated` first, matching every merged view in this project
+    # (listings.views.ListingDraftCreateView is the precedent). It is defence in
+    # depth rather than a new rule: `IsActiveUser` already refuses an anonymous
+    # caller, so removing it changes no observable behaviour — which is why the
+    # mutation check for it is a code-shape assertion, not a status-code one.
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        IsEmailVerified,
+        StripeCheckoutEnabled,
+    ]
     # Spec §30.4 lists "Checkout creation" among the rate-limited surfaces.
     # Scope only — never throttle_classes (Phase 3 contract rule 9).
     throttle_scope = "checkout_create"
 
     def post(self, request):
-        envelope = CheckoutSessionRequestSerializer(data=request.data)
-        envelope.is_valid(raise_exception=True)
+        # BEFORE body validation, deliberately. Spec §30.3 makes the header a
+        # PRECONDITION of the request, not a field of it, and a client making
+        # both mistakes at once must be told about the systematic one rather
+        # than handed a `validation_error` that hides it.
         key = request.headers.get("Idempotency-Key", "")
         if not key.strip():
             raise IdempotencyKeyRequired()
+
+        envelope = CheckoutSessionRequestSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
 
         result = create_checkout_session(
             user=request.user,
@@ -4452,14 +4695,17 @@ class PaymentOrderDetailView(APIView):
 
     Read-only by construction. Spec §23.3: the success page "polls/read-fetches
     order status ... It must never grant the right itself", so this view has no
-    write handler, http_method_names excludes every mutating verb, and this
-    module imports nothing from payments.fulfillment.
+    write handler and http_method_names excludes every mutating verb.
+
+    It also never imports the fulfilment module, in any form. A test asserts
+    that structurally, on the import statements rather than on the word — the
+    word itself appears in this docstring on purpose.
 
     Scoped to the caller's own orders, so another user's id is a 404 rather than
     a 403 — a 403 would confirm the id exists (spec §33.1).
     """
 
-    permission_classes = [IsActiveUser]
+    permission_classes = [IsAuthenticated, IsActiveUser]
     http_method_names = ["get", "options"]
 
     def get(self, request, order_id):
@@ -4506,10 +4752,14 @@ urlpatterns = [
 
 ```python
         # Spec §30.4 lists "Checkout creation" among the rate-limited surfaces.
-        # Far tighter than a browsing bucket: a human buys a listing right once
-        # in a while, and each accepted request opens a session on a third-party
-        # payment provider.
-        "checkout_create": "10/min",
+        # Tighter than a browsing bucket - each accepted request opens a session
+        # on a third-party payment provider - but NOT as tight as "one purchase
+        # per person" would suggest, because common.throttling's
+        # HashedIPScopedRateThrottle keys on a HASHED CLIENT IP, not on the user:
+        # every buyer behind one corporate NAT, one marina wifi or one mobile
+        # carrier CGNAT shares this single bucket. 30/min leaves real
+        # shared-egress traffic alone while still bounding scripted creation.
+        "checkout_create": "30/min",
     },
 ```
 
@@ -4524,6 +4774,7 @@ cd backend && uv run pytest -q
 - [ ] **Step 6: Mutation check**
 
 1. Reorder `permission_classes` to put `StripeCheckoutEnabled` first → `test_an_anonymous_caller_is_refused_before_the_flag_is_even_read` must fail.
+1b. Remove `IsAuthenticated` → `test_the_permission_stack_matches_the_house_order` must fail. It is the one mutation here with **no** behavioural consequence (`IsActiveUser` already refuses an anonymous caller), which is precisely why the test asserts the class list rather than a status code. Do not "simplify" it away by asserting a response instead.
 2. Remove `IsEmailVerified` → `test_an_unverified_user_is_refused_with_email_not_verified` must fail.
 3. Change `CheckoutSessionRequestSerializer` to a `ModelSerializer` over `PaymentOrder` with `fields = "__all__"` → `test_the_client_cannot_submit_an_amount_or_a_price` must fail.
 4. Change `PaymentOrder.objects.for_user(request.user)` to `PaymentOrder.objects.all()` → `test_a_stranger_polling_someone_elses_order_gets_404_not_403` must fail.
@@ -5156,6 +5407,7 @@ git commit -m "feat(payments): raw-body signature verification, replay rejection
 **Interfaces:**
 - Consumes: `payments.models.{PaymentOrder, MarketplaceProduct}` (Tasks 2–3); `payments.enums.{PaymentOrderStatus, PRODUCT_ENTITLEMENT_TYPES, WebhookResult, can_transition_payment}` (Task 1); `payments.products.minor_units` (Task 6); `payments.signals.{payment_fulfilled, payment_needs_staff_review}` (Task 7); `entitlements.models.UserEntitlement` and `entitlements.enums.{EntitlementSource, EntitlementState, EntitlementType}` (Phase 13 Tasks 1–2, **merged**); `audit.services.record_audit_event`.
 - Produces:
+  - `payments.fulfillment.record_payment_audit(order, action, *, before, after, metadata=None)`, `payments.fulfillment.flag_for_staff(order, *, reason, detail)`, `payments.fulfillment.order_not_found(payload, *, kind="checkout session") -> str` — public from the start, because Task 11 imports all three
   - `payments.fulfillment.grant_purchased_entitlement(*, order, now) -> UserEntitlement`
   - `payments.fulfillment.verify_session_against_order(*, order, session) -> str` — returns `""` when everything matches, else a short machine reason
   - `payments.fulfillment.fulfil_paid_session(*, order, session, now=None) -> str` (a `WebhookResult` value)
@@ -5495,6 +5747,97 @@ def test_a_late_paid_event_cannot_resurrect_a_failed_order(seller):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "terminal",
+    [
+        PaymentOrderStatus.FAILED,
+        PaymentOrderStatus.EXPIRED,
+        PaymentOrderStatus.REFUNDED,
+        PaymentOrderStatus.DISPUTED,
+    ],
+)
+def test_a_paid_event_on_a_terminal_order_alerts_staff(
+    seller, captured_signals, deliver, terminal
+):
+    """Refusing the transition is right; refusing it SILENTLY is not.
+
+    Stripe says this session was paid and our ledger says the order is dead:
+    money moved and nothing was granted, which is exactly the paid-not-fulfilled
+    condition spec §35.4 tells operators to hunt for. Without this alert
+    nobody would be looking.
+    """
+    from entitlements.enums import EntitlementType
+    from entitlements.tests.factories import make_entitlement
+
+    right = make_entitlement(user=seller, entitlement_type=EntitlementType.PAID_LISTING)
+    order = make_order(
+        user=seller,
+        product=listing_right_product(),
+        status=terminal,
+        stripe_checkout_session_id=f"cs_{terminal.lower()}",
+        fulfilled_entitlement=right if terminal
+        in {PaymentOrderStatus.REFUNDED, PaymentOrderStatus.DISPUTED}
+        else None,
+    )
+
+    result = deliver(handle_checkout_session_paid, event_for(order))
+
+    assert result == WebhookResult.IGNORED
+    order.refresh_from_db()
+    assert order.status == terminal
+    assert order.metadata["staff_review_required"] is True
+    assert order.metadata["staff_review_reason"] == "paid_event_on_terminal_order"
+    assert [r for _, r in captured_signals["review"]] == [
+        "paid_event_on_terminal_order"
+    ]
+    assert AuditEvent.objects.filter(action="payment_order.mismatch").count() == 1
+
+
+@pytest.mark.django_db
+def test_a_racing_second_upgrade_order_is_a_staff_case_not_a_500(
+    seller, captured_signals, deliver
+):
+    """The escape hatch an uncaught exception would open.
+
+    Two media-upgrade orders for one listing can both pass payments.checkout's
+    Python check (it is a read, not a lock) and both reach fulfilment. The
+    second hits Phase 13's merged partial unique index
+    `entitlements_one_live_right_per_listing_and_type`. If that IntegrityError
+    escaped, the webhook would answer 500, Stripe would retry the event for
+    three days, and every retry would roll the dedup row back — a retry storm
+    against a condition no retry can fix. It must be a staff case and a 200.
+    """
+    listing = make_private_listing(owner=seller)
+    product = media_upgrade_product()
+    first = make_order(
+        user=seller, product=product, listing=listing, amount=Decimal("19.00"),
+        status=PaymentOrderStatus.CHECKOUT_OPEN, stripe_checkout_session_id="cs_up_a",
+    )
+    second = make_order(
+        user=seller, product=product, listing=listing, amount=Decimal("19.00"),
+        status=PaymentOrderStatus.CHECKOUT_OPEN, stripe_checkout_session_id="cs_up_b",
+    )
+    for order_ in (first, second):
+        event = event_for(order_, amount_total=1900)
+        event["data"]["object"]["metadata"]["listing_id"] = str(listing.pk)
+        result = deliver(handle_checkout_session_paid, event)
+
+    assert result == WebhookResult.GRANT_CONFLICT
+    second.refresh_from_db()
+    # Money moved, so the order stays PAID. PAID -> FAILED is not a legal edge in
+    # spec §6.4 and would be a lie about the ledger.
+    assert second.status == PaymentOrderStatus.PAID
+    assert second.fulfilled_entitlement_id is None
+    assert second.metadata["staff_review_required"] is True
+    assert second.metadata["staff_review_reason"] == "grant_conflict"
+    assert [r for _, r in captured_signals["review"]] == ["grant_conflict"]
+    # Exactly one upgrade exists, and the first order is intact.
+    assert UserEntitlement.objects.filter(listing=listing).count() == 1
+    first.refresh_from_db()
+    assert first.status == PaymentOrderStatus.FULFILLED
+
+
+@pytest.mark.django_db
 def test_an_expired_session_expires_the_order(order):
     result = handle_checkout_session_expired(
         event_for(order, event_type="checkout.session.expired")
@@ -5714,7 +6057,7 @@ success without creating a second entitlement."
 
 from datetime import timedelta
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from audit.models import AuditEvent
@@ -5738,9 +6081,13 @@ def _session(event) -> dict:
     return event["data"]["object"]
 
 
-def _audit(order, action, *, before, after, metadata=None):
+def record_payment_audit(order, action, *, before, after, metadata=None):
     """Every webhook-driven audit row. A webhook has no user actor, so it uses
     the merged AuditEvent.ActorType.STRIPE / Source.WEBHOOK values.
+
+    Public from the start (no leading underscore): payments.refunds imports it
+    in Task 11, and importing a private name across modules is exactly what a
+    reviewer should reject. Same for `flag_for_staff` and `order_not_found`.
 
     `metadata` carries only fields this module explicitly verified — never the
     session object, which can contain `customer_details` (spec §33.2).
@@ -5758,8 +6105,11 @@ def _audit(order, action, *, before, after, metadata=None):
     )
 
 
-def _flag_for_staff(order, *, reason: str, detail: str):
-    """Spec §23.4: "mark payment case for staff review, notify staff"."""
+def flag_for_staff(order, *, reason: str, detail: str):
+    """Spec §23.4: "mark payment case for staff review, notify staff".
+
+    Mutates `order.metadata` in memory and queues the signal; the CALLER saves,
+    so one UPDATE covers the status change and the flag together."""
     order.metadata = {
         **order.metadata,
         "staff_review_required": True,
@@ -5849,7 +6199,28 @@ def fulfil_paid_session(*, order, session, now=None) -> str:
         return WebhookResult.ALREADY_FULFILLED
     if not can_transition_payment(order.status, PaymentOrderStatus.PAID):
         # FAILED, EXPIRED, REFUNDED and DISPUTED all land here: a late paid
-        # event must never resurrect them (spec §6.4).
+        # event must never resurrect them (spec §6.4). It must not be dropped
+        # in SILENCE either — if Stripe says this session was paid and our
+        # ledger says the order is dead, money moved and nothing was granted,
+        # which is precisely the paid-not-fulfilled condition spec §35.4 tells
+        # operators to hunt for. Nobody would be looking.
+        if session.get("payment_status") == "paid":
+            flag_for_staff(
+                order,
+                reason="paid_event_on_terminal_order",
+                detail=(
+                    "Stripe reported a paid session for an order already in "
+                    f"state {order.status}."
+                ),
+            )
+            order.save(update_fields=["metadata", "updated_at"])
+            record_payment_audit(
+                order,
+                "payment_order.mismatch",
+                before={"status": order.status},
+                after={"status": order.status},
+                metadata={"reason": "paid_event_on_terminal_order"},
+            )
         return WebhookResult.IGNORED
     if session.get("payment_status") != "paid":
         # A session can be `complete` with `payment_status: "unpaid"` for
@@ -5860,9 +6231,11 @@ def fulfil_paid_session(*, order, session, now=None) -> str:
     if reason:
         before = {"status": order.status}
         order.status = PaymentOrderStatus.FAILED
-        _flag_for_staff(order, reason=reason, detail="Stripe session did not match the order.")
+        flag_for_staff(
+            order, reason=reason, detail="Stripe session did not match the order."
+        )
         order.save(update_fields=["status", "metadata", "updated_at"])
-        _audit(
+        record_payment_audit(
             order,
             "payment_order.mismatch",
             before=before,
@@ -5881,9 +6254,38 @@ def fulfil_paid_session(*, order, session, now=None) -> str:
     order.save(
         update_fields=["status", "paid_at", "stripe_payment_intent_id", "updated_at"]
     )
-    _audit(order, "payment_order.paid", before=before, after={"status": order.status})
+    record_payment_audit(
+        order, "payment_order.paid", before=before, after={"status": order.status}
+    )
 
-    entitlement = grant_purchased_entitlement(order=order, now=now)
+    # A NESTED atomic, so an IntegrityError here neither poisons the webhook's
+    # outer transaction nor escapes as a 500 that Stripe would retry for days.
+    # What can collide: two media-upgrade orders for one listing racing past
+    # payments.checkout's Python check and both reaching Phase 13's merged
+    # partial unique index `entitlements_one_live_right_per_listing_and_type`,
+    # or (after Task 4) `entitlements_one_live_right_per_payment`. Money HAS
+    # moved, so the order stays PAID rather than moving to FAILED — PAID ->
+    # FAILED is not a legal edge in spec §6.4 and would be a lie about the
+    # ledger — and a human resolves it. 200 is deliberate: no retry can make
+    # the collision go away.
+    try:
+        with transaction.atomic():
+            entitlement = grant_purchased_entitlement(order=order, now=now)
+    except IntegrityError:
+        flag_for_staff(
+            order,
+            reason="grant_conflict",
+            detail="Payment succeeded but the entitlement could not be created.",
+        )
+        order.save(update_fields=["metadata", "updated_at"])
+        record_payment_audit(
+            order,
+            "payment_order.mismatch",
+            before={"status": order.status},
+            after={"status": order.status},
+            metadata={"reason": "grant_conflict"},
+        )
+        return WebhookResult.GRANT_CONFLICT
 
     order.status = PaymentOrderStatus.FULFILLED
     order.fulfilled_at = now
@@ -5891,7 +6293,7 @@ def fulfil_paid_session(*, order, session, now=None) -> str:
     order.save(
         update_fields=["status", "fulfilled_at", "fulfilled_entitlement", "updated_at"]
     )
-    _audit(
+    record_payment_audit(
         order,
         "payment_order.fulfilled",
         before={"status": PaymentOrderStatus.PAID},
@@ -5922,20 +6324,25 @@ def _locked_order_for(session):
     )
 
 
-def _order_not_found(session) -> str:
-    """A signature-verified event whose session we have never heard of.
+def order_not_found(payload, *, kind: str = "checkout session") -> str:
+    """A signature-verified event whose subject we have never heard of.
 
     Answers 200 with an alert rather than 500: no retry can make an unknown
     session known, and a retry storm would bury the signal. Causes worth staff
     attention: a second environment sharing the webhook secret, or an order lost
     between creation and session recording.
+
+    `kind` exists because Task 11's callers pass a **charge**, whose id is a
+    `ch_...`, not a `cs_...`; the alert text and the reason string would
+    otherwise be wrong for half the callers.
     """
+    identifier = payload.get("id", "")
     transaction.on_commit(
         lambda: payment_needs_staff_review.send(
             sender=PaymentOrder,
             order=None,
-            reason="unknown_checkout_session",
-            detail=f"No local order for checkout session {session.get('id', '')!r}.",
+            reason=f"unknown_{kind.replace(' ', '_')}",
+            detail=f"No local order for {kind} {identifier!r}.",
         )
     )
     return WebhookResult.ORDER_NOT_FOUND
@@ -5945,7 +6352,7 @@ def handle_checkout_session_paid(event) -> str:
     session = _session(event)
     order = _locked_order_for(session)
     if order is None:
-        return _order_not_found(session)
+        return order_not_found(session)
     return fulfil_paid_session(order=order, session=session)
 
 
@@ -5953,13 +6360,15 @@ def handle_checkout_session_failed(event) -> str:
     session = _session(event)
     order = _locked_order_for(session)
     if order is None:
-        return _order_not_found(session)
+        return order_not_found(session)
     if not can_transition_payment(order.status, PaymentOrderStatus.FAILED):
         return WebhookResult.IGNORED
     before = {"status": order.status}
     order.status = PaymentOrderStatus.FAILED
     order.save(update_fields=["status", "updated_at"])
-    _audit(order, "payment_order.failed", before=before, after={"status": order.status})
+    record_payment_audit(
+        order, "payment_order.failed", before=before, after={"status": order.status}
+    )
     return WebhookResult.IGNORED
 
 
@@ -5967,7 +6376,7 @@ def handle_checkout_session_expired(event) -> str:
     session = _session(event)
     order = _locked_order_for(session)
     if order is None:
-        return _order_not_found(session)
+        return order_not_found(session)
     if not can_transition_payment(order.status, PaymentOrderStatus.EXPIRED):
         # An expiry arriving after completion must not undo a grant
         # (spec §35.3).
@@ -5975,7 +6384,9 @@ def handle_checkout_session_expired(event) -> str:
     before = {"status": order.status}
     order.status = PaymentOrderStatus.EXPIRED
     order.save(update_fields=["status", "updated_at"])
-    _audit(order, "payment_order.expired", before=before, after={"status": order.status})
+    record_payment_audit(
+        order, "payment_order.expired", before=before, after={"status": order.status}
+    )
     return WebhookResult.EXPIRED
 
 
@@ -6020,9 +6431,12 @@ cd backend && uv run pytest -q
 5. Delete the `metadata["user_id"]` comparison → `test_a_session_claiming_a_different_user_blocks_fulfilment` must fail.
 6. Replace `select_for_update()` with `filter()` → `test_fulfilment_locks_the_order_row` must fail.
 7. Change `valid_until` to read `paid_validity_days()` → `test_the_validity_window_comes_from_the_products_own_duration` must fail.
-8. Add `"session": session` to an `_audit(..., metadata=...)` call → `test_no_stripe_payload_is_copied_wholesale_into_an_audit_event` must fail.
+8. Add `"session": session` to a `record_payment_audit(..., metadata=...)` call → `test_no_stripe_payload_is_copied_wholesale_into_an_audit_event` must fail.
 9. Move the `payment_fulfilled.send(...)` out of `transaction.on_commit` so it sends inline → `test_the_fulfilment_signal_fires_after_commit` must fail on its **first** assertion (`captured_signals["fulfilled"] == []`), because the signal now fires while the transaction is still open. That first assertion exists precisely so this mutation is caught; a test that only checked the receiver eventually ran would pass either way and prove nothing about spec §23.3 step 9's "After commit".
 10. Remove the `deliver` fixture's `django_capture_on_commit_callbacks(execute=True)` wrapper (call the handler directly) → every signal assertion in this file must fail. If any of them still passes, it is asserting on something other than the signal and must be fixed.
+11. Delete the `if session.get("payment_status") == "paid":` alert block above the terminal-order `return WebhookResult.IGNORED` → all four cases of `test_a_paid_event_on_a_terminal_order_alerts_staff` must fail.
+12. Remove the `try: with transaction.atomic(): ... except IntegrityError:` wrapper around `grant_purchased_entitlement` → `test_a_racing_second_upgrade_order_is_a_staff_case_not_a_500` must fail **with an `IntegrityError`, not with an assertion error**. Read the traceback: that error escaping is precisely the 500-then-retry-storm this guard exists to stop.
+13. Keep the `except IntegrityError` but drop the nested `with transaction.atomic():` → the same test must fail, now with `TransactionManagementError` on the next query. That pair is what proves the savepoint is load-bearing and not decoration.
 
 Revert each.
 
@@ -6043,18 +6457,24 @@ git commit -m "feat(payments): locked, verified, exactly-once fulfilment from th
 - Test: `backend/payments/tests/test_refunds.py`
 
 **Interfaces:**
-- Consumes: `payments.fulfillment._audit`, `payments.fulfillment._flag_for_staff`, `payments.fulfillment._order_not_found` (Task 10 — promote all three to public names `record_payment_audit`, `flag_for_staff`, `order_not_found` in this task and update Task 10's call sites, so a leading underscore is not being imported across modules); `payments.enums.{PaymentOrderStatus, WebhookResult, can_transition_payment}`; `entitlements.enums.EntitlementState`; **`entitlements.services.{revoke_entitlement, release_reservation, InvalidEntitlementState}` (Phase 13 Tasks 12-13 — ASSUMED, see below).**
+- Consumes: `payments.fulfillment.{record_payment_audit, flag_for_staff, order_not_found}` (Task 10, already public); `payments.enums.{PaymentOrderStatus, WebhookResult, can_transition_payment}`; `entitlements.enums.EntitlementState`; **`entitlements.services.{revoke_entitlement, release_reservation, InvalidEntitlementState}` (Phase 13 Tasks 12 and 13 — a hard GATE, see Step 0).**
 - Produces:
-  - `payments.refunds.revoke_for_refund(*, order, reason) -> str` — the outcome, one of `"revoked"`, `"released_and_revoked"`, `"staff_review"`, `"nothing_to_revoke"`
+  - `payments.refunds.revoke_for_refund(*, order, reason) -> str` — the outcome, exactly one of `"revoked"`, `"released_and_revoked"`, `"staff_review"`, `"nothing_to_revoke"`
   - `payments.refunds.handle_charge_refunded(event) -> str`
   - `payments.refunds.handle_dispute_created(event) -> str`
   - Two entries appended to `payments.webhooks.HANDLERS`
 
-> **Note (Phase 13 reconciliation — run this before cutting the branch).**
-> ```bash
-> cd backend && uv run python -c "import inspect, entitlements.services as s; print(inspect.signature(s.revoke_entitlement)); print(inspect.signature(s.release_reservation))"
-> ```
-> This task assumes `revoke_entitlement(*, entitlement, actor, reason, now=None)` and `release_reservation(*, entitlement, actor, reason)`, and that both accept **`actor=None`** (a webhook has no user actor). If the merged signatures differ, adapt the call sites — do **not** write `UserEntitlement.state` directly, which Phase 13 contract rule 1 forbids. If `actor=None` is refused, add the keyword-only `actor=None` branch to `entitlements/services.py` as a minimal, separately-reviewed edit and record it in the Contract summary. If `entitlements.services` does not exist yet, **stop and escalate to the controller** rather than inventing a second revocation path.
+- [ ] **Step 0: Prove the gate is open (do this BEFORE cutting the branch)**
+
+```bash
+cd backend
+grep -rn "def revoke_entitlement\|def release_reservation\|class InvalidEntitlementState" entitlements/
+uv run python -c "import inspect, entitlements.services as s; print(inspect.signature(s.revoke_entitlement)); print(inspect.signature(s.release_reservation)); print(s.InvalidEntitlementState.status_code, s.InvalidEntitlementState.default_code)"
+```
+
+The grep must find **all three** definitions and the import must succeed. At this plan's writing they do not exist on `dev` at all: `entitlements/` contains `enums.py`, `models.py`, `policy.py` and `eligibility.py`, and those three names have zero definitions repo-wide. They are created by the **Phase 13 plan's Task 12** (`release_reservation`, `InvalidEntitlementState`) and **Task 13** (`revoke_entitlement`). **Both must be merged before this branch is cut** — see the Execution Model's gate. There is no fallback: `payments/refunds.py` needs those names and `PaymentsConfig.ready()` imports `refunds`, so starting early does not "degrade gracefully", it breaks `manage.py check` and every test in the project.
+
+The printed signatures must accept `actor=None` and must expose the keyword-only **`actor_type`** and **`source`** overrides this plan requires (see the Phase 13 reconciliation table: a Stripe-driven revocation that cannot set `ActorType.STRIPE` / `Source.WEBHOOK` writes `actor_type=USER, actor_user=NULL`, which contradicts spec §2.4). If the overrides are missing, **stop and escalate to the controller** — the Phase 13 plan needs the amendment before this task can be done correctly, and working around it by writing `UserEntitlement.state` directly is forbidden by Phase 13 contract rule 1.
 
 > **Note (ruling — a consumed right is never silently unpublished.)** Spec §23.4, verbatim: *"Consumed/published entitlement: do not silently unpublish solely on a webhook; mark payment case for staff review, notify staff and apply documented commercial policy."* `revoke_for_refund` therefore inspects the entitlement's state and branches: `AVAILABLE` → revoke; `RESERVED` → release, then revoke; `CONSUMED` → **touch nothing**, flag the order for staff review, notify. No listing is unpublished by this module, and Task 13's acceptance test proves it.
 
@@ -6195,12 +6615,12 @@ def test_refund_and_dispute_handlers_are_registered():
 
 
 @pytest.mark.django_db
-def test_an_unused_right_is_revoked_on_a_full_refund(seller):
+def test_an_unused_right_is_revoked_on_a_full_refund(seller, captured_review, deliver):
     """Spec §23.4 bullet 1: "Unused entitlement: revoke on confirmed full
     refund"."""
     order, right = fulfilled_order(seller)
 
-    result = handle_charge_refunded(refund_event(order))
+    result = deliver(handle_charge_refunded, refund_event(order))
 
     assert result == WebhookResult.REFUND_HANDLED
     order.refresh_from_db()
@@ -6208,7 +6628,15 @@ def test_an_unused_right_is_revoked_on_a_full_refund(seller):
     assert order.status == PaymentOrderStatus.REFUNDED
     assert right.state == EntitlementState.REVOKED
     assert right.revoked_at is not None
-    assert AuditEvent.objects.filter(action="payment_order.refunded").count() == 1
+    refund_audit = AuditEvent.objects.get(action="payment_order.refunded")
+    # No release happened, so the outcome must say so. "released_and_revoked"
+    # here would be a false record in an immutable audit row.
+    assert refund_audit.metadata["outcome"] == "revoked"
+    # Spec §2.4: a machine-driven change must not be attributed to a human.
+    entitlement_audit = AuditEvent.objects.get(action="entitlement.revoked")
+    assert entitlement_audit.actor_user_id is None
+    assert entitlement_audit.actor_type == AuditEvent.ActorType.STRIPE
+    assert entitlement_audit.source == AuditEvent.Source.WEBHOOK
 
 
 @pytest.mark.django_db
@@ -6217,10 +6645,49 @@ def test_a_reserved_right_is_released_then_revoked(seller):
     revoke"."""
     order, right = fulfilled_order(seller, state=EntitlementState.RESERVED)
 
-    handle_charge_refunded(refund_event(order))
+    deliver(handle_charge_refunded, refund_event(order))
 
     right.refresh_from_db()
     assert right.state == EntitlementState.REVOKED
+    assert (
+        AuditEvent.objects.get(action="payment_order.refunded").metadata["outcome"]
+        == "released_and_revoked"
+    )
+
+
+@pytest.mark.django_db
+def test_an_entitlement_state_conflict_becomes_a_staff_case_not_a_500(
+    seller, captured_review, deliver, monkeypatch
+):
+    """`InvalidEntitlementState` is a DRF APIException.
+
+    If it escaped the handler, DRF would render a **409 error envelope to
+    Stripe**, which would then retry the event for three days while the refund
+    sat unprocessed — and every retry would roll the dedup row back. A row
+    moving under us is an operational fact for a human, not a transient fault
+    worth retrying.
+    """
+    import entitlements.services as services
+
+    order, right = fulfilled_order(seller)
+
+    def _moved(**kwargs):
+        raise services.InvalidEntitlementState(current_state="REVOKED")
+
+    monkeypatch.setattr(services, "revoke_entitlement", _moved)
+
+    result = deliver(handle_charge_refunded, refund_event(order))
+
+    assert result == WebhookResult.REFUND_HANDLED
+    order.refresh_from_db()
+    assert order.status == PaymentOrderStatus.REFUNDED
+    assert order.metadata["staff_review_required"] is True
+    assert order.metadata["staff_review_reason"] == "entitlement_state_conflict"
+    assert "entitlement_state_conflict" in captured_review
+    assert (
+        AuditEvent.objects.get(action="payment_order.refunded").metadata["outcome"]
+        == "staff_review"
+    )
 
 
 @pytest.mark.django_db
@@ -6351,28 +6818,9 @@ cd backend && uv run pytest payments/tests/test_refunds.py -q
 
 Expected: `ModuleNotFoundError: No module named 'payments.refunds'`.
 
-- [ ] **Step 3: Promote the three shared helpers in `fulfillment.py`**
+- [ ] **Step 3: Nothing to rename**
 
-Rename `_audit` → `record_payment_audit`, `_flag_for_staff` → `flag_for_staff`, `_order_not_found` → `order_not_found` in `backend/payments/fulfillment.py`, and update their call sites in that file. Importing a leading-underscore name across modules is exactly the kind of thing a reviewer should reject, so the rename happens here rather than at the import.
-
-While renaming, generalize `order_not_found` so its alert text is not wrong for a charge. Task 10 wrote it against a Checkout session; this task's callers pass a **charge**, whose `id` is a `ch_…`, not a `cs_…`:
-
-```python
-def order_not_found(payload, *, kind: str = "checkout session") -> str:
-    """A signature-verified event whose subject we have never heard of. ..."""
-    identifier = payload.get("id", "")
-    transaction.on_commit(
-        lambda: payment_needs_staff_review.send(
-            sender=PaymentOrder,
-            order=None,
-            reason=f"unknown_{kind.replace(' ', '_')}",
-            detail=f"No local order for {kind} {identifier!r}.",
-        )
-    )
-    return WebhookResult.ORDER_NOT_FOUND
-```
-
-`payments/refunds.py` then calls `order_not_found(payload, kind="charge")`, and Task 10's three call sites keep the default. Update Task 10's `test_an_unknown_session_is_recorded_and_alerted_not_crashed` if it asserted on the reason string — the default path's reason is still `unknown_checkout_session`.
+Task 10 already defines `record_payment_audit`, `flag_for_staff` and `order_not_found` as public names, and `order_not_found` already takes `kind=`. This task imports them as-is and calls `order_not_found(payload, kind="charge")`, which produces the reason `unknown_charge`. No edit to `fulfillment.py` is needed or permitted in this task — if you find yourself renaming something there, Task 10 was implemented wrong and the fix belongs on its own branch.
 
 - [ ] **Step 4: Write the refunds module**
 
@@ -6395,13 +6843,20 @@ Three rules this module exists to keep:
 
 from django.db import transaction
 
+from audit.models import AuditEvent
 from entitlements.enums import EntitlementState
-from entitlements.services import release_reservation, revoke_entitlement
 
 from .enums import PaymentOrderStatus, WebhookResult, can_transition_payment
 from .fulfillment import flag_for_staff, order_not_found, record_payment_audit
 from .models import PaymentOrder
 from .webhooks import HANDLERS
+
+# NOTE: `entitlements.services` is imported LAZILY, inside revoke_for_refund,
+# and never at module scope. This module is imported by PaymentsConfig.ready(),
+# which runs on EVERY management command, so a module-level import of a name
+# that Phase 13 has not merged yet would break `manage.py check`, `migrate` and
+# the whole test suite rather than just this feature. The Execution Model's gate
+# is the primary protection; this is the belt to its braces.
 
 
 def _locked_order_for_intent(payload):
@@ -6419,7 +6874,29 @@ def _locked_order_for_intent(payload):
 
 
 def revoke_for_refund(*, order, reason: str) -> str:
-    """Spec §23.4's first three bullets, in order."""
+    """Spec §23.4's first three bullets, in order.
+
+    Returns one of "revoked", "released_and_revoked", "staff_review" or
+    "nothing_to_revoke" — the value lands in the `payment_order.refunded`
+    audit row's metadata, so a released-then-revoked right is distinguishable
+    from a plain one months later.
+    """
+    # Lazy, deliberately: see the module note. `entitlements.services` is a
+    # Phase 13 module and this module is imported at app-ready time.
+    from entitlements.services import (
+        InvalidEntitlementState,
+        release_reservation,
+        revoke_entitlement,
+    )
+
+    # Spec §2.4 and this plan's Global Constraints: a webhook has no user
+    # actor, so the audit row must say STRIPE/WEBHOOK, not USER/ADMIN. Phase 13
+    # must expose these two overrides — see the reconciliation table.
+    attribution = {
+        "actor_type": AuditEvent.ActorType.STRIPE,
+        "source": AuditEvent.Source.WEBHOOK,
+    }
+
     right = order.fulfilled_entitlement
     if right is None:
         return "nothing_to_revoke"
@@ -6433,13 +6910,34 @@ def revoke_for_refund(*, order, reason: str) -> str:
         )
         return "staff_review"
 
-    if right.state == EntitlementState.RESERVED:
-        release_reservation(entitlement=right, actor=None, reason=reason)
-        right.refresh_from_db()
+    # A nested atomic around every entitlement transition, and
+    # InvalidEntitlementState caught here rather than allowed to escape. It is a
+    # DRF APIException: escaping the webhook would render a 409 ERROR ENVELOPE to
+    # Stripe, which would then retry the event for days while the refund sat
+    # unprocessed. The row moving under us is an operational fact a human
+    # resolves, not a transient fault worth retrying.
+    released = False
+    try:
+        with transaction.atomic():
+            if right.state == EntitlementState.RESERVED:
+                release_reservation(
+                    entitlement=right, actor=None, reason=reason, **attribution
+                )
+                right.refresh_from_db()
+                released = True
 
-    if right.state == EntitlementState.AVAILABLE:
-        revoke_entitlement(entitlement=right, actor=None, reason=reason)
-        return "released_and_revoked"
+            if right.state == EntitlementState.AVAILABLE:
+                revoke_entitlement(
+                    entitlement=right, actor=None, reason=reason, **attribution
+                )
+                return "released_and_revoked" if released else "revoked"
+    except InvalidEntitlementState:
+        flag_for_staff(
+            order,
+            reason="entitlement_state_conflict",
+            detail="The right moved while the refund was being processed.",
+        )
+        return "staff_review"
 
     # EXPIRED or already REVOKED: nothing left to take back.
     return "nothing_to_revoke"
@@ -6449,7 +6947,7 @@ def handle_charge_refunded(event) -> str:
     payload = event["data"]["object"]
     order = _locked_order_for_intent(payload)
     if order is None:
-        return order_not_found(payload)
+        return order_not_found(payload, kind="charge")
 
     if not can_transition_payment(order.status, PaymentOrderStatus.REFUNDED):
         # Already REFUNDED (a repeated delivery), or never paid at all.
@@ -6500,7 +6998,7 @@ def handle_dispute_created(event) -> str:
     payload = event["data"]["object"]
     order = _locked_order_for_intent(payload)
     if order is None:
-        return order_not_found(payload)
+        return order_not_found(payload, kind="charge")
     if not can_transition_payment(order.status, PaymentOrderStatus.DISPUTED):
         return WebhookResult.IGNORED
 
@@ -6548,6 +7046,10 @@ cd backend && uv run pytest -q
 3. Delete the `can_transition_payment` guard in `handle_charge_refunded` → `test_a_repeated_refund_event_is_idempotent` must fail.
 4. Make `handle_dispute_created` call `revoke_for_refund` → `test_a_dispute_creates_a_high_priority_staff_case` must fail.
 5. Resolve the entitlement from `payload.get("entitlement_id")` instead of `order.fulfilled_entitlement` → `test_a_refund_never_touches_another_users_entitlement` must fail.
+6. Remove the `except InvalidEntitlementState:` handler → `test_an_entitlement_state_conflict_becomes_a_staff_case_not_a_500` must fail **with `InvalidEntitlementState`, not with an assertion error**. That escaping exception is a 409 envelope sent to Stripe and a three-day retry storm; read the traceback before reverting.
+7. Return `"released_and_revoked"` unconditionally from the AVAILABLE branch → `test_an_unused_right_is_revoked_on_a_full_refund` must fail on the `outcome == "revoked"` assertion.
+8. Drop the `**attribution` kwargs from the `revoke_entitlement` call → the same test must fail on `actor_type == AuditEvent.ActorType.STRIPE`, because Phase 13's default writes `USER`/`ADMIN` for a change no human made.
+9. Move the `from entitlements.services import ...` to module scope → nothing fails today (the gate guarantees the module exists), which is the point: re-read the Execution Model's gate note before "simplifying" it back, because the cost lands on whoever merges this out of order, as a broken `manage.py check` for the entire project.
 
 Revert each.
 
@@ -7175,7 +7677,7 @@ class StaffProductBaseView(APIView):
     order matters (DRF stops at the first failure): authentication, then
     verified email, then the staff-admin group."""
 
-    permission_classes = [IsActiveUser, IsEmailVerified, IsStaffAdmin]
+    permission_classes = [IsAuthenticated, IsActiveUser, IsEmailVerified, IsStaffAdmin]
 
 
 class StaffProductListView(StaffProductBaseView):
@@ -7663,16 +8165,18 @@ Each item names the phase that closes it. None breaks a MUST requirement *of thi
 3. **No notification receivers.** `payments.signals.payment_fulfilled` and `payment_needs_staff_review` fire correctly, inside `transaction.on_commit()`, carrying everything a receiver needs — but there is no `Notification` row, no WebSocket frame and no email, so spec §23.3 step 9's "notify user and refresh WebSocket eligibility state" and §23.4's "high-priority staff notification" are half-built: the event exists, the delivery does not. There is also no `notifications` app in `INSTALLED_APPS` yet. → **Phase 18** (spec §27.1).
 4. **A product's `publication_days` is not honoured at consumption.** `MarketplaceProduct.publication_days` is stored, staff-editable and returned by the staff API, but Phase 13's consumption path computes a publication window from `individual.paid_publish_days` and freezes it in `metadata["publication_days"]` at consumption time (Phase 13 contract rule 5). So editing a product's publication duration changes what staff see and nothing that happens. Both default to **30**, so no behaviour is wrong today. Fixing it means teaching `entitlements.consumption` to prefer `entitlement.source_payment.product.publication_days` when there is one — an `entitlements` change this phase deliberately does not make while Phase 13 is still landing. → **Phase 15 or 16**, whichever next touches `entitlements/consumption.py`.
 5. **The purchased right's validity comes from the product, the staff-granted right's from the setting.** Two sources for one concept (`MarketplaceProduct.entitlement_valid_days` vs `individual.paid_entitlement_valid_days`), both seeded 365, reconciled by nothing. The ruling in Task 10 explains why the product wins for a purchase; a later phase may want one authority. → **Phase 17**, alongside the staff product screen.
-6. **Partial refunds are flagged, not acted on.** Spec §23.4's first bullet says "revoke on confirmed **full** refund" and says nothing about partial ones, so a `charge.refunded` with `amount_refunded < amount` marks the order for staff review and leaves the entitlement intact. "Apply documented commercial policy" (§23.4 bullet 3) presumes a policy this project has not written down. → operational, or **Phase 17**'s payment-case queue.
-7. **There is no staff payment-case queue.** §23.4's "mark payment case for staff review" is implemented as `PaymentOrder.metadata["staff_review_required"] = True` plus `PaymentOrder.objects.needing_staff_review()` plus an audit event plus a signal — all real and queryable — but nothing renders it and no endpoint lists it. Deliberately no fifth model: §11.9 enumerates four. → **Phase 17**.
-8. **There is no staff-initiated refund action.** §23.4's last bullet ("Refund action in staff UI calls a dedicated service; do not alter Stripe state by editing database fields") describes an outbound call to Stripe that this phase does not build: everything here is **reactive**, responding to refunds an operator issued in the Stripe dashboard. The reactive half is complete and is what protects the entitlement ledger. The staff-facing action needs the screen from limitation 1. → **Phase 17**.
-9. **`Idempotency-Key` is enforced on Checkout creation only.** Spec §30.3 also requires it on listing submit and staff decision requests. Those are Phase 11/13 endpoints and are untouched here, so Phase 13's Known Limitation 13 survives for them. The retention window (`IDEMPOTENCY_RETENTION_DAYS = 30`) is a documented client contract with no sweep behind it: orders are never deleted (§35.3), so a key is in practice honoured forever. → **Phase 22** if a real retention policy is wanted.
-10. **Only two-decimal currencies are supported.** `payments.products.minor_units` raises `ValueError` for any currency outside `TWO_DECIMAL_CURRENCIES`. This release is EUR-only, so nothing is blocked; a zero-decimal currency (JPY) would need the factor table Stripe publishes. Refusing loudly was chosen over a silent 100× overcharge. → whichever phase adds a second currency.
-11. **No reconciliation job for paid-not-fulfilled orders.** Spec §35.4 asks operators to "Verify paid orders fulfill exactly once" in the first hour/day/week. The data to do it exists (`PaymentOrder.objects.paid().exclude(status=FULFILLED)`), and the mismatch path alerts, but there is no scheduled check and no metric. This phase adds no Celery task at all, by ruling. → **Phase 22** (§33.4 metrics and alerts) and **Phase 24** (§35.4).
-12. **A `CREATED` order whose Stripe call never succeeded is never cleaned up.** It is retriable with the same `Idempotency-Key` (tested), and Stripe's own `checkout.session.expired` only fires for sessions that were actually created, so a row stuck at `CREATED` stays there. It grants nothing and blocks nothing; it is noise in the staff counters' `open_checkouts`… which it is in fact excluded from, since that counts `CHECKOUT_OPEN`. → operational.
-13. **Concurrency is proven by lock assertion, not by two racing connections.** `test_fulfilment_locks_the_order_row` inspects the emitted SQL for `FOR UPDATE`, and the duplicate-event path is proven by sequential delivery plus a unique index. This project deliberately avoids threaded database tests (Phase 13 Known Limitation 12). A real two-connection race against the `stripe_event_id` index would be stronger evidence. → **Phase 23** (spec §34.2).
-14. **No CSP work.** Spec §33.1 asks for "Content Security Policy compatible with Stripe". No CSP exists in this project yet and none is added here; since this phase ships no frontend and redirects the browser to Stripe's own domain rather than embedding Stripe.js, there is nothing here for a CSP to allow. `STRIPE_PUBLISHABLE_KEY` is read into settings and used by nothing, which stays true until a frontend needs it. → **Phase 22**.
-15. **`ProcessedWebhookEvent` grows without bound.** One row per delivered event, never pruned. At this project's volume that is negligible for years, and pruning is dangerous: deleting a row re-opens the replay window for that event id. If it ever matters, prune only rows older than Stripe's own retry horizon. → operational, **Phase 22**.
+6. **`release_reservation` would unbind a media upgrade from its listing.** Phase 13's implementation applies `updates={"reserved_at": None, "listing": None}` on `RESERVED → AVAILABLE` — correct for a listing right, which is bound to nothing until consumption, but wrong for a `MEDIA_UPGRADE`, whose binding to one listing is the product (spec §23.1: "Cannot be transferred after binding"). The path is **dead today**: this phase creates no `RESERVED` rows, and `revoke_for_refund` can only reach `release_reservation` on a row some other code produced — after which it immediately revokes, so the unbinding is moot, and `PaymentOrder.listing` records the listing regardless. It becomes a real defect for **Phase 15**, the first phase that may reserve a listing-bound upgrade: it must either preserve `listing` on release or not reserve bound rights at all. → **Phase 15**, plus a note on the Phase 13 plan.
+7. **A `GRANT_CONFLICT` or `paid_event_on_terminal_order` order needs a human and has no screen.** Both are handled correctly — 200 to Stripe, order flagged, audit row written, `payment_needs_staff_review` fired — but money has been taken and no right granted until someone acts, and nothing yet shows them that. `PaymentOrder.objects.needing_staff_review()` is the query. → **Phase 17** (the queue) and **Phase 18** (the alert delivery).
+8. **Partial refunds are flagged, not acted on.** Spec §23.4's first bullet says "revoke on confirmed **full** refund" and says nothing about partial ones, so a `charge.refunded` with `amount_refunded < amount` marks the order for staff review and leaves the entitlement intact. "Apply documented commercial policy" (§23.4 bullet 3) presumes a policy this project has not written down. → operational, or **Phase 17**'s payment-case queue.
+9. **There is no staff payment-case queue.** §23.4's "mark payment case for staff review" is implemented as `PaymentOrder.metadata["staff_review_required"] = True` plus `PaymentOrder.objects.needing_staff_review()` plus an audit event plus a signal — all real and queryable — but nothing renders it and no endpoint lists it. Deliberately no fifth model: §11.9 enumerates four. → **Phase 17**.
+10. **There is no staff-initiated refund action.** §23.4's last bullet ("Refund action in staff UI calls a dedicated service; do not alter Stripe state by editing database fields") describes an outbound call to Stripe that this phase does not build: everything here is **reactive**, responding to refunds an operator issued in the Stripe dashboard. The reactive half is complete and is what protects the entitlement ledger. The staff-facing action needs the screen from limitation 1. → **Phase 17**.
+11. **`Idempotency-Key` is enforced on Checkout creation only.** Spec §30.3 also requires it on listing submit and staff decision requests. Those are Phase 11/13 endpoints and are untouched here, so Phase 13's Known Limitation 13 survives for them. The retention window (`IDEMPOTENCY_RETENTION_DAYS = 30`) is a documented client contract with no sweep behind it: orders are never deleted (§35.3), so a key is in practice honoured forever. → **Phase 22** if a real retention policy is wanted.
+12. **Only two-decimal currencies are supported.** `payments.products.minor_units` raises `ValueError` for any currency outside `TWO_DECIMAL_CURRENCIES`. This release is EUR-only, so nothing is blocked; a zero-decimal currency (JPY) would need the factor table Stripe publishes. Refusing loudly was chosen over a silent 100× overcharge. → whichever phase adds a second currency.
+13. **No reconciliation job for paid-not-fulfilled orders.** Spec §35.4 asks operators to "Verify paid orders fulfill exactly once" in the first hour/day/week. The data to do it exists (`PaymentOrder.objects.paid().exclude(status=FULFILLED)`), and the mismatch path alerts, but there is no scheduled check and no metric. This phase adds no Celery task at all, by ruling. → **Phase 22** (§33.4 metrics and alerts) and **Phase 24** (§35.4).
+14. **A `CREATED` order whose Stripe call never succeeded is never cleaned up.** It is retriable with the same `Idempotency-Key` (tested), and Stripe's own `checkout.session.expired` only fires for sessions that were actually created, so a row stuck at `CREATED` stays there. It grants nothing and blocks nothing; it is noise in the staff counters' `open_checkouts`… which it is in fact excluded from, since that counts `CHECKOUT_OPEN`. → operational.
+15. **Concurrency is proven by lock assertion, not by two racing connections.** `test_fulfilment_locks_the_order_row` inspects the emitted SQL for `FOR UPDATE`, and the duplicate-event path is proven by sequential delivery plus a unique index. This project deliberately avoids threaded database tests (Phase 13 Known Limitation 12). A real two-connection race against the `stripe_event_id` index would be stronger evidence. → **Phase 23** (spec §34.2).
+16. **No CSP work.** Spec §33.1 asks for "Content Security Policy compatible with Stripe". No CSP exists in this project yet and none is added here; since this phase ships no frontend and redirects the browser to Stripe's own domain rather than embedding Stripe.js, there is nothing here for a CSP to allow. `STRIPE_PUBLISHABLE_KEY` is read into settings and used by nothing, which stays true until a frontend needs it. → **Phase 22**.
+17. **`ProcessedWebhookEvent` grows without bound.** One row per delivered event, never pruned. At this project's volume that is negligible for years, and pruning is dangerous: deleting a row re-opens the replay window for that event id. If it ever matters, prune only rows older than Stripe's own retry horizon. → operational, **Phase 22**.
 
 ---
 
@@ -7717,6 +8221,7 @@ from payments.errors import (
 )
 from payments.fulfillment import (
     flag_for_staff,
+    fulfil_paid_session,
     grant_purchased_entitlement,
     order_not_found,
     record_payment_audit,
@@ -7775,7 +8280,7 @@ No other route is added and no existing route's URL, method or success shape cha
 
 **Deliberate, accepted deviations from Phase 13's contract** (recorded here so a later reader does not mistake either for a silent break):
 
-- **Phase 13 contract rule 6 said the purchased right's `valid_until` is `now + individual.paid_entitlement_valid_days`.** This phase uses `now + product.entitlement_valid_days` instead. Spec §11.9 gives the product that column and §23.1 lets staff edit it; a per-product duration the purchase path ignored would be decorative, which spec §2.1 forbids. Both are seeded 365 today, so no behaviour differs. See Known Limitation 5.
+- **Phase 13 contract rule 6 said the purchased right's `valid_until` is `now + individual.paid_entitlement_valid_days`.** This phase uses `now + product.entitlement_valid_days` instead. **A downstream phase must not "fix" this back without reading the ruling in Task 10:** the product column is spec §11.9's and staff-editable per §23.1, so a per-product duration the purchase path ignored would be exactly the decorative field spec §2.1 forbids. Spec §11.9 gives the product that column and §23.1 lets staff edit it; a per-product duration the purchase path ignored would be decorative, which spec §2.1 forbids. Both are seeded 365 today, so no behaviour differs. See Known Limitation 5.
 - **Phase 13 contract rule 1 said never to write a `UserEntitlement` outside `entitlements.consumption`/`entitlements.services`.** `payments.fulfillment.grant_purchased_entitlement` CREATES a row directly. The rule governs **transitions**; creation is not one, and `grant_listing_right` hard-codes `STAFF_GRANT`/`granted_by`/`reason`, none of which describes a purchase. Every transition away from the row (revocation on refund) does go through `entitlements.services`. See the ruling in the Scope rulings section.
 - **Phase 13 contract rule 6 called this phase "the natural first producer of `RESERVED` rows".** It produces none — a paid right is `AVAILABLE` immediately — so Phase 13's Known Limitation 3 obligation ("must also ship the abandonment-release flow, or leave `listing` NULL") does not bite here and passes intact to **Phase 15**.
 
@@ -7783,18 +8288,20 @@ Rules a later phase must follow:
 
 1. **Only a verified webhook may grant a paid entitlement.** Never call `grant_purchased_entitlement` from a view, a management command or a success-page handler. Spec §23.3 is explicit that the browser "must never grant the right itself", and `PaymentOrderDetailView` is deliberately `GET`-only with no import of `payments.fulfillment` — a test asserts both.
 2. **Never write `PaymentOrder.status` directly.** Go through `payments.fulfillment` or `payments.refunds`, which hold the row lock, the `can_transition_payment` edge check and the audit event together. The Django admin for `PaymentOrder` is read-only for exactly this reason, and spec §26.3 backs it: "Staff must not edit Stripe-paid order status manually."
-3. **`payments` may import `entitlements` and `listings`; neither may import `payments`.** The one exception is `entitlements.models`' lazy string FK `"payments.PaymentOrder"`, which creates no import edge. Keeping the arrow one-directional is what lets this app depend on both without a cycle.
-4. **Every new Stripe call goes through `payments.gateway.StripeGateway`.** Add a method to the protocol, to `StripeApiGateway` and to `FakeStripeGateway` together — `test_the_fake_and_the_real_gateway_have_identical_signatures` fails if you do not. Never call `stripe.*` from a service, never set the module-level `stripe.api_key`, and never let a `stripe.StripeError` escape the gateway.
-5. **Every new webhook event type is registered in `payments.webhooks.HANDLERS`** by a module imported from `PaymentsConfig.ready()`, and its handler returns a `WebhookResult` value. An unregistered type is recorded `IGNORED` and answered 200 — never 500, which would make Stripe retry it for days.
-6. **A permanent failure answers Stripe 200; a transient one answers 500.** A mismatch, an unknown session or an unhandled type is a fact no retry can change, so it is recorded, alerted and acknowledged. A database failure propagates, which rolls the `ProcessedWebhookEvent` row back so Stripe's retry can succeed. Do not "helpfully" catch a broad `Exception` in a handler.
-7. **A return URL is a PATH from `RETURN_URL_ALLOWLIST`, never a caller-supplied absolute URL.** Adding a member requires a spec §4.1/§4.2 citation. Never change the check to a prefix match, a host comparison or a regex.
-8. **Phase 15** is the first consumer of `MEDIA_UPGRADE`. It changes exactly one function body, `listings.policies.effective_media_allowance`, to raise a private seller's allowance to 20 images and 1 video (spec §23.1, §24.1) when a non-`REVOKED` `MEDIA_UPGRADE` `UserEntitlement` exists for that listing. It must **not** consult `PaymentOrder` — the entitlement is the right, the order is only how it was bought. It is also the first phase that may create a `RESERVED` row, and Phase 13's Known Limitation 3 obligation transfers to it. If it wants a product's `publication_days` honoured, it owns Known Limitation 4.
-9. **Phase 16** renders spec §22.3's purchase CTA against `POST /api/v1/checkout-sessions/` and the success page against `GET /api/v1/payment-orders/<id>/`. It must send an `Idempotency-Key` header (a UUID minted per CTA click, reused verbatim on retry), must send a `return_url` that is a member of `RETURN_URL_ALLOWLIST`, must never send an amount or a price id, and must treat `entitlement_id == null` as "still activating" rather than as failure. It must not grant, unlock or enable anything based on the success URL alone.
-10. **Phase 17** builds the staff product screen on `GET/PATCH /api/v1/staff/products/[<id>/]` and must not add a second product-write path. The detail endpoint's `price_state` is live I/O — render it per product, not per list. It also owns the payment-case queue (`PaymentOrder.objects.needing_staff_review()`), the staff-initiated refund service, and the `product.*` audit actions' history view.
-11. **Phase 18** connects receivers to `payments.signals.payment_fulfilled` (spec §23.3 step 9: notify the buyer, refresh WebSocket eligibility) and `payment_needs_staff_review` (spec §23.4: high-priority staff notification). Both already fire inside `transaction.on_commit()`, so a receiver must not re-wrap them; `payment_needs_staff_review` may carry `order=None` when no local order matched the event, and a receiver must tolerate that.
-12. **Any new payment error code must be stable and documented** in this plan's Global Constraints table, and must be an `APIException` subclass with an explicit `default_code` — never a DRF `ValidationError`, which `common.exceptions` flattens to `validation_error`. Exceptions needing extra response context set a dict attribute named `meta` (the merged handler's only passthrough). The closed set today is: `product_not_available`, `product_price_mismatch`, `invalid_return_url`, `listing_required_for_product`, `listing_not_upgradable`, `idempotency_key_required`, `idempotency_key_reused`, `payment_gateway_unavailable`, plus the reused `feature_disabled`.
-13. **Never store card data, and never log a secret.** No model in `payments` has a card field and a test enforces it. `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, the raw webhook body and the `Stripe-Signature` header never reach a log, a response body or an audit event. The webhook's 400 has no body on purpose.
-14. **Deactivating a product stops new Checkout creation and nothing else** (spec §26.4). Previously purchased entitlements keep working; a phase that "cleans up" entitlements for a deactivated product is breaking a spec sentence and a paid customer's rights.
+3. **The webhook must never raise.** Every handler converts a *permanent* failure into a recorded outcome and a 200: an `IntegrityError` from an entitlement write becomes `GRANT_CONFLICT`, an `InvalidEntitlementState` from a revocation becomes a `staff_review` outcome, an unknown session or charge becomes `ORDER_NOT_FOUND`, an unhandled type becomes `IGNORED`. Each wraps its entitlement write in a **nested** `transaction.atomic()`, so the savepoint absorbs the error instead of poisoning the webhook's transaction. A DRF `APIException` escaping a handler is the worst case of all: DRF renders it as a 4xx **error envelope to Stripe**, which then retries the event for three days while every retry rolls the dedup row back. Only a genuinely transient fault (database down, an unexpected bug) may propagate.
+4. **`entitlements.services` is imported lazily, inside `payments.refunds.revoke_for_refund`, never at module scope.** `PaymentsConfig.ready()` imports `refunds`, and `ready()` runs on every management command, so a module-scope import of a Phase 13 name that has not merged makes `manage.py check` and `migrate` fail for the **whole project**, not just this feature. The Execution Model's Task 11 gate is the primary protection; this is the belt to its braces.
+5. **`payments` may import `entitlements` and `listings`; neither may import `payments`.** The one exception is `entitlements.models`' lazy string FK `"payments.PaymentOrder"`, which creates no import edge. Keeping the arrow one-directional is what lets this app depend on both without a cycle.
+6. **Every new Stripe call goes through `payments.gateway.StripeGateway`.** Add a method to the protocol, to `StripeApiGateway` and to `FakeStripeGateway` together — `test_the_fake_and_the_real_gateway_have_identical_signatures` fails if you do not. Never call `stripe.*` from a service, never set the module-level `stripe.api_key`, and never let a `stripe.StripeError` escape the gateway.
+7. **Every new webhook event type is registered in `payments.webhooks.HANDLERS`** by a module imported from `PaymentsConfig.ready()`, and its handler returns a `WebhookResult` value. An unregistered type is recorded `IGNORED` and answered 200 — never 500, which would make Stripe retry it for days.
+8. **A permanent failure answers Stripe 200; a transient one answers 500.** A mismatch, an unknown session or an unhandled type is a fact no retry can change, so it is recorded, alerted and acknowledged. A database failure propagates, which rolls the `ProcessedWebhookEvent` row back so Stripe's retry can succeed. Do not "helpfully" catch a broad `Exception` in a handler.
+9. **A return URL is a PATH from `RETURN_URL_ALLOWLIST`, never a caller-supplied absolute URL.** Adding a member requires a spec §4.1/§4.2 citation. Never change the check to a prefix match, a host comparison or a regex.
+10. **Phase 15** is the first consumer of `MEDIA_UPGRADE`. It changes exactly one function body, `listings.policies.effective_media_allowance`, to raise a private seller's allowance to 20 images and 1 video (spec §23.1, §24.1) when a non-`REVOKED` `MEDIA_UPGRADE` `UserEntitlement` exists for that listing. It must **not** consult `PaymentOrder` — the entitlement is the right, the order is only how it was bought. It is also the first phase that may create a `RESERVED` row, so Phase 13's Known Limitation 3 obligation transfers to it — together with this plan's Known Limitation 6, because Phase 13's `release_reservation` clears `listing`, which would unbind exactly the kind of right Phase 15 reserves. If it wants a product's `publication_days` honoured, it owns Known Limitation 4.
+11. **Phase 16** renders spec §22.3's purchase CTA against `POST /api/v1/checkout-sessions/` and the success page against `GET /api/v1/payment-orders/<id>/`. It must send an `Idempotency-Key` header (a UUID minted per CTA click, reused verbatim on retry), must send a `return_url` that is a member of `RETURN_URL_ALLOWLIST`, must never send an amount or a price id, and must treat `entitlement_id == null` as "still activating" rather than as failure. It must not grant, unlock or enable anything based on the success URL alone.
+12. **Phase 17** builds the staff product screen on `GET/PATCH /api/v1/staff/products/[<id>/]` and must not add a second product-write path. The detail endpoint's `price_state` is live I/O — render it per product, not per list. It also owns the payment-case queue (`PaymentOrder.objects.needing_staff_review()`), the staff-initiated refund service, and the `product.*` audit actions' history view.
+13. **Phase 18** connects receivers to `payments.signals.payment_fulfilled` (spec §23.3 step 9: notify the buyer, refresh WebSocket eligibility) and `payment_needs_staff_review` (spec §23.4: high-priority staff notification). Both already fire inside `transaction.on_commit()`, so a receiver must not re-wrap them; `payment_needs_staff_review` may carry `order=None` when no local order matched the event, and a receiver must tolerate that.
+14. **Any new payment error code must be stable and documented** in this plan's Global Constraints table, and must be an `APIException` subclass with an explicit `default_code` — never a DRF `ValidationError`, which `common.exceptions` flattens to `validation_error`. Exceptions needing extra response context set a dict attribute named `meta` (the merged handler's only passthrough). The closed set today is: `product_not_available`, `product_price_mismatch`, `invalid_return_url`, `listing_required_for_product`, `listing_not_upgradable`, `idempotency_key_required`, `idempotency_key_reused`, `payment_gateway_unavailable`, plus the reused `feature_disabled`.
+15. **Never store card data, and never log a secret.** No model in `payments` has a card field and a test enforces it. `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, the raw webhook body and the `Stripe-Signature` header never reach a log, a response body or an audit event. The webhook's 400 has no body on purpose.
+16. **Deactivating a product stops new Checkout creation and nothing else** (spec §26.4). Previously purchased entitlements keep working; a phase that "cleans up" entitlements for a deactivated product is breaking a spec sentence and a paid customer's rights.
 
 ---
 
@@ -7841,7 +8348,9 @@ Rules a later phase must follow:
 | §23.5 Warning on display-amount drift; Checkout blocked until reconciled | Task 6 (`check_stripe_price` / `require_reconciled_price`), Task 7, Task 12 |
 | §23.5 Edit and deactivate actions | Task 12 (`PATCH`, `product.deactivated` audit action) |
 | §23.5 The screen itself | **Phase 17** (Known Limitation 1) |
-| Acceptance — duplicate webhook produces one entitlement | Task 13 (both senses: same event id, and two event ids for one session) |
+| §6.4 "an entitlement was created exactly once", enforced below Python | Task 4's `entitlements_one_live_right_per_payment` partial unique index, with both cross-target negatives tested |
+| §35.4 paid-not-fulfilled is never silent | Task 10's `paid_event_on_terminal_order` and `grant_conflict` staff cases, each with an audit row and a signal; the queue that renders them is Known Limitation 7 |
+| Acceptance — duplicate webhook produces one entitlement | Task 13 (both senses: same event id, and two event ids for one session), plus Task 4's database backstop |
 | Acceptance — forged/invalid signature produces 400 and no state change | Task 13, Task 9 |
 | Acceptance — browser success URL alone grants nothing | Task 13, Task 8 |
 | Acceptance — currency/amount mismatch blocks fulfilment and alerts staff | Task 13, Task 10 |
