@@ -64,3 +64,34 @@ def test_an_unauthenticated_x_forwarded_for_header_is_never_trusted():
     throttle = HashedIPScopedRateThrottle()
 
     assert throttle.get_ident(spoofed_request) == throttle.get_ident(plain_request)
+
+
+def _all_view_classes(patterns):
+    for pattern in patterns:
+        nested = getattr(pattern, "url_patterns", None)
+        if nested is not None:
+            yield from _all_view_classes(nested)
+            continue
+        view_class = getattr(pattern.callback, "cls", None)
+        if view_class is not None:
+            yield view_class
+
+
+def test_every_routed_api_view_uses_only_project_throttle_classes():
+    # A view that sets throttle_classes = [ScopedRateThrottle] (or Anon/User
+    # RateThrottle) silently reintroduces the X-Forwarded-For bucket bypass and
+    # raw-IP cache keys this module exists to prevent (spec 30.4).
+    from django.urls import get_resolver
+    from rest_framework.throttling import SimpleRateThrottle
+
+    offenders = sorted(
+        {
+            f"{view.__module__}.{view.__name__}"
+            for view in _all_view_classes(get_resolver().url_patterns)
+            for throttle in getattr(view, "throttle_classes", [])
+            if issubclass(throttle, SimpleRateThrottle)
+            and not issubclass(throttle, HashedIPScopedRateThrottle)
+        }
+    )
+
+    assert offenders == []
