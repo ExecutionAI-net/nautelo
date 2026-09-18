@@ -61,3 +61,9 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 "video_limit": allowance.videos,
             },
         }
+
+
+class ListingDraftUpdateSerializer(serializers.Serializer):
+    """Spec §20.5: "All edit submissions include listing/revision version."""
+
+    version = serializers.IntegerField(min_value=1)
