@@ -1,7 +1,5 @@
 """Staff decisions on a submitted revision (spec §20.1 steps 7-8, §20.2, §26.2)."""
 
-from datetime import timedelta
-
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -22,15 +20,12 @@ from .enums import ListingStatus, RevisionOrigin, RevisionStatus, can_transition
 from .locking import bump_version
 from .models import BoatListing, ListingRevision
 from .payloads import validate_revision_payload
-from .policies import ListingEntitlementGate
+from .publication import guard_base_snapshot, publish_revision
 from .signals import (
-    listing_published,
-    listing_revision_approved,
     listing_revision_changes_requested,
     listing_revision_rejected,
     listing_revision_submitted,
 )
-from .snapshots import create_snapshot_from_revision
 from .submissions import validate_submission_media
 
 
@@ -91,29 +86,11 @@ def approve_revision(
 ) -> ListingRevision:
     revision, listing = _locked_submitted_revision(revision_id)
 
-    if (
-        revision.base_snapshot_id is not None
-        and revision.base_snapshot_id != listing.current_public_snapshot_id
-    ):
-        # Another revision was approved while this one sat in the queue;
-        # approving it now would silently discard that newer content. The
-        # snapshot-level counterpart of spec §20.5's "do not silently overwrite
-        # another browser/session edit".
-        conflict = InvalidWorkflowState(
-            "A newer version of this listing was approved in the meantime. "
-            "Ask the seller to rebase their changes.",
-            code="stale_base_snapshot",
-        )
-        # Copied into the error envelope by common.exceptions.nauta_exception_handler.
-        conflict.meta = {
-            "resource": "snapshot",
-            "current_version": (
-                listing.current_public_snapshot.version
-                if listing.current_public_snapshot_id is not None
-                else None
-            ),
-        }
-        raise conflict
+    # Checked here, before validation, so a revision that is both stale and
+    # invalid still answers 409 stale_base_snapshot — the precedence Phase 11
+    # shipped and `test_a_revision_based_on_a_superseded_snapshot_is_refused`
+    # pins. publish_revision() re-checks it, so no future caller can skip it.
+    guard_base_snapshot(listing, revision)
 
     # Spec §21 acceptance: "Invalid listing never publishes." Re-validate at
     # publication time, because media, settings and taxonomy may have moved
@@ -126,82 +103,14 @@ def approve_revision(
     )
     validate_submission_media(listing, cleaned["media_ids"])
 
-    decided_at = timezone.now()
-    is_first_publication = listing.current_public_snapshot_id is None
-    before = {"listing_status": listing.status, "revision_state": revision.state}
-
-    bump_version(
-        revision,
-        expected_version=expected_version,
-        resource="revision",
-        state=RevisionStatus.APPROVED,
-        decided_by=actor,
-        decided_at=decided_at,
-        decision_note=(note or "").strip(),
-    )
-
-    snapshot = create_snapshot_from_revision(
+    publish_revision(
         listing=listing,
         revision=revision,
-        cleaned_payload=cleaned,
-        approved_by=actor,
-        approved_at=decided_at,
+        actor=actor,
+        cleaned=cleaned,
+        expected_revision_version=expected_version,
+        note=note,
     )
-
-    updates = {
-        "current_public_snapshot": snapshot,
-        "updated_by": actor,
-    }
-    if is_first_publication:
-        # PENDING_APPROVAL -> PUBLISHED, the only listing-status move approval
-        # makes. A post-publication revision leaves `status` alone: the listing
-        # is already PUBLISHED and LISTING_TRANSITIONS has no PUBLISHED ->
-        # PUBLISHED edge, so re-writing it would be a no-op that contradicts the
-        # state map (and would silently un-suspend a SUSPENDED listing whose
-        # queued revision is approved later). `published_at` and `expires_at`
-        # move with it, for the same reason: spec §11.4 makes `published_at` the
-        # listing's publication moment, not the latest snapshot's.
-        publication_days = ListingEntitlementGate.publication_days(listing=listing)
-        updates["status"] = ListingStatus.PUBLISHED
-        updates["published_at"] = decided_at
-        updates["expires_at"] = (
-            decided_at + timedelta(days=publication_days)
-            if publication_days is not None
-            else None
-        )
-    bump_version(
-        listing, expected_version=listing.version, resource="listing", **updates
-    )
-
-    record_audit_event(
-        actor_user=actor,
-        actor_type=AuditEvent.ActorType.USER,
-        action="listing.revision_approved",
-        target_type="listings.ListingRevision",
-        target_id=str(revision.pk),
-        source=AuditEvent.Source.API,
-        before=before,
-        after={
-            "listing_status": listing.status,
-            "state": RevisionStatus.APPROVED,
-            "snapshot_version": snapshot.version,
-            "decided_at": decided_at,
-        },
-        metadata={
-            "listing_id": str(listing.pk),
-            "note": (note or "").strip(),
-            "first_publication": is_first_publication,
-        },
-    )
-
-    def _emit():
-        listing_revision_approved.send(sender=ListingRevision, revision=revision)
-        if is_first_publication:
-            listing_published.send(
-                sender=BoatListing, listing=listing, snapshot=snapshot
-            )
-
-    transaction.on_commit(_emit)
     return revision
 
 

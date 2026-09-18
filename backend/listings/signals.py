@@ -6,9 +6,14 @@ inside transaction.on_commit(), so a rolled-back transaction emits nothing
 (spec §27 acceptance test 1).
 
 Every signal is sent with `sender=listings.models.ListingRevision` and the
-keyword argument `revision` (a ListingRevision), except `listing_published`,
-which is sent with `sender=listings.models.BoatListing` and the keyword
-arguments `listing` and `snapshot`.
+keyword argument `revision` (a ListingRevision), with two exceptions:
+
+  * `listing_published` is sent with `sender=listings.models.BoatListing` and
+    the keyword arguments `listing` and `snapshot`.
+  * `listing_revision_approved` additionally carries `auto_approved: bool`
+    (Phase 12, spec §21) — True when a broker organization's auto-approval
+    policy published the revision rather than a moderator. Receivers must accept
+    it through `**kwargs` and must not assume a human decided.
 """
 
 import django.dispatch

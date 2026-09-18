@@ -18,6 +18,7 @@ from .policies import (
     media_counts,
     requires_staff_approval,
 )
+from .publication import publish_revision
 from .signals import (
     listing_initial_submitted,
     listing_other_model_submitted,
@@ -69,7 +70,36 @@ def validate_submission_media(listing: BoatListing, media_ids: list[str]) -> Non
 def submit_listing_revision(
     *, listing: BoatListing, actor, expected_version: int
 ) -> ListingRevision:
-    listing = BoatListing.objects.select_for_update().get(pk=listing.pk)
+    # Keep a handle on the object the caller handed us BEFORE rebinding the
+    # name. `ListingSubmitView.post` serializes its *own* instance after
+    # `refresh_from_db()`, and `ListingWorkflowSerializer.to_representation`
+    # reads `getattr(listing, "open_revision", None)` before falling back to
+    # `open_revision_for()` — which only ever finds a DRAFT or SUBMITTED row.
+    # On the auto-approval path the revision is APPROVED by the time the
+    # response is built, so without this reference the fallback finds nothing
+    # and the endpoint answers `"revision": null` on a successful publication,
+    # breaking spec §30.2's "Mutations return updated resource/version". The
+    # closing assignment at the bottom of this function writes to it.
+    #
+    # (Phase 11 never hit this: a submitted revision stayed SUBMITTED, so the
+    # fallback query always found it. This phase is the first caller that closes
+    # the revision inside the same request. `listings/views.py` and
+    # `listings/serializers.py` are owned by the Phase 9/10 plans and are not
+    # touched here, so the fix belongs on this side of the call.)
+    caller_listing = listing
+
+    # `of=("self",)` keeps the lock on the listing row alone. `select_related`
+    # is needed because requires_staff_approval() reads the organization's
+    # policy, and a bare select_for_update() across that join would lock the
+    # BrokerOrganization row too — serialising every concurrent submission of a
+    # large broker behind one row. The policy is deliberately read *unlocked*;
+    # see the ruling in the Phase 12 plan. Lock order matches
+    # listings.decisions._locked_submitted_revision: listing first.
+    listing = (
+        BoatListing.objects.select_for_update(of=("self",))
+        .select_related("broker")
+        .get(pk=listing.pk)
+    )
     revision = open_revision_for(listing)
     if revision is None or revision.state != RevisionStatus.DRAFT:
         raise InvalidWorkflowState(
@@ -95,6 +125,7 @@ def submit_listing_revision(
 
     is_initial = listing.current_public_snapshot_id is None
     uses_other_model = listing.model.is_other_placeholder
+    needs_approval = requires_staff_approval(listing)
     before = {"listing_status": listing.status, "revision_state": revision.state}
     submitted_at = timezone.now()
 
@@ -107,7 +138,7 @@ def submit_listing_revision(
         submitted_at=submitted_at,
     )
 
-    if requires_staff_approval(listing):
+    if needs_approval:
         if is_initial:
             bump_version(
                 listing,
@@ -126,8 +157,23 @@ def submit_listing_revision(
                 resource="listing",
                 updated_by=actor,
             )
-    # No `else` branch: spec §6.1's broker auto-approval path is Phase 12 and
-    # requires_staff_approval() always returns True here (see listings.policies).
+    else:
+        # Spec §21 / §20.4: "If broker auto-approval is on, valid create/edit
+        # submissions publish a new snapshot immediately." The payload and its
+        # media were validated above, so this hands publish_revision() exactly
+        # the cleaned document a moderator's APPROVE would have carried — one
+        # publication path, one set of checks, which is what makes spec §21's
+        # "Invalid listing never publishes even when auto-approval is on" true
+        # by construction.
+        publish_revision(
+            listing=listing,
+            revision=revision,
+            actor=actor,
+            cleaned=cleaned,
+            expected_revision_version=revision.version,
+            auto_approved=True,
+            publication_source=publication_source if is_initial else None,
+        )
 
     record_audit_event(
         actor_user=actor,
@@ -139,7 +185,10 @@ def submit_listing_revision(
         before=before,
         after={
             "listing_status": listing.status,
-            "state": RevisionStatus.SUBMITTED,
+            # Read from the row, not hard-coded to SUBMITTED: on the auto path
+            # the revision is already APPROVED by now, and an audit row claiming
+            # otherwise would be false.
+            "state": revision.state,
             "submitted_at": submitted_at,
         },
         metadata={
@@ -147,20 +196,38 @@ def submit_listing_revision(
             "revision_number": revision.revision_number,
             "is_initial_submission": is_initial,
             "publication_source": publication_source,
+            "auto_approved": not needs_approval,
         },
     )
 
     def _emit():
-        listing_revision_submitted.send(sender=ListingRevision, revision=revision)
-        if is_initial:
-            listing_initial_submitted.send(sender=ListingRevision, revision=revision)
+        if needs_approval:
+            # Spec §27.1 gives both of these events the recipients "moderation
+            # staff". An auto-approved submission is already public, so
+            # summoning a moderator for it would create a queue item with
+            # nothing to decide. Phase 18 fans out `listing_revision_approved`
+            # instead — publish_revision() sends it with auto_approved=True.
+            listing_revision_submitted.send(sender=ListingRevision, revision=revision)
+            if is_initial:
+                listing_initial_submitted.send(
+                    sender=ListingRevision, revision=revision
+                )
         if uses_other_model:
+            # Recipients are *taxonomy* staff (spec §27.1), and an Other-model
+            # placeholder still needs a mapping decision (spec §13.3) whether or
+            # not the listing is already live.
             listing_other_model_submitted.send(
                 sender=ListingRevision, revision=revision
             )
 
     transaction.on_commit(_emit)
+    # Both objects: the locked copy this function worked on, and the instance
+    # the caller (ListingSubmitView.post) still holds and is about to serialize.
+    # Without the second line the response carries `"revision": null` whenever
+    # the revision left DRAFT/SUBMITTED inside this call — i.e. on every
+    # auto-approved submission. See the ruling above Step 3b's first edit.
     listing.open_revision = revision
+    caller_listing.open_revision = revision
     return revision
 
 
