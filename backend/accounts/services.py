@@ -8,7 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from accounts.enums import Locale, UserRole
+from accounts.enums import Locale, StaffGroup, UserRole
 from accounts.models import EmailVerificationToken, User
 from accounts.tasks import send_email_verification_email
 
@@ -79,3 +79,28 @@ def register_user(*, email, password, full_name="", locale=None, primary_role=No
     )
     queue_email_verification(user)
     return user
+
+
+def _usable(user) -> bool:
+    return (
+        user is not None
+        and getattr(user, "is_authenticated", False)
+        and getattr(user, "is_active", False)
+    )
+
+
+def _in_staff_group(user, *names) -> bool:
+    return user.is_superuser or user.groups.filter(name__in=names).exists()
+
+
+def is_staff_moderator(user) -> bool:
+    """Staff moderator or above (spec 5). The STAFF primary role is required."""
+    if not _usable(user) or user.primary_role != UserRole.STAFF:
+        return False
+    return _in_staff_group(user, StaffGroup.MODERATOR, StaffGroup.ADMIN)
+
+
+def is_staff_admin(user) -> bool:
+    if not _usable(user) or user.primary_role != UserRole.STAFF:
+        return False
+    return _in_staff_group(user, StaffGroup.ADMIN)

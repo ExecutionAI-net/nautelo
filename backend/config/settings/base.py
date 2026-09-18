@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "storages",
     "common",
     "accounts",
+    "brokers",
     "audit",
     "finance",
     "taxonomy",
