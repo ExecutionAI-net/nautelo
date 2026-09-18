@@ -61,6 +61,7 @@ cloning `dev` once the project is in a shippable state.
 - `docs/superpowers/plans/2026-09-17-phase-8-finance-calculation-engine.md` (Phase 8: finance configuration and calculation engine) is **fully implemented**, alongside `common` (Phase 0/1). The `finance` app adds `FinanceConfigurationVersion`, `FinanceConfigurationService`, a `Decimal`-exact amortization engine, and `POST /api/v1/finance/quotes/` for manual finance estimates. Listing-linked quotes, `FinanceQuoteLog`, and broker-override precedence are deferred to a later phase (needs `listings`/`User`).
 - `docs/superpowers/plans/2026-09-17-phase-3-identity-organizations-permissions.md` (Phase 3: identity, organizations and permissions) is **fully implemented and merged into `dev`** — all 12 tasks complete. Identity now exists: a custom UUID `accounts.User` is `AUTH_USER_MODEL`, with registration, hashed single-use email verification, JWT login/refresh/logout, `GET /api/v1/session/`, `GET|PATCH /api/v1/account/`, the `brokers` and `professionals` apps, the server-side authorization layer (permission classes + `accounts.services`), broker team-management endpoints, and the frontend session/login/route-guard/navigation stack. This unblocks every phase that needs a user, a broker organization or a permission check.
 - `docs/superpowers/plans/2026-09-18-phase-5-directory-consolidation.md` (Phase 5: directory consolidation) is **fully implemented and merged into `dev`** — all 17 tasks complete, verified end to end in Task 17's acceptance pass. The `services_catalog` app is the second domain app to land on top of Phase 3's identity stack: `ServiceCategory` (EN/IT/ES names/descriptions/SEO fields, `has_seo_page`, reserved-slug guard), `ProfessionalService` (linking Phase 3's `ProfessionalProfile` to a category) and `LegacyDirectoryMapping`, plus five public read endpoints behind the `combined_services_professionals` rollout flag. The combined directory at **`/services/professionals/` is live** and is now the single directory page: the retired `/services/` and `/professionals/` URLs are single-hop `301`s to it, `/professionals/profile/?id=<legacy>` resolves legacy ids to the new slug URLs, the six approved `/services/<category-slug>/` SEO pages and a database-generated `/sitemap.xml` are live, and every category and provider rendered anywhere on that surface comes from the database rather than a hardcoded list.
+- Phase 9 (finance card UI) is **fully implemented and merged into `dev`**: `/boats/` and `/financing/` pages, the one `BoatCard`, and the broker `FinancingEstimateFieldset` (mounted by Phase 16). See the 2026-09-19 log entry.
 - Implemented Django apps: `common`, `audit`, `platform_settings` (foundation), plus the domain apps `taxonomy`, `finance`, `accounts`, `brokers`, `professionals`, `listings` and `services_catalog`.
 - Architecture fully decided — see table below.
 
@@ -87,6 +88,17 @@ cloning `dev` once the project is in a shippable state.
 ---
 
 ## Log
+
+### 2026-09-19 — Phase 9 finance card UI and broker listing toggle complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-9-finance-ui.md` (12 tasks, PRs #111-#155 range).
+- **Migrations:** `listings.0006/0007` (snapshot finance settings + backfill), `platform_settings` seed for `finance.broker_overrides_enabled`, `finance` seed for the `finance_estimates` flag (seeded DISABLED). `makemigrations --check` clean.
+- **Endpoints/components:** `PublicListingSerializer` gained the `finance` block (spec 18.5); `POST /api/v1/finance/quotes/` accepts `listing_id`, returns `assumption_sources` and (added in Task 10) the effective `down_payment_percent`; `GET /api/v1/platform/public-settings/` gained read-only `finance_configuration`. Frontend: `BoatCard`, `FinanceDetailsDisclosure`, `FinancingEstimateFieldset`, `FinanceCalculator`, `/boats/` and `/financing/`, plus the client-safe `lib/api/finance-quote.ts` (client components must never import `lib/api/listings.ts`, which reaches `next/headers`; an import-graph test pins this).
+- **Defects found while executing the plan:** the disclosure (client) importing the server-only listings module broke `next build` once a page mounted the card; the quote response lacked the effective down payment so a listing override could not reach the finance form; both fixed and test-pinned.
+- **Tests:** spec 18 acceptance tests 1, 2, 3, 5 and Scenarios C/D in `backend/listings/tests/test_phase_9_acceptance.py`; acceptance 4 (new tab, no opener access) in `BoatCard.test.tsx`. Frontend 357 tests pass; `pnpm build` clean; backend suite green in CI.
+- **Feature flag state:** `finance_estimates` is disabled until staff enable it.
+- **Known limitations:** see the plan's Known Limitations (no `FinanceQuoteLog`, no boat detail page until Phase 20/21, listing form is Phase 16, English-only pages until locale routing).
+- Next: Phase 10 writes the `view_count` the card renders; Phase 16 mounts `FinancingEstimateFieldset`; Phase 20 owns the detail page and responsive QA.
 
 ### 2026-09-18 — Phase 5 directory consolidation complete
 
