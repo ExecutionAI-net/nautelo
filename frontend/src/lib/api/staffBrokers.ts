@@ -80,3 +80,35 @@ export function setBrokerAutoApproval(
     },
   );
 }
+
+export interface BulkApproveFailure {
+  revision_id: string;
+  listing_id: string;
+  code: string;
+  message: string;
+}
+
+export interface BulkApproveResponse {
+  approved_count: number;
+  failed_count: number;
+  approved_revision_ids: string[];
+  failures: BulkApproveFailure[];
+  /** The refreshed detail travels with the run (spec §30.2). */
+  broker: StaffBrokerDetail;
+}
+
+export function bulkApprovePendingSubmissions(
+  brokerId: string,
+  { reason }: { reason: string },
+): Promise<BulkApproveResponse> {
+  return apiFetch<BulkApproveResponse>(
+    `/api/v1/staff/brokers/${brokerId}/pending-approvals/`,
+    {
+      method: "POST",
+      // `confirm` is a server-side control (spec §21 rule 7's "explicit action
+      // with confirmation"); this client only ever sends it after the dialog
+      // has been confirmed with a reason.
+      body: JSON.stringify({ confirm: true, reason }),
+    },
+  );
+}
