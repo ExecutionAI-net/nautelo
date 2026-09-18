@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from audit.models import AuditEvent
 
-from .models import ServiceCategory
+from .models import ProfessionalService, ServiceCategory
 from .services import delete_service_category, save_service_category
 
 
@@ -35,3 +35,12 @@ class ServiceCategoryAdmin(admin.ModelAdmin):
             delete_service_category(
                 category=obj, actor=request.user, source=AuditEvent.Source.ADMIN
             )
+
+
+@admin.register(ProfessionalService)
+class ProfessionalServiceAdmin(admin.ModelAdmin):
+    list_display = ("title_en", "professional", "category", "is_active")
+    list_filter = ("is_active", "category")
+    search_fields = ("title_en", "title_it", "title_es", "professional__display_name")
+    autocomplete_fields = ("professional", "category")
+    readonly_fields = ("id", "created_at", "updated_at")
