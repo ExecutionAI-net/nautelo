@@ -131,21 +131,45 @@ def test_a_broker_listing_with_the_toggle_off_carries_only_visible_false(
 
 
 @pytest.mark.django_db
-def test_the_block_never_leaks_the_draft_toggle_or_the_override_columns(
-    api, estimates_on
-):
-    """Spec §36.1: draft broker finance settings do not leak before publication."""
+def test_the_block_never_leaks_any_draft_column(api, estimates_on):
+    """Spec §36.1: draft broker finance settings do not leak before publication.
+
+    listings.drafts writes every one of these straight onto the listing row
+    before approval, so each must be mutated here: the toggle, the price, the
+    currency and all three overrides (with broker overrides enabled, so a leak
+    of an override column would actually change the quote).
+    """
+    from platform_settings.services import update_setting
+
+    update_setting(key="finance.broker_overrides_enabled", value=True, actor=None)
     listing = _publish(_broker_listing(show_finance_estimate=True))
     listing.show_finance_estimate = False
+    listing.price = Decimal("1.00")
+    listing.currency = "ZZZ"
     listing.finance_rate_override_percent = Decimal("0.0100")
+    listing.finance_term_override_months = 7
+    listing.finance_down_payment_override_percent = Decimal("90.0000")
     listing.save(
-        update_fields=["show_finance_estimate", "finance_rate_override_percent"]
+        update_fields=[
+            "show_finance_estimate",
+            "price",
+            "currency",
+            "finance_rate_override_percent",
+            "finance_term_override_months",
+            "finance_down_payment_override_percent",
+        ]
     )
 
     response = api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk}))
 
-    assert response.data["finance"]["visible"] is True
-    assert response.data["finance"]["annual_rate_percent"] == "5.0000"
+    assert response.data["finance"] == {
+        "visible": True,
+        "monthly_payment": "8456.36",
+        "annual_rate_percent": "5.0000",
+        "term_months": 48,
+        "down_payment_percent": "20.0000",
+        "configuration_version": 1,
+    }
 
 
 @pytest.mark.django_db
@@ -171,6 +195,7 @@ def test_serializing_three_cards_costs_the_same_queries_as_one(api, estimates_on
         api.get(url)
 
     assert len(three_cards) == len(one_card)
+
 
 @pytest.mark.django_db
 def test_the_block_is_closed_when_finance_is_globally_disabled(api, estimates_on):
