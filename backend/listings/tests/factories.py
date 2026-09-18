@@ -2,9 +2,11 @@ import hashlib
 import uuid
 from decimal import Decimal
 
+from django.utils import timezone
+
 from accounts.enums import SellerType
-from listings.enums import MediaStatus, MediaType
-from listings.models import BoatListing, ListingMedia
+from listings.enums import MediaStatus, MediaType, RevisionOrigin, RevisionStatus
+from listings.models import BoatListing, ListingMedia, ListingRevision, ListingSnapshot
 from taxonomy.models import BoatBrand, BoatModel
 
 
@@ -75,3 +77,39 @@ def make_media(listing, *, media_type=MediaType.IMAGE, status=MediaStatus.READY,
     }
     defaults.update(kwargs)
     return ListingMedia.objects.create(**defaults)
+
+
+def make_revision(listing, **kwargs):
+    defaults = {
+        "listing": listing,
+        "revision_number": listing.revisions.count() + 1,
+        "state": RevisionStatus.DRAFT,
+        "origin": RevisionOrigin.OWNER,
+        "payload": {},
+    }
+    defaults.update(kwargs)
+    return ListingRevision.objects.create(**defaults)
+
+
+def make_snapshot(listing, *, approved_by, version=1, **kwargs):
+    defaults = {
+        "listing": listing,
+        "version": version,
+        "brand_name_snapshot": listing.brand.name,
+        "model_name_snapshot": listing.model.name,
+        "custom_model_name_snapshot": listing.custom_model_name,
+        "manufacture_year_snapshot": listing.manufacture_year,
+        "title_en": "A very nice boat",
+        "description_en": "Well kept, one owner.",
+        "specifications": {"length_m": "14.6"},
+        "specifications_schema_version": 1,
+        "location_country": "IT",
+        "location_city": "Genoa",
+        "currency": listing.currency,
+        "price": listing.price,
+        "media_manifest": [],
+        "approved_by": approved_by,
+        "approved_at": timezone.now(),
+    }
+    defaults.update(kwargs)
+    return ListingSnapshot.objects.create(**defaults)
