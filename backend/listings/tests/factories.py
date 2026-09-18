@@ -107,6 +107,12 @@ def make_snapshot(listing, *, approved_by, version=1, **kwargs):
         "location_city": "Genoa",
         "currency": listing.currency,
         "price": listing.price,
+        "show_finance_estimate": listing.show_finance_estimate,
+        "finance_down_payment_override_percent": (
+            listing.finance_down_payment_override_percent
+        ),
+        "finance_rate_override_percent": listing.finance_rate_override_percent,
+        "finance_term_override_months": listing.finance_term_override_months,
         "media_manifest": [],
         "approved_by": approved_by,
         "approved_at": timezone.now(),
