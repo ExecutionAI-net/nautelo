@@ -6,6 +6,7 @@ from accounts.views import (
     RefreshView,
     RegisterView,
     ResendVerificationView,
+    SessionView,
     VerifyEmailView,
 )
 
@@ -20,4 +21,5 @@ urlpatterns = [
     path("auth/login/", LoginView.as_view(), name="auth-login"),
     path("auth/token/refresh/", RefreshView.as_view(), name="auth-token-refresh"),
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
+    path("session/", SessionView.as_view(), name="session"),
 ]
