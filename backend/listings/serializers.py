@@ -67,3 +67,9 @@ class ListingDraftUpdateSerializer(serializers.Serializer):
     """Spec §20.5: "All edit submissions include listing/revision version."""
 
     version = serializers.IntegerField(min_value=1)
+
+
+class ListingVersionSerializer(serializers.Serializer):
+    """Body for submit/withdraw: nothing but the expected revision version."""
+
+    version = serializers.IntegerField(min_value=1)
