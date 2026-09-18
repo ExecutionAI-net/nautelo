@@ -1,0 +1,55 @@
+from decimal import Decimal
+
+from accounts.enums import SellerType
+from listings.models import BoatListing
+from taxonomy.models import BoatBrand, BoatModel
+
+
+def make_brand(name="Beneteau"):
+    return BoatBrand.objects.create(name=name)
+
+
+def make_model(brand, name="Oceanis 46.1"):
+    return BoatModel.objects.create(brand=brand, name=name)
+
+
+def other_model_for(brand):
+    """The per-brand Other placeholder taxonomy creates automatically via a
+    post_save signal on BoatBrand (see backend/taxonomy/signals.py)."""
+    return BoatModel.objects.get(brand=brand, is_other_placeholder=True)
+
+
+def make_private_listing(*, owner, brand=None, model=None, **kwargs):
+    brand = brand or make_brand(f"Brand {owner.pk.hex[:8]}")
+    model = model or make_model(brand)
+    defaults = {
+        "owner_user": owner,
+        "broker": None,
+        "seller_type": SellerType.PRIVATE,
+        "brand": brand,
+        "model": model,
+        "manufacture_year": 2020,
+        "currency": "EUR",
+        "price": Decimal("125000.00"),
+        "created_by": owner,
+    }
+    defaults.update(kwargs)
+    return BoatListing.objects.create(**defaults)
+
+
+def make_broker_listing(*, broker, actor, brand=None, model=None, **kwargs):
+    brand = brand or make_brand(f"Brand {broker.pk.hex[:8]}")
+    model = model or make_model(brand)
+    defaults = {
+        "owner_user": None,
+        "broker": broker,
+        "seller_type": SellerType.BROKER,
+        "brand": brand,
+        "model": model,
+        "manufacture_year": 2021,
+        "currency": "EUR",
+        "price": Decimal("459000.00"),
+        "created_by": actor,
+    }
+    defaults.update(kwargs)
+    return BoatListing.objects.create(**defaults)
