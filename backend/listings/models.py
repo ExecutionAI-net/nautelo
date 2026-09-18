@@ -146,6 +146,26 @@ class BoatListing(UUIDTimeStampedModel):
                 ),
                 name="listings_custom_model_name_length_2_to_100",
             ),
+            # Spec §17.3: a 100% down payment leaves zero principal, so this
+            # override's ceiling is 99.99%, unlike the rate override below
+            # which allows the full 0-100% range. Mirrors the application-level
+            # bound enforced in listings.payloads._clean_percent.
+            models.CheckConstraint(
+                condition=Q(finance_down_payment_override_percent__isnull=True)
+                | (
+                    Q(finance_down_payment_override_percent__gte=0)
+                    & Q(finance_down_payment_override_percent__lte=99.99)
+                ),
+                name="listings_finance_down_payment_override_percent_0_to_99_99",
+            ),
+            models.CheckConstraint(
+                condition=Q(finance_rate_override_percent__isnull=True)
+                | (
+                    Q(finance_rate_override_percent__gte=0)
+                    & Q(finance_rate_override_percent__lte=100)
+                ),
+                name="listings_finance_rate_override_percent_0_to_100",
+            ),
         ]
 
     def __str__(self):
