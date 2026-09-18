@@ -1,4 +1,6 @@
-from rest_framework.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.http import Http404
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.views import exception_handler as drf_exception_handler
 
 GENERIC_VALIDATION_MESSAGE = "The submitted data is invalid."
@@ -67,8 +69,34 @@ def _safe_code(detail, exc):
     return str(getattr(detail, "code", "") or getattr(exc, "default_code", "error"))
 
 
+def _normalized(exc):
+    """Rebind Django-core exceptions onto their DRF equivalents.
+
+    DRF's own `exception_handler` performs exactly this rebinding, but only onto
+    its *local* name - the caller's exception object is untouched. So by the time
+    this handler inspects `.detail`/`.default_code`, a `get_object_or_404` miss is
+    still a raw `django.http.Http404`: a bare `class Http404(Exception): pass`
+    with none of those attributes. Every 404 therefore rendered as the generic
+    `code: "error"` / "Request failed." envelope, and the frontend
+    (`lib/api/client.ts`) branches on `error.code`, so it could not tell "not
+    found" apart from any other failure. Normalizing here - before both DRF's
+    handler and the envelope-building below - fixes it once for every view.
+
+    The replacements are built WITHOUT `exc.args`, which is the one place this
+    deliberately differs from DRF: `get_object_or_404` composes its message from
+    the model class ("No BrokerOrganization matches the given query."), and an
+    internal model name has no business in a public API response.
+    """
+    if isinstance(exc, Http404):
+        return NotFound()
+    if isinstance(exc, DjangoPermissionDenied):
+        return PermissionDenied()
+    return exc
+
+
 def nauta_exception_handler(exc, context):
     """Render every DRF error as spec 30.2's envelope."""
+    exc = _normalized(exc)
     response = drf_exception_handler(exc, context)
     if response is None:
         return None
