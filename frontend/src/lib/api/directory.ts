@@ -132,6 +132,7 @@ export interface ProfessionalSearch {
   location?: string;
   sort?: string;
   page?: string;
+  page_size?: string;
 }
 
 // Same contract as fetchServiceCategories: null = flag off, an empty `results`
