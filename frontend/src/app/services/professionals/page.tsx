@@ -29,6 +29,33 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+// The API's `next`/`previous` are absolute API URLs (http://api-host/api/v1/...)
+// and must never be rendered as hrefs — they would send the visitor off the
+// site. They are used only as the truthy/falsy signal for "another page
+// exists"; the href is rebuilt against this page's own canonical URL, carrying
+// the active filters so paging does not silently reset the search.
+function pageHref(
+  filters: { q?: string; category?: string; location?: string; sort?: string },
+  page: number,
+): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) {
+      search.set(key, value);
+    }
+  }
+  // Page 1 is the bare URL: ?page=1 would make the first page reachable at two
+  // different URLs, which is the duplicate-content signal spec 32.2 avoids.
+  if (page > 1) {
+    search.set("page", String(page));
+  }
+  const serialized = search.toString();
+  return serialized ? `${CANONICAL_PATH}?${serialized}` : CANONICAL_PATH;
+}
+
+const PAGINATION_LINK_CLASS =
+  "rounded-lg border border-outline-variant px-space-md py-space-sm font-label-md text-label-md text-primary";
+
 export default async function CombinedDirectoryPage({
   searchParams,
 }: {
@@ -61,6 +88,17 @@ export default async function CombinedDirectoryPage({
 
   const seoCategories = categories.filter((category) => category.has_seo_page);
 
+  // A junk or absent ?page= falls back to 1: the API already ignores it the
+  // same way, and NaN here would produce "?page=NaN" links.
+  const parsedPage = Number.parseInt(filters.page ?? "", 10);
+  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const linkFilters = {
+    q: filters.q,
+    category: filters.category,
+    location: filters.location,
+    sort: filters.sort,
+  };
+
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
       <section aria-labelledby="directory-title">
@@ -83,6 +121,15 @@ export default async function CombinedDirectoryPage({
             current={filters}
           />
         </div>
+
+        {/* PHASE 6 SEAM — the approved service-request CTA belongs here.
+            Spec 14.1 lists an existing service-request CTA on this page, and
+            that flow is the same shared InquiryForm / InquiryService Phase 6
+            mounts on the professional detail page — spec 15.1/39 forbid a
+            directory-specific copy. Phase 6 renders its CTA at this position,
+            opening that shared form. Nothing is rendered in the meantime: a
+            button that opens nothing would be the visual-only implementation
+            spec 39 prohibits. */}
       </section>
 
       {/* Spec 14.1 item 4's optional advertisement interstitial is deliberately
@@ -121,6 +168,32 @@ export default async function CombinedDirectoryPage({
             ))}
           </ul>
         )}
+
+        {results.previous || results.next ? (
+          <nav
+            aria-label={t(locale, "directory.results.heading")}
+            className="mt-space-lg flex gap-space-md"
+          >
+            {results.previous ? (
+              <Link
+                href={pageHref(linkFilters, currentPage - 1)}
+                rel="prev"
+                className={PAGINATION_LINK_CLASS}
+              >
+                {t(locale, "directory.pagination.previous")}
+              </Link>
+            ) : null}
+            {results.next ? (
+              <Link
+                href={pageHref(linkFilters, currentPage + 1)}
+                rel="next"
+                className={PAGINATION_LINK_CLASS}
+              >
+                {t(locale, "directory.pagination.next")}
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
       </section>
 
       {seoCategories.length > 0 ? (

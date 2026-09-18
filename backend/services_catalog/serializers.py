@@ -169,10 +169,19 @@ class ProfessionalDetailSerializer(ProfessionalCardSerializer):
             .objects.filter(
                 status=ProfessionalProfileStatus.ACTIVE,
                 services__is_active=True,
+                # The peer's shared category must itself still be active, the
+                # same check get_categories and get_services already make. A
+                # peer whose only shared category was deactivated is otherwise
+                # surfaced as "related" with no reachable category behind it.
+                services__category__is_active=True,
                 services__category_id__in=category_ids,
             )
             .exclude(pk=obj.pk)
-            .order_by("display_name")
+            # `display_name` isn't unique, so `id` is appended as a final
+            # tiebreak, matching the directory search view's ordering: without
+            # it two peers sharing a name could swap places between requests
+            # and change which ones survive the RELATED_PROFESSIONAL_LIMIT cut.
+            .order_by("display_name", "id")
             .distinct()[:RELATED_PROFESSIONAL_LIMIT]
         )
         return [

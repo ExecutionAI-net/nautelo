@@ -61,7 +61,13 @@ def test_detail_returns_the_profile_and_its_active_services():
 def test_detail_never_contains_contact_details():
     build_professional("c@example.com", slug="contact-pro", display_name="Contact Pro")
 
-    data = APIClient().get("/api/v1/professionals/contact-pro/").data
+    response = APIClient().get("/api/v1/professionals/contact-pro/")
+
+    # Assert the success first: a 404 envelope also lacks these three keys, so
+    # without this line the test would keep passing if the endpoint regressed
+    # to never returning a profile at all, silently losing its coverage.
+    assert response.status_code == 200
+    data = response.data
 
     assert "public_email" not in data
     assert "public_phone" not in data
@@ -143,6 +149,29 @@ def test_related_professionals_sharing_multiple_categories_are_not_duplicated():
     related = APIClient().get("/api/v1/professionals/subject/").data["related"]
 
     assert [item["slug"] for item in related] == ["dual-peer"]
+
+
+@pytest.mark.django_db
+def test_related_professionals_exclude_peers_whose_shared_category_is_inactive():
+    # get_categories and get_services both skip a service whose category has
+    # been deactivated; get_related must agree. A peer reachable only through
+    # a deactivated category is unreachable everywhere else on the site — the
+    # grid does not offer that category and ?category= does not match it — so
+    # surfacing it here would be a dead end the visitor cannot retrace.
+    legal = make_service_category(slug="legal-test", name_en="Legal")
+    retired = make_service_category(slug="retired-test", name_en="Retired", is_active=False)
+    subject = build_professional("s@example.com", slug="subject", display_name="Subject")
+    visible_peer = build_professional("v@example.com", slug="visible-peer", display_name="Alpha")
+    hidden_peer = build_professional("x@example.com", slug="hidden-peer", display_name="Beta")
+    make_professional_service(subject, legal, title_en="A")
+    make_professional_service(subject, retired, title_en="B")
+    make_professional_service(visible_peer, legal, title_en="C")
+    make_professional_service(hidden_peer, retired, title_en="D")
+
+    response = APIClient().get("/api/v1/professionals/subject/")
+
+    assert response.status_code == 200
+    assert [item["slug"] for item in response.data["related"]] == ["visible-peer"]
 
 
 @pytest.mark.django_db

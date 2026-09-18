@@ -12,8 +12,13 @@ import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
 
-// Next 16: params is a Promise. Verify against node_modules/next/dist/docs/.
+// Next 16: params and searchParams are Promises. Verify against
+// node_modules/next/dist/docs/.
 type Params = Promise<{ categorySlug: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+const PAGINATION_LINK_CLASS =
+  "rounded-lg border border-outline-variant px-space-md py-space-sm font-label-md text-label-md text-primary";
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { categorySlug } = await params;
@@ -29,7 +34,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-export default async function ServiceCategoryPage({ params }: { params: Params }) {
+export default async function ServiceCategoryPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParams;
+}) {
   const { categorySlug } = await params;
   const locale = DEFAULT_LOCALE;
   const category = await fetchServiceCategory(categorySlug, locale);
@@ -43,9 +54,25 @@ export default async function ServiceCategoryPage({ params }: { params: Params }
   // The flag-off case already 404ed above (fetchServiceCategory returned null),
   // so a null here can only be a race with a flag flip mid-render: degrade to
   // the empty state rather than throwing.
+  // This page takes no filters of its own — the category is the whole query —
+  // so ?page= is the only search param it reads. A junk value falls back to 1.
+  const rawPage = (await searchParams).page;
+  const parsedPage = Number.parseInt(
+    (Array.isArray(rawPage) ? rawPage[0] : rawPage) ?? "",
+    10,
+  );
+  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
   const results =
-    (await fetchProfessionals({ category: category.slug }, locale)) ??
-    EMPTY_PROFESSIONAL_PAGE;
+    (await fetchProfessionals(
+      { category: category.slug, page: currentPage > 1 ? String(currentPage) : undefined },
+      locale,
+    )) ?? EMPTY_PROFESSIONAL_PAGE;
+
+  // results.next/previous are absolute API URLs and are used only as the
+  // "another page exists" signal; the href points back at this page.
+  const pageHref = (page: number) =>
+    page > 1 ? `/services/${category.slug}/?page=${page}` : `/services/${category.slug}/`;
 
   return (
     <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
@@ -85,6 +112,28 @@ export default async function ServiceCategoryPage({ params }: { params: Params }
             ))}
           </ul>
         )}
+
+        {results.previous || results.next ? (
+          <nav
+            aria-label={t(locale, "directory.results.heading")}
+            className="mt-space-lg flex gap-space-md"
+          >
+            {results.previous ? (
+              <Link
+                href={pageHref(currentPage - 1)}
+                rel="prev"
+                className={PAGINATION_LINK_CLASS}
+              >
+                {t(locale, "directory.pagination.previous")}
+              </Link>
+            ) : null}
+            {results.next ? (
+              <Link href={pageHref(currentPage + 1)} rel="next" className={PAGINATION_LINK_CLASS}>
+                {t(locale, "directory.pagination.next")}
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
       </section>
     </main>
   );

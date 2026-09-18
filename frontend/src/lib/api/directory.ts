@@ -68,6 +68,20 @@ export interface ProfessionalDetail extends ProfessionalCard {
   related: RelatedProfessional[];
 }
 
+/** The one "City, Region" display string for a professional.
+ *
+ * Either half may legitimately be blank (both are blank-allowed on Phase 3's
+ * `ProfessionalProfile`), so the empty parts are dropped rather than leaving a
+ * dangling comma. The result card and the detail page's status line both use
+ * this: they showed the same expression twice and must not drift apart.
+ */
+export function formatProfessionalLocation(professional: {
+  city: string;
+  region: string;
+}): string {
+  return [professional.city, professional.region].filter(Boolean).join(", ");
+}
+
 export interface Paginated<T> {
   count: number;
   next: string | null;

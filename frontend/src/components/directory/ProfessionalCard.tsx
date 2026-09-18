@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { ProfessionalCard } from "@/lib/api/directory";
+import { formatProfessionalLocation, type ProfessionalCard } from "@/lib/api/directory";
 import type { Locale } from "@/lib/i18n/directory";
 
 export default function ProfessionalResultCard({
@@ -11,7 +11,7 @@ export default function ProfessionalResultCard({
 }) {
   // No contact details are rendered because none are in the payload: contact
   // data is Phase 7's ContactAccessService (spec 1, spec 14.2).
-  const location = [professional.city, professional.region].filter(Boolean).join(", ");
+  const location = formatProfessionalLocation(professional);
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
