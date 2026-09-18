@@ -11,6 +11,8 @@ instead derives the identity only from evidence we produced ourselves —
 REMOTE_ADDR, or the hop written by a proxy we actually operate.
 """
 
+import hashlib
+
 import pytest
 from rest_framework.test import APIRequestFactory
 
@@ -156,3 +158,32 @@ def test_the_hash_is_a_stable_64_character_hex_digest_that_hides_the_address():
     assert "198.51.100.9" not in digest
     assert digest == hash_client_ip("198.51.100.9")
     assert digest != hash_client_ip("198.51.100.10")
+
+
+def test_the_hash_is_keyed_by_the_secret_and_is_not_a_bare_digest(settings):
+    """The pseudonym must be UNFORGEABLE, not merely unreadable.
+
+    A bare `sha256(ip)` would satisfy every other assertion in this file — stable,
+    64 hex chars, hides the address — while being trivially reversible: the IPv4
+    space is 2**32, so anyone holding a `viewer_hash` or a throttle key could
+    enumerate it in seconds and recover the raw address, defeating spec §30.4's
+    "must not store raw IP". Keying the digest with CONTACT_HASH_SECRET is what
+    makes that enumeration impossible without the secret.
+
+    It is also what makes secret rotation meaningful: spec §11.7 relies on
+    rotating CONTACT_HASH_SECRET to rotate every derived identifier at once, and
+    an unkeyed digest would ignore the rotation entirely.
+    """
+    settings.CONTACT_HASH_SECRET = "first-secret"
+    first = hash_client_ip("198.51.100.9")
+
+    settings.CONTACT_HASH_SECRET = "second-secret"
+    second = hash_client_ip("198.51.100.9")
+
+    # Rotating the secret must rotate the pseudonym.
+    assert first != second
+
+    # And neither may be the unkeyed digest anyone could compute without the secret.
+    unkeyed = hashlib.sha256(b"198.51.100.9").hexdigest()
+    assert first != unkeyed
+    assert second != unkeyed
