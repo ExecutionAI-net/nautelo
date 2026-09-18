@@ -3,13 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
-import type { FinanceQuote } from "@/lib/api/listings";
+import type { FinanceQuote } from "@/lib/api/finance-quote";
 import type { Locale } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
 
 const requestFinanceQuote = vi.fn();
 
-vi.mock("@/lib/api/listings", () => ({
+vi.mock("@/lib/api/finance-quote", () => ({
   requestFinanceQuote: (...args: unknown[]) => requestFinanceQuote(...args),
 }));
 
