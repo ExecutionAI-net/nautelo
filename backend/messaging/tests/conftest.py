@@ -3,7 +3,7 @@ from django.contrib.auth.models import Group
 from django.core.cache import cache
 
 from accounts.enums import StaffGroup
-from messaging.enums import UNIFIED_INQUIRIES_FLAG
+from messaging.enums import CONTACT_UNLOCK_FLAG, UNIFIED_INQUIRIES_FLAG
 from platform_settings.models import FeatureFlag
 from platform_settings.services import (
     SETTINGS_CACHE_KEY,
@@ -14,10 +14,15 @@ from platform_settings.services import (
 #: Flags this app's tests toggle. Listed so the autouse fixture below clears
 #: their cache entries: platform_settings.services.is_feature_enabled caches a
 #: persisted value indefinitely, so a flag flipped in one test would otherwise
-#: leak into the next.
-MESSAGING_FEATURE_FLAG_KEYS = [UNIFIED_INQUIRIES_FLAG]
+#: leak into the next - including `contact_unlock`, which Phase 7's tests turn
+#: on one at a time, hence the second entry.
+MESSAGING_FEATURE_FLAG_KEYS = [UNIFIED_INQUIRIES_FLAG, CONTACT_UNLOCK_FLAG]
 
 FLAG_TEST_DESCRIPTION = "Spec 35.1 rollout flag for the shared inquiry form."
+
+#: Phase 7's flag ships DISABLED (spec 35.2 step 4) - the opposite of
+#: `unified_inquiries`, so this reference row's default is False.
+CONTACT_FLAG_TEST_DESCRIPTION = "Spec 35.1 rollout flag for contact reveal."
 
 
 @pytest.fixture(autouse=True)
@@ -80,6 +85,20 @@ def _messaging_reference_rows(db):
     FeatureFlag.objects.update_or_create(
         key=UNIFIED_INQUIRIES_FLAG,
         defaults={"is_enabled": True, "description": FLAG_TEST_DESCRIPTION},
+    )
+    # Same reasoning as the row above, and Phase 7 is what makes it
+    # load-bearing: this phase adds `@pytest.mark.django_db(transaction=True)`
+    # tests, and such a test ends with a `flush` that truncates every table and
+    # re-emits `post_migrate` - which restores content types and permissions,
+    # NOT rows a RunPython data migration inserted. Without this row,
+    # `messaging/0004`'s seed can be gone by the time a later test reads it and
+    # `test_the_flag_ships_disabled` fails with DoesNotExist, depending on
+    # collection order. `is_enabled=False` is deliberate: it mirrors the SHIPPED
+    # state, and the tests that need the reveal open say so through their own
+    # `unlock_enabled` fixture, which pytest runs after this autouse one.
+    FeatureFlag.objects.update_or_create(
+        key=CONTACT_UNLOCK_FLAG,
+        defaults={"is_enabled": False, "description": CONTACT_FLAG_TEST_DESCRIPTION},
     )
     for name in StaffGroup.ALL:
         Group.objects.get_or_create(name=name)
