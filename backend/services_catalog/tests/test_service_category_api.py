@@ -8,8 +8,8 @@ from platform_settings.services import feature_flag_cache_key
 from services_catalog.permissions import COMBINED_DIRECTORY_FLAG
 from services_catalog.tests.factories import make_service_category
 
-# No autouse cache fixture here: tests/conftest.py clears the cache around
-# every test in this package (flag values and throttle counters alike).
+# No autouse cache fixture here: the project-root backend/conftest.py clears the
+# cache around every test in the suite (flag values and throttle counters alike).
 
 
 @pytest.mark.django_db
