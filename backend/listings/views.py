@@ -12,8 +12,10 @@ from .permissions import ListingWorkflowEnabled
 from .serializers import (
     ListingDraftCreateSerializer,
     ListingDraftUpdateSerializer,
+    ListingVersionSerializer,
     ListingWorkflowSerializer,
 )
+from .submissions import submit_listing_revision, withdraw_listing_revision
 
 
 class ListingDraftCreateView(APIView):
@@ -69,6 +71,45 @@ class ListingDraftUpdateView(APIView):
             actor=request.user,
             expected_version=envelope.validated_data["version"],
             payload=payload,
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingSubmitView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/submit/ (spec §30.1).
+
+    Subclasses the draft view for its permission stack and `get_listing`; the
+    inherited PATCH handler is refused so the route stays POST-only.
+    """
+
+    def patch(self, request, listing_id):
+        self.http_method_not_allowed(request)
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        submit_listing_revision(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingWithdrawView(ListingSubmitView):
+    """POST /api/v1/listings/<id>/withdraw/ (spec §6.2, §36.4)."""
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        withdraw_listing_revision(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
         )
         listing.refresh_from_db()
         return Response(ListingWorkflowSerializer().to_representation(listing))
