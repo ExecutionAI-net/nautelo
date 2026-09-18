@@ -23,6 +23,7 @@ from platform_settings.models import PlatformSetting
 
 @pytest.mark.django_db
 def test_the_entitlement_gate_currently_allows_every_submission():
+    # The `individual_entitlements` flag is off by default, so the gate allows.
     user = make_user()
 
     assert ListingEntitlementGate.can_submit(user=user) is True
@@ -33,10 +34,10 @@ def test_the_entitlement_gate_currently_allows_every_submission():
 def test_consuming_records_a_publication_source_without_touching_a_ledger():
     listing = make_private_listing(owner=make_user())
 
-    source = ListingEntitlementGate.consume(listing=listing, user=listing.owner_user)
+    result = ListingEntitlementGate.consume(listing=listing, user=listing.owner_user)
 
-    assert source == PublicationSource.FREE_ENTITLEMENT
-    assert listing.consumed_entitlement_id is None
+    assert result.publication_source == PublicationSource.FREE_ENTITLEMENT
+    assert result.entitlement is not None
 
 
 @pytest.mark.django_db
@@ -44,11 +45,12 @@ def test_a_broker_submission_records_the_broker_policy_source():
     actor = make_user(email="broker-actor@example.com")
     listing = make_broker_listing(broker=make_broker(), actor=actor)
 
-    source = ListingEntitlementGate.consume(
+    result = ListingEntitlementGate.consume(
         listing=listing, user=make_user(email="broker-submitter@example.com")
     )
 
-    assert source == PublicationSource.BROKER_POLICY
+    assert result.publication_source == PublicationSource.BROKER_POLICY
+    assert result.entitlement is None
 
 
 @pytest.mark.django_db
