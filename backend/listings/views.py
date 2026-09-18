@@ -1,0 +1,37 @@
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from accounts.permissions import IsActiveUser, IsEmailVerified
+
+from .drafts import create_listing_draft
+from .permissions import ListingWorkflowEnabled
+from .serializers import ListingDraftCreateSerializer, ListingWorkflowSerializer
+
+
+class ListingDraftCreateView(APIView):
+    """POST /api/v1/listings/drafts/ — create an authorized draft (spec §30.1)."""
+
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        IsEmailVerified,
+        ListingWorkflowEnabled,
+    ]
+
+    def post(self, request):
+        envelope = ListingDraftCreateSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        payload = {
+            key: value for key, value in request.data.items() if key != "broker_id"
+        }
+        listing = create_listing_draft(
+            actor=request.user,
+            broker_id=envelope.validated_data.get("broker_id"),
+            payload=payload,
+        )
+        return Response(
+            ListingWorkflowSerializer().to_representation(listing),
+            status=status.HTTP_201_CREATED,
+        )
