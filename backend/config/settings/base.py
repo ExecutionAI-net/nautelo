@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "listings",
     "analytics",
     "entitlements",
+    "messaging",
     "platform_settings",
 ]
 
