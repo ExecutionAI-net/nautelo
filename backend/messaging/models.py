@@ -97,11 +97,17 @@ class Conversation(UUIDTimeStampedModel):
                 name="messaging_conversation_exactly_one_context",
             ),
             # One OPEN thread per (initiator, context). Partial, because an
-            # ARCHIVED or BLOCKED thread must not stop a new one - spec 15.3
-            # step 2 says "get or create an OPEN conversation". Three separate
-            # indexes rather than one over all three FKs, because PostgreSQL
-            # treats NULLs as distinct and a single composite index would never
-            # fire on rows where two of the three are NULL.
+            # ARCHIVED thread must not stop a new one - spec 15.3 step 2 says
+            # "get or create an OPEN conversation". Three separate indexes
+            # rather than one over all three FKs, because PostgreSQL treats
+            # NULLs as distinct and a single composite index would never fire
+            # on rows where two of the three are NULL. For the same reason the
+            # `broker__isnull=False` clause below is documentation only.
+            # NOTE: the database cannot tell ARCHIVED from BLOCKED, so it lets
+            # a BLOCKED thread be superseded by a new OPEN one. Spec 36.6 says
+            # blocking "prevents new messages": the service layer (Task 6's
+            # submit / post_reply) MUST refuse to post into or supersede a
+            # BLOCKED thread explicitly.
             models.UniqueConstraint(
                 fields=["initiator", "listing"],
                 condition=models.Q(

@@ -53,7 +53,7 @@ def _messaging_reference_rows(db):
     a migration seed to still be there.
 
     Two rows are at stake: the `unified_inquiries` FeatureFlag that
-    messaging/0002 seeds enabled, and the `staff_moderator`/`staff_admin` Groups
+    messaging/0002 seeds (disabled in production), and the `staff_moderator`/`staff_admin` Groups
     that accounts/0003 seeds. Both are created by RunPython data migrations, and
     a `@pytest.mark.django_db(transaction=True)` test anywhere in the session
     ends with a `flush`, which truncates every table and re-emits `post_migrate`
@@ -68,8 +68,11 @@ def _messaging_reference_rows(db):
     call site writes `Group.objects.get(...)` - a defensive spelling somebody
     adopted for exactly this class of problem.
 
-    `update_or_create`, not `get_or_create`, for the flag: the test's starting
-    state must be ENABLED whatever a previous run left behind. The
+    The production seed is DISABLED (spec 35.2), but tests need the feature on,
+    so this fixture forces it ENABLED for the test's duration - it does NOT
+    verify the seed; test_seed_migration.py exercises the migration itself.
+    `update_or_create`, not `get_or_create`: the test's starting state must be
+    ENABLED whatever a previous run left behind. The
     `unified_inquiries_disabled` fixture below is requested explicitly, so
     pytest runs it AFTER this autouse one and its `False` wins where a test asks
     for it.
@@ -85,8 +88,8 @@ def _messaging_reference_rows(db):
 
 @pytest.fixture
 def unified_inquiries_disabled(db):
-    """Flip spec 35.1's flag off for one test. The flag is seeded ENABLED, so
-    the interesting case is the off one and only it needs a fixture."""
+    """Flip spec 35.1's flag off for one test. Tests run with the flag forced ON by
+    the autouse fixture; this one turns it off for the off-case."""
     set_feature_flag(
         key=UNIFIED_INQUIRIES_FLAG,
         is_enabled=False,

@@ -14,7 +14,6 @@ from listings.tests.factories import make_broker_listing
 from messaging.enums import ConversationStatus, ConversationType
 from messaging.models import Conversation
 from messaging.tests.factories import make_conversation
-from platform_settings.models import FeatureFlag
 from professionals.tests.factories import make_professional
 
 pytestmark = pytest.mark.django_db
@@ -164,12 +163,6 @@ def test_last_message_at_defaults_to_null_and_is_writable():
     conversation.refresh_from_db()
     assert conversation.last_message_at == stamp
 
-
-def test_the_rollout_flag_is_seeded_enabled():
-    flag = FeatureFlag.objects.get(key="unified_inquiries")
-    assert flag.is_enabled is True
-    assert flag.description != ""
-    assert len(flag.description) <= 255
 
 
 # --- Database-level boundary tests -------------------------------------------
@@ -337,3 +330,43 @@ def test_reverse_accessors_exist(ctx):
     assert list(ctx["broker"].conversations.all()) == [conversation]
     assert list(ctx["listing"].conversations.all()) == [conversation]
     assert ctx["professional"].conversations.count() == 0
+
+
+def test_same_initiator_may_have_open_threads_about_two_different_listings(ctx):
+    _make(ctx, LISTING, listing=True)
+    second = make_broker_listing(
+        broker=ctx["broker"], actor=ctx["initiator"], brand=ctx["listing"].brand, model=ctx["listing"].model
+    )
+    thread = make_conversation(
+        initiator=ctx["initiator"], conversation_type=LISTING, listing=second
+    )
+    assert thread.pk is not None
+
+
+def test_same_initiator_may_have_open_threads_about_two_different_professionals(ctx):
+    _make(ctx, PRO_INQ, professional=True)
+    other = make_professional(
+        make_user(email="ctx-pro2@phase6.example"),
+        display_name="Phase6 Ctx Pro Two",
+        slug="phase6-ctx-pro-two",
+    )
+    thread = make_conversation(
+        initiator=ctx["initiator"], conversation_type=PRO_INQ, professional=other
+    )
+    assert thread.pk is not None
+
+
+@pytest.mark.parametrize(
+    ("conversation_type", "flags"),
+    [(LISTING, {"listing": True}), (PRO_INQ, {"professional": True})],
+)
+def test_second_open_thread_refused_until_the_first_is_archived(
+    ctx, conversation_type, flags
+):
+    first = _make(ctx, conversation_type, **flags)
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            _make(ctx, conversation_type, **flags)
+    first.status = ConversationStatus.ARCHIVED
+    first.save(update_fields=["status", "updated_at"])
+    assert _make(ctx, conversation_type, **flags).pk is not None
