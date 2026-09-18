@@ -541,6 +541,71 @@ def test_a_role_change_bundled_with_is_active_cannot_dodge_the_last_admin_guard(
 
 
 @pytest.mark.django_db
+def test_a_non_admin_team_manager_can_leave_the_team_themselves(
+    api, broker_with_admin_and_manager
+):
+    """Self-deactivation is available to everyone, subject only to the last-admin guard.
+
+    A MANAGER holding can_manage_team=True is the ONLY kind of non-ADMIN that can
+    reach this endpoint at all, so if the post-patch rank rule were applied to
+    their own `is_active=False` they could never leave the team - a permanent
+    lock-in, and a worse bug than the one the rank rule exists to prevent.
+    Leaving only ever REDUCES authority, so there is no escalation path here.
+    """
+    broker, _admin, _manager, manager_membership = broker_with_admin_and_manager
+    _authenticate(api, _manager)
+
+    response = api.delete(member_url(broker, manager_membership))
+
+    assert response.status_code == 204
+    manager_membership.refresh_from_db()
+    assert manager_membership.is_active is False
+
+
+@pytest.mark.django_db
+def test_a_non_admin_team_manager_can_deactivate_themselves_by_patch(
+    api, broker_with_admin_and_manager
+):
+    """The same exemption through PATCH, which is a separate view path from DELETE."""
+    broker, _admin, manager, manager_membership = broker_with_admin_and_manager
+    _authenticate(api, manager)
+
+    response = api.patch(
+        member_url(broker, manager_membership), {"is_active": False}, format="json"
+    )
+
+    assert response.status_code == 200
+    manager_membership.refresh_from_db()
+    assert manager_membership.is_active is False
+
+
+@pytest.mark.django_db
+def test_a_self_deactivation_cannot_smuggle_a_role_change(
+    api, broker_with_admin_and_manager
+):
+    """The exemption is for `is_active` ALONE - rule (b) still guards the rest.
+
+    Without this, the self-deactivation carve-out would reopen the self-promotion
+    chain: set is_active=False to dodge the rank check while riding role=ADMIN in
+    on the same request.
+    """
+    broker, _admin, manager, manager_membership = broker_with_admin_and_manager
+    _authenticate(api, manager)
+
+    response = api.patch(
+        member_url(broker, manager_membership),
+        {"is_active": False, "role": BrokerMembershipRole.ADMIN},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["error"]["fields"]["role"] == ["cannot_change_own_broker_role"]
+    manager_membership.refresh_from_db()
+    assert manager_membership.role == BrokerMembershipRole.MANAGER
+    assert manager_membership.is_active is True
+
+
+@pytest.mark.django_db
 def test_the_write_serializers_refuse_to_run_without_an_actor_in_context(broker_with_admin):
     """A missing `actor` must fail loudly rather than skip the rank checks."""
     broker, admin = broker_with_admin

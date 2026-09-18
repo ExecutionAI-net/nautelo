@@ -112,21 +112,45 @@ class BrokerMembershipUpdateSerializer(serializers.ModelSerializer):
         membership = self.instance
         actor = self.context["actor"]
         touching_elevated = any(field in attrs for field in ELEVATED_FIELDS)
+        editing_own_row = membership.user_id == getattr(actor, "pk", None)
 
         # (b) NOBODY edits their own role or capability flags through this endpoint,
         #     whatever their rank. Self-service privilege changes are not a thing.
         #     Deactivating your own membership (is_active=False) stays allowed.
-        if touching_elevated and membership.user_id == getattr(actor, "pk", None):
+        if touching_elevated and editing_own_row:
             raise serializers.ValidationError(
                 {"role": ["cannot_change_own_broker_role"]}
             )
+
+        # Leaving the team is exempt from the rank check below. `is_active=False`
+        # on your OWN row only ever REDUCES authority, so no escalation path runs
+        # through it whatever rank the actor holds. Without this exemption the
+        # post-patch rank rule would read the leaver's own can_manage_team=True
+        # (a PATCH that omits the flag keeps it) and refuse - and since a member
+        # holding can_manage_team is the ONLY kind of non-ADMIN that reaches this
+        # endpoint at all, every such member would be permanently locked into the
+        # team, reachable only by someone else acting on their row.
+        #
+        # The exemption is deliberately narrow, and safe on its own terms rather
+        # than by check ordering: it requires the actor's OWN row, `is_active`
+        # being set to False, and NO elevated field anywhere in the request, so a
+        # role change or flag grant cannot ride in on a self-deactivation. The
+        # last-admin guard below still applies - that is the one case where
+        # leaving is legitimately refused.
+        self_deactivation = (
+            editing_own_row
+            and not touching_elevated
+            and attrs.get("is_active") is False
+        )
 
         # (a) Rank check: only an existing ADMIN of this broker (or a staff admin)
         #     may promote anyone to ADMIN or hand out can_manage_team.
         role = attrs.get("role", membership.role)
         manage_team = attrs.get("can_manage_team", membership.can_manage_team)
-        if _grants_admin_authority(role, manage_team) and not _actor_may_grant_admin(
-            actor, membership.broker
+        if (
+            _grants_admin_authority(role, manage_team)
+            and not self_deactivation
+            and not _actor_may_grant_admin(actor, membership.broker)
         ):
             # Key the error under the field that actually carries the grant.
             field = "role" if role == BrokerMembershipRole.ADMIN else "can_manage_team"
