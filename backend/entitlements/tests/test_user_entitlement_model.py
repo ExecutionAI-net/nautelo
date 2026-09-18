@@ -295,13 +295,40 @@ def test_for_user_isolates_other_users():
 
 
 @pytest.mark.django_db
-def test_admin_ledger_is_read_only():
+def test_admin_ledger_is_read_only_for_every_kind_of_staff_user():
+    """Asserted through what Django actually calls (get_readonly_fields and the
+    permission methods), not through the `readonly_fields` attribute."""
     from django.contrib import admin
+    from django.contrib.auth.models import Group
     from django.test import RequestFactory
 
+    from accounts.enums import StaffGroup, UserRole
+    from accounts.tests.factories import make_user
+
+    superuser = make_user(
+        "ledger-super@example.com", role=UserRole.STAFF, is_staff=True, is_superuser=True
+    )
+    staff_admin = make_user(
+        "ledger-admin@example.com", role=UserRole.STAFF, is_staff=True
+    )
+    staff_admin.groups.add(Group.objects.get(name=StaffGroup.ADMIN))
+    moderator = make_user(
+        "ledger-mod@example.com", role=UserRole.STAFF, is_staff=True
+    )
+
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+
     model_admin = admin.site._registry[UserEntitlement]
-    request = RequestFactory().get("/")
-    row_fields = {f.name for f in UserEntitlement._meta.fields}
-    assert row_fields <= set(model_admin.readonly_fields)
-    assert model_admin.has_add_permission(request) is False
-    assert model_admin.has_delete_permission(request) is False
+    row = make_entitlement(user=make_private_seller())
+    all_fields = {f.name for f in UserEntitlement._meta.fields}
+
+    for actor in (superuser, staff_admin, moderator):
+        request = RequestFactory().get("/")
+        request.user = actor
+        assert all_fields <= set(model_admin.get_readonly_fields(request, row))
+        assert all_fields <= set(model_admin.get_readonly_fields(request, None))
+        assert model_admin.has_add_permission(request) is False
+        assert model_admin.has_change_permission(request) is False
+        assert model_admin.has_change_permission(request, row) is False
+        assert model_admin.has_delete_permission(request) is False
+        assert model_admin.has_delete_permission(request, row) is False
