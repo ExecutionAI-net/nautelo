@@ -1,17 +1,17 @@
 from django.db import migrations
 
 FLAG_KEY = "combined_services_professionals"
-# Deviation from the plan's draft text, which was 328 characters: the column is
+# Deviation from the plan's draft text, which was 356 characters: the column is
 # platform_settings.FeatureFlag.description = CharField(max_length=255), so the
-# original wording raised DataError on migrate. Condensed to 242 characters
-# without dropping any of its meaning — the page-by-page enumeration it listed
-# is the direct consequence of the endpoints 404ing, which the first clause
-# already states.
+# original wording raised DataError on migrate. Condensed to 236 characters
+# while keeping the page-by-page enumeration (/services/professionals/,
+# professional detail, the six /services/<slug>/ SEO pages), since it fits
+# under the limit alongside the rest of the meaning.
 FLAG_DESCRIPTION = (
-    "Spec 35.1 rollout flag. When off, the combined Services / Professionals "
-    "directory read endpoints return 404, so every public page built on them "
-    "404s too and /sitemap.xml goes empty. The static 301 redirects in "
-    "next.config.ts are NOT affected."
+    "Spec 35.1 flag. Off = 404 from the combined Services/Professionals read "
+    "endpoints, so /services/professionals/, professional detail and the six "
+    "/services/<slug>/ SEO pages 404, and /sitemap.xml empties. "
+    "next.config.ts 301s NOT affected."
 )
 
 
