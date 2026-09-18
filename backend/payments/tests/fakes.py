@@ -25,7 +25,12 @@ class FakeStripeGateway:
         self.created.append({"params": params, "idempotency_key": idempotency_key})
         if self.raise_on_create is not None:
             raise self.raise_on_create
-        return CheckoutSessionResult(session_id=self.session_id, url=self.url)
+        n = len(self.created)
+        if n == 1:
+            return CheckoutSessionResult(session_id=self.session_id, url=self.url)
+        return CheckoutSessionResult(
+            session_id=f"{self.session_id}_{n}", url=f"{self.url}_{n}"
+        )
 
     def retrieve_price(self, price_id):
         self.retrieved.append(price_id)
