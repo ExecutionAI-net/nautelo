@@ -335,11 +335,65 @@ def test_every_bot_marker_is_lowercase_and_nonempty():
         assert marker == marker.strip()
 
 
-@pytest.mark.parametrize("marker", BOT_USER_AGENT_MARKERS)
-def test_every_bot_marker_classifies_as_bot_in_any_case(marker):
-    assert classify_user_agent(f"Mozilla/5.0 {marker} 1.0") == UserAgentClass.BOT
-    assert classify_user_agent(f"Mozilla/5.0 {marker.upper()} 1.0") == UserAgentClass.BOT
-    assert classify_user_agent(marker) == UserAgentClass.BOT
+REAL_BOT_USER_AGENTS = [
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+    "Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)",
+    "DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)",
+    "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+    "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+    "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)",
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+    "Twitterbot/1.0",
+    "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)",
+    "TelegramBot (like TwitterBot)",
+    "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)",
+    "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)",
+    "Pinterest/0.2 (+http://www.pinterest.com/bot.html)",
+    "curl/8.7.1",
+    "python-requests/2.32.3",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+]
+
+REAL_HUMAN_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/26.0 Chrome/122.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0",
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile DuckDuckGo/5 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15D100 [Pinterest/iOS]",
+    "Mozilla/5.0 (Linux; Android 11; SM-A515F Build/RP1A.200720.012; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 Pinterest for Android/6.58.4 (SM-A515F; 11)",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 YaBrowser/24.6.0.0 Yowser/2.5 Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; M2101K9AG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 YaApp_Android/24.50 YaSearchBrowser/24.50 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21E236 Instagram 300.0.0.29.110 (iPhone14,5; iOS 17_4; en_US; en-US; scale=3.00; 1170x2532; 500000000)",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21E236 [FBAN/FBIOS;FBAV/450.0.0.38.108;FBBV/564431005;FBDV/iPhone14,5;FBMD/iPhone;FBSN/iOS;FBSV/17.4;FBSS/3;FBID/phone;FBLC/en_US;FBOP/5]",
+    "Mozilla/5.0 (Linux; Android 13; SM-G991B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 11; CUBOT NOTE 21) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+]
+
+
+@pytest.mark.parametrize("user_agent", REAL_BOT_USER_AGENTS)
+def test_real_bot_user_agents_are_bots(user_agent):
+    assert classify_user_agent(user_agent) == UserAgentClass.BOT
+    assert classify_user_agent(user_agent.upper()) == UserAgentClass.BOT
+    assert classify_user_agent(user_agent.lower()) == UserAgentClass.BOT
+
+
+@pytest.mark.parametrize("user_agent", REAL_HUMAN_USER_AGENTS)
+def test_real_human_user_agents_are_human(user_agent):
+    assert classify_user_agent(user_agent) == UserAgentClass.HUMAN
+    assert classify_user_agent(user_agent.upper()) == UserAgentClass.HUMAN
+
+
+def test_no_marker_is_a_token_a_genuine_human_browser_sends():
+    """The substring list must stay free of names that appear in human UAs."""
+    for marker in BOT_USER_AGENT_MARKERS:
+        for user_agent in REAL_HUMAN_USER_AGENTS:
+            assert marker not in user_agent.lower()
 
 
 @pytest.mark.parametrize(
@@ -584,6 +638,13 @@ def test_lookup_uses_the_user_when_present_and_the_hash_otherwise():
 
     assert with_user.lookup() == {"viewer_user": user}
     assert with_hash.lookup() == {"viewer_hash": "abc"}
+
+
+def test_lookup_branch_order_prefers_the_user_when_both_fields_are_set():
+    user = object()
+    both = ViewerIdentity(ViewerType.USER, user, "abc", UserAgentClass.HUMAN)
+
+    assert both.lookup() == {"viewer_user": user}
 
 
 def test_viewer_identity_is_frozen():

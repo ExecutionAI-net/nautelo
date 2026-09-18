@@ -5,6 +5,7 @@ effects beyond one membership lookup. `analytics.recording` performs the write a
 asks no questions of its own; this module answers the questions and writes nothing.
 """
 
+import re
 from dataclasses import dataclass
 
 from accounts.enums import UserRole
@@ -13,36 +14,40 @@ from listings.enums import ListingStatus
 
 from .enums import UserAgentClass, ViewerType
 
-# Spec §36.2: "Known bots are excluded by explicit detection policy; uncertain
-# clients may count and are labeled operational limitation." This tuple IS that
-# explicit policy — lowercase substrings, matched against a lowercased
-# User-Agent. It is deliberately a literal, reviewable list rather than a regex
-# or a third-party database: adding an entry is a code review, and every entry
-# can be explained.
+# Spec §19.1 excludes "known verified bots" and spec §36.2 says "Known bots are
+# excluded by explicit detection policy; uncertain clients may count and are
+# labeled operational limitation." The policy below is deliberately narrow: it
+# names automation by TOKEN, never by a loose substring, because a false BOT
+# verdict silently deletes a genuine human's view. That matters concretely now:
+# people arrive from DuckDuckGo's browser, Pinterest's and Yandex's in-app
+# browsers, and (Phase 20) WhatsApp shares, and their UAs contain "duckduckgo",
+# "pinterest", "yandex" (and Cubot phones contain "bot"). None of those may be
+# read as a bot. A crawler we do not recognise is counted as UNKNOWN/HUMAN;
+# that is the limitation §36.2 accepts.
 #
-# Grouped by why they are here. Keep the groups; append, do not reorder.
+# 1. BOT_USER_AGENT_PATTERN: a crawler that names itself "<name>bot" with a
+#    version or descriptor after it (Googlebot/2.1, bingbot/2.0, DuckDuckBot/1.1,
+#    YandexBot/3.0, Twitterbot/1.0, Slackbot-LinkExpanding, TelegramBot (like ..),
+#    Slackbot 1.0, ".../bot.html"). It does NOT match "CUBOT NOTE 21".
+BOT_USER_AGENT_PATTERN = re.compile(r"bot(?:[/)-]|\s+(?:v?\d|\()|\.html)")
+
+# 2. BOT_USER_AGENT_MARKERS: lowercase substrings that are unambiguous on their
+#    own (each is an automation identity a human browser never sends). Keep the
+#    groups; append, do not reorder. WhatsApp's link-preview crawler is
+#    deliberately absent: its "WhatsApp/2.x" token is not one we could verify
+#    is absent from the in-app browser, and link previews are not counted
+#    anyway (they are not human GETs of the page).
 BOT_USER_AGENT_MARKERS = (
-    # Generic self-identification. The overwhelming majority of well-behaved
-    # crawlers put one of these in their UA.
-    "bot",
+    # Generic self-identification.
     "crawler",
     "spider",
     "scraper",
-    # Search and social fetchers that do not contain "bot".
+    # Fetchers that do not contain "bot".
     "slurp",  # Yahoo
-    "duckduckgo",
     "baiduspider",
-    "yandex",
     "facebookexternalhit",
     "embedly",
     "quora link preview",
-    "whatsapp",
-    "telegrambot",
-    "discordbot",
-    "slackbot",
-    "linkedinbot",
-    "pinterest",
-    "applebot",
     # Headless browsers and automation drivers.
     "headlesschrome",
     "phantomjs",
@@ -62,10 +67,8 @@ BOT_USER_AGENT_MARKERS = (
     "axios",
     "node-fetch",
     "guzzle",
-    # Uptime and monitoring agents. Spec §19.1 excludes "health check"; this
-    # project's own health endpoint is a different URL (common.views
-    # .HealthCheckView at /api/v1/health/) and cannot reach a listing, so this
-    # group covers the only way a monitor reaches one: by being pointed at it.
+    # Uptime and monitoring agents (spec §19.1 "health check"). This project's
+    # own health endpoint is a different URL and cannot reach a listing.
     "pingdom",
     "uptimerobot",
     "statuscake",
@@ -73,7 +76,6 @@ BOT_USER_AGENT_MARKERS = (
     "newrelicpinger",
     "datadog",
     "check_http",
-    "monitoring",
     "nagios",
 )
 
@@ -95,7 +97,9 @@ def classify_user_agent(user_agent: str | None) -> str:
     normalized = (user_agent or "").strip().lower()
     if not normalized:
         return UserAgentClass.UNKNOWN
-    if any(marker in normalized for marker in BOT_USER_AGENT_MARKERS):
+    if BOT_USER_AGENT_PATTERN.search(normalized) or any(
+        marker in normalized for marker in BOT_USER_AGENT_MARKERS
+    ):
         return UserAgentClass.BOT
     return UserAgentClass.HUMAN
 
