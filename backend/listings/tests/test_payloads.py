@@ -174,6 +174,68 @@ def test_a_broker_may_send_finance_fields():
 
 
 @pytest.mark.django_db
+def test_a_finance_down_payment_override_of_100_percent_is_rejected():
+    listing = make_broker_listing(
+        broker=make_broker(), actor=make_user(email=OWNER_EMAIL)
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        validate_revision_payload(
+            {
+                "show_finance_estimate": True,
+                "finance_down_payment_override_percent": "100",
+            },
+            listing=listing,
+            origin=RevisionOrigin.OWNER,
+            for_submission=False,
+        )
+
+    assert _codes(exc_info, "finance_down_payment_override_percent") == [
+        "invalid_percent"
+    ]
+
+
+@pytest.mark.django_db
+def test_a_finance_down_payment_override_of_99_99_percent_is_accepted():
+    listing = make_broker_listing(
+        broker=make_broker(), actor=make_user(email=OWNER_EMAIL)
+    )
+
+    cleaned = validate_revision_payload(
+        {
+            "show_finance_estimate": True,
+            "finance_down_payment_override_percent": "99.99",
+        },
+        listing=listing,
+        origin=RevisionOrigin.OWNER,
+        for_submission=False,
+    )
+
+    assert cleaned["finance_down_payment_override_percent"] == "99.9900"
+
+
+@pytest.mark.django_db
+def test_a_finance_rate_override_of_100_percent_is_still_accepted():
+    # Regression guard: only the down-payment override's ceiling is 99.99%.
+    # The rate override must keep allowing up to 100%.
+    listing = make_broker_listing(
+        broker=make_broker(), actor=make_user(email=OWNER_EMAIL)
+    )
+
+    cleaned = validate_revision_payload(
+        {
+            "show_finance_estimate": True,
+            "finance_rate_override_percent": "100",
+        },
+        listing=listing,
+        origin=RevisionOrigin.OWNER,
+        for_submission=False,
+    )
+
+    assert cleaned["finance_rate_override_percent"] == "100.0000"
+
+
+@pytest.mark.django_db
 def test_allowed_fields_drops_the_locked_names_for_a_published_private_listing():
     listing = _publish(make_private_listing(owner=make_user(email=OWNER_EMAIL)))
 
