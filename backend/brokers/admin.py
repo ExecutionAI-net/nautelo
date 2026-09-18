@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.db import transaction
 
+from audit.models import AuditEvent
+from brokers.forms import BrokerOrganizationAdminForm
 from brokers.models import BrokerMembership, BrokerOrganization
 from brokers.services import set_broker_auto_approval
 
@@ -24,6 +26,7 @@ class BrokerMembershipInline(admin.TabularInline):
 
 @admin.register(BrokerOrganization)
 class BrokerOrganizationAdmin(admin.ModelAdmin):
+    form = BrokerOrganizationAdminForm
     list_display = (
         "name",
         "slug",
@@ -76,8 +79,12 @@ class BrokerOrganizationAdmin(admin.ModelAdmin):
                     self._sync_policy_fields(
                         obj,
                         set_broker_auto_approval(
-                            obj, enabled=requested, actor=request.user
-                        ),
+                            obj,
+                            enabled=requested,
+                            actor=request.user,
+                            reason=form.cleaned_data["auto_approve_reason"],
+                            source=AuditEvent.Source.ADMIN,
+                        ).broker,
                     )
             return
 
@@ -94,7 +101,13 @@ class BrokerOrganizationAdmin(admin.ModelAdmin):
                 if is_staff_admin(request.user):
                     self._sync_policy_fields(
                         obj,
-                        set_broker_auto_approval(obj, enabled=True, actor=request.user),
+                        set_broker_auto_approval(
+                            obj,
+                            enabled=True,
+                            actor=request.user,
+                            reason=form.cleaned_data["auto_approve_reason"],
+                            source=AuditEvent.Source.ADMIN,
+                        ).broker,
                     )
             return
 
