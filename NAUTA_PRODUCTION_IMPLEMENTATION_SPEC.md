@@ -2062,6 +2062,7 @@ Exact URL naming may follow an established API convention, but semantics, author
 - Mutations return updated resource/version.
 - Every error includes stable machine code, localized/user-safe message and field map where relevant.
 - Include/request `X-Request-ID`; echo it in error responses and logs.
+- `fields` is keyed by field name (or `non_field_errors`); each entry is a list of `{"message": string, "code": string}`, so callers get a stable per-field code alongside the human message, not just at the top level.
 
 Example error:
 
@@ -2074,6 +2075,21 @@ Example error:
     "action": {
       "type": "PURCHASE",
       "product_code": "INDIVIDUAL_LISTING_RIGHT"
+    },
+    "request_id": "..."
+  }
+}
+```
+
+Example validation error with field-level detail:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The submitted data is invalid.",
+    "fields": {
+      "token": [{"message": "Verification link expired.", "code": "invalid_verification_token"}]
     },
     "request_id": "..."
   }

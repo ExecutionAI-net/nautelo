@@ -136,7 +136,10 @@ def test_an_incomplete_draft_cannot_be_submitted(api, workflow_enabled):
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["price"] == [
-        "This field is required before the listing can be submitted."
+        {
+            "message": "This field is required before the listing can be submitted.",
+            "code": "required_for_submission",
+        }
     ]
     listing.refresh_from_db()
     assert listing.status == ListingStatus.DRAFT

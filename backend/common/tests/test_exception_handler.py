@@ -6,7 +6,7 @@ from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import NotAuthenticated, PermissionDenied, ValidationError
+from rest_framework.exceptions import ErrorDetail, NotAuthenticated, PermissionDenied, ValidationError
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
@@ -56,7 +56,29 @@ def test_validation_error_maps_fields():
     response = nauta_exception_handler(exc, _context())
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.data["error"]["code"] == "validation_error"
-    assert response.data["error"]["fields"] == {"email": ["This field is required."]}
+    assert response.data["error"]["fields"] == {
+        "email": [{"message": "This field is required.", "code": "invalid"}]
+    }
+
+
+def test_field_error_code_survives_into_the_envelope():
+    """ErrorDetail is a str subclass carrying `.code`; a bare `str(item)` on it
+    (the previous behavior) silently threw the code away, breaking spec §30.2's
+    promise of "a stable machine code" for every field-level error, not just the
+    top-level one. Each `fields` entry must now carry both the message and the
+    code, not just the message.
+    """
+    exc = ValidationError(
+        {
+            "token": [
+                ErrorDetail("Verification link expired.", code="invalid_verification_token")
+            ]
+        }
+    )
+    response = nauta_exception_handler(exc, _context())
+    assert response.data["error"]["fields"] == {
+        "token": [{"message": "Verification link expired.", "code": "invalid_verification_token"}]
+    }
 
 
 def test_dict_keyed_non_field_errors_are_preserved_under_the_validation_error_code():
@@ -65,21 +87,26 @@ def test_dict_keyed_non_field_errors_are_preserved_under_the_validation_error_co
     exc = ValidationError({"non_field_errors": ["Bad credentials."]})
     response = nauta_exception_handler(exc, _context())
     assert response.data["error"]["code"] == "validation_error"
-    assert response.data["error"]["fields"] == {"non_field_errors": ["Bad credentials."]}
+    assert response.data["error"]["fields"] == {
+        "non_field_errors": [{"message": "Bad credentials.", "code": "invalid"}]
+    }
 
 
 def test_string_validation_error_is_mapped_to_non_field_errors():
     # `raise ValidationError("...")` inside a validate() method must not be swallowed.
     response = nauta_exception_handler(ValidationError("Passwords do not match."), _context())
     assert response.data["error"]["fields"] == {
-        "non_field_errors": ["Passwords do not match."]
+        "non_field_errors": [{"message": "Passwords do not match.", "code": "invalid"}]
     }
 
 
 def test_list_validation_error_is_mapped_to_non_field_errors():
     response = nauta_exception_handler(ValidationError(["First problem.", "Second."]), _context())
     assert response.data["error"]["fields"] == {
-        "non_field_errors": ["First problem.", "Second."]
+        "non_field_errors": [
+            {"message": "First problem.", "code": "invalid"},
+            {"message": "Second.", "code": "invalid"},
+        ]
     }
 
 

@@ -13,17 +13,22 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+export interface ApiFieldError {
+  message: string;
+  code: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  readonly fields: Record<string, string[]>;
+  readonly fields: Record<string, ApiFieldError[]>;
   readonly requestId: string;
 
   constructor(
     status: number,
     code: string,
     message: string,
-    fields: Record<string, string[]> = {},
+    fields: Record<string, ApiFieldError[]> = {},
     requestId = "",
   ) {
     super(message);
@@ -39,7 +44,7 @@ interface ErrorEnvelope {
   error?: {
     code?: string;
     message?: string;
-    fields?: Record<string, string[]>;
+    fields?: Record<string, ApiFieldError[]>;
     request_id?: string;
   };
 }

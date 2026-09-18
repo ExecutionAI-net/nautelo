@@ -13,8 +13,23 @@ def _as_list(value):
     return list(value) if isinstance(value, (list, tuple)) else [value]
 
 
+def _field_error(item):
+    """Render one field error as `{"message": str, "code": str}`.
+
+    DRF's `ErrorDetail` is a `str` subclass carrying a `.code` (e.g.
+    `"required"`, `"invalid_verification_token"`). A bare `str(item)` - the
+    previous behavior - returns a plain string and silently discards `.code`,
+    breaking spec 30.2's promise of "a stable machine code" for every
+    field-level error. `.code` defaults to `"invalid"` for items that never had
+    an explicit one (e.g. `ValidationError({"email": ["some message"]})`),
+    matching DRF's own default for untyped errors.
+    """
+    return {"message": str(item), "code": str(getattr(item, "code", "") or "invalid")}
+
+
 def _field_map(detail):
-    """Normalize DRF's three ValidationError detail shapes into {field: [str, ...]}.
+    """Normalize DRF's three ValidationError detail shapes into
+    `{field: [{"message": str, "code": str}, ...]}`.
 
     DRF accepts all three of `ValidationError({"email": [...]})`,
     `ValidationError("some message")` and `ValidationError(["a", "b"])`, and all
@@ -27,10 +42,10 @@ def _field_map(detail):
         return {}
     if isinstance(detail, dict):
         return {
-            str(key): [str(item) for item in _as_list(value)]
+            str(key): [_field_error(item) for item in _as_list(value)]
             for key, value in detail.items()
         }
-    return {NON_FIELD_ERRORS_KEY: [str(item) for item in _as_list(detail)]}
+    return {NON_FIELD_ERRORS_KEY: [_field_error(item) for item in _as_list(detail)]}
 
 
 def _safe_message(detail, fallback):

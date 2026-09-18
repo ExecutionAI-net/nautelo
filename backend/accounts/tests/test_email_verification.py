@@ -43,7 +43,9 @@ def test_a_token_can_only_be_used_once(api):
     response = api.post(VERIFY_URL, {"token": raw}, format="json")
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["token"] == ["invalid_verification_token"]
+    assert response.data["error"]["fields"]["token"] == [
+        {"message": "invalid_verification_token", "code": "invalid"}
+    ]
 
 
 @pytest.mark.django_db
