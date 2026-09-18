@@ -23,10 +23,10 @@ def test_category_has_a_uuid_pk_and_sane_defaults():
 
 @pytest.mark.django_db
 def test_slug_is_unique():
-    make_service_category(slug="legal")
+    make_service_category(slug="test-unique")
 
     with pytest.raises(IntegrityError), transaction.atomic():
-        make_service_category(slug="legal", name_en="Legal again")
+        make_service_category(slug="test-unique", name_en="Test unique again")
 
 
 @pytest.mark.django_db
@@ -49,12 +49,13 @@ def test_default_ordering_is_display_order_then_english_name():
     make_service_category(slug="beta", name_en="Beta", display_order=2)
     make_service_category(slug="alpha", name_en="Alpha", display_order=1)
 
-    assert [c.slug for c in ServiceCategory.objects.all()] == ["alpha", "zeta", "beta"]
+    test_categories = ServiceCategory.objects.filter(slug__in=["zeta", "beta", "alpha"])
+    assert [c.slug for c in test_categories] == ["alpha", "zeta", "beta"]
 
 
 @pytest.mark.django_db
 def test_absolute_url_is_the_seo_service_route():
-    assert make_service_category(slug="insurance").get_absolute_url() == "/services/insurance/"
+    assert make_service_category(slug="test-service").get_absolute_url() == "/services/test-service/"
 
 
 @pytest.mark.django_db
