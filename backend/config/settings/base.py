@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 from kombu import Queue
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -104,8 +105,16 @@ CELERY_TASK_QUEUES = (
     Queue("maintenance", routing_key="maintenance"),
 )
 CELERY_TASK_ROUTES = {
+    "common.tasks.flush_expired_tokens": {"queue": "maintenance"},
     "common.tasks.*": {"queue": "default"},
     "accounts.tasks.*": {"queue": "notifications"},
+}
+CELERY_BEAT_SCHEDULE = {
+    "flush-expired-jwt-tokens": {
+        "task": "common.tasks.flush_expired_tokens",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "maintenance"},
+    },
 }
 
 REST_FRAMEWORK = {
