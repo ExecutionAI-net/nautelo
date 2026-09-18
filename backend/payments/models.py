@@ -7,12 +7,20 @@ brand, a cardholder name or a receipt body here must reject the change.
 """
 
 from django.conf import settings
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
-from common.models import UUIDTimeStampedModel
+from common.models import UUIDModel, UUIDTimeStampedModel
 
-from .enums import PRODUCT_CODES, ProductCode
+from .enums import (
+    PAID_STATES,
+    PRODUCT_CODES,
+    PaymentOrderStatus,
+    ProductCode,
+    WebhookResult,
+)
 
 
 class MarketplaceProductQuerySet(models.QuerySet):
@@ -102,3 +110,163 @@ class MarketplaceProduct(UUIDTimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.code} ({'active' if self.is_active else 'inactive'})"
+
+
+class PaymentOrderQuerySet(models.QuerySet):
+    def for_user(self, user):
+        return self.filter(user=user)
+
+    def paid(self):
+        return self.filter(status__in=sorted(PAID_STATES))
+
+    def fulfilled(self):
+        return self.filter(status=PaymentOrderStatus.FULFILLED)
+
+    def needing_staff_review(self):
+        """Spec §23.4: a refund or dispute against a consumed right does not
+        unpublish anything; it "marks a payment case for staff review"."""
+        return self.filter(metadata__staff_review_required=True)
+
+
+class PaymentOrder(UUIDTimeStampedModel):
+    """Spec §11.9 and §6.4.
+
+    Created BEFORE the Stripe session (spec §23.2), which is why every Stripe
+    identifier is blank-able and why the uniqueness on them is partial.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_orders"
+    )
+    product = models.ForeignKey(
+        MarketplaceProduct, on_delete=models.PROTECT, related_name="orders"
+    )
+    # Beyond spec §11.9's field list — see the plan's ruling. Required because
+    # LISTING_MEDIA_UPGRADE binds to one listing (spec §23.1) and fulfilment
+    # happens in a different process minutes later.
+    listing = models.ForeignKey(
+        "listings.BoatListing",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payment_orders",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=PaymentOrderStatus.choices,
+        default=PaymentOrderStatus.CREATED,
+    )
+    stripe_checkout_session_id = models.CharField(max_length=128, blank=True, default="")
+    stripe_payment_intent_id = models.CharField(max_length=128, blank=True, default="")
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="EUR")
+    # Spec §23.2: "Use an idempotency key derived from order UUID and
+    # operation." Sent to STRIPE; deterministic, so a retried session creation
+    # returns Stripe's same session instead of charging twice.
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    # Spec §30.3's caller-supplied `Idempotency-Key` header. A DIFFERENT thing
+    # from the field above; see the plan's ruling.
+    client_idempotency_key = models.CharField(max_length=255, blank=True, default="")
+    fulfilled_entitlement = models.ForeignKey(
+        "entitlements.UserEntitlement",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="fulfilled_orders",
+    )
+    metadata = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    fulfilled_at = models.DateTimeField(null=True, blank=True)
+
+    objects = PaymentOrderQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["product", "status"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(amount__gt=0), name="payments_order_amount_is_positive"
+            ),
+            models.CheckConstraint(
+                condition=Q(currency__regex=r"^[A-Z]{3}$"),
+                name="payments_order_currency_is_iso4217",
+            ),
+            # Spec §6.4: "PAID means Stripe has confirmed payment."
+            models.CheckConstraint(
+                condition=~Q(status__in=sorted(PAID_STATES)) | Q(paid_at__isnull=False),
+                name="payments_order_paid_requires_paid_at",
+            ),
+            # Spec §6.4: "FULFILLED means an entitlement was created exactly
+            # once." A FULFILLED row without one is that sentence being false.
+            models.CheckConstraint(
+                condition=~Q(status=PaymentOrderStatus.FULFILLED)
+                | (
+                    Q(fulfilled_entitlement__isnull=False)
+                    & Q(fulfilled_at__isnull=False)
+                ),
+                name="payments_order_fulfilled_requires_entitlement_and_stamp",
+            ),
+            # Partial, because every order is blank on these until Stripe
+            # answers: a plain unique index would let only ONE unpaid order
+            # exist in the entire system.
+            models.UniqueConstraint(
+                fields=["stripe_checkout_session_id"],
+                condition=~Q(stripe_checkout_session_id=""),
+                name="payments_order_one_row_per_checkout_session",
+            ),
+            models.UniqueConstraint(
+                fields=["stripe_payment_intent_id"],
+                condition=~Q(stripe_payment_intent_id=""),
+                name="payments_order_one_row_per_payment_intent",
+            ),
+            # Spec §30.3's replay store, scoped to the user so one customer's
+            # chosen key cannot deny service to another's.
+            models.UniqueConstraint(
+                fields=["user", "client_idempotency_key"],
+                condition=~Q(client_idempotency_key=""),
+                name="payments_order_one_row_per_client_idempotency_key",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.pk} {self.product_id} {self.status}"
+
+
+class ProcessedWebhookEvent(UUIDModel):
+    """Spec §11.9 and §23.3 step 3.
+
+    Append-only, so it inherits UUIDModel rather than UUIDTimeStampedModel: an
+    `updated_at` would imply the row may legitimately change (the audit.AuditEvent
+    precedent). `result` IS updated once, inside the same transaction that
+    inserted the row and before any commit, which is why there is no second
+    visible version of the row to timestamp.
+
+    `payload_checksum` is a SHA-256 of the RAW BODY. It exists so an operator
+    can prove two deliveries carried identical bytes; it is never used to make a
+    decision, because `stripe_event_id` already is the decision.
+    """
+
+    stripe_event_id = models.CharField(max_length=128, unique=True)
+    event_type = models.CharField(max_length=128)
+    payload_checksum = models.CharField(max_length=64)
+    processed_at = models.DateTimeField(default=timezone.now)
+    result = models.CharField(
+        max_length=24, choices=WebhookResult.choices, default=WebhookResult.RECEIVED
+    )
+
+    class Meta:
+        ordering = ["-processed_at"]
+        indexes = [models.Index(fields=["event_type", "-processed_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(result__in=sorted(WebhookResult.values)),
+                name="payments_webhook_result_is_known",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.stripe_event_id} {self.event_type} {self.result}"
