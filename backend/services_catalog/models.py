@@ -87,3 +87,58 @@ class ProfessionalService(UUIDTimeStampedModel):
 
     def __str__(self):
         return f"{self.professional.display_name} — {self.title_en}"
+
+
+class LegacyDirectoryMapping(UUIDTimeStampedModel):
+    """Spec §14.3 step 1: the mapping table from old service/provider records to
+    canonical professional/category records.
+
+    It is deliberately empty in every environment today — the prior NAUTA
+    artefact was a set of static HTML mockups with no database, so there are no
+    legacy records to map (see the plan's Scope rulings). The table exists
+    because spec §14.3 and §32.1 step 7 require the mechanism, and because
+    spec §4.3's /professionals/profile/?id=<legacy> redirect needs a place to
+    look up what "resolvable" means.
+    """
+
+    class LegacyKind(models.TextChoices):
+        SERVICE = "SERVICE", "Legacy service record"
+        PROVIDER = "PROVIDER", "Legacy provider record"
+
+    class TargetType(models.TextChoices):
+        SERVICE_CATEGORY = "SERVICE_CATEGORY", "Service category"
+        PROFESSIONAL_PROFILE = "PROFESSIONAL_PROFILE", "Professional profile"
+
+    class Resolution(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        MAPPED = "MAPPED", "Mapped"
+        DUPLICATE_REVIEW = "DUPLICATE_REVIEW", "Duplicate — needs human review"
+        UNRESOLVED = "UNRESOLVED", "Unresolved"
+
+    legacy_kind = models.CharField(max_length=16, choices=LegacyKind.choices)
+    legacy_identifier = models.CharField(max_length=190)
+    legacy_slug = models.CharField(max_length=190, blank=True)
+    normalized_name = models.CharField(max_length=190, blank=True)
+    normalized_address = models.CharField(max_length=255, blank=True)
+    target_type = models.CharField(max_length=32, choices=TargetType.choices, blank=True)
+    target_id = models.UUIDField(null=True, blank=True)
+    resolution = models.CharField(
+        max_length=20, choices=Resolution.choices, default=Resolution.PENDING
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("legacy_kind", "legacy_identifier")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["legacy_kind", "legacy_identifier"],
+                name="unique_legacy_kind_identifier",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["legacy_kind", "legacy_slug"]),
+            models.Index(fields=["resolution"]),
+        ]
+
+    def __str__(self):
+        return f"{self.legacy_kind}:{self.legacy_identifier} -> {self.resolution}"
