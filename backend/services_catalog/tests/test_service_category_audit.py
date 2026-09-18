@@ -22,7 +22,7 @@ def staff_user(db):
 
 @pytest.mark.django_db
 def test_saving_a_new_category_records_a_created_event(staff_user):
-    category = ServiceCategory(slug="insurance", name_en="Insurance")
+    category = ServiceCategory(slug="test-insurance", name_en="Test Insurance")
 
     save_service_category(category=category, actor=staff_user)
 
@@ -32,19 +32,19 @@ def test_saving_a_new_category_records_a_created_event(staff_user):
     assert event.actor_user == staff_user
     assert event.source == AuditEvent.Source.ADMIN
     assert event.before is None
-    assert event.after["slug"] == "insurance"
+    assert event.after["slug"] == "test-insurance"
 
 
 @pytest.mark.django_db
 def test_updating_a_category_records_before_and_after(staff_user):
-    category = make_service_category(slug="legal", name_en="Legal")
+    category = make_service_category(slug="test-legal", name_en="Test Legal")
     category.name_en = "Legal services"
     category.is_active = False
 
     save_service_category(category=category, actor=staff_user)
 
     event = AuditEvent.objects.get(action="service_category.updated")
-    assert event.before["name_en"] == "Legal"
+    assert event.before["name_en"] == "Test Legal"
     assert event.before["is_active"] is True
     assert event.after["name_en"] == "Legal services"
     assert event.after["is_active"] is False
@@ -52,14 +52,14 @@ def test_updating_a_category_records_before_and_after(staff_user):
 
 @pytest.mark.django_db
 def test_deleting_a_category_records_a_deleted_event(staff_user):
-    category = make_service_category(slug="transport-delivery", name_en="Transport")
+    category = make_service_category(slug="test-transport", name_en="Test Transport")
     pk = str(category.pk)
 
     delete_service_category(category=category, actor=staff_user)
 
     event = AuditEvent.objects.get(action="service_category.deleted")
     assert event.target_id == pk
-    assert event.before["slug"] == "transport-delivery"
+    assert event.before["slug"] == "test-transport"
     assert event.after is None
     assert not ServiceCategory.objects.filter(pk=pk).exists()
 
@@ -80,11 +80,11 @@ def test_admin_save_model_delegates_to_the_audited_service(staff_user):
     admin = ServiceCategoryAdmin(ServiceCategory, AdminSite())
     request = RequestFactory().post("/admin/services_catalog/servicecategory/add/")
     request.user = staff_user
-    category = ServiceCategory(slug="nautical-marketing", name_en="Nautical marketing")
+    category = ServiceCategory(slug="test-nautical", name_en="Test Nautical")
 
     admin.save_model(request, category, form=None, change=False)
 
-    assert ServiceCategory.objects.filter(slug="nautical-marketing").exists()
+    assert ServiceCategory.objects.filter(slug="test-nautical").exists()
     assert AuditEvent.objects.filter(action="service_category.created").count() == 1
 
 
@@ -93,11 +93,11 @@ def test_admin_delete_model_delegates_to_the_audited_service(staff_user):
     admin = ServiceCategoryAdmin(ServiceCategory, AdminSite())
     request = RequestFactory().post("/admin/services_catalog/servicecategory/1/delete/")
     request.user = staff_user
-    category = make_service_category(slug="engines-maintenance", name_en="Engines")
+    category = make_service_category(slug="test-engines", name_en="Test Engines")
 
     admin.delete_model(request, category)
 
-    assert not ServiceCategory.objects.filter(slug="engines-maintenance").exists()
+    assert not ServiceCategory.objects.filter(slug="test-engines").exists()
     assert AuditEvent.objects.filter(action="service_category.deleted").count() == 1
 
 

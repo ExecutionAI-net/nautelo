@@ -3,8 +3,8 @@ from services_catalog.models import ServiceCategory
 
 def make_service_category(
     *,
-    slug="legal",
-    name_en="Legal",
+    slug="generic-service",
+    name_en="Generic Service",
     display_order=0,
     is_active=True,
     has_seo_page=False,
