@@ -19,7 +19,6 @@ from payments.enums import (
     can_transition_payment,
 )
 
-S = PaymentOrderStatus
 
 ALLOWED_EDGES = {
     ("CREATED", "CHECKOUT_OPEN"),
