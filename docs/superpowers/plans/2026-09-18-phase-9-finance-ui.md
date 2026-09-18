@@ -22,6 +22,8 @@
 
 Per the standing project convention recorded in `ACTIVITY.md`: each task is implemented on its own branch off the current tip of `dev` (`git checkout -b phase9-task-N-<slug> dev`), run through `subagent-driven-development`'s implementer → task-reviewer → fix-loop cycle, opened as a PR (`gh pr create`), and merged by the controller only when CI is green and the branch is cleanly mergeable. Tasks run strictly sequentially — never two branches in flight at once — and each new task branches from the just-merged `dev` tip.
 
+**Prerequisite gate, before Task 1 starts:** confirm the standalone `fix-finance-percent-ceiling` fix (Task 1's `_clean_percent` down-payment ceiling correction) is merged into `dev` — check that `MAX_DOWN_PAYMENT_OVERRIDE_PERCENT` (or the equivalent named constant) exists in `backend/listings/payloads.py`. If it has NOT merged yet, Phase 9 is still safe to execute: Task 3's read-time guard keeps every public surface correct regardless (an out-of-range stored value falls back to the GLOBAL configuration value, no crash), and Phase 8's `FinanceQuoteRequestSerializer` already caps the REQUESTED path at 99.99% independently — but the WRITE path would still silently accept a 100% down payment override until the prerequisite lands, so do not drop it from the backlog if this gate finds it missing.
+
 ---
 
 ## Global Constraints
