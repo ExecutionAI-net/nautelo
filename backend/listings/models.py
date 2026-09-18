@@ -74,9 +74,18 @@ class BoatListing(UUIDTimeStampedModel):
     publication_source = models.CharField(
         max_length=16, choices=PublicationSource.choices, blank=True, default=""
     )
-    # Loose reference to Phase 13's UserEntitlement (spec §11.9), which does not
-    # exist yet. Converted to a real ForeignKey by Phase 13.
-    consumed_entitlement_id = models.UUIDField(null=True, blank=True)
+    # Spec §11.9's ledger row this listing's publication was paid for with.
+    # PROTECT, not SET_NULL: the ledger is the only record of *why* this listing
+    # was allowed to publish, and spec §2.4 makes that auditable forever. Set
+    # exactly once, inside listings.submissions.submit_listing_revision's
+    # transaction (spec §22.4).
+    consumed_entitlement = models.ForeignKey(
+        "entitlements.UserEntitlement",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
     published_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     current_public_snapshot = models.ForeignKey(

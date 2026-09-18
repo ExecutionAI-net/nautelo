@@ -250,3 +250,35 @@ def test_clean_rejects_an_unsupported_currency():
         listing.clean()
 
     assert "currency" in exc_info.value.message_dict
+
+
+def test_consumed_entitlement_is_a_real_foreign_key_to_the_ledger():
+    """Phase 11 contract rule 6: Phase 13 converts this loose UUIDField."""
+    from django.db import models as django_models
+
+    from entitlements.models import UserEntitlement
+
+    field = BoatListing._meta.get_field("consumed_entitlement")
+    assert isinstance(field, django_models.ForeignKey)
+    assert field.related_model is UserEntitlement
+    assert field.null is True
+    assert field.remote_field.on_delete is django_models.PROTECT
+    # The raw-id attribute name is unchanged, so every existing reader keeps
+    # working.
+    assert field.attname == "consumed_entitlement_id"
+
+
+@pytest.mark.django_db
+def test_a_consumed_entitlement_cannot_be_deleted_out_from_under_its_listing():
+    from django.db.models import ProtectedError
+
+    from entitlements.tests.factories import make_entitlement, make_private_seller
+
+    owner = make_private_seller("fk-owner@example.com")
+    listing = make_private_listing(owner=owner)
+    right = make_entitlement(user=owner, listing=listing)
+    listing.consumed_entitlement = right
+    listing.save(update_fields=["consumed_entitlement_id", "updated_at"])
+
+    with pytest.raises(ProtectedError):
+        right.delete()
