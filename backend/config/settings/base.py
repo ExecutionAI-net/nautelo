@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "accounts",
     "brokers",
     "professionals",
+    "services_catalog",
     "audit",
     "finance",
     "taxonomy",
@@ -137,6 +138,7 @@ REST_FRAMEWORK = {
         # stricter `auth` bucket would let a handful of reloads lock real people out
         # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
         "auth-refresh": "30/min",
+        "services_directory": "60/min",
     },
     "EXCEPTION_HANDLER": "common.exceptions.nauta_exception_handler",
 }
