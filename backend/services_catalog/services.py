@@ -3,6 +3,7 @@ from django.db import transaction
 
 from audit.models import AuditEvent
 from audit.services import record_audit_event
+from common.text import normalize_comparison_text
 
 # Spec §0: supported interface languages are exactly English, Italian and Spanish.
 SUPPORTED_LOCALES = ("en", "it", "es")
@@ -142,3 +143,13 @@ def delete_service_category(
         after=None,
         request_id=request_id,
     )
+
+
+def legacy_dedup_key(name, address) -> tuple:
+    """Spec §14.3 step 2's "normalized name/address" pair.
+
+    Returned as a tuple so callers can compare the two halves independently: a
+    match on both is a merge, a match on the name alone is a review item, never
+    an automatic merge.
+    """
+    return (normalize_comparison_text(name), normalize_comparison_text(address))
