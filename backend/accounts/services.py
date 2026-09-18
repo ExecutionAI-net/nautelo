@@ -15,6 +15,13 @@ from accounts.tasks import send_email_verification_email
 
 EMAIL_VERIFICATION_TOKEN_TTL = timedelta(hours=24)
 
+# How long a just-consumed token keeps re-affirming success on replay. Wide
+# enough to cover a link-scanner prefetch, a double-click, or a browser
+# retry, which all land within moments of the original request; narrow
+# enough that an old link sitting in mail archives or browser history can't
+# be replayed indefinitely to pull the account's PII out of the response.
+EMAIL_VERIFICATION_REPLAY_WINDOW = timedelta(seconds=60)
+
 
 def hash_verification_token(raw_token: str) -> str:
     return hmac.new(
@@ -35,14 +42,32 @@ def issue_email_verification_token(user: User) -> str:
 
 @transaction.atomic
 def consume_email_verification_token(raw_token: str) -> User:
-    """Single-use consumption under a row lock (spec 2.3)."""
+    """Single-use consumption under a row lock (spec 2.3).
+
+    A token that resolves by hash but was already used within
+    EMAIL_VERIFICATION_REPLAY_WINDOW is replayed, not rejected: a mail client
+    or corporate link-scanner prefetching the link, a double-click, or a
+    browser retry all resend the exact same token moments after it already
+    verified the account. Erroring on that replay would tell a
+    genuinely-verified user their verification failed, so it re-affirms
+    success instead. Outside that window - or for a token that never existed
+    for this hash, or one that expired before ever being used - it's a real
+    failure, same as before.
+    """
     token = (
         EmailVerificationToken.objects.select_for_update()
         .filter(token_hash=hash_verification_token(raw_token or ""))
         .first()
     )
     now = timezone.now()
-    if token is None or token.used_at is not None or token.expires_at <= now:
+    if token is None:
+        raise ValidationError({"token": ["invalid_verification_token"]})
+    if token.used_at is not None:
+        if now - token.used_at <= EMAIL_VERIFICATION_REPLAY_WINDOW:
+            return User.objects.get(pk=token.user_id)
+        raise ValidationError({"token": ["invalid_verification_token"]})
+
+    if token.expires_at <= now:
         raise ValidationError({"token": ["invalid_verification_token"]})
 
     token.used_at = now
