@@ -138,3 +138,64 @@ class StaffRevisionSerializer(serializers.Serializer):
                 ),
             },
         }
+
+
+class PublicListingSerializer(serializers.Serializer):
+    """Public representation, built ENTIRELY from the approved snapshot.
+
+    Spec §11.4: "Public pages read from `current_public_snapshot`, not mutable
+    draft fields." The only two values read off the listing row itself are
+    facts *about the publication*, not about the content: `seller_type` (spec
+    §29.1's private/broker badge, immutable for the owner per §20.3) and the
+    publication timestamps. Everything a seller can edit comes from the
+    snapshot, so a pending edit cannot reach this response.
+
+    Deliberately absent: the `finance` block (spec §18.5 — Phase 9) and CDN media
+    URLs (spec §24 — Phase 15). Those phases extend this serializer; they do not
+    add a second public representation (spec §29.1).
+
+    This serializer must only ever be fed rows from
+    listings.views.published_listings_queryset(): it reads
+    `current_public_snapshot` unconditionally and has no status gate of its own.
+    """
+
+    def to_representation(self, listing):
+        snapshot = listing.current_public_snapshot
+        return {
+            "id": str(listing.pk),
+            "seller_type": listing.seller_type,
+            "snapshot_version": snapshot.version,
+            "published_at": listing.published_at,
+            "expires_at": listing.expires_at,
+            "brand_name": snapshot.brand_name_snapshot,
+            "model_name": snapshot.model_name_snapshot,
+            "custom_model_name": snapshot.custom_model_name_snapshot,
+            "manufacture_year": snapshot.manufacture_year_snapshot,
+            # Spec §37: EN/IT/ES side by side. No server-side locale negotiation
+            # is defined anywhere in the spec and the client already knows the
+            # viewer's locale (User.locale, spec §11.1), so the client picks.
+            "title": {
+                "en": snapshot.title_en,
+                "it": snapshot.title_it,
+                "es": snapshot.title_es,
+            },
+            "description": {
+                "en": snapshot.description_en,
+                "it": snapshot.description_it,
+                "es": snapshot.description_es,
+            },
+            "specifications": snapshot.specifications,
+            "specifications_schema_version": snapshot.specifications_schema_version,
+            "location": {
+                "country": snapshot.location_country,
+                "region": snapshot.location_region,
+                "city": snapshot.location_city,
+            },
+            # Spec §30.2: money as decimal strings.
+            "price": {
+                "amount": f"{snapshot.price:f}",
+                "currency": snapshot.currency,
+            },
+            "media": snapshot.media_manifest,
+            "view_count": listing.view_count_cached,
+        }
