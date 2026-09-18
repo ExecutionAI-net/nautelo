@@ -155,7 +155,13 @@ def test_a_private_listing_is_refused(api, estimates_on):
         role=UserRole.PRIVATE_SELLER,
         verified=True,
     )
-    listing = _publish(make_private_listing(owner=owner, price=Decimal("459000.00")))
+    # The snapshot's toggle is ON (only the listing row has a CHECK tying the
+    # flag to brokers), so seller type is the sole deciding reason here.
+    listing = _publish(
+        make_private_listing(owner=owner, price=Decimal("459000.00")),
+        show_finance_estimate=True,
+    )
+    assert listing.current_public_snapshot.show_finance_estimate is True
 
     response = api.post(QUOTE_URL, {"listing_id": str(listing.pk)}, format="json")
 
@@ -589,3 +595,59 @@ def test_the_quote_endpoint_is_rate_limited_and_keys_hold_no_raw_ip(
     keys = [k.decode() for k in client.scan_iter(match="*throttle_finance_quote*")]
     assert keys, "expected a throttle cache key for the finance_quote scope"
     assert not any("127.0.0.1" in key for key in keys)
+
+
+def _private_published_listing():
+    owner = make_user(
+        email=f"seller-{next(_names)}@example.com",
+        role=UserRole.PRIVATE_SELLER,
+        verified=True,
+    )
+    return _publish(
+        make_private_listing(owner=owner, price=Decimal("459000.00")),
+        show_finance_estimate=True,
+    )
+
+
+def _ineligible(reason):
+    if reason == "private_seller":
+        return _private_published_listing()
+    if reason == "snapshot_toggle_off":
+        return _publish(_broker_listing(show_finance_estimate=False))
+    if reason == "non_eur_currency":
+        return _publish(_broker_listing(show_finance_estimate=True), currency="USD")
+    listing = _publish(_broker_listing(show_finance_estimate=True))
+    if reason == "finance_disabled":
+        update_setting(key="finance.enabled", value=False, actor=None)
+    elif reason == "estimates_flag_off":
+        set_feature_flag(key="finance_estimates", is_enabled=False, actor=None)
+    return listing
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "private_seller",
+        "snapshot_toggle_off",
+        "non_eur_currency",
+        "finance_disabled",
+        "estimates_flag_off",
+    ],
+)
+def test_a_wrong_price_on_an_ineligible_listing_is_not_a_price_oracle(
+    api, estimates_on, reason
+):
+    """Eligibility is decided before the price is compared: a viewer must not
+    learn anything about a listing's price from a listing that shows no finance."""
+    listing = _ineligible(reason)
+    body = {"listing_id": str(listing.pk)}
+
+    correct = api.post(
+        QUOTE_URL, {**body, "price": "459000.00"}, format="json"
+    )
+    wrong = api.post(QUOTE_URL, {**body, "price": "1.00"}, format="json")
+
+    assert wrong.status_code == 400
+    assert wrong.data["error"]["code"] == "finance_not_available_for_listing"
+    assert (wrong.status_code, wrong.data) == (correct.status_code, correct.data)
