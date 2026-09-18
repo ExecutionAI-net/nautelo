@@ -17,7 +17,7 @@ class OptionalJWTAuthentication(JWTAuthentication):
     InvalidToken and TokenError-derived failures are subclasses of it, so every
     bad-credential case is covered — while a genuine misconfiguration (a missing
     signing key, an unimportable user model) still raises and is still visible.
-    A bare `except Exception` here would silently turn "auth is broken in
+    A catch-all handler here would silently turn "auth is broken in
     production" into "everyone is a guest".
 
     This class grants nothing. `permission_classes` still decides access; all this
