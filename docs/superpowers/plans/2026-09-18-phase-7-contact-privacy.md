@@ -57,13 +57,16 @@ Exact values copied from the spec. Every task's requirements implicitly include 
 - **State vocabulary (closed set):** `LOCKED`, `GRANTED`, `UNAVAILABLE`. The first two are spec-literal; `UNAVAILABLE` is this plan's name for spec §16's "suspended entity contact becomes unavailable" (ruling below). `unlock_rule` has exactly one value, `SEND_INQUIRY`, spec-literal.
 - **Target type vocabulary (closed set), spec §11.8 verbatim:** `BROKER`, `PROFESSIONAL`. These strings are persisted on `ContactAccessGrant.target_type` and must never be renamed. The URL path segments are their lowercase forms, `broker` and `professional`.
 - **The mask character is `•` (U+2022 BULLET)**, taken from spec §16's own example strings. It is never `*`, `.` or a CSS effect.
-- **Masks never reveal length.** The email mask is fixed-width (one leading character plus bullets to a total of five), and the phone mask preserves only the leading `+CC` and the final digit. Both rules are derived from spec §16's two example strings and are stated as rulings below.
+- **Masks never reveal length.** Both masks are **fixed width**: the email mask is one leading character plus bullets to a total of five, and the phone mask is always `+CC` followed by nine mask positions in three groups, of which only the final one may carry a real digit. A mask whose width varied with the secret would leak the secret's length to anyone comparing two profiles. Both widths are derived from spec §16's two example strings and are pinned by tests in Task 1.
 - **Never place an unblurred value in HTML, page source, CSS pseudo-content, `aria-label`, an analytics payload or preloaded JSON (spec §16).** On this stack that means: the contact panel is a **client** component, it fetches from the contact endpoint after mount, and no server component, `generateMetadata`, sitemap entry or RSC payload ever reads a contact field.
 - **Accessibility (spec §16, §29.6):** screen readers hear the **masked** value and the unlock explanation, never the secret value, and the lock explanation is readable without relying on hover.
 - **Never log a private contact value (spec §33.5).** Structured logs carry request ID, event name and safe object IDs only. This applies to audit `before`/`after`/`metadata` payloads too — an `AuditEvent` is a stored log.
 - **Every reveal and every revocation writes an immutable audit event** (spec §2.4) via `audit.services.record_audit_event()`, called from inside the same `transaction.atomic()` block as the change.
 - **Feature flag for this phase:** `contact_unlock` (spec §35.1), seeded **disabled**, matching the `listing_revisions` precedent and spec §35.2 step 4. **The flag gates revealing, never locking:** with the flag off the endpoint still answers, and it answers `LOCKED` — fail-closed on privacy (ruling below).
-- **Error codes added by this phase (closed set):** `invalid_grant_state` (409, staff revoking an already-revoked grant). Everything else reuses existing codes: `not_found` (404, unknown/never-public target), `staff_moderator_required` (403, Phase 3's `IsStaffModerator`), `validation_error` (400, missing revoke reason), `throttled` (429). No other new codes.
+- **Neither view takes `UnifiedInquiriesEnabled`** — a deliberate, tested exception to Phase 6's contract rule 14, so the locked panel keeps rendering and staff revocation keeps working while inquiries are paused (ruling below).
+- **Both views extend `messaging.views.MessagingAPIView`, never DRF's `APIView`** (Phase 6 contract rule 11). That base class turns DRF's anonymous `not_authenticated` into spec §15.5's `authentication_required` (401) and DRF's `throttled` into `rate_limited` (429, with `meta.retry_after_seconds`). A messaging view extending `APIView` answers in a vocabulary spec §15.5 does not define.
+- **Error codes added by this phase (closed set):** `invalid_grant_state` (409, staff revoking an already-revoked grant). Everything else reuses existing codes: `not_found` (404, unknown/never-public target), `staff_moderator_required` (403, Phase 3's `IsStaffModerator`), `validation_error` (400, missing revoke reason), and — from `MessagingAPIView` — `authentication_required` (401) and `rate_limited` (429). No other new codes.
+- **Every response from the reveal endpoint carries `Cache-Control: private, no-store, max-age=0` and `Vary: Authorization, Cookie`** — on all three 200 states and on the 401/404/409/429 error paths alike. The same URL returns `LOCKED` to one viewer and `GRANTED` to another, discriminated only by the `Authorization` header, and `frontend/src/lib/api/client.ts` sends `credentials: "include"`; nothing in `backend/` sets a cache header today and no cache middleware is installed, so an intermediary or the browser's own HTTP cache is free to hand one viewer's granted payload to the next. The browser fetch sets `cache: "no-store"` for the same reason. This is a hard requirement of spec §16's "never makes contact data public", not an optimization.
 - **Error envelope:** spec §30.2, produced by `common.exceptions.nauta_exception_handler`, with `X-Request-ID` echoed. Error bodies are subject to the same leak rule as success bodies — a 404, a 409 or a 429 must contain no contact value and no entity name.
 - **Times are ISO 8601 UTC** (spec §30.2), serialized as `.isoformat().replace("+00:00", "Z")`, matching `platform_settings.services.get_public_settings()`.
 - **Rate limiting uses `common.throttling.HashedIPScopedRateThrottle`**, already installed as `DEFAULT_THROTTLE_CLASSES`. Views declare **only** `throttle_scope`, never `throttle_classes` (Phase 3 contract rule 9). Two scopes are appended by this plan: `contact_access` = **`120/min`** and `contact_grant_admin` = **`30/min`**. `backend/common/throttling.py` itself is **not modified** (Phase 10 owns it this wave).
@@ -88,14 +91,17 @@ Phases 9, 10, 12 and 13 are in flight concurrently. This plan's footprint is sta
 | `backend/messaging/urls.py` | **Appends two `path()` entries** to the existing `urlpatterns`. Nothing existing is renamed or reordered. | 5, 6 | Low — Phase 6 owns the file but is merged before this phase starts. |
 | `backend/messaging/models.py` | **Appends one nullable field**, `ContactAccessGrant.first_revealed_at`. No constraint, index, `Meta` or method change. | 4 | Low, same reason. |
 | `backend/messaging/migrations/` | Two **new** migrations: `0004_seed_contact_unlock_flag` and `0005_contactaccessgrant_first_revealed_at`, after Phase 6's `0003_message_contactaccessgrant`. Confirm the numbering with `ls backend/messaging/migrations/` before writing the `dependencies` tuple. | 2, 4 | Low. |
-| `backend/messaging/tests/contact_*.py` | **New test modules and a new factory module** (`contact_factories.py`), deliberately *not* appended to Phase 6's `factories.py`. | 1–7, 11 | None. |
-| `backend/config/settings/base.py` | **Appends two keys** to `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`: `"contact_access": "120/min"` and `"contact_grant_admin": "30/min"`. Nothing else in the file. | 5, 6 | **Shared file.** Phase 13 appends `listing_eligibility`; Phase 9 appends its own. Append-only, one line each — expect a trivial rebase, not a conflict. Never reorder or reformat the existing dict. |
+| `backend/messaging/tests/contact_*.py` | **New test modules and a new factory module** (`contact_factories.py`), deliberately *not* appended to Phase 6's `factories.py`. | 1–7, 12 | None. |
+| `backend/messaging/tests/conftest.py` | **Appends one flag key** to Phase 6's `MESSAGING_FEATURE_FLAG_KEYS` list: `CONTACT_UNLOCK_FLAG`. Nothing else. | 2 | Low — one list entry in a Phase 6 file that is merged before this phase starts. |
+| `backend/config/settings/base.py` | **Appends two keys** to `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`: `"contact_access": "120/min"` and `"contact_grant_admin": "30/min"`. Nothing else in the file. | 5, 6 | **Shared file.** Phase 6 has already appended four keys there (`inquiry_submit`, `message_send`, `messaging_read`, `inquiry_draft`) plus its two `INSTALLED_APPS` entries (`messaging`, `notifications`) and a `CELERY_TASK_ROUTES` entry; Phase 13 appends `listing_eligibility` and Phase 9 its own. Append-only, one line each — expect a trivial rebase, not a conflict. Never reorder or reformat the existing dict. |
+| `backend/notifications/**` | **Untouched.** Phase 6 creates this app (its Task 4, with `notifications/0001_initial`) and it is listed here only so a reviewer knows it is Phase 6's, not an undeclared dependency of this plan. Nothing in Phase 7 imports it. | — | None. |
 | `backend/common/throttling.py` | **Untouched.** Phase 10 rewrites its identity function this wave; this plan only *uses* the class via the existing `DEFAULT_THROTTLE_CLASSES`. | — | None by construction. |
 | `backend/listings/**`, `backend/platform_settings/**` | **Untouched.** Phases 9/10/12/13 own them. The `contact_unlock` flag row is seeded from a `messaging` migration (the `services_catalog` precedent), so no `platform_settings` file changes. | — | None by construction. |
 | `backend/services_catalog/**`, `backend/professionals/**`, `backend/brokers/**` | **Untouched.** Read-only imports of `ProfessionalProfile`, `BrokerOrganization` and their status enums. | — | None. |
 | `frontend/src/lib/i18n/contact.ts`, `lib/api/contacts.ts`, `components/contact/ContactPanel.tsx` (+ tests) | **New files.** A sibling dictionary, not an edit to Phase 5's `lib/i18n/directory.ts` (contract rule 9 explicitly permits "or a sibling dictionary"). | 8, 9 | None. |
-| `frontend/src/app/services/professionals/[slug]/page.tsx` | **Replaces the `PHASE 7 SEAM` comment block** with the panel mount. Nothing else in the file changes. | 10 | Low, but **not zero**: Phase 6's Task 12 replaces the `PHASE 6 SEAM` in the same file. Phase 6 merges before this phase starts, so re-read the merged file rather than the version quoted in Phase 5's plan. |
-| `ACTIVITY.md` | One appended log entry. | 11 | Shared append-only file; entries go at the top of the Log section. |
+| `frontend/src/app/services/professionals/[slug]/page.tsx` | **Replaces the `PHASE 7 SEAM` comment block** with the panel mount. Nothing else in the file changes. | 10 | Low, but **not zero**: Phase 6's Task 13 replaces the `PHASE 6 SEAM` in the same file **and** adds an `await fetchInquiryConfig()` call plus an `InquiryForm` mount. Phase 6 merges before this phase starts, so re-read the merged file; the `locale` variable and `professional.id` this task needs are unaffected by that edit. |
+| `frontend/src/components/inquiry/InquiryForm.tsx` | **Adds one import and one call** after a successful submit: `requestContactAccessRefresh(...)`. No prop, state or markup change. | 11 | **Phase 6's file.** It is merged before this phase starts, but this is the one place Phase 7 edits Phase 6's frontend code — re-read it first, and if Phase 6 has meanwhile added its own post-success hook, use that instead (reconciliation row 10). |
+| `ACTIVITY.md` | One appended log entry. | 12 | Shared append-only file; entries go at the top of the Log section. |
 
 **`docs/superpowers/PHASE-TRACKER.md` is not modified by this plan.** The tracker states it is "updated by the controller at each wave transition".
 
@@ -103,20 +109,22 @@ Phases 9, 10, 12 and 13 are in flight concurrently. This plan's footprint is sta
 
 ## Phase 6 reconciliation
 
-Phase 6's plan (`docs/superpowers/plans/2026-09-18-phase-6-inquiry-messaging.md`) was written concurrently with this one. Rows 1–7 below were **read from that plan and are already reconciled into this document**; rows 8–10 were **not yet written** when this plan was finalized and remain assumptions. **Before Task 1**, open the merged Phase 6 code and re-check every row; where a name differs, fix it here in one commit and note the change in this table rather than adapting task by task.
+Phase 6's plan (`docs/superpowers/plans/2026-09-18-phase-6-inquiry-messaging.md`) was written concurrently with this one. It is now **complete, including its "Contract summary for later phases"**, and every row below has been checked against it. Re-check them once more against the **merged code** before Task 1 — that plan is still receiving fix rounds of its own — and where a name differs, fix it here in one commit and note the change in this table rather than adapting task by task.
 
 | # | Phase 6 interface | Status | Where this plan uses it | If it differs |
 |---|---|---|---|---|
-| 1 | The app is **`messaging`**; `backend/messaging/{enums,models,urls,tests/factories}.py` all exist. | **Verified** against Phase 6's File Structure. | Every backend path in this plan. | Rename the four new modules' package path and the two migrations' app label. |
-| 2 | `messaging.models.ContactAccessGrant` — fields `id`, `viewer`, `target_type`, `broker`, `professional`, `source_conversation`, `granted_at` (`DateTimeField(default=timezone.now)`), `revoked_at`, `created_at`, `updated_at`; `Meta.ordering = ("-granted_at",)`. | **Verified** (Phase 6 Task 3). | Tasks 2, 4, 6, 7, 11. `updated_at` exists, so Task 6's `update_fields=["revoked_at", "updated_at"]` is correct. | Adjust the field names in `contact_access.py`'s one queryset, `revoke_contact_access` and `contact_factories.py`. |
-| 3 | `messaging.selectors.active_contact_grant(viewer, *, broker=None, professional=None) -> ContactAccessGrant \| None` — filters `revoked_at__isnull=True`, orders `-granted_at`, returns `None` when both kwargs are `None`. | **Verified** (Phase 6 Task 5). | Task 2 calls it rather than re-deriving "active grant". | If the signature differs, adapt the one call site — but keep calling it. Two definitions of "active grant" is the defect this row exists to prevent. |
-| 4 | `messaging.enums.ContactTargetType` (`BROKER`/`PROFESSIONAL`) and `ConversationType` (`LISTING_INQUIRY`/`BROKER_INQUIRY`/`PROFESSIONAL_INQUIRY`/`SUPPORT`); `messaging.tests.factories.{make_conversation, make_grant}`. | **Verified** (Phase 6 Tasks 1, 2, 3). | Task 2's `contact_factories.make_contact_grant` wraps both factories; `contact_access.py` imports `ContactTargetType`. | Fix the one helper. |
-| 5 | Migrations `0001_conversation`, `0002_seed_unified_inquiries_flag`, `0003_message_contactaccessgrant`. | **Verified.** | This phase's migrations are `0004_seed_contact_unlock_flag` and `0005_contactaccessgrant_first_revealed_at`. | Renumber and fix the `dependencies` tuple. |
+| 1 | The app is **`messaging`**; `backend/messaging/{enums,models,urls,views,selectors,permissions,tests/factories,tests/conftest}.py` all exist. Phase 6 also creates a **second** app, `notifications`. | **Verified** (Phase 6 File Structure). | Every backend path in this plan. Nothing here imports `notifications`. | Rename the four new modules' package path and the two migrations' app label. |
+| 2 | `messaging.models.ContactAccessGrant` — `id`, `viewer`, `target_type`, `broker`, `professional`, `source_conversation` (**non-nullable, `on_delete=PROTECT`**), `granted_at` (`DateTimeField(default=timezone.now)`), `revoked_at`, `created_at`, `updated_at`; `Meta.ordering = ("-granted_at",)`; **two partial unique indexes** conditioned on `revoked_at IS NULL` (one per target kind). | **Verified** (Phase 6 Task 3 + contract rule 3). | Tasks 2, 4, 6, 7, 12. `updated_at` exists, so Task 6's `update_fields=["revoked_at", "updated_at"]` is correct; the partial indexes are why revoking is what makes a re-grant possible, and why Task 6 must never hard-delete a grant. | Adjust the field names in `revoke_contact_access` and `contact_factories.py`. |
+| 3 | `messaging.selectors.active_contact_grant(viewer, *, broker=None, professional=None) -> ContactAccessGrant \| None` — filters `revoked_at__isnull=True`, orders `-granted_at`, returns `None` when both kwargs are `None`. | **Verified** (Phase 6 Task 5 + contract rule 3: "Phase 7 reads grants through `active_contact_grant()`"). | Task 2 calls it rather than re-deriving "active grant". | If the signature differs, adapt the one call site — but keep calling it. Two definitions of "active grant" is the defect this row exists to prevent. |
+| 4 | `messaging.enums.ContactTargetType` (`BROKER`/`PROFESSIONAL`), `ConversationType`, `InquiryContextType`, `CURRENT_PRIVACY_POLICY_VERSION = "2026-09"`, `HONEYPOT_FIELD_NAME`; `messaging.tests.factories.{make_conversation, make_grant}`; `messaging.tests.conftest.MESSAGING_FEATURE_FLAG_KEYS`. | **Verified** (Phase 6 Tasks 1, 2, 3). | Task 2's `contact_factories.make_contact_grant` wraps both factories, `contact_access.py` imports `ContactTargetType`, and Task 2 appends `CONTACT_UNLOCK_FLAG` to `MESSAGING_FEATURE_FLAG_KEYS`. | Fix the one helper and the one list entry. |
+| 5 | Migrations `0001_conversation`, `0002_seed_unified_inquiries_flag` (seeds `unified_inquiries` **enabled**), `0003_message_contactaccessgrant`. | **Verified.** | This phase's migrations are `0004_seed_contact_unlock_flag` and `0005_contactaccessgrant_first_revealed_at`. | Renumber and fix the `dependencies` tuple. |
 | 6 | `messaging/urls.py` exists and is included from `config/urls.py` under `api/v1/` (Phase 6 Task 7). | **Verified.** | Tasks 5 and 6 append two `path()` entries. | If Phase 6 mounted its URLs some other way, create `backend/messaging/contact_urls.py` with the two paths and add **one** `include()` line to `config/urls.py`. |
-| 7 | Phase 6 writes a `contact_access.granted` audit event inside the inquiry transaction. | **Verified** (its Global Constraints). | Task 4's `contact_access.revealed` complements it and does not duplicate it: `granted` records authorization, `revealed` records delivery. | If the creation event is missing in the merged code, report it in this phase's handoff note and raise it with the controller. Do not audit creation from a read endpoint. |
-| 8 | `POST /api/v1/inquiries/` with spec §15.5's request/response (including `"contact_access": "GRANTED"`); `context_type` ∈ `LISTING \| BROKER \| PROFESSIONAL`; throttle scope `inquiry_submit` = `20/hour`; the grant is created inside `messaging.services.submit_inquiry()`'s transaction. | **Partly verified**: the context vocabulary, the throttle scope and `submit_inquiry`'s signature were readable; the HTTP serializer's field names (Phase 6 Task 7) were **not** yet written. | **Task 11 only.** Tasks 1–10 do not touch the inquiry endpoint. | Adjust the `inquiry_body()` helper's keys in Task 11 against the merged serializer. Note `submit_inquiry` names the message field `body` while spec §15.5's JSON names it `message` — check which one the serializer accepts. |
-| 9 | Phase 6's frontend ships `InquiryForm` and modifies `frontend/src/app/services/professionals/[slug]/page.tsx` at the `PHASE 6 SEAM` (its Task 12). | **Verified** from its File Structure. | Task 10 edits the same file at the **`PHASE 7 SEAM`**, a different comment block. Phase 6 merges first, so this is a sequential edit, not a conflict. | Re-read the merged file before editing. |
-| 10 | Phase 6's `InquiryForm` calls a Phase 7-provided refresh after a successful send (spec §16: "After successful send, refetch contact authorization"). | **Assumption.** | Task 8 exports `requestContactAccessRefresh(targetType, targetId)`; Task 9's panel listens for the `CustomEvent` it dispatches. | The event seam works whether or not Phase 6's form imports the helper. If Phase 6 already ships a different refresh mechanism, wire the panel to that one and delete the event — but then Task 9's "refetch after send" test must be rewritten against it, not dropped. |
+| 7 | Phase 6 writes a `contact_access.granted` audit event inside the inquiry transaction. | **Verified** (its Global Constraints). | Task 4's `contact_access.revealed` complements it: `granted` records authorization, `revealed` records delivery. | If the creation event is missing in the merged code, report it in this phase's handoff note and raise it with the controller. Do not audit creation from a read endpoint. |
+| 8 | **`messaging.views.MessagingAPIView`** — maps DRF's anonymous `not_authenticated` to `authentication_required` (401) and `throttled` to `rate_limited` (429 with `meta.retry_after_seconds`, via `messaging.exceptions.MessagingThrottled`). Phase 6 contract rule 11 requires **every** messaging view to extend it. | **Verified** (Phase 6 Task 7 + contract rule 11). | Tasks 5 and 6 — both Phase 7 views extend it, and their 401/429 assertions use those codes. | If the base class is renamed, both views and four assertions change. Do not fall back to `APIView`. |
+| 9 | `POST /api/v1/inquiries/` (`inquiry-create`). `InquirySubmissionSerializer` fields: `context_type`, `context_id`, `full_name`, `email` (**must equal the actor's own address** — `validate_email` raises `email_mismatch` otherwise), `phone`, `subject`, **`message`** (the service parameter is `body`; the wire name is `message`), `privacy_policy_version` (must equal `"2026-09"`), **`privacy_consent` (`BooleanField(required=False, default=False)`; `validate()` raises `ConsentRequired` when falsy)**, `marketing_consent`, and a dynamically declared honeypot named by `HONEYPOT_FIELD_NAME`. Throttle scope `inquiry_submit` = `20/hour`. Permissions require an authenticated, active, **email-verified** caller and the `unified_inquiries` flag. | **Verified** (Phase 6 Task 7). | **Task 12 only.** Tasks 1–11 do not touch the inquiry endpoint. | Adjust the `inquiry_body()` helper's keys. The honeypot is omitted deliberately: it defaults to `""`, and naming it here would duplicate a constant Phase 6 owns. |
+| 10 | `ContactAccessOutcome` — `GRANTED` **and `NOT_APPLICABLE`** (Phase 6 contract rule 4: a private-seller listing inquiry grants nothing, because §11.8's `target_type` has no member for a private person). | **Verified** (Phase 6 Task 1 + contract rule 4). | Task 12 asserts `GRANTED` only for broker/professional contexts. Phase 7's own `contact` payload never uses this vocabulary — its third state is `UNAVAILABLE`, which is about the *entity*, not about an inquiry outcome. The two enums are deliberately separate; see the ruling. | — |
+| 11a | Phase 6 contract rule 14: "Adding a messaging endpoint means adding `UnifiedInquiriesEnabled` to its `permission_classes`", and the class **raises** `messaging.exceptions.FeatureDisabled` (403 `feature_disabled`) rather than returning `False`. | **Verified** (Phase 6 fix round 1). | **Deliberately not followed** — see the ruling. Neither Phase 7 endpoint takes that permission; Task 5 pins the divergence with a test. | If Phase 6 later makes rule 14 unconditional, raise it with the controller rather than adding the class: doing so would make the locked panel 403 whenever inquiries are paused. |
+| 11 | `frontend/src/components/inquiry/InquiryForm.tsx` takes `{ context, config, locale }` and, on a 201, sets `sent = true` — it does **not** navigate, refresh or emit anything. `frontend/src/app/services/professionals/[slug]/page.tsx` gains an `await fetchInquiryConfig()` and the form mount (Phase 6 Task 13). | **Verified** (Phase 6 Tasks 12, 13). | **Task 11 adds the missing call** — this phase's `requestContactAccessRefresh(...)` — because spec §16's "After successful send, refetch contact authorization" has no other home. | If Phase 6's fix rounds add their own post-success hook (an `onSuccess` prop, a `router.refresh()`), use it and delete the event dispatch — but keep Task 11's end-to-end test, retargeted. |
 
 If, at implementation time, Phase 6 turns out **not** to define `ContactAccessGrant`, stop: that is a spec §15.3-step-4 gap in Phase 6, not a Phase 7 task. Escalate to the controller rather than creating the model here, because the grant must be created inside Phase 6's inquiry transaction.
 
@@ -132,14 +140,32 @@ Spec §11.8 is one section, "Messaging and contact access", covering `Conversati
 **Note (ruling — the email mask is fixed-width: one leading character plus bullets to five, domain intact).**
 Spec §16's example is `info@example.com` → `i••••@example.com`. Read literally, the local part `info` (4 characters) becomes `i` + **4** bullets (5 characters), so the mask is **not** length-preserving — and that is the right behaviour, because a length-preserving mask leaks the local part's length to an attacker enumerating a known address list. This plan makes the rule explicit: **keep the first character of the local part, then emit bullets up to a total width of five, then `@` and the full domain**. Two consequences, both tested: a one-character local part keeps **nothing** (`a@x.com` → `•••••@x.com`, because keeping the first character there would reveal the whole local part), and `verylongaddress@x.com` and `info@x.com` produce masks of identical width. **The domain is disclosed** — spec §16's own example discloses it, and a business domain is ordinarily public — which is recorded as an accepted disclosure in Known Limitations, not hidden.
 
-**Note (ruling — the phone mask keeps `+CC` and the final digit; spec §16's two examples are inconsistent and the locked one wins).**
-§16's locked example is `+34 ••• ••• ••7` and its granted example is `+34900111222`, whose final digit is `2`, not `7` — the two JSON blocks are simply about different numbers, so no rule can satisfy both literally. This plan adopts the **shape** of the locked example: strip to digits, keep the first **two** as the country calling code behind a `+`, mask every remaining digit except the **last**, and group the masked remainder in threes. `+34900111222` → `+34 ••• ••• ••2`. A number with fewer than six digits is masked **entirely** (`•••`), because with a short number the final digit plus the country code is too large a fraction of the secret. Two digits of country code is exact for the two launch markets (ES `+34`, IT `+39`); for a longer code the split is cosmetic and still reveals no more than two leading digits.
+**Note (ruling — the phone mask is fixed width: `+CC` plus nine positions, only the last of which may be real; spec §16's two examples are inconsistent and the locked one wins).**
+§16's locked example is `+34 ••• ••• ••7` and its granted example is `+34900111222`, whose final digit is `2`, not `7` — the two JSON blocks are simply about different numbers, so no rule can satisfy both literally. This plan adopts the **shape** of the locked example, exactly: `+` then two country-code digits, then **always nine** mask positions in three groups of three, of which only the final position may carry a real digit. `+34900111222` → `+34 ••• ••• ••2`, reproducing the spec string character for character.
+The width is fixed rather than derived from the real number, and that is the whole point: an earlier draft emitted `len(digits) - 2` bullets, so the mask's width was the number's length — a Spanish mobile (9 national digits) and a landline with an extension would have rendered at different widths, and comparing two profiles' masks would have leaked how long each number is. With a fixed width, two different numbers from two different countries produce masks that differ in at most three characters, all of which the spec's own example already discloses. A value with fewer than six digits (a malformed or placeholder number) masks the country code too — `+•• ••• ••• •••` — so "this number is short/junk" is not disclosed either. Two digits of country code is exact for the two launch markets (ES `+34`, IT `+39`); for a longer calling code the split is cosmetic and still reveals no more than two leading digits.
 
 **Note (ruling — `website_url` is in the `GRANTED` payload and absent from `LOCKED`, with no mask).**
 Phase 5's contract rule 1 forbids `website_url` in the directory serializers and assigns it to "Phase 7's contact endpoint, after a grant", so this phase must place it somewhere. It goes in the granted payload as a plain nullable string. It gets **no** mask: a URL has no meaningful partial form (any prefix either identifies the business outright or says nothing), so the locked payload simply omits the key. Spec §16's granted example does not list it; adding it is the minimum needed to honour Phase 5's rule without inventing a second endpoint.
 
 **Note (ruling — `UNAVAILABLE` is a third state, served with 200, and outranks an existing grant).**
 Spec §16: "suspended entity contact becomes unavailable". It names no payload. Returning `LOCKED` would be a lie (no inquiry can unlock a suspended entity), and 404 would be a lie to a grant holder who saw the contact yesterday. So a `SUSPENDED` broker or professional returns `200 {"contact": {"state": "UNAVAILABLE"}}` — no masks, no `unlock_rule`, no raw values — **to everyone, including grant holders**, and the check runs *before* the grant lookup. `DRAFT` and `PENDING` entities, which were never public, return **404**, matching `ProfessionalDetailView`'s existing "404 rather than 403, so a hidden profile's existence is never disclosed" rule. The asymmetry is deliberate: a suspended entity was public (its slug is in search indexes and in grant holders' history), a draft one never was.
+
+**Note (ruling — staff moderators and admins DO get a reveal, because Phase 3 already promises it on the wire).**
+Spec §5's capability table (line ~200) gives "Reveal recipient contact after inquiry" as `own access` to every ordinary role and a bare **✓** to staff moderator and staff admin. An earlier draft of this plan left that unimplemented and recorded a deviation. That was wrong, and the evidence is in the merged code: `backend/accounts/selectors.py:44` already computes `"reveal_any_contact": staff_moderator` and `GET /api/v1/session/` already ships it to every staff client — `accounts/tests/test_session.py:133` asserts it is `True` for a moderator. Leaving the endpoint without a staff branch would mean the session payload advertises a capability no endpoint honours, which is spec §2.1's "every visible state requires a backend source" failing in the one direction nobody checks.
+So: **`is_staff_moderator(viewer)` (which lets staff admins through too — `accounts/services.py:97`) yields `GRANTED` without a grant.** Four constraints keep it narrow, and each has a test:
+- It is evaluated **after** the `contact_unlock` flag, so the rollout flag still gates every reveal. Staff are not a way around a disabled feature.
+- It is evaluated **after** the suspended check, so a `SUSPENDED` entity is `UNAVAILABLE` to staff as well. Spec §16 states that rule with no carve-out.
+- It is evaluated **after** the grant lookup, so a staff member who *did* send an inquiry takes the ordinary path and reports their real `granted_at`. The bypass only fires when there is no grant, and then `granted_at` and `grant_id` are `null` — the honest answer, since no grant exists.
+- **Every** staff bypass reveal writes a `contact_access.staff_revealed` audit event — every request, not once per grant, because there is no grant row to carry a "first reveal" stamp and because spec §33.1 wants staff high-impact actions traceable. `accounts.selectors`'s single `is_staff_moderator` call is the only definition of "staff" involved, so the endpoint and the session payload cannot drift apart.
+
+**Note (ruling — Phase 7's endpoints do NOT take `UnifiedInquiriesEnabled`, which is a deliberate, narrow exception to Phase 6's contract rule 14).**
+Phase 6's rule 14 says "Adding a messaging endpoint means adding `UnifiedInquiriesEnabled` to its `permission_classes`", and these two endpoints do live in the `messaging` app. They are exempted, for the same shape of reason Phase 6 exempts its own `GET /api/v1/inquiries/config/`: that route answers `200 {"enabled": false}` rather than 403 precisely because it is the mechanism that tells the page what to render.
+- **The read endpoint.** With `unified_inquiries` off, spec §14.2 still requires a contact panel on the professional page, and spec §2.1 still requires every visible state to have a backend source. A `403 feature_disabled` would leave the panel rendering an error where the honest answer is `LOCKED` plus the unlock explanation — the user simply cannot act on it yet, which Phase 6's own `config.enabled` already tells the page. And an existing grant holder losing access to a contact they legitimately unlocked, because *new* inquiries were paused, is a regression with no upside.
+- **The staff revoke endpoint.** It is an abuse remedy. The moment inquiries are switched off is exactly when an operator is most likely to be firefighting, and that is the worst possible moment for the revocation route to 403.
+What *is* gated is the only thing worth gating here: the reveal, by this phase's own §35.1 flag, `contact_unlock`. Task 5 has a test pinning that the contact endpoint still answers with `unified_inquiries` disabled, so the divergence is deliberate and visible rather than an omission.
+
+**Note (ruling — `UNAVAILABLE` and Phase 6's `NOT_APPLICABLE` are different vocabularies and must not be merged).**
+Phase 6's inquiry response reports `contact_access: "GRANTED" | "NOT_APPLICABLE"` (its contract rule 4): `NOT_APPLICABLE` means *this inquiry* had nothing to grant, because a private-seller listing has no `target_type` under §11.8. Phase 7's `contact` payload reports `LOCKED | GRANTED | UNAVAILABLE`: `UNAVAILABLE` means *this entity's* contact cannot be shown at all because it is suspended. They answer different questions about different subjects, and a private seller never reaches Phase 7's endpoint at all — `TARGET_TYPE_BY_SEGMENT` has no segment for one, so such a request is a 404. Collapsing them into one enum would force a client to disambiguate by context. Task 12 asserts `GRANTED` only for broker/professional contexts, and Contract rule 7 keeps the two vocabularies apart.
 
 **Note (ruling — the `contact_unlock` flag gates revealing, never locking).**
 Spec §35.1 requires flags to gate backend behaviour, and §35.2 step 4 deploys code with features off. If the flag switched the whole endpoint off (404), the professional page would render no contact panel at all and spec §2.1's "every visible state requires a backend source" would be satisfied only vacuously. If it switched the endpoint to always-granted, it would be a privacy hole. So: **flag off ⇒ every viewer gets `LOCKED`**, even one holding an active grant; **flag on ⇒ grant holders get `GRANTED`**. Locking is the fail-closed direction, the page keeps rendering, and flipping the flag is a pure widening of access that can be reversed instantly. Grants keep being created by Phase 6 while the flag is off (that is Phase 6's bookkeeping, and suppressing it would mean users who inquired during rollout would have to inquire again).
@@ -170,11 +196,11 @@ Spec §16 forbids the unblurred value in "page source … or preloaded JSON". Ne
 | `masking.py` | Pure string functions: `mask_email`, `mask_phone`, the `•` constant. No Django imports, no I/O. |
 | `contact_access.py` | The service. Target resolution, the three frozen result dataclasses, `resolve_contact_access()`, `record_first_reveal()`, `revoke_contact_access()`, the flag constant and the URL-segment map. |
 | `contact_payloads.py` | Serialization only: three payload builders plus the `contact_payload()` dispatcher. Kept apart from the service so a leak test can assert the *shape* of each state without touching the database. |
-| `contact_views.py` | Two DRF views: the public contact read and the staff revoke. Permission classes, throttle scopes, exception mapping. No business rules. |
+| `contact_views.py` | Two views, both extending Phase 6's `MessagingAPIView`: the public contact read and the staff revoke. Permission classes, throttle scopes, the `no-store` headers, exception mapping. No business rules. |
 | `tests/contact_factories.py` | `make_contact_grant(...)` — Phase 7's own fixtures, so Phase 6's `factories.py` is never edited. |
 | `tests/test_masking.py`, `tests/test_contact_access_service.py`, `tests/test_contact_payloads.py`, `tests/test_contact_reveal_audit.py`, `tests/test_contact_api.py`, `tests/test_contact_revocation.py`, `tests/test_contact_leak_sweep.py`, `tests/test_phase7_acceptance.py` | One module per task. |
 
-**Backend — modified files:** `messaging/models.py` (one appended field), `messaging/urls.py` (two appended paths), `config/settings/base.py` (two appended throttle rates), two new migrations in `messaging/migrations/`.
+**Backend — modified files:** `messaging/models.py` (one appended field), `messaging/urls.py` (two appended paths), `messaging/tests/conftest.py` (one appended flag key), `config/settings/base.py` (two appended throttle rates), two new migrations in `messaging/migrations/`.
 
 **Frontend — new files:**
 
@@ -182,9 +208,10 @@ Spec §16 forbids the unblurred value in "page source … or preloaded JSON". Ne
 |---|---|
 | `src/lib/i18n/contact.ts` | The EN/IT/ES dictionary for every string this phase renders, plus `tContact()`. A sibling of Phase 5's directory dictionary, not an edit to it. |
 | `src/lib/api/contacts.ts` | The `ContactAccess` discriminated union, `fetchContactAccess()`, and the refresh-event seam Phase 6's form calls. |
-| `src/components/contact/ContactPanel.tsx` (+ `.test.tsx`) | The client component: loading, locked, granted, unavailable and error states. |
+| `src/components/contact/ContactPanel.tsx` (+ `.test.tsx`) | The client component: loading, locked, granted, unavailable and error states; waits for the session to bootstrap before asking. |
+| `src/components/contact/inquiry-refresh.test.tsx` | The Phase 6 → Phase 7 seam proved end to end: a real `InquiryForm` submit flips a real `ContactPanel`. |
 
-**Frontend — modified files:** `src/app/services/professionals/[slug]/page.tsx` (the `PHASE 7 SEAM` comment becomes the mount).
+**Frontend — modified files:** `src/app/services/professionals/[slug]/page.tsx` (the `PHASE 7 SEAM` comment becomes the mount) and `src/components/inquiry/InquiryForm.tsx` (Phase 6's file: one import and the two-line refresh call in its success path).
 
 ---
 
@@ -257,12 +284,26 @@ def test_separators_in_the_stored_number_do_not_change_the_mask():
     assert mask_phone("(+34) 900-111-222") == mask_phone("+34900111222")
 
 
-def test_a_short_number_is_masked_entirely():
-    """With a short number, "+CC plus the last digit" is too large a fraction
-    of the secret, so nothing at all is kept."""
-    assert mask_phone("+3412") == MASK_CHARACTER * 3
-    assert mask_phone("") == MASK_CHARACTER * 3
-    assert mask_phone(None) == MASK_CHARACTER * 3
+def test_phone_mask_width_does_not_depend_on_the_number_length():
+    """The mask is fixed width. A mask whose width tracked the real number
+    would leak its length to anyone comparing two profiles."""
+    nine_national_digits = mask_phone("+34900111222")
+    twelve_national_digits = mask_phone("+390551234567890")
+
+    assert len(nine_national_digits) == len(twelve_national_digits)
+    assert nine_national_digits.count(MASK_CHARACTER) == twelve_national_digits.count(
+        MASK_CHARACTER
+    )
+
+
+def test_a_short_number_masks_the_country_code_too_and_keeps_the_same_width():
+    """With a short or malformed number, "+CC plus the last digit" is too large
+    a fraction of the secret — and a narrower mask would itself announce "this
+    one is short"."""
+    assert mask_phone("+3412") == "+•• ••• ••• •••"
+    assert mask_phone("") == "+•• ••• ••• •••"
+    assert mask_phone(None) == "+•• ••• ••• •••"
+    assert len(mask_phone("+3412")) == len(mask_phone("+34900111222"))
 
 
 def test_the_mask_character_is_the_bullet_spec_16_uses():
@@ -305,9 +346,14 @@ EMAIL_MASK_WIDTH = 5
 PHONE_COUNTRY_CODE_DIGITS = 2
 #: Trailing digits kept, exactly as spec §16's "+34 ••• ••• ••7" keeps one.
 PHONE_TRAILING_DIGITS = 1
-#: Below this many digits, the whole number is masked.
+#: FIXED number of mask positions after the country code, whatever the real
+#: number's length — spec §16's example shows nine, in three groups of three.
+#: Deriving this from len(digits) would make the mask's width the number's
+#: length, which is the disclosure this mask exists to prevent.
+PHONE_MASKED_DIGITS = 9
+#: Below this many digits, the country code is masked as well.
 PHONE_MINIMUM_DIGITS = 6
-#: Spec §16's example groups the masked remainder in threes.
+#: Spec §16's example groups the masked positions in threes.
 PHONE_GROUP_SIZE = 3
 
 
@@ -321,20 +367,27 @@ def mask_email(value: str | None) -> str:
 
 
 def mask_phone(value: str | None) -> str:
-    """"+34900111222" -> "+34 ••• ••• ••2" (spec §16's shape)."""
+    """"+34900111222" -> "+34 ••• ••• ••2" (spec §16's shape), at a FIXED width.
+
+    The output is always "+" + 2 characters + " " + three groups of three, so
+    two numbers of different lengths are indistinguishable by their masks.
+    """
     digits = "".join(character for character in (value or "") if character.isdigit())
     if len(digits) < PHONE_MINIMUM_DIGITS:
-        return MASK_CHARACTER * PHONE_GROUP_SIZE
+        # Even the country code is masked: a narrower or differently shaped
+        # mask here would announce "this number is short or malformed".
+        country = MASK_CHARACTER * PHONE_COUNTRY_CODE_DIGITS
+        masked = MASK_CHARACTER * PHONE_MASKED_DIGITS
+    else:
+        country = digits[:PHONE_COUNTRY_CODE_DIGITS]
+        masked = (
+            MASK_CHARACTER * (PHONE_MASKED_DIGITS - PHONE_TRAILING_DIGITS)
+            + digits[-PHONE_TRAILING_DIGITS:]
+        )
 
-    country = digits[:PHONE_COUNTRY_CODE_DIGITS]
-    rest = digits[PHONE_COUNTRY_CODE_DIGITS:]
-    masked = (
-        MASK_CHARACTER * (len(rest) - PHONE_TRAILING_DIGITS)
-        + rest[-PHONE_TRAILING_DIGITS:]
-    )
     groups = [
         masked[index : index + PHONE_GROUP_SIZE]
-        for index in range(0, len(masked), PHONE_GROUP_SIZE)
+        for index in range(0, PHONE_MASKED_DIGITS, PHONE_GROUP_SIZE)
     ]
     return f"+{country} {' '.join(groups)}"
 ```
@@ -358,15 +411,16 @@ git commit -m "feat(messaging): add contact mask primitives for the locked paylo
 **Files:**
 - Create: `backend/messaging/contact_access.py`, `backend/messaging/tests/contact_factories.py`, `backend/messaging/tests/test_contact_access_service.py`
 - Create: `backend/messaging/migrations/0004_seed_contact_unlock_flag.py` — Phase 6's last migration is `0003_message_contactaccessgrant`; confirm with `ls backend/messaging/migrations/` before writing the dependency.
+- Modify: `backend/messaging/tests/conftest.py` — append `CONTACT_UNLOCK_FLAG` to Phase 6's `MESSAGING_FEATURE_FLAG_KEYS` list (one entry, plus its import), so this phase's flag is cleared between tests by the same autouse fixture that clears Phase 6's.
 
 **Interfaces:**
-- Consumes: `messaging.masking.{mask_email, mask_phone}` (Task 1); `messaging.models.ContactAccessGrant`, `messaging.selectors.active_contact_grant`, `messaging.enums.{ContactTargetType, ConversationType}` and `messaging.tests.factories.{make_conversation, make_grant}` (**Phase 6** — reconciliation rows 2, 3 and 4); `brokers.models.BrokerOrganization`, `brokers.enums.BrokerOrganizationStatus`; `professionals.models.ProfessionalProfile`, `professionals.enums.ProfessionalProfileStatus`; `platform_settings.services.is_feature_enabled`.
+- Consumes: `messaging.masking.{mask_email, mask_phone}` (Task 1); `messaging.models.ContactAccessGrant`, `messaging.selectors.active_contact_grant`, `messaging.enums.{ContactTargetType, ConversationType}` and `messaging.tests.factories.{make_conversation, make_grant}` (**Phase 6** — reconciliation rows 2, 3 and 4); `brokers.models.BrokerOrganization`, `brokers.enums.BrokerOrganizationStatus`; `professionals.models.ProfessionalProfile`, `professionals.enums.ProfessionalProfileStatus`; `platform_settings.services.is_feature_enabled`; `accounts.services.is_staff_moderator` (Phase 3 — the same function `accounts.selectors` uses to compute the session payload's `reveal_any_contact`).
 - Produces:
   - `messaging.contact_access.CONTACT_UNLOCK_FLAG = "contact_unlock"`, `UNLOCK_RULE = "SEND_INQUIRY"`, `TARGET_TYPE_BY_SEGMENT: dict[str, ContactTargetType]`.
   - `messaging.contact_access.ContactTargetNotFound(Exception)`
   - `messaging.contact_access.ContactTarget` — frozen dataclass with `target_type`, `instance`, `is_suspended`, plus the properties `id` and `grant_field`.
   - `messaging.contact_access.LockedContact(email_mask, phone_mask, unlock_rule=UNLOCK_RULE)`, `state: ClassVar[str] = "LOCKED"`.
-  - `messaging.contact_access.GrantedContact(email, phone, website_url, granted_at, grant_id)`, `state: ClassVar[str] = "GRANTED"`.
+  - `messaging.contact_access.GrantedContact(email, phone, website_url, granted_at, grant_id)`, `state: ClassVar[str] = "GRANTED"`. `granted_at` and `grant_id` are `None` on the staff-bypass path.
   - `messaging.contact_access.UnavailableContact()`, `state: ClassVar[str] = "UNAVAILABLE"`.
   - `messaging.contact_access.ContactAccess` — the union alias of those three.
   - `messaging.contact_access.resolve_contact_target(*, segment: str, target_id) -> ContactTarget`
@@ -440,10 +494,10 @@ about the fact that the locked one structurally cannot carry a raw value.
 """
 
 import pytest
-from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth.models import AnonymousUser, Group
 from django.utils import timezone
 
-from accounts.enums import UserRole
+from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
 from brokers.enums import BrokerOrganizationStatus
 from brokers.tests.factories import make_broker
@@ -639,6 +693,92 @@ def test_an_unknown_segment_is_not_found(professional, unlock_enabled):
         )
 
 
+def test_a_staff_moderator_reveals_without_holding_a_grant(professional, unlock_enabled):
+    """Spec §5's staff row, and the capability accounts/selectors.py:44 already
+    advertises as `reveal_any_contact` on GET /api/v1/session/."""
+    moderator = make_user(email="service-moderator@example.com", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+
+    access = resolve_contact_access(
+        viewer=moderator, segment="professional", target_id=professional.pk
+    )
+
+    assert isinstance(access, GrantedContact)
+    assert access.email == "info@adriatic.example"
+    # No grant exists, so there is no timestamp to report and none is invented.
+    assert access.granted_at is None
+    assert access.grant_id is None
+
+
+def test_a_staff_admin_reveals_too(professional, unlock_enabled):
+    """accounts.services.is_staff_moderator() lets ADMIN through, matching
+    spec §5's table, which ticks both staff columns."""
+    admin = make_user(email="service-admin@example.com", role=UserRole.STAFF)
+    admin.groups.add(Group.objects.get(name=StaffGroup.ADMIN))
+
+    access = resolve_contact_access(
+        viewer=admin, segment="professional", target_id=professional.pk
+    )
+
+    assert isinstance(access, GrantedContact)
+
+
+def test_a_staff_member_who_did_inquire_reports_the_real_grant(
+    professional, unlock_enabled
+):
+    """The grant lookup runs BEFORE the staff branch, so a staff member who
+    actually sent an inquiry is not downgraded to a null timestamp."""
+    moderator = make_user(email="inquiring-moderator@example.com", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    grant = make_contact_grant(viewer=moderator, professional=professional)
+
+    access = resolve_contact_access(
+        viewer=moderator, segment="professional", target_id=professional.pk
+    )
+
+    assert access.grant_id == grant.pk
+    assert access.granted_at == grant.granted_at
+
+
+def test_a_staff_moderator_does_not_bypass_a_suspension(professional, unlock_enabled):
+    """Spec §16 states the suspension rule with no staff carve-out."""
+    moderator = make_user(email="suspended-case-moderator@example.com", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    professional.status = ProfessionalProfileStatus.SUSPENDED
+    professional.save(update_fields=["status", "updated_at"])
+
+    access = resolve_contact_access(
+        viewer=moderator, segment="professional", target_id=professional.pk
+    )
+
+    assert isinstance(access, UnavailableContact)
+
+
+def test_a_staff_moderator_does_not_bypass_the_rollout_flag(professional):
+    """The staff branch is evaluated after the flag: staff are not a way around
+    a disabled feature. No `unlock_enabled` fixture here."""
+    moderator = make_user(email="flag-off-moderator@example.com", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+
+    access = resolve_contact_access(
+        viewer=moderator, segment="professional", target_id=professional.pk
+    )
+
+    assert isinstance(access, LockedContact)
+
+
+def test_an_ordinary_signed_in_user_is_not_mistaken_for_staff(
+    viewer, professional, unlock_enabled
+):
+    """Guards the four tests above: `is_staff_moderator` must not be a no-op
+    that lets everyone through."""
+    access = resolve_contact_access(
+        viewer=viewer, segment="professional", target_id=professional.pk
+    )
+
+    assert isinstance(access, LockedContact)
+
+
 def test_with_the_flag_off_even_a_grant_holder_stays_locked(viewer, professional):
     """The rollout flag gates REVEALING, never locking — the fail-closed
     direction (spec §35.1, §35.2 step 4). No `unlock_enabled` fixture here."""
@@ -681,6 +821,7 @@ from datetime import datetime
 from typing import ClassVar
 from uuid import UUID
 
+from accounts.services import is_staff_moderator
 from brokers.enums import BrokerOrganizationStatus
 from brokers.models import BrokerOrganization
 from platform_settings.services import is_feature_enabled
@@ -750,8 +891,11 @@ class GrantedContact:
     email: str
     phone: str
     website_url: str | None
-    granted_at: datetime
-    grant_id: UUID
+    #: Both are None on the staff-bypass path: spec §5 gives staff a reveal
+    #: without a grant, and inventing a `granted_at` for a grant that does not
+    #: exist would be a fabricated timestamp in an audited payload.
+    granted_at: datetime | None
+    grant_id: UUID | None
 
 
 @dataclass(frozen=True)
@@ -814,16 +958,19 @@ def resolve_contact_access(*, viewer, segment: str, target_id) -> ContactAccess:
     # Passing only the matching FK leaves the other None, which is exactly how
     # the selector distinguishes the two target kinds.
     grant = active_contact_grant(viewer, **{target.grant_field: target.instance})
-    if grant is None:
-        return _locked(target)
+    if grant is not None:
+        return _granted(target, granted_at=grant.granted_at, grant_id=grant.pk)
 
-    return GrantedContact(
-        email=target.instance.public_email,
-        phone=target.instance.public_phone,
-        website_url=target.instance.website_url or None,
-        granted_at=grant.granted_at,
-        grant_id=grant.pk,
-    )
+    # Spec §5's staff row is a bare tick, and accounts.selectors already reports
+    # `reveal_any_contact: is_staff_moderator(user)` on GET /api/v1/session/ —
+    # so without this branch the session payload advertises a capability no
+    # endpoint honours. is_staff_moderator() lets staff admins through too.
+    # Checked LAST, so a staff member who actually sent an inquiry reports their
+    # real granted_at rather than a null one.
+    if is_staff_moderator(viewer):
+        return _granted(target, granted_at=None, grant_id=None)
+
+    return _locked(target)
 
 
 def _is_eligible_viewer(viewer) -> bool:
@@ -834,11 +981,30 @@ def _is_eligible_viewer(viewer) -> bool:
     )
 
 
+def _granted(target: ContactTarget, *, granted_at, grant_id) -> GrantedContact:
+    """The ONE place a raw contact value is ever read off an entity row."""
+    return GrantedContact(
+        email=target.instance.public_email,
+        phone=target.instance.public_phone,
+        website_url=target.instance.website_url or None,
+        granted_at=granted_at,
+        grant_id=grant_id,
+    )
+
+
 def _locked(target: ContactTarget) -> LockedContact:
     return LockedContact(
         email_mask=mask_email(target.instance.public_email),
         phone_mask=mask_phone(target.instance.public_phone),
     )
+```
+
+Append to Phase 6's `backend/messaging/tests/conftest.py` (read the real file; add only the import and the list entry):
+
+```python
+from messaging.contact_access import CONTACT_UNLOCK_FLAG
+
+MESSAGING_FEATURE_FLAG_KEYS = [UNIFIED_INQUIRIES_FLAG, CONTACT_UNLOCK_FLAG]
 ```
 
 `backend/messaging/migrations/0004_seed_contact_unlock_flag.py`:
@@ -888,7 +1054,7 @@ Run:
 ```bash
 cd backend && uv run python manage.py migrate && uv run pytest messaging/tests/test_contact_access_service.py -v
 ```
-Expected: 14 passed. Then `uv run python manage.py makemigrations --check --dry-run` must report no changes.
+Expected: 20 passed. Then `uv run python manage.py makemigrations --check --dry-run` must report no changes.
 
 - [ ] **Step 5: Commit**
 
@@ -999,6 +1165,24 @@ def test_a_missing_website_is_null_not_absent():
     assert body["website_url"] is None
 
 
+def test_a_staff_reveal_reports_a_null_granted_at_rather_than_inventing_one():
+    """Spec §5's staff row reveals without a grant; there is no timestamp to
+    report, and a fabricated one in an audited payload would be worse than
+    null."""
+    body = contact_payload(
+        GrantedContact(
+            email="info@example.com",
+            phone="+34900111222",
+            website_url=None,
+            granted_at=None,
+            grant_id=None,
+        )
+    )["contact"]
+
+    assert body["granted_at"] is None
+    assert set(body) == {"state", "email", "phone", "website_url", "granted_at"}
+
+
 def test_granted_at_is_iso_8601_utc_with_a_z_suffix():
     """Spec §30.2. Same transform as platform_settings.get_public_settings()."""
     body = contact_payload(granted())["contact"]
@@ -1054,12 +1238,16 @@ def locked_payload(access: LockedContact) -> dict:
 def granted_payload(access: GrantedContact) -> dict:
     # `grant_id` is deliberately NOT serialized: it is an internal handle, and
     # nothing a viewer can call takes one.
+    #
+    # `granted_at` is null on the staff-bypass path (spec §5's staff row), where
+    # no grant exists. The key is always present so a client never has to branch
+    # on its absence — only on its value.
     return {
         "state": GrantedContact.state,
         "email": access.email,
         "phone": access.phone,
         "website_url": access.website_url,
-        "granted_at": _isoformat(access.granted_at),
+        "granted_at": _isoformat(access.granted_at) if access.granted_at else None,
     }
 
 
@@ -1083,7 +1271,7 @@ def contact_payload(access) -> dict:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_contact_payloads.py -v`
-Expected: 8 passed.
+Expected: 9 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -1107,7 +1295,8 @@ git commit -m "feat(messaging): add locked/granted/unavailable contact payload b
 - Produces:
   - `messaging.models.ContactAccessGrant.first_revealed_at: DateTimeField(null=True, blank=True)`
   - `messaging.contact_access.record_first_reveal(*, grant_id, actor, request_id=None) -> bool` — `True` exactly once per grant, for the caller whose UPDATE matched; `False` for every caller after.
-  - Audit action `"contact_access.revealed"` on target type `"messaging.ContactAccessGrant"`.
+  - `messaging.contact_access.record_staff_reveal(*, segment, target_id, actor, request_id=None) -> None` — the grant-less staff path's audit, written on **every** such request.
+  - Audit actions `"contact_access.revealed"` (on `"messaging.ContactAccessGrant"`) and `"contact_access.staff_revealed"` (on `"brokers.BrokerOrganization"` / `"professionals.ProfessionalProfile"`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1129,7 +1318,7 @@ from django.db import connection
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
 from audit.models import AuditEvent
-from messaging.contact_access import record_first_reveal
+from messaging.contact_access import record_first_reveal, record_staff_reveal
 from messaging.models import ContactAccessGrant
 from messaging.tests.contact_factories import make_contact_grant
 from professionals.tests.factories import make_professional
@@ -1191,6 +1380,39 @@ def test_the_audit_event_records_who_what_and_when_but_no_contact_value():
     assert event.metadata["target_type"] == "PROFESSIONAL"
     assert event.metadata["target_entity_id"] == str(professional.pk)
 
+    serialized = json.dumps(
+        {"before": event.before, "after": event.after, "metadata": event.metadata}
+    )
+    assert "hello@ligurian-refit.example" not in serialized
+    assert "39010777888" not in serialized
+
+
+@pytest.mark.django_db
+def test_a_staff_reveal_is_audited_on_every_request_and_names_no_contact_value():
+    """Spec §5's staff row has no grant row to stamp, so this event is written
+    every time rather than once (spec §33.1: staff high-impact actions)."""
+    from django.contrib.auth.models import Group
+
+    from accounts.enums import StaffGroup
+
+    professional = build_professional()
+    moderator = make_user(email="audit-moderator@example.com", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+
+    record_staff_reveal(
+        segment="professional", target_id=professional.pk, actor=moderator
+    )
+    record_staff_reveal(
+        segment="professional", target_id=professional.pk, actor=moderator
+    )
+
+    events = AuditEvent.objects.filter(action="contact_access.staff_revealed")
+    assert events.count() == 2
+    event = events.first()
+    assert event.actor_user == moderator
+    assert event.target_type == "professionals.ProfessionalProfile"
+    assert event.target_id == str(professional.pk)
+    assert event.metadata["target_type"] == "PROFESSIONAL"
     serialized = json.dumps(
         {"before": event.before, "after": event.after, "metadata": event.metadata}
     )
@@ -1285,6 +1507,34 @@ def record_first_reveal(*, grant_id, actor, request_id=None) -> bool:
         request_id=request_id,
     )
     return True
+
+
+def record_staff_reveal(*, segment, target_id, actor, request_id=None) -> None:
+    """Audit a grant-less staff reveal (spec §5's staff row, §33.1's "staff
+    high-impact actions").
+
+    Written on EVERY such request, unlike record_first_reveal's once-per-grant
+    rule: there is no grant row to carry a first-reveal stamp, staff reveals are
+    rare, and a staff member reading a contact repeatedly is exactly the pattern
+    an abuse review needs to see. No contact value is recorded.
+    """
+    target_type = TARGET_TYPE_BY_SEGMENT[segment]
+    record_audit_event(
+        actor_user=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        action="contact_access.staff_revealed",
+        target_type=(
+            "brokers.BrokerOrganization"
+            if target_type == ContactTargetType.BROKER
+            else "professionals.ProfessionalProfile"
+        ),
+        target_id=target_id,
+        source=AuditEvent.Source.API,
+        before=None,
+        after=None,
+        metadata={"target_type": str(target_type), "reason": "staff_reveal_any_contact"},
+        request_id=request_id,
+    )
 ```
 
 Then generate the migration: `cd backend && uv run python manage.py makemigrations messaging`.
@@ -1295,7 +1545,7 @@ Run:
 ```bash
 cd backend && uv run python manage.py migrate && uv run pytest messaging/tests/test_contact_reveal_audit.py -v
 ```
-Expected: 4 passed. Then `uv run python manage.py makemigrations --check --dry-run` reports no changes.
+Expected: 5 passed. Then `uv run python manage.py makemigrations --check --dry-run` reports no changes.
 
 - [ ] **Step 5: Commit**
 
@@ -1315,8 +1565,10 @@ git commit -m "feat(messaging): audit the first delivery of revealed contact det
 
 **Interfaces:**
 - Consumes: `messaging.contact_access.{ContactTargetNotFound, GrantedContact, record_first_reveal, resolve_contact_access}` (Tasks 2, 4); `messaging.contact_payloads.contact_payload` (Task 3); `common.middleware.RequestIDMiddleware`'s `request.request_id` (Phase 0/1).
+- Consumes also: `messaging.views.MessagingAPIView` (Phase 6 contract rule 11 — reconciliation row 8).
 - Produces:
-  - `messaging.contact_views.ContactAccessView` — `GET /api/v1/contacts/<target-type>/<id>/`, URL name `contact-access`, `permission_classes = [AllowAny]`, `throttle_scope = "contact_access"`.
+  - `messaging.contact_views.ContactAccessView` — `GET /api/v1/contacts/<target-type>/<id>/`, URL name `contact-access`, extends `MessagingAPIView`, `permission_classes = [AllowAny]`, `throttle_scope = "contact_access"`.
+  - `messaging.contact_views.NO_STORE_HEADERS: dict[str, str]` and `messaging.contact_views.apply_no_store(response) -> response`.
   - Throttle scope `contact_access` = `120/min` in `DEFAULT_THROTTLE_RATES`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1333,12 +1585,14 @@ convenience.
 
 import pytest
 from common.throttling import HashedIPScopedRateThrottle
+from django.contrib.auth.models import Group
 from rest_framework.test import APIClient
 
-from accounts.enums import UserRole
+from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
 from audit.models import AuditEvent
 from messaging.contact_access import CONTACT_UNLOCK_FLAG
+from messaging.enums import UNIFIED_INQUIRIES_FLAG
 from messaging.tests.contact_factories import make_contact_grant
 from platform_settings.models import FeatureFlag
 from professionals.enums import ProfessionalProfileStatus
@@ -1420,6 +1674,49 @@ def test_the_first_granted_response_audits_the_reveal_exactly_once(
     assert AuditEvent.objects.filter(action="contact_access.revealed").count() == 1
 
 
+def test_a_staff_moderator_reveals_over_http_and_is_audited_every_time(
+    api, professional, unlock_enabled
+):
+    """Spec §5's staff row. accounts/selectors.py already reports
+    `reveal_any_contact` to staff on GET /api/v1/session/, so this endpoint has
+    to honour it."""
+    moderator = make_user(email="api-moderator@example.com", role=UserRole.STAFF)
+    moderator.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    api.force_authenticate(moderator)
+
+    first = api.get(url(professional))
+    api.get(url(professional))
+
+    assert first.data["contact"]["state"] == "GRANTED"
+    assert first.data["contact"]["email"] == RAW_EMAIL
+    assert first.data["contact"]["granted_at"] is None
+    assert AuditEvent.objects.filter(action="contact_access.staff_revealed").count() == 2
+    assert AuditEvent.objects.filter(action="contact_access.revealed").count() == 0
+
+
+def test_the_endpoint_still_answers_when_unified_inquiries_is_off(
+    api, professional, unlock_enabled
+):
+    """Deliberate divergence from Phase 6 contract rule 14 (see the ruling): with
+    inquiries paused, the panel must still render LOCKED with its explanation,
+    and an existing grant holder must not lose a contact they already unlocked.
+    A 403 `feature_disabled` here would break spec §14.2 and §2.1."""
+    FeatureFlag.objects.update_or_create(
+        key=UNIFIED_INQUIRIES_FLAG,
+        defaults={"is_enabled": False, "description": "paused for this test"},
+    )
+    viewer = make_user(email="paused-grant-holder@example.com")
+    make_contact_grant(viewer=viewer, professional=professional)
+
+    guest = api.get(url(professional))
+    api.force_authenticate(viewer)
+    holder = api.get(url(professional))
+
+    assert guest.status_code == 200
+    assert guest.data["contact"]["state"] == "LOCKED"
+    assert holder.data["contact"]["state"] == "GRANTED"
+
+
 def test_a_suspended_entity_answers_unavailable(api, professional, unlock_enabled):
     professional.status = ProfessionalProfileStatus.SUSPENDED
     professional.save(update_fields=["status", "updated_at"])
@@ -1460,12 +1757,17 @@ def test_a_non_uuid_id_does_not_reach_the_view(api, unlock_enabled):
     assert api.get("/api/v1/contacts/professional/not-a-uuid/").status_code == 404
 
 
-def test_the_endpoint_is_rate_limited(api, professional, unlock_enabled, monkeypatch):
+def test_the_endpoint_is_rate_limited_in_spec_15_5s_vocabulary(
+    api, professional, unlock_enabled, monkeypatch
+):
     # Overriding settings.REST_FRAMEWORK would NOT work: DRF binds
     # SimpleRateThrottle.THROTTLE_RATES once from api_settings at import time.
     # Monkeypatching the scope entry is the pattern this repo already uses
-    # (services_catalog/tests/test_service_category_api.py). The project-root
-    # conftest.py has already emptied the bucket.
+    # (services_catalog/tests/test_service_category_api.py). `backend/conftest.py`
+    # has already emptied this checkout's throttle keys — since f8384d8 it
+    # deletes only the keys under this worktree's `CACHES["default"]["KEY_PREFIX"]`
+    # rather than flushing the shared Redis DB, so a parallel worktree's suite is
+    # unaffected and so is this one.
     monkeypatch.setitem(
         HashedIPScopedRateThrottle.THROTTLE_RATES, "contact_access", "2/min"
     )
@@ -1475,7 +1777,66 @@ def test_the_endpoint_is_rate_limited(api, professional, unlock_enabled, monkeyp
     response = api.get(url(professional))
 
     assert response.status_code == 429
+    # MessagingAPIView.throttled() raises MessagingThrottled, so the code is
+    # `rate_limited`, not DRF's `throttled` (Phase 6 contract rule 11).
+    assert response.data["error"]["code"] == "rate_limited"
     assert RAW_EMAIL not in response.content.decode()
+
+
+@pytest.mark.parametrize(
+    "prepare",
+    [
+        pytest.param(lambda professional: None, id="guest-locked"),
+        pytest.param(
+            lambda professional: professional.__class__.objects.filter(
+                pk=professional.pk
+            ).update(status=ProfessionalProfileStatus.SUSPENDED),
+            id="unavailable",
+        ),
+        pytest.param(
+            lambda professional: professional.__class__.objects.filter(
+                pk=professional.pk
+            ).update(status=ProfessionalProfileStatus.DRAFT),
+            id="not-found",
+        ),
+    ],
+)
+def test_every_response_path_forbids_caching(api, professional, unlock_enabled, prepare):
+    """Spec §16: contact data is never public. The same URL answers LOCKED to
+    one viewer and GRANTED to the next, and the browser client sends
+    credentials, so a shared or browser cache is a real disclosure path."""
+    prepare(professional)
+
+    response = api.get(url(professional))
+
+    assert response["Cache-Control"] == "private, no-store, max-age=0"
+    assert response["Vary"] == "Authorization, Cookie"
+
+
+def test_the_granted_response_forbids_caching_too(api, professional, unlock_enabled):
+    viewer = make_user(email="grant-holder@example.com")
+    make_contact_grant(viewer=viewer, professional=professional)
+    api.force_authenticate(viewer)
+
+    response = api.get(url(professional))
+
+    assert response.data["contact"]["state"] == "GRANTED"
+    assert response["Cache-Control"] == "private, no-store, max-age=0"
+    assert response["Vary"] == "Authorization, Cookie"
+
+
+def test_the_429_response_forbids_caching_too(
+    api, professional, unlock_enabled, monkeypatch
+):
+    monkeypatch.setitem(
+        HashedIPScopedRateThrottle.THROTTLE_RATES, "contact_access", "1/min"
+    )
+    api.get(url(professional))
+
+    response = api.get(url(professional))
+
+    assert response.status_code == 429
+    assert response["Cache-Control"] == "private, no-store, max-age=0"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1498,24 +1859,54 @@ from a test, a management command or another view without going through HTTP.
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.views import APIView
+
+from messaging.views import MessagingAPIView
 
 from .contact_access import (
     ContactTargetNotFound,
     GrantedContact,
     record_first_reveal,
+    record_staff_reveal,
     resolve_contact_access,
 )
 from .contact_payloads import contact_payload
 
+#: Spec §16: contact data is never public. This URL returns LOCKED to one viewer
+#: and GRANTED to the next, discriminated only by the Authorization header, and
+#: the browser client sends `credentials: "include"` — so a shared cache (a CDN,
+#: a corporate proxy, the browser's own HTTP cache after a logout) is a real
+#: cross-viewer disclosure path. Nothing else in this codebase sets a cache
+#: header, so nothing else would stop it.
+NO_STORE_HEADERS = {
+    "Cache-Control": "private, no-store, max-age=0",
+    "Vary": "Authorization, Cookie",
+}
 
-class ContactAccessView(APIView):
+
+def apply_no_store(response):
+    """Stamp the no-store headers on ANY response object, success or error."""
+    for header, value in NO_STORE_HEADERS.items():
+        response[header] = value
+    return response
+
+
+class ContactAccessView(MessagingAPIView):
+    """Extends MessagingAPIView, not APIView (Phase 6 contract rule 11), so a
+    throttled caller gets `rate_limited` rather than DRF's `throttled`."""
+
     # AllowAny is deliberate and required: spec §34.5's browser scenario starts
     # with a GUEST seeing the locked contact panel. The endpoint never reveals
     # anything to an unauthenticated caller — resolve_contact_access() returns
     # LockedContact for them — so "public" here means "public masked values".
     permission_classes = [AllowAny]
     throttle_scope = "contact_access"
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        """The ONE place the headers are applied, so no response path can miss
+        them. DRF routes every outcome through here — the three 200 states and
+        the 401/404/429 envelopes the exception handler produced alike."""
+        response = super().finalize_response(request, response, *args, **kwargs)
+        return apply_no_store(response)
 
     def get(self, request, target_type, target_id):
         try:
@@ -1528,14 +1919,27 @@ class ContactAccessView(APIView):
             raise NotFound()
 
         if isinstance(access, GrantedContact):
-            record_first_reveal(
-                grant_id=access.grant_id,
-                actor=request.user,
-                request_id=getattr(request, "request_id", "") or None,
-            )
+            request_id = getattr(request, "request_id", "") or None
+            if access.grant_id is not None:
+                record_first_reveal(
+                    grant_id=access.grant_id,
+                    actor=request.user,
+                    request_id=request_id,
+                )
+            else:
+                # No grant: this is spec §5's staff reveal, which has no row to
+                # stamp and is therefore audited on every request.
+                record_staff_reveal(
+                    segment=target_type,
+                    target_id=target_id,
+                    actor=request.user,
+                    request_id=request_id,
+                )
 
         return Response(contact_payload(access))
 ```
+
+`finalize_response` rather than stamping each `Response`: DRF calls it for **every** outcome of `dispatch()`, including the responses its exception handler built for `NotFound`, `MessagingThrottled` and `NotAuthenticated`. Setting the headers on the `Response` objects returned from `get()` would cover the 200s only — and the 404 body, which tells an attacker that an id is not publicly reachable, is exactly as cacheable-by-mistake as the rest.
 
 Append to `backend/messaging/urls.py`'s existing `urlpatterns` (read the real file; add only this entry):
 
@@ -1561,7 +1965,7 @@ Append one entry to `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` in `backend/confi
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_contact_api.py -v`
-Expected: 9 passed.
+Expected: 16 passed (the header parametrization counts as three).
 
 - [ ] **Step 5: Commit**
 
@@ -1579,7 +1983,7 @@ git commit -m "feat(messaging): serve the locked/granted contact payload over th
 - Test: `backend/messaging/tests/test_contact_revocation.py`
 
 **Interfaces:**
-- Consumes: `accounts.permissions.{IsActiveUser, IsStaffModerator}` (Phase 3); `audit.services.record_audit_event`; Task 2's model access.
+- Consumes: `accounts.permissions.{IsActiveUser, IsStaffModerator}` (Phase 3); `messaging.views.MessagingAPIView` (Phase 6 contract rule 11); `messaging.contact_views.apply_no_store` (Task 5); `audit.services.record_audit_event`; Task 2's model access.
 - Produces:
   - `messaging.contact_access.ContactGrantAlreadyRevoked(Exception)`
   - `messaging.contact_access.revoke_contact_access(*, grant_id, actor, reason, request_id=None) -> ContactAccessGrant`
@@ -1748,13 +2152,27 @@ def test_an_ordinary_user_cannot_revoke(api, viewer, professional, unlock_enable
 
 
 def test_an_anonymous_request_cannot_revoke(api, viewer, professional, unlock_enabled):
+    """401 `authentication_required`, not DRF's `not_authenticated`: the view
+    extends MessagingAPIView (Phase 6 contract rule 11)."""
     grant = make_contact_grant(viewer=viewer, professional=professional)
 
     response = api.post(revoke_url(grant), {"reason": "let me in"}, format="json")
 
-    assert response.status_code in (401, 403)
+    assert response.status_code == 401
+    assert response.data["error"]["code"] == "authentication_required"
     grant.refresh_from_db()
     assert grant.revoked_at is None
+
+
+def test_the_revoke_response_forbids_caching(
+    api, viewer, professional, moderator, unlock_enabled
+):
+    grant = make_contact_grant(viewer=viewer, professional=professional)
+    api.force_authenticate(moderator)
+
+    response = api.post(revoke_url(grant), {"reason": "Abuse"}, format="json")
+
+    assert response["Cache-Control"] == "private, no-store, max-age=0"
 
 
 def test_an_unknown_grant_is_a_404(api, moderator, unlock_enabled):
@@ -1857,6 +2275,8 @@ from accounts.permissions import IsActiveUser, IsStaffModerator
 from .contact_access import ContactGrantAlreadyRevoked, revoke_contact_access
 from .contact_payloads import staff_grant_payload
 from .models import ContactAccessGrant
+# `apply_no_store` and `MessagingAPIView` are already imported at the top of
+# this module by Task 5.
 
 
 class ContactGrantStateConflict(APIException):
@@ -1870,9 +2290,19 @@ class StaffContactGrantRevokeSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=500, allow_blank=False, trim_whitespace=True)
 
 
-class StaffContactGrantRevokeView(APIView):
+class StaffContactGrantRevokeView(MessagingAPIView):
+    """Extends MessagingAPIView for the same reason the read view does: an
+    anonymous caller must hear `authentication_required`, not DRF's
+    `not_authenticated` (Phase 6 contract rule 11)."""
+
     permission_classes = [IsActiveUser, IsStaffModerator]
     throttle_scope = "contact_grant_admin"
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        # The body carries a viewer id and grant timestamps. It is not contact
+        # data, but it is per-staff-actor and has no business in any cache.
+        response = super().finalize_response(request, response, *args, **kwargs)
+        return apply_no_store(response)
 
     def post(self, request, grant_id):
         serializer = StaffContactGrantRevokeSerializer(data=request.data)
@@ -1911,7 +2341,7 @@ Append one entry to `DEFAULT_THROTTLE_RATES` in `backend/config/settings/base.py
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd backend && uv run pytest messaging/tests/test_contact_revocation.py -v`
-Expected: 8 passed.
+Expected: 10 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -1928,7 +2358,7 @@ git commit -m "feat(messaging): let staff revoke a contact access grant, audited
 - Test: `backend/messaging/tests/test_contact_leak_sweep.py` (new; no production code changes expected)
 
 **Interfaces:**
-- Consumes: everything Tasks 1–6 produced, plus `services_catalog.serializers.{ProfessionalCardSerializer, ProfessionalDetailSerializer}` (Phase 5).
+- Consumes: everything Tasks 1–6 produced, plus `services_catalog.serializers.{ProfessionalCardSerializer, ProfessionalDetailSerializer}` (Phase 5) and `listings.tests.factories.{make_broker_listing, make_snapshot}` + the `listing-list` / `listing-detail` routes (Phase 11) — read-only, to prove the public listing surface carries no broker contact data.
 - Produces: no new symbols. This task's deliverable is the standing proof of spec §34.3 ("Locked contact response contains no raw contact value"), §34.7 ("Raw contact data is absent from unauthorized responses/DOM") and §33.5 (logs).
 
 **If any test in this task fails, the fix belongs in the module that leaked, not in the test.** A leak found here is a Critical finding, not a test bug.
@@ -1944,19 +2374,26 @@ to obtain a raw contact value.
 Spec §34.7's release checklist item — "Raw contact data is absent from
 unauthorized responses/DOM" — and §34.3's "Locked contact response contains no
 raw contact value". Every assertion scans the RENDERED BYTES, not the parsed
-dict, so a value hidden in an unexpected key still fails the test.
+dict, so a value hidden in an unexpected key still fails the test. Both target
+kinds are covered end to end, because the broker path has no frontend surface
+yet and would otherwise be the one nobody exercises.
 """
 
 import logging
 
 import pytest
 from common.throttling import HashedIPScopedRateThrottle
+from django.contrib.auth.models import Group
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from accounts.enums import UserRole
+from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import make_user
+from brokers.enums import BrokerOrganizationStatus
 from brokers.tests.factories import make_broker
+from listings.enums import ListingStatus
+from listings.tests.factories import make_broker_listing, make_snapshot
 from messaging.contact_access import CONTACT_UNLOCK_FLAG
 from messaging.tests.contact_factories import make_contact_grant
 from platform_settings.models import FeatureFlag
@@ -1969,10 +2406,23 @@ from services_catalog.serializers import (
 
 pytestmark = pytest.mark.django_db
 
-RAW_EMAIL = "confidential@secret-yard.example"
-RAW_PHONE = "+34612345678"
-#: The digit run that must never appear, with or without the "+" and spaces.
-RAW_PHONE_DIGITS = "612345678"
+PRO_EMAIL = "confidential@secret-yard.example"
+PRO_PHONE = "+34612345678"
+PRO_WEBSITE = "https://secret-yard.example"
+BROKER_EMAIL = "backoffice@hidden-brokerage.example"
+BROKER_PHONE = "+34655000111"
+
+#: Digit runs are checked without the "+" and separators too: a leak that
+#: reformatted the number would otherwise slip past a whole-string check.
+SECRETS = (
+    PRO_EMAIL,
+    PRO_PHONE,
+    "612345678",
+    PRO_WEBSITE,
+    BROKER_EMAIL,
+    BROKER_PHONE,
+    "655000111",
+)
 
 
 @pytest.fixture
@@ -1995,25 +2445,70 @@ def professional():
         owner,
         display_name="Secret Yard",
         slug="secret-yard",
-        public_email=RAW_EMAIL,
-        public_phone=RAW_PHONE,
-        website_url="https://secret-yard.example",
+        public_email=PRO_EMAIL,
+        public_phone=PRO_PHONE,
+        website_url=PRO_WEBSITE,
     )
 
 
+@pytest.fixture
+def broker():
+    return make_broker(
+        name="Hidden Brokerage",
+        slug="hidden-brokerage",
+        public_email=BROKER_EMAIL,
+        public_phone=BROKER_PHONE,
+    )
+
+
+@pytest.fixture
+def moderator():
+    user = make_user(email="sweep-moderator@example.com", role=UserRole.STAFF)
+    user.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
+    return user
+
+
+def published_broker_listing(broker):
+    """A live public listing owned by `broker` — the surface Phase 20 will mount
+    the panel on, and the one most likely to grow a contact field by accident."""
+    staff = make_user(email="sweep-approver@example.com", role=UserRole.STAFF)
+    listing = make_broker_listing(
+        broker=broker, actor=staff, status=ListingStatus.PUBLISHED
+    )
+    snapshot = make_snapshot(listing, approved_by=staff)
+    listing.current_public_snapshot = snapshot
+    listing.published_at = timezone.now()
+    listing.save(update_fields=["current_public_snapshot", "published_at"])
+    return listing
+
+
 def assert_clean(response):
+    """No secret of EITHER entity appears anywhere in the rendered bytes."""
     body = response.content.decode()
-    assert RAW_EMAIL not in body
-    assert RAW_PHONE not in body
-    assert RAW_PHONE_DIGITS not in body
+    for secret in SECRETS:
+        assert secret not in body, f"{secret!r} leaked into a {response.status_code} body"
 
 
-def contact_url(professional):
-    return f"/api/v1/contacts/professional/{professional.pk}/"
+def assert_private(response):
+    """Spec §16: this payload must never be cached by anything."""
+    assert response["Cache-Control"] == "private, no-store, max-age=0"
+    assert response["Vary"] == "Authorization, Cookie"
+
+
+def contact_url(target_type, entity):
+    return f"/api/v1/contacts/{target_type}/{entity.pk}/"
+
+
+# --------------------------------------------------------------------------
+# The professional path
+# --------------------------------------------------------------------------
 
 
 def test_the_guest_locked_response_leaks_nothing(api, professional, unlock_enabled):
-    assert_clean(api.get(contact_url(professional)))
+    response = api.get(contact_url("professional", professional))
+
+    assert_clean(response)
+    assert_private(response)
 
 
 def test_a_signed_in_viewer_without_a_grant_leaks_nothing(
@@ -2021,7 +2516,7 @@ def test_a_signed_in_viewer_without_a_grant_leaks_nothing(
 ):
     api.force_authenticate(make_user(email="nosy@example.com"))
 
-    assert_clean(api.get(contact_url(professional)))
+    assert_clean(api.get(contact_url("professional", professional)))
 
 
 def test_a_revoked_grant_leaks_nothing(api, professional, unlock_enabled):
@@ -2031,23 +2526,20 @@ def test_a_revoked_grant_leaks_nothing(api, professional, unlock_enabled):
     )
     api.force_authenticate(viewer)
 
-    assert_clean(api.get(contact_url(professional)))
+    assert_clean(api.get(contact_url("professional", professional)))
 
 
 def test_a_grant_for_a_different_entity_leaks_nothing(
-    api, professional, unlock_enabled
+    api, professional, broker, unlock_enabled
 ):
     viewer = make_user(email="other-grant@example.com")
-    broker = make_broker(
-        name="Elsewhere Brokers",
-        slug="elsewhere-brokers",
-        public_email="office@elsewhere.example",
-        public_phone="+34900000001",
-    )
     make_contact_grant(viewer=viewer, broker=broker)
     api.force_authenticate(viewer)
 
-    assert_clean(api.get(contact_url(professional)))
+    response = api.get(contact_url("professional", professional))
+
+    assert response.data["contact"]["state"] == "LOCKED"
+    assert_clean(response)
 
 
 def test_with_the_flag_off_even_a_grant_holder_gets_nothing(api, professional):
@@ -2055,7 +2547,7 @@ def test_with_the_flag_off_even_a_grant_holder_gets_nothing(api, professional):
     make_contact_grant(viewer=viewer, professional=professional)
     api.force_authenticate(viewer)
 
-    response = api.get(contact_url(professional))
+    response = api.get(contact_url("professional", professional))
 
     assert response.data["contact"]["state"] == "LOCKED"
     assert_clean(response)
@@ -2070,20 +2562,23 @@ def test_a_suspended_entity_leaks_nothing_to_its_own_grant_holder(
     professional.save(update_fields=["status", "updated_at"])
     api.force_authenticate(viewer)
 
-    assert_clean(api.get(contact_url(professional)))
+    assert_clean(api.get(contact_url("professional", professional)))
 
 
-@pytest.mark.parametrize("status", [ProfessionalProfileStatus.DRAFT, ProfessionalProfileStatus.PENDING])
+@pytest.mark.parametrize(
+    "status", [ProfessionalProfileStatus.DRAFT, ProfessionalProfileStatus.PENDING]
+)
 def test_the_404_envelope_leaks_neither_contact_nor_entity_name(
     api, professional, status, unlock_enabled
 ):
     professional.status = status
     professional.save(update_fields=["status", "updated_at"])
 
-    response = api.get(contact_url(professional))
+    response = api.get(contact_url("professional", professional))
 
     assert response.status_code == 404
     assert_clean(response)
+    assert_private(response)
     assert "Secret Yard" not in response.content.decode()
 
 
@@ -2091,12 +2586,69 @@ def test_the_429_envelope_leaks_nothing(api, professional, unlock_enabled, monke
     monkeypatch.setitem(
         HashedIPScopedRateThrottle.THROTTLE_RATES, "contact_access", "1/min"
     )
-    api.get(contact_url(professional))
+    api.get(contact_url("professional", professional))
 
-    response = api.get(contact_url(professional))
+    response = api.get(contact_url("professional", professional))
 
     assert response.status_code == 429
     assert_clean(response)
+    assert_private(response)
+
+
+# --------------------------------------------------------------------------
+# The broker path — no frontend surface yet, so nothing else exercises it
+# --------------------------------------------------------------------------
+
+
+def test_the_broker_locked_response_leaks_nothing(api, broker, unlock_enabled):
+    response = api.get(contact_url("broker", broker))
+
+    assert response.data["contact"]["state"] == "LOCKED"
+    assert_clean(response)
+    assert_private(response)
+
+
+def test_a_professional_grant_does_not_unlock_a_broker(
+    api, broker, professional, unlock_enabled
+):
+    """The mirror image of the professional-side test, so neither direction of
+    spec §16's "Sending to Broker A does not unlock Broker B" is untested."""
+    viewer = make_user(email="pro-grant-holder@example.com")
+    make_contact_grant(viewer=viewer, professional=professional)
+    api.force_authenticate(viewer)
+
+    assert_clean(api.get(contact_url("broker", broker)))
+
+
+def test_a_suspended_broker_leaks_nothing(api, broker, unlock_enabled):
+    viewer = make_user(email="broker-grant-holder@example.com")
+    make_contact_grant(viewer=viewer, broker=broker)
+    broker.status = BrokerOrganizationStatus.SUSPENDED
+    broker.save(update_fields=["status", "updated_at"])
+    api.force_authenticate(viewer)
+
+    response = api.get(contact_url("broker", broker))
+
+    assert response.data["contact"]["state"] == "UNAVAILABLE"
+    assert_clean(response)
+
+
+def test_the_broker_granted_path_is_the_positive_control(api, broker, unlock_enabled):
+    """Without this, every broker assertion above could be passing because the
+    fixture never carried the values."""
+    viewer = make_user(email="legit-broker-asker@example.com")
+    make_contact_grant(viewer=viewer, broker=broker)
+    api.force_authenticate(viewer)
+
+    body = api.get(contact_url("broker", broker)).content.decode()
+
+    assert BROKER_EMAIL in body
+    assert "655000111" in body
+
+
+# --------------------------------------------------------------------------
+# Every other public surface that touches these entities
+# --------------------------------------------------------------------------
 
 
 def test_the_public_directory_endpoints_still_carry_no_contact_data(
@@ -2108,6 +2660,16 @@ def test_the_public_directory_endpoints_still_carry_no_contact_data(
     assert_clean(api.get(f"/api/v1/professionals/{professional.slug}/"))
 
 
+def test_the_public_listing_endpoints_carry_no_broker_contact_data(api, broker):
+    """Phase 9 extends PublicListingSerializer this wave and Phase 20 will add a
+    broker reference to it (Contract rule 15). An id is fine; a contact value is
+    not, and this is the test that says so."""
+    listing = published_broker_listing(broker)
+
+    assert_clean(api.get(reverse("listing-list")))
+    assert_clean(api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk})))
+
+
 def test_no_directory_serializer_declares_a_contact_field():
     forbidden = {"public_email", "public_phone", "website_url"}
 
@@ -2115,51 +2677,97 @@ def test_no_directory_serializer_declares_a_contact_field():
     assert forbidden.isdisjoint(set(ProfessionalDetailSerializer.Meta.fields))
 
 
+# --------------------------------------------------------------------------
+# The staff surface
+# --------------------------------------------------------------------------
+
+
+def test_no_staff_revocation_response_carries_a_contact_value(
+    api, professional, moderator, unlock_enabled
+):
+    """All three outcomes: the 200 resource, the 409 conflict, and the 403 a
+    non-staff caller gets."""
+    viewer = make_user(email="revoked-by-staff@example.com")
+    grant = make_contact_grant(viewer=viewer, professional=professional)
+    url = f"/api/v1/staff/contact-grants/{grant.pk}/revoke/"
+    api.force_authenticate(moderator)
+
+    ok = api.post(url, {"reason": "Abuse"}, format="json")
+    conflict = api.post(url, {"reason": "Abuse again"}, format="json")
+    api.force_authenticate(viewer)
+    forbidden = api.post(url, {"reason": "let me in"}, format="json")
+
+    assert (ok.status_code, conflict.status_code, forbidden.status_code) == (200, 409, 403)
+    for response in (ok, conflict, forbidden):
+        assert_clean(response)
+    # The 200 body identifies the viewer by id, never by email address.
+    assert viewer.email not in ok.content.decode()
+
+
+# --------------------------------------------------------------------------
+# Logs
+# --------------------------------------------------------------------------
+
+
 def test_nothing_is_logged_that_contains_a_contact_value(
     api, professional, unlock_enabled, caplog
 ):
     """Spec §33.5: never log private contact values.
 
-    caplog is cleared immediately before the requests so that fixture creation
-    (which legitimately handles the values) cannot account for a hit. Both the
-    locked and the granted path are exercised — the granted one is the
-    dangerous one, because it has the values in hand.
+    caplog is cleared immediately before the requests, so fixture creation —
+    which legitimately handles the values — cannot account for a hit. Both the
+    locked and the granted path are exercised; the granted one is the dangerous
+    one, because it has the values in hand. The scan covers every record
+    ATTRIBUTE, not just getMessage(): a value passed through `extra=` or riding
+    on an exception in `exc_info` never reaches the formatted message but is
+    still written out by a structured handler.
     """
     viewer = make_user(email="logger@example.com")
     make_contact_grant(viewer=viewer, professional=professional)
 
     with caplog.at_level(logging.DEBUG):
         caplog.clear()
-        api.get(contact_url(professional))
+        api.get(contact_url("professional", professional))
         api.force_authenticate(viewer)
-        api.get(contact_url(professional))
+        api.get(contact_url("professional", professional))
 
-    emitted = "\n".join(record.getMessage() for record in caplog.records)
-    assert RAW_EMAIL not in emitted
-    assert RAW_PHONE_DIGITS not in emitted
+    emitted = []
+    for record in caplog.records:
+        emitted.append(record.getMessage())
+        emitted.extend(str(value) for value in record.__dict__.values())
+    haystack = "\n".join(emitted)
+    for secret in (PRO_EMAIL, "612345678"):
+        assert secret not in haystack
 
 
 def test_the_granted_path_is_the_only_one_that_can_produce_the_values(
     api, professional, unlock_enabled
 ):
-    """The positive control. Without it, every assertion above could be passing
-    because the fixture never carried the values in the first place."""
+    """The positive control for the professional path. Without it, every
+    assertion above could be passing because the fixture never carried the
+    values in the first place."""
     viewer = make_user(email="legitimate@example.com")
     make_contact_grant(viewer=viewer, professional=professional)
     api.force_authenticate(viewer)
 
-    body = api.get(contact_url(professional)).content.decode()
+    body = api.get(contact_url("professional", professional)).content.decode()
 
-    assert RAW_EMAIL in body
-    assert RAW_PHONE_DIGITS in body
+    assert PRO_EMAIL in body
+    assert "612345678" in body
+    assert PRO_WEBSITE in body
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && uv run pytest messaging/tests/test_contact_leak_sweep.py -v`
-Expected: this is a **verification** task, so the honest expectation is that most tests pass on first run — the production code that satisfies them shipped in Tasks 1–6. Two things to check before accepting a green run:
-1. `test_the_granted_path_is_the_only_one_that_can_produce_the_values` **must pass**. If it fails, every other test in the file is vacuous and the fixture is wrong.
-2. Temporarily add `"email": target.instance.public_email` to `locked_payload()` and re-run: the locked, revoked, flag-off, suspended and 404 tests must all go red. Revert the edit. This mutation check is the proof that the sweep has teeth — record its output in the PR description.
+Expected: this is a **verification** task, so the honest expectation is that most tests pass on first run — the production code that satisfies them shipped in Tasks 1–6. A green run is only meaningful after the two positive controls and the four mutation checks below. **Run all six, paste their output into the PR description, and revert each mutation before the next.** A sweep nobody has seen fail is a sweep that proves nothing.
+
+1. **Positive controls (must already pass, unmodified):** `test_the_granted_path_is_the_only_one_that_can_produce_the_values` and `test_the_broker_granted_path_is_the_positive_control`. If either fails, every other assertion in the file is vacuous because the fixtures never carried the values.
+2. **Mutation A — the payload builder.** Give `LockedContact` a `leak: str` field, set it to `target.instance.public_email` in `_locked()`, and emit it from `locked_payload()`. Expected red: the guest, no-grant, revoked, cross-entity, flag-off and suspended tests, on both target kinds.
+3. **Mutation B — the error path.** Change `raise NotFound()` in `ContactAccessView.get` to `raise NotFound(f"No contact for {target_type} {target_id}")` and add the entity's `display_name` to the message. Expected red: `test_the_404_envelope_leaks_neither_contact_nor_entity_name`. This is the check that the error paths are swept at all, not just the 200s.
+4. **Mutation C — the headers.** Delete the `finalize_response` override from `ContactAccessView`. Expected red: every `assert_private` call, across the 200, 404 and 429 paths.
+5. **Mutation D — the logs.** Add `logging.getLogger(__name__).info("revealing %s", target.instance.public_email)` to `resolve_contact_access`'s granted branch, and separately a variant passing it as `extra={"email": ...}` rather than in the message. **Both** must turn `test_nothing_is_logged_that_contains_a_contact_value` red — the second one is precisely why that test scans `record.__dict__` and not only `getMessage()`. If the `extra=` variant passes, the scan is broken and the test is near-vacuous.
+6. **Mutation E — the other serializers.** Add `"public_email"` to `ProfessionalCardSerializer.Meta.fields`. Expected red: both `test_the_public_directory_endpoints_still_carry_no_contact_data` and `test_no_directory_serializer_declares_a_contact_field` — the wire test and the structural test, so neither is carrying the other.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -2273,8 +2881,21 @@ describe("fetchContactAccess", () => {
 
     const access = await fetchContactAccess("professional", "abc-123");
 
-    expect(apiFetch).toHaveBeenCalledWith("/api/v1/contacts/professional/abc-123/");
+    expect(apiFetch).toHaveBeenCalledWith("/api/v1/contacts/professional/abc-123/", {
+      cache: "no-store",
+    });
     expect(access.state).toBe("LOCKED");
+  });
+
+  it("never lets the browser cache a per-viewer answer", () => {
+    // The server sends Cache-Control: private, no-store; this is the client
+    // half of the same rule. A cached LOCKED replayed after login (or a cached
+    // GRANTED replayed after logout) is a cross-viewer disclosure.
+    apiFetch.mockResolvedValue({ contact: { state: "UNAVAILABLE" } });
+
+    void fetchContactAccess("broker", "abc-123");
+
+    expect(apiFetch.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
   });
 
   it("propagates an ApiError rather than inventing a locked state", async () => {
@@ -2414,13 +3035,19 @@ export function contactAccessPath(
 
 /** Authorization is decided server-side; this only asks. Errors propagate:
  * a failed request must not be rendered as "locked", which would tell the
- * reader a false reason. */
+ * reader a false reason.
+ *
+ * `cache: "no-store"` matches the server's `Cache-Control: private, no-store`
+ * and belongs on BOTH sides: the same URL answers LOCKED to a guest and GRANTED
+ * to a grant holder, so a cached response replayed after a login — or after a
+ * logout on a shared machine — is a cross-viewer disclosure. */
 export async function fetchContactAccess(
   targetType: ContactTargetType,
   targetId: string,
 ): Promise<ContactAccess> {
   const payload = await apiFetch<{ contact: ContactAccess }>(
     contactAccessPath(targetType, targetId),
+    { cache: "no-store" },
   );
   return payload.contact;
 }
@@ -2454,7 +3081,7 @@ export function requestContactAccessRefresh(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd frontend && pnpm test src/lib/i18n/contact.test.ts src/lib/api/contacts.test.ts && pnpm lint`
-Expected: 8 passed, lint clean.
+Expected: 9 passed, lint clean.
 
 - [ ] **Step 5: Commit**
 
@@ -2471,7 +3098,7 @@ git commit -m "feat(frontend): add the contact access client and EN/IT/ES dictio
 - Create: `frontend/src/components/contact/ContactPanel.tsx`, `frontend/src/components/contact/ContactPanel.test.tsx`
 
 **Interfaces:**
-- Consumes: `@/lib/api/contacts`'s `{ CONTACT_ACCESS_REFRESH_EVENT, fetchContactAccess, type ContactAccess, type ContactAccessRefreshDetail, type ContactTargetType }` (Task 8); `@/lib/i18n/contact`'s `{ tContact, type Locale }` (Task 8).
+- Consumes: `@/lib/api/contacts`'s `{ CONTACT_ACCESS_REFRESH_EVENT, fetchContactAccess, type ContactAccess, type ContactAccessRefreshDetail, type ContactTargetType }` (Task 8); `@/lib/i18n/contact`'s `{ tContact, type Locale }` (Task 8); `@/lib/auth/session`'s `useSession` (Phase 3 — mounted in `app/layout.tsx`, so every route already has the provider).
 - Produces: `ContactPanel` — the default export of `components/contact/ContactPanel.tsx`, props `{ targetType: ContactTargetType; targetId: string; locale: Locale }`.
 
 - [ ] **Step 1: Write the failing test**
@@ -2490,6 +3117,18 @@ vi.mock("@/lib/api/contacts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/contacts")>()),
   fetchContactAccess,
 }));
+
+// The panel must not ask the server before SessionProvider has traded the
+// HttpOnly refresh cookie for an access token, so the session is part of every
+// test's setup rather than something the panel is assumed to ignore.
+const sessionState = vi.hoisted(() => ({
+  current: { session: null as unknown, loading: false },
+}));
+vi.mock("@/lib/auth/session", () => ({ useSession: () => sessionState.current }));
+
+function signedIn(id: string) {
+  return { authenticated: true, user: { id, email: `${id}@example.com` } };
+}
 
 const TARGET_ID = "0f1e2d3c-4b5a-4697-8899-aabbccddeeff";
 
@@ -2520,6 +3159,7 @@ function renderPanel() {
 
 beforeEach(() => {
   fetchContactAccess.mockReset();
+  sessionState.current = { session: null, loading: false };
 });
 
 describe("ContactPanel", () => {
@@ -2638,6 +3278,44 @@ describe("ContactPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("waits for the session to bootstrap before asking the server", async () => {
+    // Regression test for a real failure mode: lib/auth/session.tsx starts with
+    // `loading: true` and the in-memory access token empty. A request sent then
+    // is anonymous, and this endpoint answers 200 LOCKED to an anonymous
+    // caller — so apiFetch's 401-refresh-retry never fires and a grant holder
+    // would be shown LOCKED until they reloaded the page.
+    sessionState.current = { session: null, loading: true };
+    fetchContactAccess.mockResolvedValue(granted());
+
+    const { rerender } = renderPanel();
+
+    expect(fetchContactAccess).not.toHaveBeenCalled();
+
+    sessionState.current = { session: signedIn("viewer-1"), loading: false };
+    rerender(
+      <ContactPanel targetType="professional" targetId={TARGET_ID} locale="en" />,
+    );
+
+    expect(await screen.findByRole("link", { name: "info@example.com" })).toBeInTheDocument();
+    await waitFor(() => expect(fetchContactAccess).toHaveBeenCalledTimes(1));
+  });
+
+  it("re-asks when the viewer identity changes", async () => {
+    // Logging in without a full page load must not leave a stale LOCKED panel.
+    sessionState.current = { session: null, loading: false };
+    fetchContactAccess.mockResolvedValueOnce(locked()).mockResolvedValueOnce(granted());
+
+    const { rerender } = renderPanel();
+    await screen.findByText("i••••@example.com");
+
+    sessionState.current = { session: signedIn("viewer-2"), loading: false };
+    rerender(
+      <ContactPanel targetType="professional" targetId={TARGET_ID} locale="en" />,
+    );
+
+    expect(await screen.findByRole("link", { name: "info@example.com" })).toBeInTheDocument();
+  });
+
   it("refetches when an inquiry for this target reports success", async () => {
     // Spec 16: "After successful send, refetch contact authorization; do not
     // rely on client-side unblur alone."
@@ -2698,6 +3376,7 @@ import {
   type ContactAccessRefreshDetail,
   type ContactTargetType,
 } from "@/lib/api/contacts";
+import { useSession } from "@/lib/auth/session";
 import { tContact, type Locale } from "@/lib/i18n/contact";
 
 interface ContactPanelProps {
@@ -2711,6 +3390,17 @@ export default function ContactPanel({
   targetId,
   locale,
 }: ContactPanelProps) {
+  // The session, not just the token: on a fresh page load lib/api/client.ts's
+  // access token is empty and SessionProvider is still trading the HttpOnly
+  // refresh cookie for a new one (session.tsx's `loading` starts true). Asking
+  // before that finishes sends an UNAUTHENTICATED request, which this endpoint
+  // answers 200 LOCKED — so apiFetch's 401-refresh-retry never fires and a
+  // grant holder would sit on a locked panel until they reloaded. Waiting for
+  // `loading` to clear is the fix; `viewerId` in the dependency list is what
+  // re-asks when somebody logs in or out without a full page load.
+  const { session, loading: sessionLoading } = useSession();
+  const viewerId = session?.user?.id ?? null;
+
   const [access, setAccess] = useState<ContactAccess | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -2727,8 +3417,11 @@ export default function ContactPanel({
   }, [targetType, targetId]);
 
   useEffect(() => {
+    if (sessionLoading) {
+      return;
+    }
     void load();
-  }, [load]);
+  }, [load, sessionLoading, viewerId]);
 
   useEffect(() => {
     function onRefresh(event: Event) {
@@ -2864,7 +3557,7 @@ export default function ContactPanel({
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd frontend && pnpm test src/components/contact/ContactPanel.test.tsx && pnpm lint`
-Expected: 11 passed, lint clean.
+Expected: 13 passed, lint clean.
 
 - [ ] **Step 5: Commit**
 
@@ -2971,14 +3664,308 @@ git commit -m "feat(frontend): mount the contact panel on the professional detai
 
 ---
 
-### Task 11: Spec §40 Scenario A/B acceptance and the phase handoff note
+### Task 11: Make a successful inquiry actually refresh the panel
+
+**Files:**
+- Modify: `frontend/src/lib/api/contacts.ts` (append `contactTargetTypeForContext`)
+- Modify: `frontend/src/components/inquiry/InquiryForm.tsx` (**Phase 6's file** — one import, two lines in the success path)
+- Test: `frontend/src/components/contact/inquiry-refresh.test.tsx` (new; Phase 6's `InquiryForm.test.tsx` is **not** edited)
+
+**Interfaces:**
+- Consumes: Phase 6's `InquiryForm`, `submitInquiry`, `InquiryConfig`, `InquiryContextRef` (reconciliation row 11); Task 8's `requestContactAccessRefresh`; Task 9's `ContactPanel`.
+- Produces: `@/lib/api/contacts`'s `contactTargetTypeForContext(contextType: string): ContactTargetType | null`.
+
+**Why this task exists.** Spec §16 says "After successful send, refetch contact authorization; do not rely on client-side unblur alone", and Task 8 built the seam for it — but **nothing dispatches it**. Phase 6's `InquiryForm` takes `{ context, config, locale }`, and on a 201 it sets `sent = true` and deliberately does not navigate (its own ruling: the conversation page does not exist yet). So without this task the panel only refreshes on a full page reload, and Task 9's refresh test proves nothing but that a hand-dispatched event works. The end-to-end test below is the point of the task: it drives the **real** form and asserts the **real** panel changes state.
+
+- [ ] **Step 1: Write the failing test**
+
+`frontend/src/components/contact/inquiry-refresh.test.tsx`:
+
+```tsx
+/**
+ * The Phase 6 -> Phase 7 seam, end to end in one render tree: a real
+ * InquiryForm submit must flip a real ContactPanel from LOCKED to GRANTED
+ * without a page reload (spec 16).
+ *
+ * Only the two network calls are mocked. Both components are the real ones, so
+ * a missing dispatch, a wrong target type or a listener bound to the wrong
+ * event name all fail here — none of which Task 9's test can see, because it
+ * dispatches the event itself.
+ *
+ * The form setup below (labels, config, session shape) is copied from Phase 6's
+ * own InquiryForm.test.tsx. Re-read that file before changing anything here.
+ */
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import ContactPanel from "@/components/contact/ContactPanel";
+import InquiryForm from "@/components/inquiry/InquiryForm";
+import type { InquiryConfig, InquiryContextRef } from "@/lib/api/inquiries";
+
+const submitInquiry = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/inquiries", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/inquiries")>()),
+  submitInquiry: (...args: unknown[]) => submitInquiry(...args),
+}));
+
+const fetchContactAccess = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/contacts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/contacts")>()),
+  fetchContactAccess,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/services/professionals/phase6-pro/",
+}));
+
+const sessionState = vi.hoisted(() => ({ current: {} as unknown }));
+vi.mock("@/lib/auth/session", () => ({ useSession: () => sessionState.current }));
+
+const TARGET_ID = "11111111-1111-4111-8111-111111111111";
+
+const context: InquiryContextRef = {
+  type: "PROFESSIONAL",
+  id: TARGET_ID,
+  label: "Phase6 Pro",
+};
+
+const config: InquiryConfig = {
+  enabled: true,
+  privacy_policy_version: "2026-09",
+  honeypot_field: "company_website",
+  limits: {
+    full_name: { min: 2, max: 120 },
+    subject: { min: 3, max: 150 },
+    message: { min: 20, max: 4000 },
+    phone_max: 32,
+  },
+};
+
+const BODY = "I would like to arrange a viewing next week please.";
+
+function signedIn() {
+  return {
+    loading: false,
+    session: {
+      authenticated: true,
+      user: {
+        id: "u1",
+        email: "ada@phase6.example",
+        full_name: "Ada Rossi",
+        primary_role: "BUYER",
+        locale: "EN",
+        email_verified: true,
+        is_active: true,
+      },
+    },
+  };
+}
+
+function renderProfilePage() {
+  return render(
+    <>
+      <InquiryForm context={context} config={config} locale="en" />
+      <ContactPanel targetType="professional" targetId={TARGET_ID} locale="en" />
+    </>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.sessionStorage.clear();
+  sessionState.current = signedIn();
+});
+
+describe("a successful inquiry and the contact panel", () => {
+  it("unlocks the panel without a page reload", async () => {
+    fetchContactAccess
+      .mockResolvedValueOnce({
+        state: "LOCKED",
+        email_mask: "i••••@example.com",
+        phone_mask: "+34 ••• ••• ••2",
+        unlock_rule: "SEND_INQUIRY",
+      })
+      .mockResolvedValue({
+        state: "GRANTED",
+        email: "info@example.com",
+        phone: "+34900111222",
+        website_url: null,
+        granted_at: "2026-09-18T10:30:00Z",
+      });
+    submitInquiry.mockResolvedValue({
+      conversation_id: "c1",
+      message_id: "m1",
+      contact_access: "GRANTED",
+      next_url: "/dashboard/messages/c1/",
+    });
+    renderProfilePage();
+    await screen.findByText("i••••@example.com");
+
+    await userEvent.type(screen.getByLabelText("Message"), BODY);
+    await userEvent.click(
+      screen.getByLabelText("I accept the privacy policy (version 2026-09)."),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(submitInquiry).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("link", { name: "info@example.com" }),
+    ).toBeInTheDocument();
+    expect(fetchContactAccess).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-asks the server rather than unblurring locally", async () => {
+    // Spec 16: "do not rely on client-side unblur alone." If the second answer
+    // is still LOCKED — a grant the backend declined to create, or a flag that
+    // is off — the panel must stay locked.
+    fetchContactAccess.mockResolvedValue({
+      state: "LOCKED",
+      email_mask: "i••••@example.com",
+      phone_mask: "+34 ••• ••• ••2",
+      unlock_rule: "SEND_INQUIRY",
+    });
+    submitInquiry.mockResolvedValue({
+      conversation_id: "c1",
+      message_id: "m1",
+      contact_access: "GRANTED",
+      next_url: "/dashboard/messages/c1/",
+    });
+    renderProfilePage();
+    await screen.findByText("i••••@example.com");
+
+    await userEvent.type(screen.getByLabelText("Message"), BODY);
+    await userEvent.click(
+      screen.getByLabelText("I accept the privacy policy (version 2026-09)."),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(fetchContactAccess).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("link", { name: "info@example.com" })).toBeNull();
+    expect(screen.getByText("i••••@example.com")).toBeInTheDocument();
+  });
+
+  it("does not refresh when the submit failed", async () => {
+    fetchContactAccess.mockResolvedValue({
+      state: "LOCKED",
+      email_mask: "i••••@example.com",
+      phone_mask: "+34 ••• ••• ••2",
+      unlock_rule: "SEND_INQUIRY",
+    });
+    submitInquiry.mockRejectedValue(new Error("rate limited"));
+    renderProfilePage();
+    await screen.findByText("i••••@example.com");
+
+    await userEvent.type(screen.getByLabelText("Message"), BODY);
+    await userEvent.click(
+      screen.getByLabelText("I accept the privacy policy (version 2026-09)."),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(submitInquiry).toHaveBeenCalledTimes(1));
+    expect(fetchContactAccess).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("contactTargetTypeForContext", () => {
+  it("maps the two grantable contexts onto their URL segments", async () => {
+    const { contactTargetTypeForContext } = await vi.importActual<
+      typeof import("@/lib/api/contacts")
+    >("@/lib/api/contacts");
+
+    expect(contactTargetTypeForContext("BROKER")).toBe("broker");
+    expect(contactTargetTypeForContext("PROFESSIONAL")).toBe("professional");
+  });
+
+  it("returns null for a LISTING context, which has no contact endpoint", () => {
+    // A private-seller listing grants nothing at all (Phase 6 reports
+    // NOT_APPLICABLE), and a broker-owned listing grants the BROKER's contact,
+    // whose id this form does not carry. Dispatching the listing id as a
+    // contact target would be a refresh request no panel can match.
+    return import("@/lib/api/contacts").then(({ contactTargetTypeForContext }) => {
+      expect(contactTargetTypeForContext("LISTING")).toBeNull();
+      expect(contactTargetTypeForContext("nonsense")).toBeNull();
+    });
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd frontend && pnpm test src/components/contact/inquiry-refresh.test.tsx`
+Expected: FAIL. The first test fails on `expect(fetchContactAccess).toHaveBeenCalledTimes(2)` — the form submits, but nothing tells the panel — and the `contactTargetTypeForContext` block fails to import.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Append to `frontend/src/lib/api/contacts.ts`:
+
+```ts
+/** Phase 6's inquiry `context_type` -> this module's URL segment, or null when
+ *  the context has no contact endpoint.
+ *
+ *  LISTING deliberately maps to null. A private-seller listing grants nothing
+ *  (Phase 6 reports `contact_access: "NOT_APPLICABLE"`), and a broker-owned
+ *  listing grants the BROKER's contact — whose id the inquiry form does not
+ *  carry, because the public listing payload has no broker reference yet
+ *  (Contract rule 15). Dispatching a listing id as a contact target would be a
+ *  refresh no panel could match. */
+export function contactTargetTypeForContext(
+  contextType: string,
+): ContactTargetType | null {
+  const segment = contextType.toLowerCase();
+  return segment === "broker" || segment === "professional" ? segment : null;
+}
+```
+
+In `frontend/src/components/inquiry/InquiryForm.tsx` — **read the merged file first** — add the import beside the others:
+
+```ts
+import {
+  contactTargetTypeForContext,
+  requestContactAccessRefresh,
+} from "@/lib/api/contacts";
+```
+
+and, immediately after the existing `setSent(true);` in the success path (inside the same `try`, so a failed submit never reaches it):
+
+```ts
+      // Spec 16: "After successful send, refetch contact authorization; do not
+      // rely on client-side unblur alone." This asks Phase 7's panel to re-ask
+      // the server; it never unlocks anything by itself.
+      const contactTarget = contactTargetTypeForContext(context.type);
+      if (contactTarget) {
+        requestContactAccessRefresh(contactTarget, context.id);
+      }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run:
+```bash
+cd frontend && pnpm test && pnpm lint && pnpm build
+```
+Expected: the three seam tests pass, Phase 6's own `InquiryForm.test.tsx` still passes unchanged (it asserts the `submitInquiry` payload and the confirmation, neither of which this edit touches), and the whole frontend suite is green.
+
+Then prove the dispatch is load-bearing rather than incidental: comment out the `requestContactAccessRefresh` call and confirm the first seam test goes red; restore it. Record that in the PR description.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add frontend/src/lib/api/contacts.ts frontend/src/components/inquiry/InquiryForm.tsx frontend/src/components/contact/inquiry-refresh.test.tsx
+git commit -m "feat(frontend): refresh contact authorization after a successful inquiry"
+```
+
+---
+
+### Task 12: Spec §40 Scenario A/B acceptance and the phase handoff note
 
 **Files:**
 - Create: `backend/messaging/tests/test_phase7_acceptance.py`
 - Modify: `ACTIVITY.md` (one appended log entry at the top of the Log section)
 
 **Interfaces:**
-- Consumes: everything Tasks 1–10 produced, plus Phase 6's `POST /api/v1/inquiries/` (**reconciliation row 8** — re-read the merged endpoint's request body and error codes before writing these tests).
+- Consumes: everything Tasks 1–11 produced, plus Phase 6's `POST /api/v1/inquiries/` and `messaging.enums.CURRENT_PRIVACY_POLICY_VERSION` (**reconciliation row 9** — re-read the merged serializer's field names and error codes before writing these tests).
 - Produces: no new symbols. The deliverable is spec §40 Scenarios A and B proved end to end, and the §39 handoff note.
 
 - [ ] **Step 1: Write the failing test**
@@ -2999,6 +3986,7 @@ from rest_framework.test import APIClient
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
 from messaging.contact_access import CONTACT_UNLOCK_FLAG
+from messaging.enums import CURRENT_PRIVACY_POLICY_VERSION
 from messaging.models import ContactAccessGrant
 from platform_settings.models import FeatureFlag
 from professionals.tests.factories import make_professional
@@ -3031,8 +4019,21 @@ def contact_url(professional):
 
 
 def inquiry_body(professional, **overrides):
-    """Spec §15.5's request body. Re-read Phase 6's merged serializer before
-    changing a field name here (reconciliation row 8)."""
+    """Phase 6's `InquirySubmissionSerializer`, field for field (reconciliation
+    row 9 — re-read the merged serializer before changing a name here).
+
+    Three of these are easy to get wrong and each would fail the whole file:
+    * `message` is the WIRE name; the service parameter underneath is `body`.
+    * `email` MUST equal the authenticated actor's address — `validate_email`
+      raises `email_mismatch` otherwise, so the fixture user's email and this
+      value are the same string on purpose.
+    * `privacy_consent` is a separate required-in-effect boolean: it is declared
+      `BooleanField(required=False, default=False)`, and `validate()` raises
+      `ConsentRequired` when it is falsy. Sending only
+      `privacy_policy_version` is a 400, not a 201.
+    The honeypot (`HONEYPOT_FIELD_NAME`) is deliberately omitted: it defaults to
+    `""`, and repeating its name here would duplicate a constant Phase 6 owns.
+    """
     body = {
         "context_type": "PROFESSIONAL",
         "context_id": str(professional.pk),
@@ -3041,7 +4042,9 @@ def inquiry_body(professional, **overrides):
         "phone": "+390000000000",
         "subject": "Question about your survey services",
         "message": "I would like to arrange a survey for a boat next week.",
-        "privacy_policy_version": "2026-09",
+        "privacy_policy_version": CURRENT_PRIVACY_POLICY_VERSION,
+        "privacy_consent": True,
+        "marketing_consent": False,
     }
     body.update(overrides)
     return body
@@ -3089,6 +4092,49 @@ def test_scenario_a_reveals_to_that_viewer_only():
 
 
 @pytest.mark.django_db
+def test_an_inquiry_without_privacy_consent_is_refused_and_grants_nothing():
+    """Phase 6's serializer raises ConsentRequired when `privacy_consent` is
+    falsy (spec §15.1's required checkbox, §33.2's "obtain required
+    consent/version"). Also guards this file's own fixture: if the happy-path
+    body were missing the flag, every 201 assertion above would be wrong."""
+    enable_flags()
+    professional = build_professional()
+    buyer = make_user(email="buyer@example.com")
+    api = APIClient()
+    api.force_authenticate(buyer)
+
+    refused = api.post(
+        INQUIRY_URL, inquiry_body(professional, privacy_consent=False), format="json"
+    )
+
+    assert refused.status_code == 400
+    assert refused.data["error"]["code"] == "consent_required"
+    assert ContactAccessGrant.objects.count() == 0
+    assert api.get(contact_url(professional)).data["contact"]["state"] == "LOCKED"
+
+
+@pytest.mark.django_db
+def test_an_inquiry_sent_as_somebody_elses_email_is_refused():
+    """Spec §15's definition of done: the email "cannot be forged to another
+    account". Phase 6's validate_email enforces it; this pins that a forged
+    sender never produces a grant for the real account either."""
+    enable_flags()
+    professional = build_professional()
+    buyer = make_user(email="buyer@example.com")
+    api = APIClient()
+    api.force_authenticate(buyer)
+
+    refused = api.post(
+        INQUIRY_URL,
+        inquiry_body(professional, email="someone-else@example.com"),
+        format="json",
+    )
+
+    assert refused.status_code == 400
+    assert ContactAccessGrant.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_scenario_b_a_failed_inquiry_leaves_the_contact_locked():
     """Spec §40 Scenario B: "no message, notification or grant exists and raw
     contact data is absent from the response and DOM"."""
@@ -3117,8 +4163,8 @@ def test_a_rate_limited_inquiry_does_not_unlock_contact(monkeypatch):
     buyer = make_user(email="buyer@example.com")
     api = APIClient()
     api.force_authenticate(buyer)
-    # Phase 6's inquiry scope name — confirm it in the merged settings before
-    # running (reconciliation row 8).
+    # `inquiry_submit` is Phase 6's scope, declared at 20/hour (its contract
+    # rule 15). Confirm it in the merged settings before running.
     monkeypatch.setitem(HashedIPScopedRateThrottle.THROTTLE_RATES, "inquiry_submit", "0/min")
 
     throttled = api.post(INQUIRY_URL, inquiry_body(professional), format="json")
@@ -3190,7 +4236,7 @@ def test_staff_revocation_takes_effect_immediately_after_a_real_inquiry():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && uv run pytest messaging/tests/test_phase7_acceptance.py -v`
-Expected: this task adds **no production code**, so the honest expectation is that these pass once Phase 6's endpoint behaves as its plan says. Treat any failure as one of three things, and say which in the PR description: (a) a real Phase 7 defect — fix it here; (b) a Phase 6 defect — escalate to the controller, do not work around it; (c) a wrong assumption in this test about Phase 6's request body or throttle scope — fix the test against the merged code and update reconciliation row 8.
+Expected: this task adds **no production code**, so the honest expectation is that these eight tests pass once Phase 6's endpoint behaves as its plan says. Treat any failure as one of three things, and say which in the PR description: (a) a real Phase 7 defect — fix it here; (b) a Phase 6 defect — escalate to the controller, do not work around it; (c) a wrong assumption in this test about Phase 6's request body or throttle scope — fix the test against the merged code and update reconciliation row 9.
 
 - [ ] **Step 3: Write the handoff note**
 
@@ -3216,9 +4262,15 @@ inventory**, see the plan's Contract summary). New frontend
 ContactPanel.tsx`, mounted on the professional detail page.
 
 **Permissions and audit:** the read endpoint is `AllowAny` (guests see the
-masked locked state); revocation requires `IsActiveUser + IsStaffModerator`.
-Audit events added: `contact_access.revealed` (once per grant, on first
-delivery) and `contact_access.revoked`. Neither carries a contact value.
+masked locked state) and both views extend `messaging.views.MessagingAPIView`;
+revocation requires `IsActiveUser + IsStaffModerator`. Staff moderators and
+admins reveal without a grant, honouring the `reveal_any_contact` capability
+`GET /api/v1/session/` already advertises. Audit events added:
+`contact_access.revealed` (once per grant, on first delivery),
+`contact_access.staff_revealed` (every grant-less staff read) and
+`contact_access.revoked`. None carries a contact value. Every reveal response
+carries `Cache-Control: private, no-store, max-age=0` and
+`Vary: Authorization, Cookie`.
 
 **Tests added and results:** <N> new backend tests and <M> new frontend tests,
 all green; full suites `uv run pytest -q` and `pnpm test` green. The
@@ -3234,7 +4286,8 @@ profile page and the listing-page contact panel are Phase 20's mount, and
 recipient-blocking-driven revocation (spec §36.6) has a service but no caller.
 
 **Screenshots:** locked, granted and unavailable panel states attached to the
-Task 10 and Task 11 PRs.
+Task 10 PR, and the locked-to-unlocked transition after a real send attached to
+the Task 11 PR.
 ```
 
 - [ ] **Step 4: Run the full verification**
@@ -3280,6 +4333,7 @@ from messaging.contact_access import (
     LockedContact,
     UnavailableContact,
     record_first_reveal,
+    record_staff_reveal,
     resolve_contact_access,
     resolve_contact_target,
     revoke_contact_access,
@@ -3291,7 +4345,12 @@ from messaging.contact_payloads import (
     staff_grant_payload,
     unavailable_payload,
 )
-from messaging.contact_views import ContactAccessView, StaffContactGrantRevokeView
+from messaging.contact_views import (
+    NO_STORE_HEADERS,
+    ContactAccessView,
+    StaffContactGrantRevokeView,
+    apply_no_store,
+)
 from messaging.masking import MASK_CHARACTER, mask_email, mask_phone
 from messaging.tests.contact_factories import make_contact_grant
 ```
@@ -3302,6 +4361,7 @@ import ContactPanel from "@/components/contact/ContactPanel";
 import {
   CONTACT_ACCESS_REFRESH_EVENT,
   contactAccessPath,
+  contactTargetTypeForContext,
   fetchContactAccess,
   requestContactAccessRefresh,
   type ContactAccess,
@@ -3320,33 +4380,39 @@ Rules a later phase must follow:
 2. **Never give `LockedContact` a raw field, and never merge the three result types into one class with nullable fields.** The separation is the phase's central control: a serializer bug cannot leak what the object does not carry. `test_the_locked_result_has_no_attribute_that_could_hold_a_raw_value` fails if someone tries.
 3. **The contact panel stays a client component.** Never fetch contact access from a server component, `generateMetadata`, a sitemap entry, a route handler that renders into HTML, or anything whose result lands in an RSC payload (spec §16: not in "page source … or preloaded JSON").
 4. **Mount `<ContactPanel targetType={…} targetId={…} locale={…} />`; never build a second contact UI.** Phase 19's broker dashboard and Phase 20's broker profile and listing pages reuse this component, exactly as spec §29.2/§29.3 require one shared "contact card position".
-5. **After a successful inquiry, call `requestContactAccessRefresh(targetType, targetId)`.** Spec §16: "After successful send, refetch contact authorization; do not rely on client-side unblur alone." Never flip the panel to granted client-side.
+5. **After a successful inquiry, call `requestContactAccessRefresh(targetType, targetId)`.** Spec §16: "After successful send, refetch contact authorization; do not rely on client-side unblur alone." Task 11 wires this into Phase 6's `InquiryForm` for the broker and professional contexts; a new inquiry surface (Phase 16's create flow, Phase 19's dashboard, Phase 20's listing page) must keep the call, and must use `contactTargetTypeForContext()` rather than lower-casing the context type itself — `LISTING` maps to `null` for a reason. Never flip the panel to granted client-side; the second answer is the server's to give.
 6. **Every revocation goes through `revoke_contact_access()`** — including the one spec §36.6 requires when a recipient blocks a user. It holds the row lock, the state check and the audit event together; a direct `revoked_at` write skips all three.
-7. **A private seller is never a contact target.** `TARGET_TYPE_BY_SEGMENT` has exactly two entries because spec §1 scopes reveal to "broker/professional contact details". A private individual's address is not business contact data. Adding a third target type means changing spec §11.8's enum, the grant model and this map together.
+7. **A private seller is never a contact target.** `TARGET_TYPE_BY_SEGMENT` has exactly two entries because spec §1 scopes reveal to "broker/professional contact details". A private individual's address is not business contact data. Adding a third target type means changing spec §11.8's enum, the grant model and this map together. Relatedly, **Phase 6's `contact_access: "NOT_APPLICABLE"` is not Phase 7's `state: "UNAVAILABLE"`**: the first answers "did *this inquiry* grant anything", the second "can *this entity's* contact be shown at all". Do not map one onto the other.
 8. **`messaging.masking` is the only place a masking rule lives.** Widening or narrowing disclosure means changing `EMAIL_MASK_WIDTH`, `PHONE_COUNTRY_CODE_DIGITS`, `PHONE_TRAILING_DIGITS` or `PHONE_MINIMUM_DIGITS` and the tests that pin them — never building a second mask at a call site.
 9. **`contact_unlock` gates revealing, never locking.** A future flag change must keep "flag off ⇒ LOCKED" true; the fail-closed direction is the only safe one.
 10. **Adding a key to any contact payload is a deliberate act.** `test_contact_payloads.py` asserts exact key sets in both directions, so a new key fails the suite. Change the test in the same commit, with a written reason.
-11. **Never put a contact value in a log, an audit `before`/`after`/`metadata`, an error message or an exception argument** (spec §33.5). `test_contact_leak_sweep.py` scans rendered bytes and log records for exactly this.
-12. **Phase 20, to mount the panel on a listing page, must first add a broker identifier to the public listing payload.** `PublicListingSerializer` today emits `id`, `seller_type`, snapshot content, price, media and `view_count` and **no broker reference at all**, so a listing page cannot currently resolve which broker to ask about. Add `broker_id` (an id, not a contact field) under Phase 11's rule 9 — extend the one serializer, do not create a second representation.
+11. **Never put a contact value in a log, an audit `before`/`after`/`metadata`, an error message or an exception argument** (spec §33.5). `test_contact_leak_sweep.py` scans rendered bytes and every log-record attribute for exactly this.
+12. **Any new contact-bearing response keeps the `no-store` headers.** Call `apply_no_store()` from the view's `finalize_response`, so the error paths are covered too. A per-viewer payload on a shared URL is cacheable-by-accident until something says otherwise, and nothing else in this codebase says otherwise.
+13. **Both views extend `messaging.views.MessagingAPIView`** (Phase 6 contract rule 11). A third contact endpoint extends it too, or it answers `not_authenticated`/`throttled` where the rest of the API says `authentication_required`/`rate_limited`.
+14. **Staff reveal is `accounts.services.is_staff_moderator` and nothing else.** It is the same predicate `accounts.selectors` uses for the session payload's `reveal_any_contact`; a second definition would let the advertised capability and the honoured one drift. A staff reveal reports `granted_at: null` and writes `contact_access.staff_revealed` on every request.
+15. **Phase 20, to mount the panel on a listing page, must first add a broker identifier to the public listing payload.** `PublicListingSerializer` today emits `id`, `seller_type`, snapshot content, price, media and `view_count` and **no broker reference at all**, so a listing page cannot currently resolve which broker to ask about. Add `broker_id` (an id, not a contact field) under Phase 11's rule 9 — extend the one serializer, do not create a second representation.
 
 ---
 
 ## Known Limitations
 
-1. **No broker profile page and no listing page mount.** The backend serves `broker` targets and is tested for them, but `frontend/src/app/` has no broker profile route and no listing detail route: spec §29.2 is Phase 20's and the listing page is Phase 16/20's. The only mounted panel in this phase is on the professional detail page.
+1. **No broker profile page and no listing page mount.** The backend serves `broker` targets and Task 7 sweeps them end to end, but `frontend/src/app/` has no broker profile route and no listing detail route: spec §29.2 is Phase 20's and the listing page is Phase 16/20's. The only mounted panel in this phase is on the professional detail page.
+1a. **`UNAVAILABLE` is unreachable on the only mounted surface.** `fetchProfessional` returns `null` for a non-`ACTIVE` profile (Phase 5's detail endpoint filters `status=ACTIVE`), so the professional page calls `notFound()` before the panel ever renders — a suspended professional's page is a 404, not a page with an "unavailable" panel. The state is real, correct and tested at the API level, and it becomes visible the moment a surface exists that outlives its entity's suspension: a grant holder's conversation thread (Phase 19) or the broker profile (Phase 20). Named here so nobody reads the untested-on-screen state as dead code and deletes it.
 2. **Spec §16's "applies across that entity's profile and listings" is enforced but only half-demonstrated.** The grant is keyed on `(viewer, entity)`, never on a listing, so it *does* apply everywhere; but until Phase 20 renders a listing page there is no second surface to see it on.
-3. **`PublicListingSerializer` carries no broker identifier** (verified against the merged Phase 11 code), so Phase 20 has a prerequisite before it can mount the panel on a listing — Contract rule 12.
-4. **Spec §36.6's block-driven revocation has a service but no caller.** `revoke_contact_access()` is complete and tested; nothing calls it except the staff endpoint, because no block action exists anywhere in §30.1. Whichever phase ships blocking (Phase 6 if it ships `Conversation.status = BLOCKED` transitions, otherwise Phase 19) must call it.
-5. **There is no staff UI, and no endpoint to *find* a grant.** Revocation needs the grant's UUID, which today comes from Django admin or the database. Spec §26 (Phase 17) owns staff screens; a `GET /api/v1/staff/contact-grants/` list belongs there, not here.
-6. **`UNAVAILABLE` discloses that a suspended entity exists** to anyone holding its UUID, where `DRAFT`/`PENDING` return 404. This is the deliberate ruling above (a suspended entity was previously public), but it is a disclosure and is recorded as one. UUIDs are unguessable, so the practical exposure is limited to someone who already had the id.
-7. **The email mask discloses the domain and the first character of the local part**, exactly as spec §16's own example does. For a business address the domain is ordinarily public; for a personal one it is a real, accepted disclosure.
-8. **The phone mask discloses `+CC` and the final digit**, again from spec §16's example. With the country code known from the profile's location anyway, the marginal disclosure is one digit.
-9. **`first_revealed_at` records the first delivery only.** There is no per-request access log, deliberately (see the ruling), so "how many times did this viewer look at the number" is not answerable. If §35.4's "review contact-access failures" later needs more, it needs a metric, not an audit row per GET.
-10. **The granted payload is read live from the entity row.** Spec §36.6 requires exactly this ("An entity changing public phone/email updates the revealed current business contact"), so there is no snapshot and no history of what a viewer saw at reveal time.
-11. **The panel always renders in `DEFAULT_LOCALE`** on the professional page, because Phase 5's `page.tsx` pins `const locale = DEFAULT_LOCALE`. The component itself is fully localized and takes `locale` as a prop; the page-level locale negotiation is Phase 20's (spec §29) to fix once, for the whole route.
-12. **Guests are throttled per hashed IP and authenticated viewers per user id**, which is DRF's `ScopedRateThrottle` behaviour, not a decision this phase made. It means one office NAT shares the guest budget for the contact endpoint. `contact_access` is set at 120/min partly for that reason.
-13. **Reconciliation rows 8 and 10 are still assumptions** at the time of writing: Phase 6's inquiry **serializer** field names (its Task 7 was unwritten — `submit_inquiry()` calls the message field `body` while spec §15.5's JSON calls it `message`), and whether its `InquiryForm` calls this phase's refresh helper. Tasks 1–10 do not depend on either; Task 11 depends on the first and says so.
-14. **No CAPTCHA or risk scoring on the reveal path.** Spec §15.1 permits CAPTCHA "only behind a risk threshold"; the reveal itself is not a submission, and the abuse control here is the grant requirement plus the throttle plus staff revocation.
+3. **`PublicListingSerializer` carries no broker identifier** (verified against the merged Phase 11 code), so Phase 20 has a prerequisite before it can mount the panel on a listing — Contract rule 15.
+4. **A broker-owned *listing* inquiry does not refresh a contact panel.** Task 11 dispatches the refresh for `BROKER` and `PROFESSIONAL` contexts only. A `LISTING` context grants the owning broker's contact, but the inquiry form carries the listing's id, not the broker's, and the public listing payload has no broker reference (Known Limitation 3). Phase 20, when it mounts the panel on a listing page, dispatches with the broker id it will by then have. Until then there is no listing page, so nothing is broken — only unbuilt.
+5. **Spec §36.6's block-driven revocation has a service but no caller.** `revoke_contact_access()` is complete and tested; nothing calls it except the staff endpoint, because no block action exists anywhere in §30.1. Whichever phase ships blocking (Phase 6 if it ships `Conversation.status = BLOCKED` transitions, otherwise Phase 19) must call it.
+6. **There is no staff UI, and no endpoint to *find* a grant.** Revocation needs the grant's UUID, which today comes from Django admin or the database. Spec §26 (Phase 17) owns staff screens; a `GET /api/v1/staff/contact-grants/` list belongs there, not here.
+7. **`UNAVAILABLE` discloses that a suspended entity exists** to anyone holding its UUID, where `DRAFT`/`PENDING` return 404. This is the deliberate ruling above (a suspended entity was previously public), but it is a disclosure and is recorded as one. UUIDs are unguessable, so the practical exposure is limited to someone who already had the id.
+8. **The email mask discloses the domain and the first character of the local part**, exactly as spec §16's own example does. For a business address the domain is ordinarily public; for a personal one it is a real, accepted disclosure.
+9. **The phone mask discloses `+CC` and the final digit**, again from spec §16's example. With the country code known from the profile's location anyway, the marginal disclosure is one digit. It no longer discloses length.
+10. **`first_revealed_at` records the first delivery only.** There is no per-request access log, deliberately (see the ruling), so "how many times did this viewer look at the number" is not answerable. If §35.4's "review contact-access failures" later needs more, it needs a metric, not an audit row per GET.
+11. **The granted payload is read live from the entity row.** Spec §36.6 requires exactly this ("An entity changing public phone/email updates the revealed current business contact"), so there is no snapshot and no history of what a viewer saw at reveal time.
+12. **The panel always renders in `DEFAULT_LOCALE`** on the professional page, because Phase 5's `page.tsx` pins `const locale = DEFAULT_LOCALE`. The component itself is fully localized and takes `locale` as a prop; the page-level locale negotiation is Phase 20's (spec §29) to fix once, for the whole route.
+13. **Guests are throttled per hashed IP and authenticated viewers per user id**, which is DRF's `ScopedRateThrottle` behaviour, not a decision this phase made. It means one office NAT shares the guest budget for the contact endpoint. `contact_access` is set at 120/min partly for that reason.
+14. **The reconciliation table is checked against Phase 6's *plan*, not its merged code.** Every row now reads **Verified**, but Phase 6 is still taking fix rounds of its own (among them a `FeatureDisabled` 403 raised from `UnifiedInquiriesEnabled`, a sender display-name fallback, conftest transactional isolation, SSR internal-header forwarding, notification idempotency and an N+1 fix). None of those touch a symbol this plan imports, but the table is re-checked against merged code before Task 1 regardless.
+15. **Staff reveals are audited per request, so a staff member browsing many profiles writes many audit rows.** That is the intended trade (spec §33.1), but it means `contact_access.staff_revealed` is the noisiest action this phase writes. If it ever becomes a volume problem, the fix is a metric, not a quieter audit.
+16. **No CAPTCHA or risk scoring on the reveal path.** Spec §15.1 permits CAPTCHA "only behind a risk threshold"; the reveal itself is not a submission, and the abuse control here is the grant requirement plus the throttle plus staff revocation.
 
 ---
 
@@ -3362,20 +4428,21 @@ Rules a later phase must follow:
 | Locked email/phone use a non-selectable blur/mask treatment plus lock icon and text | Task 9 (`select-none blur-[2px]`, `lock` glyph, the spec-literal sentence) |
 | Never in HTML, page source, CSS pseudo-content, `aria-label`, analytics payload or preloaded JSON | Tasks 9 (the aria-label/title test), 10 (the HTTP page-source check) + the client-component ruling |
 | Accessibility: screen readers hear the masked value and unlock explanation | Task 9 (the mask is not `aria-hidden`; only the glyph is) + Task 10's manual screen-reader check |
-| After successful send, refetch contact authorization; do not rely on client-side unblur | Tasks 8 (`requestContactAccessRefresh`), 9 (the refetch test) |
+| After successful send, refetch contact authorization; do not rely on client-side unblur | Tasks 8 (`requestContactAccessRefresh`), 9 (the listener), **11 (the dispatch from Phase 6's real form, proved end to end)** |
 | Grant scoped to `(viewer, broker)` / `(viewer, professional)`, applying across profile and listings | Task 2 (the queryset is keyed on the entity, never on a listing or conversation) |
 | Staff can revoke grants for abuse | Task 6 |
 | Suspended entity contact becomes unavailable | Tasks 2 (`UnavailableContact`, checked before the grant), 3, 9 |
 | Acceptance: inspecting DOM/network as an unauthorized user reveals no raw contact data | Tasks 7, 10 |
 | Acceptance: sending to Broker A does not unlock Broker B | Tasks 2, 7 |
-| Acceptance: a failed or rate-limited message does not unlock contact | Task 11 |
-| Acceptance: one grant despite concurrent duplicate requests | Task 11 (and Task 4 proves the same property for the reveal marker) |
+| Acceptance: a failed or rate-limited message does not unlock contact | Task 12 |
+| Acceptance: one grant despite concurrent duplicate requests | Task 12 (and Task 4 proves the same property for the reveal marker) |
+| Never makes contact data public (spec §1) — including via a cache | Task 5 (`no-store`/`Vary` on every response path), Task 8 (`cache: "no-store"` on the fetch), Task 7 (header assertions) |
 
-**Spec coverage — the sections §16 depends on:** §1's contact-reveal decision → Global Constraints + Tasks 2/6. §2.1 (every visible state has a backend source) → the panel renders only what the endpoint returned; there is no client-side lock state. §2.4 (contact reveals are audited) → Task 4 (`contact_access.revealed`) plus Phase 6's `contact_access.granted`, with Task 6 adding `contact_access.revoked`. §5's "Reveal recipient contact after inquiry — own access" row → Task 2's viewer-scoped queryset and Task 7's "another viewer's grant does not unlock for me". §11.8's grant fields → consumed as Phase 6 defines them, with one additive column. §14.2's blurred contact panel "governed by ContactAccessService" → Tasks 9, 10, closing Phase 5's `PHASE 7 SEAM`. §29.6's "contact lock explanation remains readable without relying on hover" → the explanation is body text, not a tooltip. §30.1 → the contact endpoint, plus one flagged addition. §30.2 → the error envelope, ISO-8601-Z times, `X-Request-ID`, and "mutations return updated resource" for the revoke response. §30.4 → two new throttle scopes on Phase 3's hashed-IP throttle. §31's `Blurred phone/email | ContactAccessService | grant after successful inquiry | locked explanation` row → all four cells have a named implementation. §33.2's consent/privacy-notice items belong to Phase 6 (consent capture) and Phase 22 (the notice text); this phase's contribution is that contact unlock logs exist and contain no contact values. §33.5 → Task 7's log sweep and the audit-payload assertions in Tasks 4 and 6. §34.3's "Locked contact response contains no raw contact value" and §34.7's "Raw contact data is absent from unauthorized responses/DOM" → Task 7 and Task 10. §35.1's `contact_unlock` → Task 2's seed migration and the flag-off tests in Tasks 2 and 7. §36.6's four bullets → "empty/spam content does not create access" is Phase 6's validation; blocking-driven revocation is a documented seam; "an entity changing public phone/email updates the revealed contact" is satisfied by reading live (Known Limitation 10); "not transferable between accounts" is Task 2's per-viewer test. §37's `contact.locked_explanation` and `contact.unlocked` → Task 8, with all three languages. §39 → the per-task TDD structure, the HTTP-level red-to-green in Task 10, the "no visual-only implementation" ruling behind the client-component design, and Task 11's handoff note. §40 Scenarios A and B → Task 11.
+**Spec coverage — the sections §16 depends on:** §1's contact-reveal decision → Global Constraints + Tasks 2/6. §2.1 (every visible state has a backend source) → the panel renders only what the endpoint returned; there is no client-side lock state. §2.4 (contact reveals are audited) → Task 4 (`contact_access.revealed`) plus Phase 6's `contact_access.granted`, with Task 6 adding `contact_access.revoked`. §5's "Reveal recipient contact after inquiry" row → `own access` for every ordinary role is Task 2's viewer-scoped grant lookup plus Task 2's "another viewer's grant does not unlock for me"; the **bare ✓ for staff moderator and staff admin** is Task 2's `is_staff_moderator` branch, audited by Task 4's `contact_access.staff_revealed` and asserted over HTTP in Task 5. An earlier draft of this plan misread that row as "own access" for staff and left the branch out; `accounts/selectors.py:44` already advertises the capability as `reveal_any_contact`, so the omission would have made the session payload lie. §11.8's grant fields → consumed as Phase 6 defines them, with one additive column. §14.2's blurred contact panel "governed by ContactAccessService" → Tasks 9, 10, closing Phase 5's `PHASE 7 SEAM`. §29.6's "contact lock explanation remains readable without relying on hover" → the explanation is body text, not a tooltip. §30.1 → the contact endpoint, plus one flagged addition. §30.2 → the error envelope, ISO-8601-Z times, `X-Request-ID`, and "mutations return updated resource" for the revoke response. §30.4 → two new throttle scopes on Phase 3's hashed-IP throttle. §31's `Blurred phone/email | ContactAccessService | grant after successful inquiry | locked explanation` row → all four cells have a named implementation. §33.2's consent/privacy-notice items belong to Phase 6 (consent capture) and Phase 22 (the notice text); this phase's contribution is that contact unlock logs exist and contain no contact values. §33.5 → Task 7's log sweep and the audit-payload assertions in Tasks 4 and 6. §34.3's "Locked contact response contains no raw contact value" and §34.7's "Raw contact data is absent from unauthorized responses/DOM" → Task 7 and Task 10. §35.1's `contact_unlock` → Task 2's seed migration and the flag-off tests in Tasks 2 and 7. §36.6's four bullets → "empty/spam content does not create access" is Phase 6's validation; blocking-driven revocation is a documented seam; "an entity changing public phone/email updates the revealed contact" is satisfied by reading live (Known Limitation 10); "not transferable between accounts" is Task 2's per-viewer test. §37's `contact.locked_explanation` and `contact.unlocked` → Task 8, with all three languages. §39 → the per-task TDD structure, the HTTP-level red-to-green in Task 10, the "no visual-only implementation" ruling behind the client-component design, and Task 11's handoff note. §40 Scenarios A and B → Task 11.
 
-**Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere. Every code step carries real code; every test step carries real test code. Three constructs could be mistaken for placeholders and are not: (a) the `<next>`-style migration numbers were resolved to `0004`/`0005` once Phase 6's plan was readable, and the remaining instruction is to *confirm* with `ls`, which is verification, not a decision; (b) the `<N>`/`<M>` tokens in Task 11's ACTIVITY entry are counts the executor reads off their own test output, with an explicit instruction to substitute them; (c) the "Phase 6 reconciliation" table's two remaining unverified rows are named, individually scoped, and only Task 11 depends on either.
+**Placeholder scan:** no "TBD", "TODO", "implement later", "add appropriate error handling", "handle edge cases", "write tests for the above" or "similar to Task N" appears anywhere. Every code step carries real code; every test step carries real test code. Three constructs could be mistaken for placeholders and are not: (a) the `<next>`-style migration numbers were resolved to `0004`/`0005` once Phase 6's plan was readable, and the remaining instruction is to *confirm* with `ls`, which is verification, not a decision; (b) the `<N>`/`<M>` tokens in Task 12's ACTIVITY entry are counts the executor reads off their own test output, with an explicit instruction to substitute them; (c) the "Phase 6 reconciliation" table now reads Verified on every row, and the one standing instruction — re-check it against Phase 6's *merged code* before Task 1, because that plan is still taking fix rounds — is verification, not an unmade decision.
 
-**Type consistency:** `LockedContact`, `GrantedContact` and `UnavailableContact` are defined once in `contact_access.py` and referenced by those exact names in `contact_payloads.py`, `contact_views.py`, four test modules and the Contract summary. Their `state` values (`"LOCKED"`, `"GRANTED"`, `"UNAVAILABLE"`) are `ClassVar`s read through the class in `contact_payloads.py`, so the wire strings and the Python types cannot drift. `resolve_contact_access(*, viewer, segment, target_id)` keeps that signature in Tasks 2, 5 and every test; `record_first_reveal(*, grant_id, actor, request_id=None)` and `revoke_contact_access(*, grant_id, actor, reason, request_id=None)` likewise. `grant_id` is the parameter name in both, and `GrantedContact.grant_id` is what Task 5 passes. `TARGET_TYPE_BY_SEGMENT` maps the two URL segments to Phase 6's `ContactTargetType` members, and `ContactTarget.grant_field` is the only place the segment→FK-column mapping exists. On the frontend, `ContactAccess` is declared once in `lib/api/contacts.ts` as the union of three interfaces discriminated on `state`, whose members match the backend builders' key sets one for one (`email_mask`/`phone_mask`/`unlock_rule`; `email`/`phone`/`website_url`/`granted_at`); `Locale` is imported from `lib/api/directory` and re-exported by `lib/i18n/contact`, never redeclared (Phase 5 contract rule 12). The component is `ContactPanel` (default export of `ContactPanel.tsx`) in Tasks 9, 10 and the Contract summary; `tContact` is deliberately not named `t`, so a module importing both dictionaries has no collision. `CONTACT_ACCESS_REFRESH_EVENT` and `ContactAccessRefreshDetail` are used with the same shape in the dispatcher (Task 8) and the listener (Task 9). Backend audit action strings (`contact_access.revealed`, `contact_access.revoked`) appear identically in the services and their assertions, and neither collides with Phase 6's `contact_access.granted`.
+**Type consistency:** `LockedContact`, `GrantedContact` and `UnavailableContact` are defined once in `contact_access.py` and referenced by those exact names in `contact_payloads.py`, `contact_views.py`, four test modules and the Contract summary. Their `state` values (`"LOCKED"`, `"GRANTED"`, `"UNAVAILABLE"`) are `ClassVar`s read through the class in `contact_payloads.py`, so the wire strings and the Python types cannot drift. `resolve_contact_access(*, viewer, segment, target_id)` keeps that signature in Tasks 2, 5 and every test; `record_first_reveal(*, grant_id, actor, request_id=None)`, `record_staff_reveal(*, segment, target_id, actor, request_id=None)` and `revoke_contact_access(*, grant_id, actor, reason, request_id=None)` likewise. `grant_id` is the parameter name in both grant-addressed functions, and `GrantedContact.grant_id` — `None` exactly on the staff-bypass path — is both what Task 5 passes and what it branches on to choose between the two audit functions. `TARGET_TYPE_BY_SEGMENT` maps the two URL segments to Phase 6's `ContactTargetType` members, and `ContactTarget.grant_field` is the only place the segment→FK-column mapping exists. On the frontend, `ContactAccess` is declared once in `lib/api/contacts.ts` as the union of three interfaces discriminated on `state`, whose members match the backend builders' key sets one for one (`email_mask`/`phone_mask`/`unlock_rule`; `email`/`phone`/`website_url`/`granted_at`); `Locale` is imported from `lib/api/directory` and re-exported by `lib/i18n/contact`, never redeclared (Phase 5 contract rule 12). The component is `ContactPanel` (default export of `ContactPanel.tsx`) in Tasks 9, 10 and the Contract summary; `tContact` is deliberately not named `t`, so a module importing both dictionaries has no collision. `CONTACT_ACCESS_REFRESH_EVENT` and `ContactAccessRefreshDetail` are used with the same shape in the dispatcher (Task 8) and the listener (Task 9). Backend audit action strings (`contact_access.revealed`, `contact_access.staff_revealed`, `contact_access.revoked`) appear identically in the services and their assertions, and none collides with Phase 6's `contact_access.granted`. `contactTargetTypeForContext` returns the same `ContactTargetType` union `requestContactAccessRefresh` accepts, so Task 11's call site type-checks without a cast.
 
 **Gaps found and closed during review:**
 
@@ -3384,5 +4451,13 @@ Rules a later phase must follow:
 3. `revoke_contact_access` originally saved with `update_fields=["revoked_at"]`, which would silently leave `updated_at` stale. Phase 6's plan confirms the model carries `updated_at`, so the field list now includes it, with a one-line note for the case where it does not.
 4. The locked email mask was originally length-preserving (`"info"` → four bullets). That reproduced neither spec §16's example nor the privacy property, and would have leaked the local part's length; it is now fixed-width, with a test that two very different addresses produce masks of equal width.
 5. Task 7's sweep originally had no positive control, so every assertion in it could have passed vacuously with a fixture that never carried the values. `test_the_granted_path_is_the_only_one_that_can_produce_the_values` was added, and Step 2 now prescribes an explicit mutation check.
-6. Task 2 originally re-derived "active grant" with its own queryset, to stay independent of a Phase 6 selector whose signature was not yet written. Once `active_contact_grant(viewer, *, broker=None, professional=None)` was readable, the queryset was replaced by a call to it: two definitions of "active grant" that agree today are two that can disagree after the first change to either.
-7. Task 10's HTTP check originally expected the *locked explanation* in the server-rendered HTML, which would have been wrong — and worse, a passing version of that assertion would have meant the panel was rendering server-side, the exact thing the privacy design forbids. The check now asserts the heading is present and the explanation is **absent** from the server HTML, with the browser screenshot covering the rendered state.
+6. (fix round 1) The plan's own §5 coverage row misquoted the spec — it claimed staff hold "own access" — and the service had no staff branch, while `accounts/selectors.py:44` has been shipping `reveal_any_contact: is_staff_moderator(user)` in the session payload since Phase 3. The branch, its audit action and its `granted_at: null` payload were added, with tests that it does **not** bypass the rollout flag or a suspension.
+7. (fix round 1) Nothing set a cache header on the reveal endpoint, and nothing in `backend/` sets one anywhere — so the one URL that answers differently per viewer was the one URL with no `Cache-Control` and no `Vary`. `finalize_response` now stamps `private, no-store, max-age=0` and `Vary: Authorization, Cookie` on every path including the errors, the browser fetch sends `cache: "no-store"`, and both the API tests and the leak sweep assert it.
+8. (fix round 1) `ContactPanel` fetched in a mount effect while `SessionProvider` was still trading the refresh cookie for an access token. The first request went out anonymous, this endpoint answers **200** LOCKED to an anonymous caller, so `apiFetch`'s 401-refresh-retry never fired — a grant holder would have seen a locked panel until they reloaded. The panel now waits for `loading` to clear and re-asks when the viewer identity changes.
+9. (fix round 1) Nothing dispatched the refresh event: Phase 6's `InquiryForm` only sets `sent = true`. Task 11 was added to wire it, with an end-to-end test that drives the real form and asserts the real panel changes state — the previous test dispatched the event by hand and would have passed with no dispatcher in existence.
+10. (fix round 1) `inquiry_body()` in the acceptance tests omitted `privacy_consent`, which Phase 6's serializer defaults to `False` and then rejects with `ConsentRequired` — every Scenario A assertion would have failed on a 400. Fixed, with two new tests pinning the consent and email-forgery refusals so the fixture cannot silently rot again.
+11. (fix round 1) The phone mask emitted `len(digits) - 2` bullets, so its width was the number's length — the disclosure the "masks never reveal length" constraint claims to prevent. It is now fixed width, with a test comparing a 9-digit and a 12-digit number.
+12. (fix round 1) Both views extended DRF's `APIView`, which Phase 6's contract rule 11 forbids for messaging endpoints: they would have answered `not_authenticated`/`throttled` where the rest of the API says `authentication_required`/`rate_limited`. Both now extend `MessagingAPIView`, and the 401/429 assertions name the right codes.
+13. (fix round 1) The leak sweep never exercised a broker target end to end, never touched `/api/v1/listings/`, never checked the staff revoke bodies, never asserted a header, and omitted `website_url` from its secret list although the fixture set one. All added, plus a second positive control and five prescribed mutation checks — including one proving the log scan catches a value passed via `extra=` rather than in the message, which the previous near-vacuous version would have missed.
+14. Task 2 originally re-derived "active grant" with its own queryset, to stay independent of a Phase 6 selector whose signature was not yet written. Once `active_contact_grant(viewer, *, broker=None, professional=None)` was readable, the queryset was replaced by a call to it: two definitions of "active grant" that agree today are two that can disagree after the first change to either.
+15. Task 10's HTTP check originally expected the *locked explanation* in the server-rendered HTML, which would have been wrong — and worse, a passing version of that assertion would have meant the panel was rendering server-side, the exact thing the privacy design forbids. The check now asserts the heading is present and the explanation is **absent** from the server HTML, with the browser screenshot covering the rendered state.
