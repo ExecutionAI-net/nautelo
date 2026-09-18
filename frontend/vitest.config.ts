@@ -9,8 +9,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    // Covers src/lib/**, src/components/** AND the page tests in src/app/**.
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // src/** covers lib, components and page/route tests; the second entry
+    // picks up the root-level next.config.test.ts, which would otherwise be
+    // silently skipped.
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "*.test.{ts,tsx}"],
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
