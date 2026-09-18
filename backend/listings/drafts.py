@@ -228,8 +228,26 @@ def update_listing_draft(
         )
 
     if revision is None:
-        # Opening a new edit cycle. The client has no revision version to send
-        # yet, so the compare-and-swap runs against the listing itself.
+        # Opening a new edit cycle. Only the three states that are actually part
+        # of the owner's edit loop may do so: DRAFT and REJECTED return to DRAFT,
+        # and PUBLISHED opens a post-publication revision against its live
+        # snapshot. SUSPENDED, EXPIRED and ARCHIVED (and a PENDING_APPROVAL row
+        # that somehow lost its open revision) are outside that loop — carrying
+        # their status forward would let them accumulate draft revisions that can
+        # never be approved into a public-facing change, leaving the moderation
+        # queue holding work it has to special-case.
+        if listing.status not in (
+            ListingStatus.DRAFT,
+            ListingStatus.REJECTED,
+            ListingStatus.PUBLISHED,
+        ):
+            raise InvalidWorkflowState(
+                f"A listing in state {listing.status} cannot be edited.",
+                code="invalid_listing_state",
+            )
+
+        # The client has no revision version to send yet, so the
+        # compare-and-swap runs against the listing itself.
         target_status = (
             ListingStatus.DRAFT
             if listing.status in (ListingStatus.DRAFT, ListingStatus.REJECTED)

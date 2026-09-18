@@ -92,12 +92,21 @@ class ListingDraftUpdateView(APIView):
 class ListingSubmitView(ListingDraftUpdateView):
     """POST /api/v1/listings/<id>/submit/ (spec §30.1).
 
-    Subclasses the draft view for its permission stack and `get_listing`; the
-    inherited PATCH handler is refused so the route stays POST-only.
+    Subclasses the draft view for its permission stack and `get_listing`. The
+    inherited PATCH handler is removed from the view's vocabulary by
+    `http_method_names` rather than overridden with a refusing stub: DRF derives
+    `allowed_methods` (and therefore the `Allow` header and the OPTIONS body)
+    from `http_method_names` intersected with the handlers that exist, so a stub
+    would still advertise PATCH to a client doing capability discovery while
+    refusing every call to it.
+
+    `permission_classes` is deliberately *not* redeclared here (nor on
+    `ListingWithdrawView`): both routes inherit the draft view's full stack —
+    authenticated, active, verified, feature-flagged and object-owner — and the
+    authz tests in `test_submit_withdraw.py` pin that inheritance.
     """
 
-    def patch(self, request, listing_id):
-        self.http_method_not_allowed(request)
+    http_method_names = ["post", "options"]
 
     def post(self, request, listing_id):
         listing = self.get_listing(request, listing_id)

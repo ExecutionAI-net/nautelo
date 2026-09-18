@@ -277,6 +277,134 @@ def test_a_stale_version_cannot_submit(api, workflow_enabled):
     assert response.data["error"]["code"] == "stale_version"
 
 
+def _submitted_private_listing(owner):
+    """A listing sitting in PENDING_APPROVAL with an open SUBMITTED revision —
+    the only state from which /withdraw/ has real work to do."""
+    listing = make_private_listing(owner=owner, status=ListingStatus.PENDING_APPROVAL)
+    image = make_media(listing, media_type=MediaType.IMAGE, status=MediaStatus.READY)
+    revision = make_revision(
+        listing,
+        payload=_complete_payload(image.pk),
+        state=RevisionStatus.SUBMITTED,
+        submitted_by=owner,
+        submitted_at=timezone.now(),
+    )
+    return listing, revision
+
+
+# --- Authorization and feature-flag coverage for the two inherited routes ------
+#
+# ListingSubmitView subclasses ListingDraftUpdateView and ListingWithdrawView
+# subclasses ListingSubmitView, and neither redeclares `permission_classes`.
+# That inheritance is the entire access control of both endpoints, so these four
+# tests pin it: drop the attribute from the parent, or shadow it with a narrower
+# stack in a subclass, and they fail.
+
+
+@pytest.mark.django_db
+def test_another_user_cannot_submit_someone_elses_listing(api, workflow_enabled):
+    listing, revision, _ = _ready_private_listing(_seller())
+    api.force_authenticate(_seller("intruder@example.com"))
+
+    response = api.post(
+        reverse("listing-submit", kwargs={"listing_id": listing.pk}),
+        {"version": revision.version},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "not_object_owner"
+    listing.refresh_from_db()
+    revision.refresh_from_db()
+    assert listing.status == ListingStatus.DRAFT
+    assert revision.state == RevisionStatus.DRAFT
+
+
+@pytest.mark.django_db
+def test_another_user_cannot_withdraw_someone_elses_submission(api, workflow_enabled):
+    listing, revision = _submitted_private_listing(_seller())
+    api.force_authenticate(_seller("intruder@example.com"))
+
+    response = api.post(
+        reverse("listing-withdraw", kwargs={"listing_id": listing.pk}),
+        {"version": revision.version},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "not_object_owner"
+    listing.refresh_from_db()
+    revision.refresh_from_db()
+    assert listing.status == ListingStatus.PENDING_APPROVAL
+    assert revision.state == RevisionStatus.SUBMITTED
+
+
+@pytest.mark.django_db
+def test_submit_is_closed_while_the_feature_flag_is_off(api, db):
+    """No `workflow_enabled` fixture: the flag defaults to off, which spec §35.1
+    requires to close the backend mutation and not merely hide the UI."""
+    owner = _seller()
+    listing, revision, _ = _ready_private_listing(owner)
+    api.force_authenticate(owner)
+
+    response = api.post(
+        reverse("listing-submit", kwargs={"listing_id": listing.pk}),
+        {"version": revision.version},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "feature_disabled"
+    listing.refresh_from_db()
+    revision.refresh_from_db()
+    assert listing.status == ListingStatus.DRAFT
+    assert revision.state == RevisionStatus.DRAFT
+
+
+@pytest.mark.django_db
+def test_withdraw_is_closed_while_the_feature_flag_is_off(api, db):
+    owner = _seller()
+    listing, revision = _submitted_private_listing(owner)
+    api.force_authenticate(owner)
+
+    response = api.post(
+        reverse("listing-withdraw", kwargs={"listing_id": listing.pk}),
+        {"version": revision.version},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "feature_disabled"
+    listing.refresh_from_db()
+    revision.refresh_from_db()
+    assert listing.status == ListingStatus.PENDING_APPROVAL
+    assert revision.state == RevisionStatus.SUBMITTED
+
+
+@pytest.mark.django_db
+def test_the_submit_and_withdraw_routes_do_not_advertise_patch(api, workflow_enabled):
+    """ListingSubmitView inherits a PATCH handler it does not serve. Restricting
+    `http_method_names` (rather than overriding `patch()` with a refusing stub)
+    is what keeps PATCH out of the Allow header, so capability discovery sees the
+    truth. ListingWithdrawView inherits the restriction from its parent.
+    """
+    owner = _seller()
+    listing, revision, _ = _ready_private_listing(owner)
+    api.force_authenticate(owner)
+
+    for route in ("listing-submit", "listing-withdraw"):
+        url = reverse(route, kwargs={"listing_id": listing.pk})
+
+        options = api.options(url)
+        assert options.status_code == 200
+        allowed = {verb.strip() for verb in options["Allow"].split(",")}
+        assert allowed == {"POST", "OPTIONS"}
+        assert "PATCH" not in options.data.get("actions", {})
+
+        refused = api.patch(url, {"version": revision.version}, format="json")
+        assert refused.status_code == 405
+
+
 class SubmissionSignalTests(TestCase):
     """Uses TestCase for captureOnCommitCallbacks (spec §2.3, §27 acceptance)."""
 
