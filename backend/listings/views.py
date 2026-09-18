@@ -4,16 +4,24 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsActiveUser, IsEmailVerified, IsOwnerOrBrokerEditor
+from accounts.permissions import (
+    IsActiveUser,
+    IsEmailVerified,
+    IsOwnerOrBrokerEditor,
+    IsStaffModerator,
+)
 
+from .decisions import approve_revision, reject_revision, request_revision_changes
 from .drafts import create_listing_draft, update_listing_draft
-from .models import BoatListing
+from .models import BoatListing, ListingRevision
 from .permissions import ListingWorkflowEnabled
 from .serializers import (
     ListingDraftCreateSerializer,
     ListingDraftUpdateSerializer,
     ListingVersionSerializer,
     ListingWorkflowSerializer,
+    RevisionDecisionSerializer,
+    StaffRevisionSerializer,
 )
 from .submissions import submit_listing_revision, withdraw_listing_revision
 
@@ -113,3 +121,48 @@ class ListingWithdrawView(ListingSubmitView):
         )
         listing.refresh_from_db()
         return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+_DECISION_SERVICES = {
+    RevisionDecisionSerializer.APPROVE: approve_revision,
+    RevisionDecisionSerializer.REQUEST_CHANGES: request_revision_changes,
+    RevisionDecisionSerializer.REJECT: reject_revision,
+}
+
+
+class StaffRevisionDecisionView(APIView):
+    """POST /api/v1/staff/revisions/<id>/decision/ (spec §30.1, §26.2).
+
+    One endpoint for all three outcomes, discriminated by `decision`. The
+    permission stack is the whole security boundary of staff moderation, so it
+    is listed deliberately: authenticated, active, the `listing_revisions` flag
+    (spec §35.1 — a decision is a mutation), and staff moderator or above.
+    IsStaffModerator is the right tier, not IsStaffAdmin: spec §5's capability
+    table gives "Approve listings/revisions" to both, and Phase 3's
+    is_staff_moderator() already admits staff admins.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        ListingWorkflowEnabled,
+        IsStaffModerator,
+    ]
+
+    def post(self, request, revision_id):
+        envelope = RevisionDecisionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        # Turns an unknown id into a 404 before the service's own unlocked read
+        # would surface it as an unhandled DoesNotExist.
+        get_object_or_404(ListingRevision, pk=revision_id)
+
+        service = _DECISION_SERVICES[envelope.validated_data["decision"]]
+        revision = service(
+            revision_id=revision_id,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+            note=envelope.validated_data.get("note", ""),
+        )
+        revision.refresh_from_db()
+        revision.listing.refresh_from_db()
+        return Response(StaffRevisionSerializer().to_representation(revision))
