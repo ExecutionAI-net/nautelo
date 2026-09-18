@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ErrorDetail, ValidationError
@@ -9,8 +10,15 @@ from rest_framework.exceptions import ErrorDetail, ValidationError
 from audit.models import AuditEvent
 from audit.services import record_audit_event
 
-from .drafts import InvalidWorkflowState
-from .enums import ListingStatus, RevisionStatus
+from .drafts import (
+    FULL_CLEAN_EXCLUDED_FIELDS,
+    InvalidWorkflowState,
+    _apply_payload_to_listing,
+    open_revision_for,
+    payload_from_snapshot,
+    raise_as_drf_validation_error,
+)
+from .enums import ListingStatus, RevisionOrigin, RevisionStatus, can_transition_listing
 from .locking import bump_version
 from .models import BoatListing, ListingRevision
 from .payloads import validate_revision_payload
@@ -20,6 +28,7 @@ from .signals import (
     listing_revision_approved,
     listing_revision_changes_requested,
     listing_revision_rejected,
+    listing_revision_submitted,
 )
 from .snapshots import create_snapshot_from_revision
 from .submissions import validate_submission_media
@@ -284,4 +293,161 @@ def reject_revision(
         listing_status=ListingStatus.REJECTED,
         action="listing.revision_rejected",
         signal=listing_revision_rejected,
+    )
+
+
+@transaction.atomic
+def create_staff_correction_revision(
+    *, listing: BoatListing, actor, payload: dict, note: str
+) -> ListingRevision:
+    """Spec §20.3: a staff-authored correction of a field the seller cannot edit.
+
+    Created already SUBMITTED so it does not sit in DRAFT holding the listing's
+    single open-revision slot while nobody decides it; approval then runs through
+    approve_revision() like any other revision, producing the next snapshot
+    version and leaving the historical snapshot immutable.
+
+    No permission check and no HTTP route live here on purpose: spec §26.2's
+    moderation queue is Phase 17, and that phase's dispatch is what gates this
+    service behind staff *admin* (spec §20.3), which is narrower than the
+    moderator gate on ordinary approve/reject.
+    """
+    cleaned_note = _require_note(note)
+    listing = BoatListing.objects.select_for_update().get(pk=listing.pk)
+
+    if open_revision_for(listing) is not None:
+        raise InvalidWorkflowState(
+            "Decide the seller's pending revision before creating a correction.",
+            code="invalid_revision_state",
+        )
+
+    merged = payload_from_snapshot(listing.current_public_snapshot)
+    cleaned = validate_revision_payload(
+        payload,
+        listing=listing,
+        origin=RevisionOrigin.STAFF_CORRECTION,
+        for_submission=False,
+    )
+    merged.update(cleaned)
+
+    # The whole point of a §20.3 correction is the four taxonomy fields, and
+    # those live on BoatListing's own columns — which is where
+    # listings.snapshots reads brand/model/custom-model/year from. Mirroring
+    # them here, exactly as an owner edit does (Task 9), is what makes approving
+    # this revision publish a snapshot carrying the *corrected* values instead
+    # of silently re-publishing the wrong ones.
+    _apply_payload_to_listing(listing, cleaned)
+    listing.updated_by = actor
+    try:
+        listing.full_clean(exclude=FULL_CLEAN_EXCLUDED_FIELDS)
+    except DjangoValidationError as exc:
+        raise_as_drf_validation_error(exc)
+    listing.save()
+
+    submitted_at = timezone.now()
+    revision = ListingRevision.objects.create(
+        listing=listing,
+        revision_number=(
+            ListingRevision.objects.filter(listing=listing)
+            .order_by("-revision_number")
+            .values_list("revision_number", flat=True)
+            .first()
+            or 0
+        )
+        + 1,
+        base_snapshot=listing.current_public_snapshot,
+        state=RevisionStatus.SUBMITTED,
+        origin=RevisionOrigin.STAFF_CORRECTION,
+        payload=merged,
+        submitted_by=actor,
+        submitted_at=submitted_at,
+    )
+
+    record_audit_event(
+        actor_user=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        action="listing.correction_revision_created",
+        target_type="listings.ListingRevision",
+        target_id=str(revision.pk),
+        source=AuditEvent.Source.API,
+        before={"listing_status": listing.status},
+        after={
+            "state": RevisionStatus.SUBMITTED,
+            "origin": RevisionOrigin.STAFF_CORRECTION,
+            "payload_fields": sorted(cleaned),
+            "submitted_at": submitted_at,
+        },
+        metadata={"listing_id": str(listing.pk), "note": cleaned_note},
+    )
+
+    transaction.on_commit(
+        lambda: listing_revision_submitted.send(
+            sender=ListingRevision, revision=revision
+        )
+    )
+    return revision
+
+
+def _change_suspension(*, listing, actor, reason, target_status, action):
+    cleaned_reason = _require_note(reason)
+    listing = BoatListing.objects.select_for_update().get(pk=listing.pk)
+    if not can_transition_listing(listing.status, target_status):
+        raise InvalidWorkflowState(
+            f"A listing in state {listing.status} cannot move to {target_status}.",
+            code="invalid_listing_state",
+        )
+
+    before_status = listing.status
+    bump_version(
+        listing,
+        expected_version=listing.version,
+        resource="listing",
+        status=target_status,
+        updated_by=actor,
+    )
+
+    record_audit_event(
+        actor_user=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        action=action,
+        target_type="listings.BoatListing",
+        target_id=str(listing.pk),
+        source=AuditEvent.Source.ADMIN,
+        before={"status": before_status},
+        after={"status": target_status},
+        metadata={"reason": cleaned_reason},
+    )
+    return listing
+
+
+@transaction.atomic
+def suspend_listing(*, listing: BoatListing, actor, reason: str) -> BoatListing:
+    """Spec §6.1 ("Suspension is staff-only and requires a reason") and §36.4
+    ("Staff can suspend a live listing without modifying snapshot content").
+
+    No HTTP route in this phase: spec §26.2's moderation queue (Phase 17) wires
+    its Suspend action to this service.
+    """
+    return _change_suspension(
+        listing=listing,
+        actor=actor,
+        reason=reason,
+        target_status=ListingStatus.SUSPENDED,
+        action="listing.suspended",
+    )
+
+
+@transaction.atomic
+def unsuspend_listing(*, listing: BoatListing, actor, reason: str) -> BoatListing:
+    """The SUSPENDED -> PUBLISHED return edge of spec §6.1's state machine.
+
+    `current_public_snapshot` is never touched in either direction, so the
+    content the public sees is exactly what it was before the suspension.
+    """
+    return _change_suspension(
+        listing=listing,
+        actor=actor,
+        reason=reason,
+        target_status=ListingStatus.PUBLISHED,
+        action="listing.unsuspended",
     )
