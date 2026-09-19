@@ -151,4 +151,49 @@ describe("RequirePermission", () => {
     );
     expect(screen.getByText("secret")).toBeInTheDocument();
   });
+
+  it("with no permission, still redirects a guest to sign in", async () => {
+    // Ruling 13: this is the shape Phase 19's dashboard routes use. The
+    // expected next-url is the file's own usePathname mock value, not a Phase 19
+    // path — the assertion is about the redirect, not about the route.
+    mockSession(session());
+    render(
+      <RequirePermission>
+        <p>inbox</p>
+      </RequirePermission>,
+    );
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/login?next=%2Fdashboard%2Fprivate-seller%2F",
+      ),
+    );
+    expect(screen.queryByText("inbox")).not.toBeInTheDocument();
+  });
+
+  it("with no permission, renders children for an authenticated user holding none", () => {
+    // ALL_FALSE: the guard is "signed in", not a capability. The capability that
+    // matters (can_read_messages) is enforced server-side and has no
+    // PermissionKey by design — spec §5's table has no row for it.
+    mockSession(
+      session({
+        authenticated: true,
+        user: {
+          id: "1",
+          email: "member@example.com",
+          full_name: "",
+          primary_role: "BROKER",
+          locale: "EN",
+          email_verified: false,
+          is_active: true,
+        },
+      }),
+    );
+    render(
+      <RequirePermission>
+        <p>inbox</p>
+      </RequirePermission>,
+    );
+    expect(screen.getByText("inbox")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
 });
