@@ -1,5 +1,6 @@
 import RequirePermission from "@/components/auth/RequirePermission";
 import EditListing from "@/components/listings/EditListing";
+import AreaShell from "@/components/layout/AreaShell";
 
 export default async function EditListingPage({
   params,
@@ -8,10 +9,10 @@ export default async function EditListingPage({
 }) {
   const { listingId } = await params;
   return (
-    <main className="mx-auto w-full max-w-3xl px-margin-mobile py-space-xl md:px-margin-desktop">
+    <AreaShell area="seller" active="/dashboard/listings/">
       <RequirePermission>
         <EditListing listingId={listingId} />
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

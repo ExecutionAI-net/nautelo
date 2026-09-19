@@ -1,16 +1,17 @@
 import RequirePermission from "@/components/auth/RequirePermission";
 import TaxonomyAdmin from "@/components/staff/TaxonomyAdmin";
 import OtherModelQueue from "@/components/staff/OtherModelQueue";
+import AreaShell from "@/components/layout/AreaShell";
 
 export default function StaffTaxonomyPage() {
   return (
-    <main className="mx-auto w-full max-w-4xl p-space-lg">
+    <AreaShell area="staff" active="/dashboard/staff/taxonomy/">
       <RequirePermission permission="manage_taxonomy">
         <OtherModelQueue />
         <div className="mt-space-xl">
           <TaxonomyAdmin />
         </div>
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

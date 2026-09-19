@@ -1,12 +1,13 @@
 import RequirePermission from "@/components/auth/RequirePermission";
 import FleetListingPage from "@/components/listings/FleetListingPage";
+import AreaShell from "@/components/layout/AreaShell";
 
 export default function FleetPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-margin-mobile py-space-xl md:px-margin-desktop">
+    <AreaShell area="broker" active="/fleet/">
       <RequirePermission permission="create_broker_listing">
         <FleetListingPage />
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

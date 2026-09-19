@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import InquiryForm from "@/components/inquiry/InquiryForm";
 import BoatCard from "@/components/listings/BoatCard";
+import PageBand from "@/components/layout/PageBand";
 import { fetchBroker } from "@/lib/api/brokers";
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
 import { fetchPublishedListings } from "@/lib/api/listings";
@@ -34,23 +35,24 @@ export default async function BrokerPage({ params }: { params: Params }) {
   ]);
 
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <h1 className="font-headline-md text-headline-md text-primary">{broker.name}</h1>
-      {broker.website_url ? (
-        <p className="mt-space-xs">
-          <a
-            href={broker.website_url}
-            rel="noopener noreferrer nofollow"
-            target="_blank"
-            className="font-body-md text-primary underline"
-          >
-            {broker.website_url}
-          </a>
-        </p>
-      ) : null}
-
-      <div className="mt-space-lg grid grid-cols-1 gap-space-xl lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <ul className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+    <main className="w-full bg-surface">
+      <PageBand eyebrow="Yacht broker" title={broker.name}>
+        {broker.website_url ? (
+          <p className="mt-space-xs">
+            <a
+              href={broker.website_url}
+              rel="noopener noreferrer nofollow"
+              target="_blank"
+              className="font-body-md text-primary underline"
+            >
+              {broker.website_url}
+            </a>
+          </p>
+        ) : null}
+      </PageBand>
+      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
+      <div className="grid grid-cols-1 gap-space-xl lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <ul className="grid grid-cols-1 gap-space-md sm:grid-cols-2 xl:grid-cols-3">
           {(listings?.results ?? []).map((listing) => (
             <li key={listing.id}>
               <BoatCard locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
@@ -66,6 +68,7 @@ export default async function BrokerPage({ params }: { params: Params }) {
             />
           </aside>
         ) : null}
+      </div>
       </div>
     </main>
   );
