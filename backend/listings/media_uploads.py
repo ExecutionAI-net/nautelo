@@ -192,6 +192,15 @@ def _scan(storage, key: str) -> None:
         import_string(path)(storage, key)
 
 
+def _sanitize(storage, media: ListingMedia) -> None:
+    """Image metadata stripping hook. `settings.MEDIA_IMAGE_SANITIZER` is a dotted
+    path to `callable(storage, key, media)` that may update the row's facts and
+    raises RejectedMedia when the file cannot be decoded."""
+    path = getattr(settings, "MEDIA_IMAGE_SANITIZER", None)
+    if path and media.media_type == MediaType.IMAGE:
+        import_string(path)(storage, media.storage_key, media)
+
+
 def process_media(media_id) -> ListingMedia | None:
     """Spec §24.2 steps 7-8. Idempotent: only a SCANNING row is worked on."""
     with transaction.atomic():
@@ -215,9 +224,21 @@ def process_media(media_id) -> ListingMedia | None:
         media.mime_type = found.mime_type
         media.width = found.width
         media.height = found.height
+        try:
+            _sanitize(storage, media)
+        except RejectedMedia as exc:
+            return reject_media(media, exc.reason)
         media.status = MediaStatus.READY
         media.save(
-            update_fields=["mime_type", "width", "height", "status", "updated_at"]
+            update_fields=[
+                "mime_type",
+                "width",
+                "height",
+                "byte_size",
+                "checksum_sha256",
+                "status",
+                "updated_at",
+            ]
         )
         _audit(None, "listing_media.ready", media)
         return media

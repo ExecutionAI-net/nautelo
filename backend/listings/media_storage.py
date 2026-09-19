@@ -10,6 +10,7 @@ import hashlib
 from dataclasses import dataclass
 from datetime import timedelta
 
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
 UPLOAD_URL_TTL_SECONDS = 15 * 60
@@ -59,6 +60,14 @@ class S3MediaStorage:
             for chunk in iter(lambda: handle.read(CHUNK), b""):
                 digest.update(chunk)
         return digest.hexdigest()
+
+    def read(self, key: str) -> bytes:
+        with default_storage.open(key, "rb") as handle:
+            return handle.read()
+
+    def write(self, key: str, data: bytes, content_type: str) -> None:
+        default_storage.delete(key)
+        default_storage.save(key, ContentFile(data))
 
     def delete(self, key: str) -> None:
         default_storage.delete(key)
