@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    StaffBoatListView,
     StaffBrokerListView,
     StaffLeadListView,
     StaffProviderListView,
@@ -10,6 +11,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("staff/boats/", StaffBoatListView.as_view(), name="staff-boat-list"),
     path("staff/users/", StaffUserListView.as_view(), name="staff-user-list"),
     path("staff/brokers/", StaffBrokerListView.as_view(), name="staff-broker-list"),
     path("staff/providers/", StaffProviderListView.as_view(), name="staff-provider-list"),
