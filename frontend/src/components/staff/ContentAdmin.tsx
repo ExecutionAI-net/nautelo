@@ -18,7 +18,7 @@ function rowsOf<T>(value: { results: T[] } | T[]): T[] {
   return Array.isArray(value) ? value : value.results;
 }
 
-export default function ContentAdmin() {
+export default function ContentAdmin({ only }: { only?: "guides" | "ads" }) {
   const [guides, setGuides] = useState<StaffGuide[]>([]);
   const [ads, setAds] = useState<StaffAd[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -62,7 +62,9 @@ export default function ContentAdmin() {
     <div className="flex flex-col gap-space-xl">
       <div>
         <span className="font-label-sm uppercase tracking-widest text-secondary">Editorial / Advertising</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">Guides and advertisements</h1>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">
+          {only === "ads" ? "Advertising" : only === "guides" ? "Content" : "Guides and advertisements"}
+        </h1>
         {message ? (
           <p role="status" className="mt-space-sm font-body-md">
             {message}
@@ -70,6 +72,7 @@ export default function ContentAdmin() {
         ) : null}
       </div>
 
+      {only !== "ads" ? (
       <section className={CARD} aria-labelledby="guides-heading">
         <h2 id="guides-heading" className="font-headline-sm text-headline-sm text-primary">
           Guides
@@ -146,6 +149,9 @@ export default function ContentAdmin() {
         </form>
       </section>
 
+      ) : null}
+
+      {only !== "guides" ? (
       <section className={CARD} aria-labelledby="ads-heading">
         <h2 id="ads-heading" className="font-headline-sm text-headline-sm text-primary">
           Advertisements
@@ -222,6 +228,7 @@ export default function ContentAdmin() {
           </button>
         </form>
       </section>
+      ) : null}
     </div>
   );
 }

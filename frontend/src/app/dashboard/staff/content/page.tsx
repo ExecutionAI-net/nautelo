@@ -8,7 +8,7 @@ export default function StaffContentPage() {
   return (
     <AreaShell area="staff" active="/dashboard/staff/content/">
       <RequirePermission permission="configure_products_and_settings">
-        <ContentAdmin />
+        <ContentAdmin only="guides" />
       </RequirePermission>
     </AreaShell>
   );

@@ -30,7 +30,7 @@ vi.mock("@/components/auth/RequirePermission", () => ({
  * `useSession()`. `render(await BrokerMessagesPage({...}))` invokes it as a
  * plain function outside React's render phase, which throws "Invalid hook
  * call" — and `use()` on a pending promise must suspend, so it needs a
- * Suspense boundary above it. The server pages under /dashboard/messages/ are
+ * Suspense boundary above it. The server pages under /dashboard/private-seller/messages/ are
  * async server components and ARE called directly in their own tests; the two
  * shapes are different on purpose and must not be copied across.
  */

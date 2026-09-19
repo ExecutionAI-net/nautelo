@@ -18,7 +18,7 @@ interface Props {
   /** Present on the broker route, absent on the role-neutral one. It becomes
    * `?broker=<id>` and is the ONLY difference between the two mounts. */
   brokerId?: string;
-  /** e.g. "/dashboard/messages/" or "/dashboard/broker/messages/". Every href
+  /** e.g. "/dashboard/private-seller/messages/" or "/dashboard/broker/messages/". Every href
    * on this screen is built from it, which is what lets one component serve
    * both routes (spec 28's "share components where practical"). */
   basePath: string;

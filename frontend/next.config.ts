@@ -48,8 +48,20 @@ const nextConfig: NextConfig = {
     // would emit 308. /professionals/profile/?id= is NOT listed here: it needs
     // a database lookup and is handled by src/app/professionals/profile/route.ts.
     return [
-      // /services/ is the design's services landing page (ruling: the supplied
-      // design overrides the spec 4.3 redirect); only /professionals/ is retired.
+      // /services/ has no page of its own: /services/professionals/ is the single
+      // services entry point (spec 4.3).
+      {
+        source: "/services/",
+        destination: "/services/professionals/",
+        statusCode: 301,
+      },
+      // Spec 4.2 canonical private routes; the earlier flat paths redirect once.
+      { source: "/dashboard/listings/", destination: "/dashboard/private-seller/listings/", statusCode: 301 },
+      { source: "/dashboard/messages/:path*", destination: "/dashboard/private-seller/messages/:path*", statusCode: 301 },
+      { source: "/account/", destination: "/dashboard/private-seller/account/", statusCode: 301 },
+      { source: "/fleet/", destination: "/dashboard/broker/fleet/", statusCode: 301 },
+      { source: "/settings/", destination: "/dashboard/staff/settings/", statusCode: 301 },
+      { source: "/compare/", destination: "/boats/compare/", statusCode: 301 },
       {
         source: "/professionals/",
         destination: "/services/professionals/",

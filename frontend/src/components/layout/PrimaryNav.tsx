@@ -38,8 +38,8 @@ const LINKS: NavLink[] = [
   { href: "/brokers/", label: "Brokers" },
   { href: "/financing/", label: "Financing" },
   { href: "/sell/", label: "Sell", permission: "create_private_listing" },
-  { href: "/dashboard/listings/", label: "My listings", requiresListingRight: true },
-  { href: "/fleet/", label: "Fleet", permission: "create_broker_listing" },
+  { href: "/dashboard/private-seller/listings/", label: "My listings", requiresListingRight: true },
+  { href: "/dashboard/broker/fleet/", label: "Fleet", permission: "create_broker_listing" },
   {
     href: "/dashboard/broker/",
     // Spec 37: new UI text is a key, never a literal. `broker.dashboard.title`
@@ -54,7 +54,7 @@ const LINKS: NavLink[] = [
     permission: "approve_listings_and_revisions",
   },
   {
-    href: "/settings/",
+    href: "/dashboard/staff/settings/",
     label: "Settings",
     permission: "configure_products_and_settings",
   },
@@ -103,7 +103,7 @@ export default function PrimaryNav() {
         {loading ? null : authenticated ? (
           <>
             <NotificationBell locale={locale} />
-            <Link href="/account/" className="font-body-sm text-on-surface-variant hover:text-primary">
+            <Link href="/dashboard/private-seller/account/" className="font-body-sm text-on-surface-variant hover:text-primary">
               {session?.user?.full_name || session?.user?.email}
             </Link>
             <button type="button" onClick={() => void logout()} className="font-label-md text-label-md text-primary">

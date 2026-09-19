@@ -6,7 +6,7 @@ import RequirePermission from "@/components/auth/RequirePermission";
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
 import MessagesScreen from "@/components/messages/MessagesScreen";
 // resolveFilter comes from lib/api/conversations, NOT from
-// app/dashboard/messages/page.tsx. That module is a server route file: it also
+// app/dashboard/private-seller/messages/page.tsx. That module is a server route file: it also
 // exports `generateMetadata` and `dynamic`, which are route configuration
 // rather than values, and importing it from a "use client" module drags a
 // server page into the client graph and breaks the build.

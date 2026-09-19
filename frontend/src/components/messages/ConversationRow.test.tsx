@@ -32,7 +32,7 @@ const ROW: ConversationRow = {
 describe("ConversationRowCard", () => {
   it("shows every field spec 28's row names", () => {
     const { container } = render(
-      <ConversationRowCard locale="en" row={ROW} href="/dashboard/messages/c-1/" />,
+      <ConversationRowCard locale="en" row={ROW} href="/dashboard/private-seller/messages/c-1/" />,
     );
     expect(screen.getByText("Ada Rossi")).toBeInTheDocument();
     // The context type and the label are separate elements on purpose (see the

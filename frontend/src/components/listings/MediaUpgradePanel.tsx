@@ -9,7 +9,7 @@ import { applyMediaUpgrade, startMediaUpgradeCheckout } from "@/lib/api/sellerLi
 export default function MediaUpgradePanel({
   listingId,
   onApplied,
-  returnUrl = "/sell/",
+  returnUrl = "/sell/create/",
 }: {
   listingId: string;
   onApplied: () => void;

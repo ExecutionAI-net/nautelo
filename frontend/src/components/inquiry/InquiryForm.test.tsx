@@ -161,7 +161,7 @@ describe("InquiryForm", () => {
       conversation_id: "c1",
       message_id: "m1",
       contact_access: "GRANTED",
-      next_url: "/dashboard/messages/c1/",
+      next_url: "/dashboard/private-seller/messages/c1/",
     });
     renderForm();
 
@@ -196,7 +196,7 @@ describe("InquiryForm", () => {
       conversation_id: "c1",
       message_id: "m1",
       contact_access: "GRANTED",
-      next_url: "/dashboard/messages/c1/",
+      next_url: "/dashboard/private-seller/messages/c1/",
     });
     renderForm();
 

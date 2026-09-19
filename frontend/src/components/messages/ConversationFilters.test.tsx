@@ -18,7 +18,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const hrefFor = (filter: string) => `/dashboard/messages/?filter=${filter}`;
+const hrefFor = (filter: string) => `/dashboard/private-seller/messages/?filter=${filter}`;
 
 describe("ConversationFilters", () => {
   it("renders exactly spec 28's five filters, in order", () => {

@@ -117,7 +117,7 @@ export default async function Home() {
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md">
                 Cross-border hull liability, salvage coverage, and charter guarantees across all Spanish and Italian territorial waters.
               </p>
-<Link className="inline-flex items-center justify-between py-2 px-space-md rounded-lg bg-surface-container text-primary hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="/services/">
+<Link className="inline-flex items-center justify-between py-2 px-space-md rounded-lg bg-surface-container text-primary hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="/services/professionals/">
 <span>Request Underwriting Quote</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
@@ -169,7 +169,7 @@ export default async function Home() {
           </p>
 </div>
 <div className="shrink-0">
-<Link className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md" href="/services/">
+<Link className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md" href="/services/professionals/">
             Reserve Seasonal Berth
             <span className="material-symbols-outlined text-[18px]">dock</span>
 </Link>
@@ -280,7 +280,7 @@ export default async function Home() {
               Complete negotiation, escrow protection, and sea trial management handled by certified nautical brokers.
             </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
             View service <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -295,7 +295,7 @@ export default async function Home() {
               Spanish registration (matriculación), Italian RID flag transfers, and cross-border maritime taxation advisory.
             </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
             View service <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -310,7 +310,7 @@ export default async function Home() {
               Bespoke hull and machinery cover, third-party Mediterranean navigation liability, and skipper protection plans.
             </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
             View service <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -325,7 +325,7 @@ export default async function Home() {
               Authorised overhaul, winter dry-dock servicing, and official engine diagnostics across regional shipyards.
             </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
             View service <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -340,7 +340,7 @@ export default async function Home() {
               Professional skipper delivery passages and overland yacht freight forwarding between Spain and Italy.
             </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
             View service <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -355,13 +355,13 @@ export default async function Home() {
               High-definition maritime video production, 3D interior scans, and multi-portal promotional syndication.
             </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
             View service <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
 </div>
 <div className="flex justify-center">
-<Link className="inline-flex items-center gap-space-xs bg-primary hover:bg-primary-container text-on-primary py-space-sm px-space-xl rounded-lg font-title-md text-title-md transition-colors shadow-sm" href="/services/">
+<Link className="inline-flex items-center gap-space-xs bg-primary hover:bg-primary-container text-on-primary py-space-sm px-space-xl rounded-lg font-title-md text-title-md transition-colors shadow-sm" href="/services/professionals/">
           View all services
           <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
 </Link>
@@ -384,7 +384,7 @@ export default async function Home() {
           </p>
 </div>
 <div className="shrink-0">
-<Link className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md" href="/services/">
+<Link className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md" href="/services/professionals/">
             Discover Electronics Suites
             <span className="material-symbols-outlined text-[18px]">satellite_alt</span>
 </Link>

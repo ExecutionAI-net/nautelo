@@ -62,7 +62,7 @@ describe("MessagesScreen", () => {
     // SessionProvider trades the refresh cookie for an access token first; a
     // fetch fired before that carries no Authorization header and 401s.
     session(true);
-    render(<MessagesScreen basePath="/dashboard/messages/" filter="ALL" />);
+    render(<MessagesScreen basePath="/dashboard/private-seller/messages/" filter="ALL" />);
     expect(fetchConversationsMock).not.toHaveBeenCalled();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
@@ -75,7 +75,7 @@ describe("MessagesScreen", () => {
       previous: null,
       results: [ROW],
     });
-    render(<MessagesScreen basePath="/dashboard/messages/" filter="ALL" />);
+    render(<MessagesScreen basePath="/dashboard/private-seller/messages/" filter="ALL" />);
     await waitFor(() => expect(screen.getByText("Ada Rossi")).toBeInTheDocument());
     expect(fetchConversationsMock).toHaveBeenCalledWith("ALL", {
       brokerId: undefined,
@@ -132,7 +132,7 @@ describe("MessagesScreen", () => {
     fetchConversationsMock.mockRejectedValue(
       new ApiError(403, "feature_disabled", "This feature is not enabled yet."),
     );
-    render(<MessagesScreen basePath="/dashboard/messages/" filter="ALL" />);
+    render(<MessagesScreen basePath="/dashboard/private-seller/messages/" filter="ALL" />);
     await waitFor(() =>
       expect(
         screen.getByText("Messages are not available yet."),
@@ -148,7 +148,7 @@ describe("MessagesScreen", () => {
     // to /login (ruling 13). This branch covers the frame before that redirect
     // lands, and the component's use in tests without the wrapper.
     session(false, false);
-    render(<MessagesScreen basePath="/dashboard/messages/" filter="ALL" />);
+    render(<MessagesScreen basePath="/dashboard/private-seller/messages/" filter="ALL" />);
     expect(fetchConversationsMock).not.toHaveBeenCalled();
     expect(screen.getByText("Sign in to see your messages.")).toBeInTheDocument();
   });

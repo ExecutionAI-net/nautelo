@@ -61,11 +61,11 @@ describe("LoginPage", () => {
   });
 
   it("honours a safe ?next= destination", async () => {
-    searchParams = new URLSearchParams("next=/account/");
+    searchParams = new URLSearchParams("next=/dashboard/private-seller/account/");
     render(<LoginPage />);
     await submit();
 
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/account/"));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/dashboard/private-seller/account/"));
   });
 
   it("refuses an off-site ?next= and falls back to the root", async () => {
