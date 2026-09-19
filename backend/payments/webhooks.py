@@ -61,9 +61,11 @@ def verify_stripe_event(
     body, and the caller turns every failure into a bodyless 400.
     """
     try:
-        return stripe.Webhook.construct_event(
+        event = stripe.Webhook.construct_event(
             raw_body, signature_header, secret, tolerance=tolerance
         )
+        # StripeObject is not a dict (no .get); handlers work on plain dicts.
+        return event.to_dict() if hasattr(event, "to_dict") else event
     except ValueError as exc:
         raise InvalidWebhookPayload("Unparseable webhook body.") from exc
     except stripe.SignatureVerificationError as exc:
