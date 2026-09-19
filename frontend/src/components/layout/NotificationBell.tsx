@@ -9,6 +9,7 @@ import {
   markNotificationRead,
   type NotificationRow,
 } from "@/lib/api/notifications";
+import { connectNotifications } from "@/lib/realtime/notificationSocket";
 import type { Locale } from "@/lib/i18n/directory";
 import { NOTIFICATION_TEXT } from "@/lib/i18n/notifications";
 
@@ -55,6 +56,8 @@ export default function NotificationBell({ locale }: { locale: Locale }) {
       clearInterval(timer);
     };
   }, [load]);
+
+  useEffect(() => connectNotifications({ onChange: () => void load() }), [load]);
 
   async function read(row: NotificationRow) {
     if (row.read_at) return;
