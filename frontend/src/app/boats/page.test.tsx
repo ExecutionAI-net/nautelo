@@ -69,6 +69,24 @@ beforeEach(() => {
 });
 
 describe("/boats/", () => {
+  it("forwards the active filters to the API and shows them as chips", async () => {
+    fetchPublishedListings.mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
+    render(
+      await BoatsPage({
+        searchParams: Promise.resolve({ brand: "Lagoon", price_max: "500000", sort: "price_asc", junk: "x" }),
+      }),
+    );
+
+    expect(fetchPublishedListings).toHaveBeenCalledWith({
+      brand: "Lagoon",
+      price_max: "500000",
+      sort: "price_asc",
+      page: undefined,
+    });
+    expect(screen.getByText("Up to €500000")).toBeInTheDocument();
+    expect(screen.getByText("No boats match these filters.")).toBeInTheDocument();
+  });
+
   it("renders one card per published listing", async () => {
     render(await page([listing()]));
 
