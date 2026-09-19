@@ -35,6 +35,7 @@ from messaging.selectors import (
     conversations_visible_to,
 )
 from messaging.serializers import (
+    ConversationStatusSerializer,
     ConversationSerializer,
     InquiryDraftCreateSerializer,
     InquiryDraftResolveSerializer,
@@ -43,7 +44,12 @@ from messaging.serializers import (
     MessageCreateSerializer,
     MessageSerializer,
 )
-from messaging.services import mark_conversation_read, post_reply, submit_inquiry
+from messaging.services import (
+    mark_conversation_read,
+    post_reply,
+    set_conversation_status,
+    submit_inquiry,
+)
 from platform_settings.services import is_feature_enabled
 
 
@@ -352,3 +358,79 @@ class ConversationReadView(ConversationScopedView):
                 )
             }
         )
+
+
+def _annotated_row(request, conversation_id):
+    """One conversation, read through the SAME annotated, visibility-scoped
+    queryset the inbox uses.
+
+    Two reasons it is not a second query shaped by hand. First, the row a detail
+    view returns and the row the list returned must be byte-for-byte identical
+    or the client is holding two representations of one thread — the detail
+    test asserts exactly that equality. Second, `ConversationSerializer` reads
+    `unread_count`, `first_sender_name` and `last_message_body` off annotations;
+    serializing a plain `Conversation` instance would quietly render an
+    incomplete row.
+
+    The caller has already run `get_conversation()`, so authorization has
+    happened; this re-read cannot widen it — `conversations_visible_to` applies
+    the same visibility filter a second time.
+    """
+    return ConversationSerializer(
+        annotate_last_message(
+            annotate_unread(conversations_visible_to(request.user), request.user)
+        )
+        .filter(pk=conversation_id)
+        .first(),
+        context={"request": request},
+    ).data
+
+
+class ConversationDetailView(ConversationScopedView):
+    """GET /api/v1/conversations/<id>/ — one conversation's row.
+
+    An addition beyond spec 30.1's table. Phase 6 shipped the list and the
+    thread; without this, a client wanting one thread's subject, status and
+    context has to scan the inbox, and `ConversationPagination.page_size` is 20 —
+    so that approach is silently wrong for anybody with 21 conversations. See the
+    plan's ruling 14.
+
+    Authorization is inherited unchanged from ConversationScopedView: flag gate
+    first (Phase 6 contract rule 11a), then authentication, then
+    can_view_conversation() with 404 rather than 403 for anything else.
+    """
+
+    throttle_scope = "messaging_read"
+
+    def get(self, request, conversation_id):
+        self.get_conversation(conversation_id)
+        return Response(_annotated_row(request, conversation_id))
+
+
+class ConversationStatusView(ConversationScopedView):
+    """PATCH /api/v1/conversations/<id>/status/ — spec 28's Archived filter.
+
+    An addition beyond spec 30.1's table, for the same reason Phase 6's `read/`
+    route is one: spec 28 lists Archived among the five filters the broker inbox
+    must offer, and a filter whose state nothing can produce is a control that
+    does nothing. Spec 30.1's closing sentence grants the latitude.
+
+    Visibility is inherited from ConversationScopedView (404, never 403). The
+    narrower rule — only the recipient side may file — lives in
+    services.set_conversation_status, so it holds for every caller and not just
+    for this route.
+    """
+
+    throttle_scope = "conversation_status"
+
+    def patch(self, request, conversation_id):
+        conversation = self.get_conversation(conversation_id)
+        payload = ConversationStatusSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        set_conversation_status(
+            actor=request.user,
+            conversation=conversation,
+            new_status=payload.validated_data["status"].strip().upper(),
+        )
+        # Spec 30.2: "Mutations return updated resource/version".
+        return Response(_annotated_row(request, conversation_id))

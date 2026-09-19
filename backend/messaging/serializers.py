@@ -162,11 +162,30 @@ class ConversationSerializer(serializers.Serializer):
     context = serializers.SerializerMethodField()
     counterparty_name = serializers.SerializerMethodField()
     last_message_excerpt = serializers.SerializerMethodField()
+    viewer_is_initiator = serializers.SerializerMethodField()
 
     def _viewer(self):
         return self.context["request"].user
 
     def get_context(self, conversation) -> dict:
+        """Spec 28's "context/listing" for the row, and the thread's
+        "listing/profile link".
+
+        `url` is the entity's CANONICAL public URL per spec 4.1, derived here
+        because spec 2.1 requires a backend source for every visible state and a
+        client must not assemble a slug URL from a label. It is None where no
+        canonical URL can be derived:
+
+        * LISTING — `listings.BoatListing` has no slug column, and spec 4.1's
+          canonical boat URL is `/boats/<listing-slug>/`. Phase 20 owns the boat
+          detail page and fills this in.
+        * SUPPORT — there is no public page for a support thread.
+
+        A non-None url does NOT promise the page is built: `/brokers/<slug>/` is
+        canonical per spec 4.1 but has no Next.js route yet. The client keeps the
+        one-line allowlist of prefixes it can actually navigate to; see the
+        plan's ruling 9.
+        """
         if conversation.listing_id is not None:
             snapshot = conversation.listing.current_public_snapshot
             label = ""
@@ -180,20 +199,33 @@ class ConversationSerializer(serializers.Serializer):
                 "type": "LISTING",
                 "id": str(conversation.listing_id),
                 "label": label,
+                "url": None,
             }
         if conversation.broker_id is not None:
             return {
                 "type": "BROKER",
                 "id": str(conversation.broker_id),
                 "label": conversation.broker.name,
+                "url": f"/brokers/{conversation.broker.slug}/",
             }
         if conversation.professional_id is not None:
             return {
                 "type": "PROFESSIONAL",
                 "id": str(conversation.professional_id),
                 "label": conversation.professional.display_name,
+                "url": (
+                    f"/services/professionals/{conversation.professional.slug}/"
+                ),
             }
-        return {"type": "SUPPORT", "id": "", "label": ""}
+        return {"type": "SUPPORT", "id": "", "label": "", "url": None}
+
+    def get_viewer_is_initiator(self, conversation) -> bool:
+        """Whose seat is this? Spec 2.1: every visible state needs a backend
+        source, and the thread's archive control is a visible state — only the
+        recipient side may file a conversation (the plan's ruling 5). Without
+        this field the client would have to infer the seat from
+        `counterparty_name`, which is display text, not authorization data."""
+        return conversation.initiator_id == self._viewer().pk
 
     def get_counterparty_name(self, conversation) -> str:
         """Who the OTHER side is, from this viewer's seat.
@@ -256,3 +288,18 @@ class MessageCreateSerializer(serializers.Serializer):
     message = serializers.CharField(
         min_length=MESSAGE_MIN_LENGTH, max_length=MESSAGE_MAX_LENGTH
     )
+
+
+class ConversationStatusSerializer(serializers.Serializer):
+    """Body of PATCH /api/v1/conversations/<id>/status/.
+
+    A plain CharField with a blank default and NO max_length. Both a ChoiceField
+    and a length bound would raise DRF ValidationError, which this project's
+    envelope collapses to code "validation_error" (Phase 6 contract rule 10) —
+    and the length bound would do it for precisely the oversized input that most
+    needs a stable code. Letting every value through to
+    services.set_conversation_status means a missing, blank, nonsense or
+    500-character status all answer with the named `invalid_conversation_status`.
+    """
+
+    status = serializers.CharField(required=False, allow_blank=True, default="")

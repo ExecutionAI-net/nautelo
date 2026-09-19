@@ -2,6 +2,8 @@ from django.urls import path
 
 from messaging.contact_views import ContactAccessView, StaffContactGrantRevokeView
 from messaging.views import (
+    ConversationDetailView,
+    ConversationStatusView,
     ConversationMessagesView,
     ConversationReadView,
     ConversationListView,
@@ -44,5 +46,15 @@ urlpatterns = [
         "staff/contact-grants/<uuid:grant_id>/revoke/",
         StaffContactGrantRevokeView.as_view(),
         name="staff-contact-grant-revoke",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/",
+        ConversationDetailView.as_view(),
+        name="conversation-detail",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/status/",
+        ConversationStatusView.as_view(),
+        name="conversation-status",
     ),
 ]
