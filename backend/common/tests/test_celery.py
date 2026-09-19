@@ -41,6 +41,7 @@ def test_every_periodic_task_is_registered_and_none_was_overwritten():
         "cleanup-stale-media-uploads",
         "sweep-entitlement-ledger",
         "flush-expired-jwt-tokens",
+        "staff-moderation-digest",
     } <= set(schedule)
     for name, entry in schedule.items():
         assert entry["task"] in app.tasks, f"{name} points at an unregistered task"

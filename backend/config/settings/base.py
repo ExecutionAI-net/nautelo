@@ -139,6 +139,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "listings.tasks.cleanup_stale_media_uploads",
         "schedule": crontab(minute=10),
     },
+    "staff-moderation-digest": {
+        "task": "listings.tasks.send_staff_moderation_digest",
+        "schedule": crontab(hour=7, minute=0),
+    },
     "sweep-entitlement-ledger": {
         "task": "entitlements.tasks.sweep_entitlement_ledger",
         "schedule": crontab(hour=3, minute=30),
