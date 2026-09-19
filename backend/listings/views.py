@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 class ListingDraftCreateView(APIView):
     """POST /api/v1/listings/drafts/ — create an authorized draft (spec §30.1)."""
+    throttle_scope = "listing_workflow"
 
     permission_classes = [
         IsAuthenticated,
@@ -79,6 +80,7 @@ class ListingDraftCreateView(APIView):
 
 class ListingDraftUpdateView(APIView):
     """PATCH /api/v1/listings/<id>/draft/ — update draft/revision (spec §30.1)."""
+    throttle_scope = "listing_workflow"
 
     permission_classes = [
         IsAuthenticated,
@@ -174,6 +176,7 @@ class StaffRevisionDecisionView(APIView):
     table gives "Approve listings/revisions" to both, and Phase 3's
     is_staff_moderator() already admits staff admins.
     """
+    throttle_scope = "staff_moderation"
 
     permission_classes = [
         IsAuthenticated,

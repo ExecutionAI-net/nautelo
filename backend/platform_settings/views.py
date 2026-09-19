@@ -44,6 +44,8 @@ def _active_finance_configuration() -> dict | None:
 
 
 class PublicPlatformSettingsView(APIView):
+    throttle_scope = "public_settings"
+
     permission_classes = [AllowAny]
     authentication_classes = []
 

@@ -31,6 +31,8 @@ from listings.permissions import ListingWorkflowEnabled
 
 
 class BrokerTeamBaseView(APIView):
+    throttle_scope = "broker_team"
+
     permission_classes = [IsActiveUser, IsEmailVerified, IsBrokerTeamManager]
 
     def get_broker(self):
@@ -145,6 +147,7 @@ class BrokerApprovalPolicyView(APIView):
     refreshes in one round trip (spec §30.2). A repeat toggle is a 200 with
     `changed: false` and no new audit row.
     """
+    throttle_scope = "staff_moderation"
 
     permission_classes = [
         IsAuthenticated,
@@ -181,6 +184,7 @@ class BrokerPendingApprovalsView(APIView):
     Deliberately not `@transaction.atomic`: the service takes one savepoint per
     revision so a single invalid submission cannot block the rest of the run.
     """
+    throttle_scope = "staff_moderation"
 
     permission_classes = [
         IsAuthenticated,
