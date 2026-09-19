@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-space-lg">
+    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
       {sent ? (
         <p role="status" className="max-w-sm font-body-md">
           If that address has an account, a reset link is on its way. It expires in one hour.

@@ -8,6 +8,7 @@ import { safeMoney } from "@/components/listings/money";
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
 import { fetchPublishedListingBySlug, listingPath } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
+import { tf } from "@/lib/i18n/finance";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +109,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
             />
           ) : null}
           <Link href="/boats/" className="font-body-md text-primary underline">
-            ←
+            <span aria-hidden="true">←</span> {tf(locale, "boats.title")}
           </Link>
         </aside>
       </div>

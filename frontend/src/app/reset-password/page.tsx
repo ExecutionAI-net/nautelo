@@ -67,7 +67,7 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-space-lg">
+    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
       <Suspense fallback={<p>Loading…</p>}>
         <ResetForm />
       </Suspense>
