@@ -24,6 +24,46 @@ def run(args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
 
+def command_failure(exc):
+    """Report known operations/error codes only, never raw captured AWS output."""
+    command = exc.cmd if isinstance(exc.cmd, (list, tuple)) else []
+    operation = tuple(command[:3])
+    operations = {
+        ("aws", "secretsmanager", "get-secret-value"): (
+            "AWS Secrets Manager GetSecretValue",
+            "Check secretsmanager:GetSecretValue on the selected secret for the calling role; "
+            "customer-managed encryption keys also require kms:Decrypt and key-policy access."),
+        ("aws", "ecr", "get-login-password"): (
+            "AWS ECR GetAuthorizationToken",
+            "Check ecr:GetAuthorizationToken with Resource '*' on the calling role."),
+    }
+    if operation not in operations:
+        return f"Command failed (exit {exc.returncode}); deployment stopped. Check the preceding command logs."
+    name, permission_hint = operations[operation]
+    stderr = exc.stderr or ""
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    hints = {
+        "AccessDeniedException": permission_hint,
+        "AccessDenied": permission_hint,
+        "ResourceNotFoundException": "Check AWS_SECRET_ID, AWS region and the account of the calling role.",
+        "DecryptionFailure": "Check the secret encryption key, KMS permissions and key policy.",
+        "ExpiredTokenException": "Refresh the assumed AWS role credentials and retry.",
+        "ExpiredToken": "Refresh the assumed AWS role credentials and retry.",
+        "UnrecognizedClientException": "Check the assumed AWS role credentials.",
+        "InvalidClientTokenId": "Check the assumed AWS role credentials.",
+        "InvalidRequestException": "Check whether the secret is scheduled for deletion or otherwise unavailable.",
+        "InvalidParameterException": "Check the configured secret identifier and region.",
+        "ThrottlingException": "AWS throttled this request; retry after a short delay.",
+        "InternalServiceError": "AWS reported an internal service error; retry the request.",
+        "ServerException": "AWS reported an internal service error; retry the request.",
+    }
+    match = re.search(r"An error occurred \(([A-Za-z0-9]+)\) when calling", stderr)
+    code = match.group(1) if match and match.group(1) in hints else "UnclassifiedAwsError"
+    hint = hints.get(code, "Check AWS CLI connectivity, credentials, and service status; raw output is withheld.")
+    return f"{name} failed: {code} (exit {exc.returncode}). {hint} Deployment stopped."
+
+
 def origin(value, allow_http=False):
     parsed = urlsplit(value)
     if (parsed.scheme not in (("http", "https") if allow_http else ("https",)) or
@@ -122,11 +162,13 @@ def main():
     runtime.chmod(0o700)
     with (runtime / ".lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        print("Reading configuration from AWS Secrets Manager...", flush=True)
         raw = run(["aws", "secretsmanager", "get-secret-value", "--region", region,
                    "--secret-id", config["secret_id"], "--query", "SecretString", "--output", "json"],
                   capture_output=True, text=True).stdout
         values = environments(json.loads(json.loads(raw)), region, args.environment)
         images = image_references(registry, args.environment, args.tag)
+        print("Authenticating to Amazon ECR...", flush=True)
         password = run(["aws", "ecr", "get-login-password", "--region", region], capture_output=True).stdout
         run(["docker", "login", "--username", "AWS", "--password-stdin", registry], input=password)
         if args.action == "build":
@@ -180,7 +222,6 @@ if __name__ == "__main__":
     try:
         main()
     except subprocess.CalledProcessError as exc:
-        # Captured AWS responses may contain secrets. Do not echo stdout/stderr.
-        raise SystemExit(f"Command failed (exit {exc.returncode}); deployment stopped") from None
+        raise SystemExit(command_failure(exc)) from None
     except (ValueError, KeyError, OSError) as exc:
         raise SystemExit(f"Deployment configuration error: {exc}") from None
