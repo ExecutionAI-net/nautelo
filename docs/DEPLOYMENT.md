@@ -42,3 +42,8 @@ Processes: web (gunicorn/uvicorn on `config.asgi`), Celery worker with queues `d
 ## Known gaps before launch
 
 No virus scanner or video processing (ffmpeg) is wired; images are decoded and re-encoded without metadata by Pillow, videos are validated by signature only. No CSP header. No WebSocket client in the frontend (notifications poll). See `docs/superpowers/PHASE-TRACKER.md` for the rest.
+
+## Landing page and EC2 stack
+
+- `landing/`: static holding site (home, privacy, terms, contact) for email-provider domain approval. Edit `landing/site.json` (legal name, address, VAT, contact email, domain), run `python landing/build.py`, upload `landing/dist/` to any static host.
+- `deploy/`: `docker-compose.prod.yml` (postgres, redis, migrate, api/daphne, celery worker+beat, Next.js, nginx), Dockerfiles, `nginx.conf` (TLS + WebSocket + `X-Forwarded-Proto`), `.env.example`. Run: `docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build`.

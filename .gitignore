@@ -30,3 +30,7 @@ Thumbs.db
 # SDD process workspace (ledgers, task briefs/reports, review packages) —
 # local working state for subagent-driven-development, not shipped code
 .superpowers/
+
+# deploy secrets
+deploy/.env
+deploy/acme/
