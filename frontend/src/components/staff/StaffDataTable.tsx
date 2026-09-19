@@ -22,6 +22,8 @@ interface Props {
   endpoint: string;
   columns: Column[];
   statusOptions?: string[];
+  /** Base path such as /api/v1/staff/providers/; enables Activate/Suspend per row. */
+  statusActionsBase?: string;
 }
 
 const FIELD = "rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md focus:outline-none";
@@ -33,7 +35,7 @@ function cell(value: unknown): string {
   return String(value);
 }
 
-export default function StaffDataTable({ title, eyebrow, endpoint, columns, statusOptions }: Props) {
+export default function StaffDataTable({ title, eyebrow, endpoint, columns, statusOptions, statusActionsBase }: Props) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -51,6 +53,19 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
       setError(true);
     }
   }, [endpoint, page, q, status]);
+
+  async function changeStatus(id: unknown, next: "ACTIVE" | "SUSPENDED") {
+    try {
+      await apiFetch(`${statusActionsBase}${String(id)}/status/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      await load();
+    } catch {
+      setError(true);
+    }
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial and filter-driven fetch
@@ -104,6 +119,7 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
                   {column.label}
                 </th>
               ))}
+              {statusActionsBase ? <th className="px-space-md py-space-sm">Actions</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant">
@@ -114,11 +130,25 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
                     {cell(row[column.key])}
                   </td>
                 ))}
+                {statusActionsBase ? (
+                  <td className="px-space-md py-space-sm">
+                    {row.status !== "ACTIVE" ? (
+                      <button type="button" className="mr-space-sm text-primary underline" onClick={() => void changeStatus(row.id, "ACTIVE")}>
+                        Activate
+                      </button>
+                    ) : null}
+                    {row.status !== "SUSPENDED" ? (
+                      <button type="button" className="text-error underline" onClick={() => void changeStatus(row.id, "SUSPENDED")}>
+                        Suspend
+                      </button>
+                    ) : null}
+                  </td>
+                ) : null}
               </tr>
             ))}
             {data && data.results.length === 0 ? (
               <tr>
-                <td className="px-space-md py-space-md text-on-surface-variant" colSpan={columns.length}>
+                <td className="px-space-md py-space-md text-on-surface-variant" colSpan={columns.length + (statusActionsBase ? 1 : 0)}>
                   No records.
                 </td>
               </tr>

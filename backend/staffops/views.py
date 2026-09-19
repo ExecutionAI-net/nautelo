@@ -173,3 +173,53 @@ class StaffBoatListView(StaffListView):
     search_fields = ("brand__name", "owner_user__email", "broker__name", "slug")
     status_field = "status"
     queryset = BoatListing.objects.select_related("brand", "owner_user", "broker").order_by("-created_at")
+
+
+class StatusChangeSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["ACTIVE", "SUSPENDED"])
+
+
+class StaffStatusChangeView(APIView):
+    """Staff admin activates or suspends a broker or provider (spec §4 staff screens)."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
+    model = None
+    target_type = ""
+
+    def post(self, request, pk):
+        from django.db import transaction
+        from django.shortcuts import get_object_or_404
+
+        from audit.models import AuditEvent
+        from audit.services import record_audit_event
+
+        payload = StatusChangeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        with transaction.atomic():
+            row = get_object_or_404(self.model.objects.select_for_update(), pk=pk)
+            before = row.status
+            row.status = payload.validated_data["status"]
+            row.save(update_fields=["status", "updated_at"])
+            record_audit_event(
+                actor_user=request.user,
+                actor_type=AuditEvent.ActorType.USER,
+                action=f"{self.target_type}.status_changed",
+                target_type=self.target_type,
+                target_id=str(row.pk),
+                source=AuditEvent.Source.API,
+                before={"status": before},
+                after={"status": row.status},
+                metadata={},
+            )
+        return Response({"id": str(row.pk), "status": row.status})
+
+
+class StaffBrokerStatusView(StaffStatusChangeView):
+    model = BrokerOrganization
+    target_type = "brokers.BrokerOrganization"
+
+
+class StaffProviderStatusView(StaffStatusChangeView):
+    model = ProfessionalProfile
+    target_type = "professionals.ProfessionalProfile"
