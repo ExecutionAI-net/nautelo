@@ -1,5 +1,6 @@
 from django.urls import path
 
+from messaging.contact_views import ContactAccessView
 from messaging.views import (
     ConversationMessagesView,
     ConversationReadView,
@@ -33,5 +34,10 @@ urlpatterns = [
         "conversations/<uuid:conversation_id>/read/",
         ConversationReadView.as_view(),
         name="conversation-read",
+    ),
+    path(
+        "contacts/<str:target_type>/<uuid:target_id>/",
+        ContactAccessView.as_view(),
+        name="contact-access",
     ),
 ]
