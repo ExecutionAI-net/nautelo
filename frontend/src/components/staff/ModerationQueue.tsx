@@ -51,6 +51,11 @@ export default function ModerationQueue() {
   return (
     <section>
       <h1 className="font-headline-md text-headline-md text-primary">Moderation queue</h1>
+      <p className="mt-space-xs">
+        <Link href="/dashboard/staff/taxonomy/" className="font-body-md text-primary underline">
+          Other-model queue
+        </Link>
+      </p>
       <div role="tablist" aria-label="Queue tabs" className="mt-space-md flex flex-wrap gap-space-sm">
         {QUEUE_TABS.map((key) => (
           <button
