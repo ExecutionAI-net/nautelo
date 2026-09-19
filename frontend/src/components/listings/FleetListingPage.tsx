@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import SellListingForm from "@/components/listings/SellListingForm";
+import { resolveLocale } from "@/lib/i18n/directory";
 import { useSession } from "@/lib/auth/session";
 
 /** Broker listing creation (spec 22): the same form, bound to one of the
@@ -34,7 +35,7 @@ export default function FleetListingPage() {
           </select>
         </label>
       ) : null}
-      <SellListingForm key={brokerId} brokerId={brokerId} />
+      <SellListingForm key={brokerId} brokerId={brokerId} locale={resolveLocale(session?.user?.locale)} />
     </div>
   );
 }
