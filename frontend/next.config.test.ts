@@ -7,6 +7,20 @@ describe("next.config", () => {
     expect(nextConfig.trailingSlash).toBe(true);
   });
 
+  it("sends baseline security headers on every route", async () => {
+    const rules = await nextConfig.headers!();
+    const keys = rules[0].headers.map((h) => h.key);
+    expect(rules[0].source).toBe("/:path*");
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        "X-Content-Type-Options",
+        "X-Frame-Options",
+        "Referrer-Policy",
+        "Permissions-Policy",
+      ]),
+    );
+  });
+
   it("301-redirects both retired directory URLs and the retired broker services URL", async () => {
     const redirects = await nextConfig.redirects!();
 
