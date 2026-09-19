@@ -9,6 +9,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/lib/api/client";
 import {
+  contactTargetTypeForContext,
+  requestContactAccessRefresh,
+} from "@/lib/api/contacts";
+import {
   createInquiryDraft,
   resolveInquiryDraft,
   submitInquiry,
@@ -212,6 +216,18 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
       // navigating there would replace a success with a 404. See the plan's
       // ruling and Known Limitations.
       setSent(true);
+      // Spec 16: "After successful send, refetch contact authorization; do not
+      // rely on client-side unblur alone." This asks Phase 7's panel to re-ask
+      // the server; it never unlocks anything by itself.
+      //
+      // `contextRef`, not the raw `context` prop: Phase 6's form memoizes the
+      // context into `contextRef` and every other call site in the file
+      // (the draft token, the submit payload, the label) reads it. Mixing the
+      // two spellings in one function is how the two drift apart later.
+      const contactTarget = contactTargetTypeForContext(contextRef.type);
+      if (contactTarget) {
+        requestContactAccessRefresh(contactTarget, contextRef.id);
+      }
       setMessage("");
       setPrivacyConsent(false);
     } catch (caught) {

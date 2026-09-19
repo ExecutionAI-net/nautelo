@@ -81,3 +81,19 @@ export function requestContactAccessRefresh(
     }),
   );
 }
+
+/** Phase 6's inquiry `context_type` -> this module's URL segment, or null when
+ *  the context has no contact endpoint.
+ *
+ *  LISTING deliberately maps to null. A private-seller listing grants nothing
+ *  (Phase 6 reports `contact_access: "NOT_APPLICABLE"`), and a broker-owned
+ *  listing grants the BROKER's contact — whose id the inquiry form does not
+ *  carry, because the public listing payload has no broker reference yet
+ *  (Contract rule 15). Dispatching a listing id as a contact target would be a
+ *  refresh no panel could match. */
+export function contactTargetTypeForContext(
+  contextType: string,
+): ContactTargetType | null {
+  const segment = contextType.toLowerCase();
+  return segment === "broker" || segment === "professional" ? segment : null;
+}
