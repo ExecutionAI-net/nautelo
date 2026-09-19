@@ -94,6 +94,19 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
     if year_max is not None:
         queryset = queryset.filter(**{f"{SNAP}manufacture_year_snapshot__lte": year_max})
 
+    for key in ("boat_type", "condition", "fuel_type"):
+        value = (params.get(key) or "").strip()
+        if value:
+            queryset = queryset.filter(**{f"{SNAP}specifications__{key}__iexact": value})
+
+    cabins_min = _int(params.get("cabins_min"))
+    if cabins_min is not None and cabins_min > 0:
+        wanted = range(cabins_min, 13)
+        queryset = queryset.filter(
+            Q(**{f"{SNAP}specifications__cabins__in": [str(n) for n in wanted]})
+            | Q(**{f"{SNAP}specifications__cabins__in": list(wanted)})
+        )
+
     order = SORTS.get((params.get("sort") or "newest").strip(), SORTS["newest"])
     return queryset.order_by(*order)
 
@@ -109,8 +122,12 @@ def facets(queryset: QuerySet) -> dict:
         countries.add(country)
         if region:
             regions.add(region)
+    from .form_options import BOAT_TYPES, FUEL_TYPES
+
     return {
         "brands": sorted(brands),
         "countries": sorted(countries),
         "regions": sorted(regions),
+        "boat_types": BOAT_TYPES,
+        "fuel_types": FUEL_TYPES,
     }

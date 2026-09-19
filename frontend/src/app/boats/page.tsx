@@ -31,6 +31,11 @@ const FILTER_KEYS = [
   "country",
   "region",
   "seller_type",
+  "boat_type",
+  "condition",
+  "model",
+  "fuel_type",
+  "cabins_min",
   "price_min",
   "price_max",
   "year_min",
@@ -114,6 +119,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
     if (key === "price_max") return `Up to €${value}`;
     if (key === "year_min") return `From ${value}`;
     if (key === "year_max") return `Until ${value}`;
+    if (key === "cabins_min") return `${value}+ cabins`;
     if (key === "q") return `“${value}”`;
     return value;
   };
@@ -160,6 +166,29 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             {filters.q ? <input type="hidden" name="q" value={filters.q} /> : null}
 
             <div>
+              <label className={LABEL} htmlFor="f-type">
+                Boat type
+              </label>
+              <select id="f-type" name="boat_type" defaultValue={filters.boat_type ?? ""} className={FIELD}>
+                <option value="">All boat types</option>
+                {(facets.boat_types ?? []).map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL} htmlFor="f-condition">
+                Condition
+              </label>
+              <select id="f-condition" name="condition" defaultValue={filters.condition ?? ""} className={FIELD}>
+                <option value="">Any</option>
+                <option value="used">Used</option>
+                <option value="new">New</option>
+              </select>
+            </div>
+            <div>
               <label className={LABEL} htmlFor="f-brand">
                 Brand
               </label>
@@ -171,6 +200,12 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={LABEL} htmlFor="f-model">
+                Model
+              </label>
+              <input id="f-model" name="model" defaultValue={filters.model ?? ""} placeholder="Any model" className={FIELD} />
             </div>
             <div>
               <label className={LABEL} htmlFor="f-country">
@@ -212,6 +247,32 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                 <input aria-label="Latest year" name="year_max" type="number" min={1900} placeholder="To" defaultValue={filters.year_max ?? ""} className={FIELD} />
               </div>
             </fieldset>
+            <div>
+              <label className={LABEL} htmlFor="f-fuel">
+                Fuel type
+              </label>
+              <select id="f-fuel" name="fuel_type" defaultValue={filters.fuel_type ?? ""} className={FIELD}>
+                <option value="">Any fuel</option>
+                {(facets.fuel_types ?? []).map((fuel) => (
+                  <option key={fuel} value={fuel}>
+                    {fuel}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL} htmlFor="f-cabins">
+                Cabins
+              </label>
+              <select id="f-cabins" name="cabins_min" defaultValue={filters.cabins_min ?? ""} className={FIELD}>
+                <option value="">Any</option>
+                {[1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>
+                    {count}+
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={LABEL} htmlFor="f-seller">
                 Seller type

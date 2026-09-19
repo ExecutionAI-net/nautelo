@@ -124,6 +124,10 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
   // listing.views_label, so the standalone noun is the one a labelled count
   // uses — Phase 10's owner dashboards and any "N views" column (spec §19.5).
   // It is kept here, in all three languages, so that phase does not re-coin it.
+  "listing.condition.new": { en: "New", it: "Nuova", es: "Nueva" },
+  "listing.condition.used": { en: "Used", it: "Usata", es: "Usada" },
+  "listing.asking_price": { en: "Asking price", it: "Prezzo richiesto", es: "Precio solicitado" },
+  "listing.cabins": { en: "{count} cabins", it: "{count} cabine", es: "{count} camarotes" },
   "listing.views": { en: "views", it: "visualizzazioni", es: "visualizaciones" },
   "listing.views_label": {
     en: "{count} views",
