@@ -4,6 +4,7 @@ from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from django.utils.cache import patch_vary_headers
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -19,7 +20,14 @@ from accounts.permissions import (
 from analytics.recording import record_listing_view
 from common.authentication import OptionalJWTAuthentication
 
-from .decisions import approve_revision, reject_revision, request_revision_changes
+from .decisions import (
+    approve_revision,
+    reject_revision,
+    request_revision_changes,
+    suspend_listing,
+    unsuspend_listing,
+)
+from .staff_queue import TABS, queue_rows, revision_detail
 from .media_upgrade import apply_media_upgrade
 from .media_uploads import complete_upload, create_upload_intent, remove_media
 from .drafts import create_listing_draft, update_listing_draft
@@ -191,6 +199,66 @@ class StaffRevisionDecisionView(APIView):
         revision.refresh_from_db()
         revision.listing.refresh_from_db()
         return Response(StaffRevisionSerializer().to_representation(revision))
+
+
+class StaffModerationBaseView(APIView):
+    permission_classes = [IsAuthenticated, IsActiveUser, IsStaffModerator]
+    throttle_scope = "staff_moderation"
+
+
+class StaffModerationQueueView(StaffModerationBaseView):
+    """GET /api/v1/staff/moderation/queue/?tab=&seller_type=&ordering= (spec 26.2)."""
+
+    def get(self, request):
+        tab = request.query_params.get("tab", "initial")
+        if tab not in TABS:
+            raise ValidationError({"tab": f"Must be one of {', '.join(TABS)}."})
+        rows, counts = queue_rows(
+            tab=tab,
+            seller_type=request.query_params.get("seller_type"),
+            ordering=request.query_params.get("ordering", "oldest"),
+        )
+        return Response({"tab": tab, "counts": counts, "results": rows})
+
+
+class StaffRevisionDetailView(StaffModerationBaseView):
+    """GET /api/v1/staff/revisions/<id>/ - before/after diff, warnings, audit."""
+
+    def get(self, request, revision_id):
+        revision = get_object_or_404(
+            ListingRevision.objects.select_related(
+                "listing",
+                "listing__brand",
+                "listing__model",
+                "listing__broker",
+                "listing__owner_user",
+                "listing__current_public_snapshot",
+                "listing__consumed_entitlement",
+            ),
+            pk=revision_id,
+        )
+        return Response(revision_detail(revision))
+
+
+class StaffListingSuspensionView(StaffModerationBaseView):
+    """POST /api/v1/staff/listings/<id>/suspension/ {action, reason} (spec 26.2)."""
+
+    permission_classes = StaffModerationBaseView.permission_classes + [
+        ListingWorkflowEnabled
+    ]
+
+    def post(self, request, listing_id):
+        listing = get_object_or_404(BoatListing, pk=listing_id)
+        action = request.data.get("action")
+        reason = request.data.get("reason", "")
+        if action == "suspend":
+            suspend_listing(listing=listing, actor=request.user, reason=reason)
+        elif action == "unsuspend":
+            unsuspend_listing(listing=listing, actor=request.user, reason=reason)
+        else:
+            raise ValidationError({"action": "Must be suspend or unsuspend."})
+        listing.refresh_from_db()
+        return Response({"listing_id": str(listing.pk), "status": listing.status})
 
 
 def published_listings_queryset() -> QuerySet[BoatListing]:

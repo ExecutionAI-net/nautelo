@@ -179,6 +179,9 @@ REST_FRAMEWORK = {
         "messaging_read": "120/min",
         # Phase 18: notification list/read; the bell polls on reconnect only.
         "notifications": "120/min",
+        # Phase 17: staff console reads and ledger operations.
+        "staff_moderation": "300/min",
+        "staff_entitlements": "120/min",
         "inquiry_draft": "30/hour",
         "message_send": "60/hour",
         # Phase 7, spec §30.4. Looser than `services_directory` because the
