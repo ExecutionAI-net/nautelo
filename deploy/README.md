@@ -4,10 +4,19 @@ Two independent Compose projects run behind one shared Nginx container. Region: 
 
 | Environment | Source branch | Frontend | API | Image tag |
 |---|---|---|---|---|
-| dev | `dev` | `dev.example.com` | `api.dev.example.com` | `dev-<git SHA>-<run ID>-<attempt>` |
-| prod | `main` | `example.com` | `api.example.com` | `prod-<git SHA>-<run ID>-<attempt>` |
+| dev | `dev` | `dev.example.com` | `api.dev.example.com` | `GITHUB_RUN_NUMBER` |
+| prod | `main` | `example.com` | `api.example.com` | `GITHUB_RUN_NUMBER` |
 
-Images are `ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend:TAG` and `…/nautelo-backend:TAG`. Both EC2 environments use hardened Django production settings; the dev environment is a deployed test environment. The root `docker-compose.yml` remains the local Postgres/Redis/MinIO setup.
+Image references use these four ECR repositories (the dev suffix is intentionally `de`):
+
+```text
+ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-de:GITHUB_RUN_NUMBER
+ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-de:GITHUB_RUN_NUMBER
+ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-prod:GITHUB_RUN_NUMBER
+ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-prod:GITHUB_RUN_NUMBER
+```
+
+`GITHUB_RUN_NUMBER` is replaced with the workflow's numeric run number, for example `42`. Both EC2 environments use hardened Django production settings; the dev environment is a deployed test environment. The root `docker-compose.yml` remains the local Postgres/Redis/MinIO setup.
 
 Each environment has its own Postgres, Redis, Celery worker, Celery beat, frontend, API, volumes, Secrets Manager secret, and S3 bucket. Only Nginx publishes host ports (80 and 443). API and frontend join their environment's proxy network. Databases and Redis stay on their environment's default network. The worker consumes all four queues, including notifications.
 
@@ -20,8 +29,10 @@ Allow inbound TCP 80 and 443; restrict SSH to your administration IP or use SSM.
 Create ECR repositories once:
 
 ```bash
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-de --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-de --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-prod --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-prod --image-tag-mutability IMMUTABLE
 ```
 
 Keep your existing EC2 IAM role with Secrets Manager, S3, and ECR permissions. `aws/ec2-policy.example.json` is a reference to compare resource scope after replacing ACCOUNT_ID and bucket/secret names; do not create a duplicate role. The role needs Secrets Manager read, ECR pull, and object access to the two buckets. If using a customer-managed KMS key, also grant the appropriate KMS permissions and key-policy access. Require IMDSv2 and set the response hop limit to **2**, so container SDKs can retrieve rotating role credentials:
@@ -86,19 +97,19 @@ Create the GitHub OIDC provider and role using `aws/github-trust.example.json`. 
 
 `.github/workflows/images.yml` runs on pushes to `dev` and `main` and can be manually dispatched on either branch. It first calls the reusable CI workflow (backend tests, frontend checks/build, and deployment configuration validation). Only after CI succeeds does it build/push both images and deploy through SSM. Pull requests run CI without deployment.
 
-Tags contain the environment, full commit SHA, GitHub run ID, and run attempt, so retries can publish new immutable tags. The SSM helper sends the matching deployment files and public configuration inline in a compressed payload; it sends no secret values, source checkout, GitHub token, or AWS keys. EC2 installs the files under `/opt/nautelo/releases/ENV/TAG/`, fetches runtime secrets using its own role, pulls images, runs migrations, and checks health. No GitHub authentication, Git fetch, SSH key, or inbound SSH port is needed on EC2.
+Tags are exactly `GITHUB_RUN_NUMBER`; the environment is part of the repository name. Re-running the same workflow run keeps its run number, so it cannot overwrite an image already published to an immutable ECR repository. To rebuild, dispatch a new workflow run; to retry only deployment, use the existing numeric tag with `ssm_deploy.py`. The SSM helper sends the matching deployment files and public configuration inline in a compressed payload; it sends no secret values, source checkout, GitHub token, or AWS keys. EC2 installs the files under `/opt/nautelo/releases/ENV/TAG/`, fetches runtime secrets using its own role, pulls images, runs migrations, and checks health. No GitHub authentication, Git fetch, SSH key, or inbound SSH port is needed on EC2.
 
 The job prints the SSM command ID, polls for completion, and fails on command failure or timeout. It deliberately does not echo remote output into GitHub logs; inspect Run Command output in Systems Manager when troubleshooting. A cancelled GitHub run does not cancel an already-sent remote command: check its status before retrying. Per-environment locks also serialize remote deployments. The last successful release path is recorded in `/opt/nautelo/deploy/runtime/ENV/last-successful-release`.
 
 For a local build, copy `config.dev.example.json` to `config.dev.json`, replace ACCOUNT_ID, authenticate AWS CLI with a permitted role, and run from the appropriate branch:
 
 ```bash
-python3 deploy/manage.py build dev "dev-$(git rev-parse HEAD)"
+python3 deploy/manage.py build dev 42
 # From main:
-python3 deploy/manage.py build prod "prod-$(git rev-parse HEAD)"
+python3 deploy/manage.py build prod 43
 ```
 
-Build from clean checkouts so the tag accurately identifies the source. The helper checks the selected branch. Both Dockerfiles use the repository root as build context, and `.dockerignore` excludes secrets, local environments, and build artifacts.
+Use the numeric run number assigned to the release; avoid manually publishing tags that a future workflow run could need. Build from clean checkouts and record the source commit alongside any manual build. The helper checks the selected branch. Both Dockerfiles use the repository root as build context, and `.dockerignore` excludes secrets, local environments, and build artifacts.
 
 ## 5. Enable SSM on the existing instance
 
@@ -152,8 +163,8 @@ With GitHub variables, OIDC policies, SSM, and the shared proxy configured, push
 For a manual deployment from a local checkout with AWS SSM permissions, copy the matching config example, fill in the account/secret details, and use an existing published tag:
 
 ```bash
-python3 deploy/ssm_deploy.py dev dev-FULL_COMMIT_SHA-RUN_ID-ATTEMPT --instance-id i-REPLACE
-python3 deploy/ssm_deploy.py prod prod-FULL_COMMIT_SHA-RUN_ID-ATTEMPT --instance-id i-REPLACE
+python3 deploy/ssm_deploy.py dev 42 --instance-id i-REPLACE
+python3 deploy/ssm_deploy.py prod 43 --instance-id i-REPLACE
 ```
 
 The local `manage.py deploy` command remains available when running directly on EC2 from a release directory. To inspect the active dev deployment from the host:

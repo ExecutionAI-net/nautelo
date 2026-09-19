@@ -31,6 +31,15 @@ class DeploymentConfigurationTests(unittest.TestCase):
         self.assertEqual(backend['MEDIA_PUBLIC_BASE_URL'], '')
         self.assertEqual(backend['MEDIA_SIGNED_URLS'], 'True')
 
+    def test_environment_specific_repositories_use_run_number_tags(self):
+        registry = '123456789012.dkr.ecr.eu-west-1.amazonaws.com'
+        for environment, suffix in [('dev', 'de'), ('prod', 'prod')]:
+            with self.subTest(environment=environment):
+                self.assertEqual(manage.image_references(registry, environment, '42'), {
+                    'backend': f'{registry}/nautelo-backend-{suffix}:42',
+                    'frontend': f'{registry}/nautelo-frontend-{suffix}:42',
+                })
+
     def test_raw_file_preserves_special_characters_and_is_private(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'backend.env'
@@ -69,7 +78,7 @@ class DeploymentConfigurationTests(unittest.TestCase):
                 return manage.subprocess.CompletedProcess(command, 0)
             with patch.object(manage, 'ROOT', root), patch.object(manage, 'run', side_effect=fake_run), \
                  patch.object(manage.subprocess, 'run', return_value=manage.subprocess.CompletedProcess([], 0)), \
-                 patch('sys.argv', ['manage.py', 'deploy', 'dev', 'dev-abc123']):
+                 patch('sys.argv', ['manage.py', 'deploy', 'dev', '42']):
                 with self.assertRaises(manage.subprocess.CalledProcessError):
                     manage.main()
             self.assertFalse(any('--force-recreate' in cmd for cmd in commands))

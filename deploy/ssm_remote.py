@@ -12,7 +12,7 @@ import sys
 def main(payload):
     data = json.loads(gzip.decompress(base64.b64decode(payload)))
     environment, tag = data['environment'], data['tag']
-    if environment not in ('dev', 'prod') or not re.fullmatch(environment + r'-[a-zA-Z0-9_.-]+', tag):
+    if environment not in ('dev', 'prod') or not re.fullmatch(r'[1-9][0-9]{0,19}', tag):
         raise ValueError('Invalid release')
     base = Path('/opt/nautelo')
     runtime = base / 'deploy/runtime'

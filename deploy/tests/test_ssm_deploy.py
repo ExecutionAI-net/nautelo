@@ -15,7 +15,7 @@ SPEC.loader.exec_module(ssm)
 
 class SSMDeploymentTests(unittest.TestCase):
     def test_bundle_contains_only_deployment_files_and_public_config(self):
-        body = ssm.request('dev', 'dev-abc123', 'i-0123456789abcdef0', {
+        body = ssm.request('dev', '42', 'i-0123456789abcdef0', {
             'region': 'eu-west-1', 'registry': 'example', 'secret_id': 'nautelo/dev',
             'DO_NOT_TRANSFER': 'private-value',
         })
@@ -27,7 +27,7 @@ class SSMDeploymentTests(unittest.TestCase):
         self.assertEqual(body['InstanceIds'], ['i-0123456789abcdef0'])
         self.assertEqual(body['Parameters']['executionTimeout'], ['1800'])
 
-    def test_rejects_cross_environment_tags_and_command_injection(self):
+    def test_rejects_non_numeric_tags_and_command_injection(self):
         for env, tag, instance in [('prod', 'dev-abc', 'i-0123456789abcdef0'),
                                    ('dev', 'dev-abc;id', 'i-0123456789abcdef0'),
                                    ('dev', 'dev-abc', 'i-0123456789abcdef0;id')]:

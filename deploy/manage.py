@@ -72,6 +72,11 @@ def environments(secret, region):
     return {"backend": backend, "frontend": frontend, "postgres": postgres}
 
 
+def image_references(registry, environment, tag):
+    suffix = {"dev": "de", "prod": "prod"}[environment]
+    return {part: f"{registry}/nautelo-{part}-{suffix}:{tag}" for part in ("backend", "frontend")}
+
+
 def write_env(path, values):
     """Compose raw env files preserve $, #, quotes and spaces literally."""
     fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=".env-")
@@ -88,11 +93,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("build", "deploy"))
     parser.add_argument("environment", choices=("dev", "prod"))
-    parser.add_argument("tag", help="Explicit immutable tag, for example dev-<git SHA> or prod-<git SHA>")
+    parser.add_argument("tag", help="GitHub Actions run number, for example 42")
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
-    if not re.fullmatch(args.environment + r"-[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,119}", args.tag):
-        parser.error("Tag must begin with the selected environment and a hyphen")
+    if not re.fullmatch(r"[1-9][0-9]{0,19}", args.tag):
+        parser.error("Tag must be a positive GitHub Actions run number")
     config = json.loads((args.config or ROOT / f"deploy/config.{args.environment}.json").read_text())
     region, registry = config["region"], config["registry"]
     if not re.fullmatch(r"\d{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com", registry):
@@ -107,7 +112,7 @@ def main():
                    "--secret-id", config["secret_id"], "--query", "SecretString", "--output", "json"],
                   capture_output=True, text=True).stdout
         values = environments(json.loads(json.loads(raw)), region)
-        images = {part: f"{registry}/nautelo-{part}:{args.tag}" for part in ("backend", "frontend")}
+        images = image_references(registry, args.environment, args.tag)
         password = run(["aws", "ecr", "get-login-password", "--region", region], capture_output=True).stdout
         run(["docker", "login", "--username", "AWS", "--password-stdin", registry], input=password)
         if args.action == "build":

@@ -39,7 +39,7 @@ jobs:
           Path(f"deploy/config.{os.environ['DEPLOY_ENV']}.json").write_text(json.dumps(config))
           PY
       - name: Choose immutable release tag
-        run: echo "IMAGE_TAG=$DEPLOY_ENV-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+        run: echo "IMAGE_TAG=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Build and push immutable images
         run: python3 deploy/manage.py build "$DEPLOY_ENV" "$IMAGE_TAG"
       - name: Deploy to EC2 and await health checks through SSM

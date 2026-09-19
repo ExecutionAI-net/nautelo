@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def request(environment, tag, instance_id, config):
-    if environment not in ('dev', 'prod') or not re.fullmatch(environment + r'-[a-zA-Z0-9_.-]{1,120}', tag):
+    if environment not in ('dev', 'prod') or not re.fullmatch(r'[1-9][0-9]{0,19}', tag):
         raise ValueError('Invalid environment/tag')
     if not re.fullmatch(r'i-[a-f0-9]{8,17}', instance_id):
         raise ValueError('Set EC2_INSTANCE_ID to the target EC2 instance ID')
