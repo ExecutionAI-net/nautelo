@@ -8,13 +8,19 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsActiveUser, IsEmailVerified
+from accounts.permissions import IsActiveUser, IsEmailVerified, IsStaffAdmin
 
 from .checkout import create_checkout_session
 from .errors import IdempotencyKeyRequired
-from .models import PaymentOrder
+from .models import MarketplaceProduct, PaymentOrder
 from .permissions import StripeCheckoutEnabled
-from .serializers import CheckoutSessionRequestSerializer, PaymentOrderSerializer
+from .serializers import (
+    CheckoutSessionRequestSerializer,
+    PaymentOrderSerializer,
+    StaffProductSerializer,
+    StaffProductUpdateSerializer,
+)
+from .services import update_product
 from .webhooks import (
     DuplicateWebhookEvent,
     InvalidWebhookPayload,
@@ -147,3 +153,61 @@ class StripeWebhookView(APIView):
             return HttpResponse(status=200)
         # Any other exception propagates to a 500 on purpose, so Stripe retries.
         return HttpResponse(status=200)
+
+
+class StaffProductBaseView(APIView):
+    """Spec §5: "Configure products/settings" is staff-admin only, and spec §12
+    is explicit that a moderator may not change payment products. Permission
+    order matters (DRF stops at the first failure): authentication, then
+    verified email, then the staff-admin group."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsEmailVerified, IsStaffAdmin]
+
+
+class StaffProductListView(StaffProductBaseView):
+    """GET /api/v1/staff/products/ (spec §30.1).
+
+    No POST: spec §23.1 fixes the catalogue at exactly two codes, and a third
+    product would have no code path anywhere else in the system.
+    """
+
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        products = MarketplaceProduct.objects.all()
+        return Response(
+            StaffProductSerializer(
+                products, many=True, context={"check_price": False}
+            ).data
+        )
+
+
+class StaffProductDetailView(StaffProductBaseView):
+    """GET/PATCH /api/v1/staff/products/<id>/ (spec §30.1, §23.5, §26.4)."""
+
+    http_method_names = ["get", "patch", "options"]
+
+    def get_product(self, product_id):
+        return get_object_or_404(MarketplaceProduct, pk=product_id)
+
+    def get(self, request, product_id):
+        product = self.get_product(product_id)
+        return Response(
+            StaffProductSerializer(product, context={"check_price": True}).data
+        )
+
+    def patch(self, request, product_id):
+        product = self.get_product(product_id)
+        envelope = StaffProductUpdateSerializer(
+            product, data=request.data, partial=True
+        )
+        envelope.is_valid(raise_exception=True)
+        updated = update_product(
+            product=product,
+            changes=envelope.validated_data,
+            actor=request.user,
+            request_id=getattr(request, "request_id", None),
+        )
+        return Response(
+            StaffProductSerializer(updated, context={"check_price": False}).data
+        )

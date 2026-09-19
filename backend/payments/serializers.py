@@ -1,7 +1,9 @@
 from rest_framework import serializers
 
 from .enums import ProductCode
-from .models import PaymentOrder
+from .models import MarketplaceProduct, PaymentOrder
+from .products import check_stripe_price
+from .selectors import product_operations
 
 
 class CheckoutSessionRequestSerializer(serializers.Serializer):
@@ -50,3 +52,75 @@ class PaymentOrderSerializer(serializers.ModelSerializer):
             "fulfilled_at",
         )
         read_only_fields = fields
+
+
+class StaffProductSerializer(serializers.ModelSerializer):
+    """Every field spec §23.5's card shows, and nothing a customer may see."""
+
+    display_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, coerce_to_string=True, read_only=True
+    )
+    price_state = serializers.SerializerMethodField()
+    price_reason = serializers.SerializerMethodField()
+    stripe_unit_amount = serializers.SerializerMethodField()
+    operations = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MarketplaceProduct
+        fields = (
+            "id", "code",
+            "name_en", "name_it", "name_es",
+            "description_en", "description_it", "description_es",
+            "is_active", "display_amount", "currency",
+            "stripe_product_id", "stripe_price_id",
+            "entitlement_valid_days", "publication_days", "display_order",
+            "price_state", "price_reason", "stripe_unit_amount",
+            "operations", "updated_at",
+        )
+        read_only_fields = fields
+
+    def _check(self, product):
+        """One Stripe call per rendered product, so only the DETAIL view asks
+        for it (context flag `check_price`)."""
+        if not self.context.get("check_price"):
+            return None
+        if "_price_check" not in self.context:
+            try:
+                self.context["_price_check"] = check_stripe_price(product)
+            except Exception:  # PaymentGatewayUnavailable and anything below it
+                self.context["_price_check"] = None
+        return self.context["_price_check"]
+
+    def get_price_state(self, product):
+        if not self.context.get("check_price"):
+            return "UNCHECKED"
+        result = self._check(product)
+        if result is None:
+            return "UNAVAILABLE"
+        return "OK" if result.ok else "MISMATCH"
+
+    def get_price_reason(self, product):
+        result = self._check(product)
+        return "" if result is None else result.reason
+
+    def get_stripe_unit_amount(self, product):
+        result = self._check(product)
+        return None if result is None else result.stripe_unit_amount
+
+    def get_operations(self, product):
+        return product_operations(product).as_dict()
+
+
+class StaffProductUpdateSerializer(serializers.ModelSerializer):
+    """Spec §26.4's editable set. `code` is absent by construction."""
+
+    class Meta:
+        model = MarketplaceProduct
+        fields = (
+            "name_en", "name_it", "name_es",
+            "description_en", "description_it", "description_es",
+            "stripe_product_id", "stripe_price_id",
+            "currency", "display_amount",
+            "entitlement_valid_days", "publication_days",
+            "is_active", "display_order",
+        )
