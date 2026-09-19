@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import NotificationBell from "@/components/layout/NotificationBell";
 import { useSession } from "@/lib/auth/session";
 import type { PermissionKey } from "@/lib/auth/types";
 import { tConversations } from "@/lib/i18n/conversations";
@@ -99,6 +100,7 @@ export default function PrimaryNav() {
       <div className="ml-auto flex items-center gap-space-sm">
         {loading ? null : authenticated ? (
           <>
+            <NotificationBell locale={locale} />
             <Link
               href="/account/"
               className="font-body-sm text-on-surface-variant hover:text-primary"
