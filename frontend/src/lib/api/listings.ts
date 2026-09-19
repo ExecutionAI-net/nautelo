@@ -42,6 +42,8 @@ export interface ListingMedia {
   height: number | null;
   duration_seconds: number | null;
   checksum_sha256: string;
+  /** CDN URL, or null until public media serving is configured. */
+  url?: string | null;
 }
 
 export interface PublicListing {

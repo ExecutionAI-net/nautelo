@@ -411,3 +411,25 @@ describe("BoatCard", () => {
     expect(screen.getByText("Palma, Illes Balears")).toBeInTheDocument();
   });
 });
+
+describe("BoatCard media", () => {
+  it("renders the primary image from its CDN url and falls back to the placeholder without one", () => {
+    const media = {
+      media_id: "m1",
+      media_type: "IMAGE" as const,
+      storage_key: "k",
+      mime_type: "image/jpeg",
+      sort_order: 0,
+      width: 1,
+      height: 1,
+      duration_seconds: null,
+      checksum_sha256: "x",
+    };
+    const { rerender } = render(
+      <BoatCard locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: "https://cdn.x/k" }] })} />,
+    );
+    expect(screen.getByTestId("boat-image").getAttribute("src")).toBe("https://cdn.x/k");
+    rerender(<BoatCard locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: null }] })} />);
+    expect(screen.getByTestId("boat-image-slot")).toBeTruthy();
+  });
+});

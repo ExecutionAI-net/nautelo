@@ -13,6 +13,7 @@ Backend (`config.settings.prod` is the default for wsgi/asgi; `manage.py` still 
 | `OBJECT_STORAGE_ENDPOINT_URL`, `_REGION`, `_BUCKET_NAME`, `_ACCESS_KEY`, `_SECRET_KEY` | media uploads |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | per environment |
 | `INTERNAL_SERVICE_SECRET` | must equal the frontend value; authenticates forwarded client IPs |
+| `MEDIA_PUBLIC_BASE_URL` | public CDN origin in front of the media bucket; empty = images show placeholders |
 | `TRUSTED_PROXY_COUNT`, `IPV6_HASH_PREFIX_BITS`, `CONTACT_HASH_SECRET` | throttling and contact hashing |
 | `PUBLIC_BASE_URL`, `DEFAULT_FROM_EMAIL`, `EMAIL_BACKEND`, `REFRESH_COOKIE_SECURE`, `JWT_*` | |
 

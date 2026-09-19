@@ -261,6 +261,8 @@ AWS_S3_ADDRESSING_STYLE = "path"
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = True
 
+# Public CDN origin in front of the media bucket; empty = not served yet.
+MEDIA_PUBLIC_BASE_URL = env("MEDIA_PUBLIC_BASE_URL", default="")
 # Phase 15: re-encode uploaded images without metadata (EXIF/GPS/XMP).
 MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
