@@ -1,6 +1,8 @@
+import Link from "next/link";
+
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
 import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
-import { financingHref, type ListingFinance, type PublicListing } from "@/lib/api/listings";
+import { financingHref, listingPath, type ListingFinance, type PublicListing } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
 import { formatCount, formatViewCount, tf } from "@/lib/i18n/finance";
 
@@ -59,6 +61,8 @@ export default function BoatCard({
       ? safeMoney(locale, finance.monthly_payment, listing.price.currency)
       : null;
 
+  const href = listingPath(listing);
+
   return (
     <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
       {/* Spec §29.1: primary approved image or a defined placeholder. Turning a
@@ -99,7 +103,14 @@ export default function BoatCard({
         </span>
       </div>
 
-      <h3 className="mt-space-xs font-title-lg text-title-lg text-primary">{heading}</h3>
+      <h3 className="mt-space-xs font-title-lg text-title-lg text-primary">{href ? (
+          <Link href={href} className="underline-offset-2 hover:underline">
+            {heading}
+          </Link>
+        ) : (
+          heading
+        )}
+      </h3>
 
       {/* Spec §29.5: this row stacks cleanly below a breakpoint and neither
           value truncates ambiguously. */}

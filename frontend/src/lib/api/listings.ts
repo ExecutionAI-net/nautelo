@@ -46,6 +46,8 @@ export interface ListingMedia {
 
 export interface PublicListing {
   id: string;
+  slug: string | null;
+  broker: { id: string; name: string; slug: string } | null;
   seller_type: SellerType;
   snapshot_version: number;
   published_at: string | null;
@@ -131,6 +133,23 @@ export async function fetchPublishedListing(id: string): Promise<PublicListing |
     throw new Error(`Listing API ${path} returned a malformed payload`);
   }
   return body as unknown as PublicListing;
+}
+
+export async function fetchPublishedListingBySlug(slug: string): Promise<PublicListing | null> {
+  const path = `/api/v1/listings/by-slug/${encodeURIComponent(slug)}/`;
+  const body = await directoryFetch<unknown>(path);
+  if (body === null) {
+    return null;
+  }
+  if (!isRecord(body) || typeof body.id !== "string") {
+    throw new Error(`Listing API ${path} returned a malformed payload`);
+  }
+  return body as unknown as PublicListing;
+}
+
+/** Canonical path of a listing's public page; null until it has a slug. */
+export function listingPath(listing: Pick<PublicListing, "slug">): string | null {
+  return listing.slug ? `/boats/${listing.slug}/` : null;
 }
 
 function isFinanceDefaults(value: unknown): value is FinanceConfigurationDefaults {

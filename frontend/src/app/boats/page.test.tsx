@@ -23,6 +23,8 @@ vi.mock("@/components/listings/FinanceDetailsDisclosure", () => ({
 function listing(overrides: Partial<PublicListing> = {}): PublicListing {
   return {
     id: "3f1d2c4e-0000-4000-8000-000000000001",
+    slug: "2021-beneteau-oceanis-3f1d2c4e",
+    broker: null,
     seller_type: "BROKER",
     snapshot_version: 1,
     published_at: "2026-09-18T08:00:00Z",
