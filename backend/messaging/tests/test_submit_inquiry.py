@@ -110,7 +110,7 @@ def test_scenario_a_one_conversation_one_message_one_grant_one_notification(
     notification = Notification.objects.get()
     assert notification.recipient_id == professional.owner_user_id
     assert notification.notification_type == "inquiry.received"
-    assert notification.target_url == f"/dashboard/messages/{conversation.pk}/"
+    assert notification.target_url == f"/dashboard/private-seller/messages/{conversation.pk}/"
     assert notification.payload["context_label"] == "Phase6 Svc Surveyors"
     assert notification.payload["sender_display_name"] == "Ada Rossi"
     assert notification.payload["excerpt"] == BODY
@@ -118,7 +118,7 @@ def test_scenario_a_one_conversation_one_message_one_grant_one_notification(
     assert [sent.to for sent in mail.outbox] == [["office@phase6-svc.example"]]
 
     assert result.contact_access == ContactAccessOutcome.GRANTED
-    assert result.next_url == f"/dashboard/messages/{conversation.pk}/"
+    assert result.next_url == f"/dashboard/private-seller/messages/{conversation.pk}/"
     assert result.created_conversation is True
     assert result.created_grant is True
 

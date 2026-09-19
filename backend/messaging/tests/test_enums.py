@@ -105,9 +105,9 @@ def test_phone_width_matches_provider_columns():
 
 
 def test_conversation_url_template_is_pinned():
-    assert SENDER_CONVERSATION_URL_TEMPLATE == "/dashboard/messages/{conversation_id}/"
+    assert SENDER_CONVERSATION_URL_TEMPLATE == "/dashboard/private-seller/messages/{conversation_id}/"
 
 
 @pytest.mark.parametrize("raw", ["b0dd1d0e-0000-4000-8000-000000000001"])
 def test_conversation_url_matches_spec_15_5(raw):
-    assert conversation_url(raw) == f"/dashboard/messages/{raw}/"
+    assert conversation_url(raw) == f"/dashboard/private-seller/messages/{raw}/"
