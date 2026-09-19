@@ -44,6 +44,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
     .filter(Boolean)
     .join(", ");
   const canonicalUrl = `${SITE_URL}${listingPath(listing) ?? `/boats/${slug}/`}`;
+  const images = listing.media.filter((item) => item.media_type === "IMAGE" && item.url);
   const specs = Object.entries(listing.specifications).filter(
     ([, value]) => value !== null && value !== "",
   );
@@ -59,6 +60,16 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
             {heading}
             {location ? ` · ${location}` : ""}
           </p>
+          {images.length > 0 ? (
+            <ul className="mt-space-md grid grid-cols-2 gap-space-sm">
+              {images.map((item) => (
+                <li key={item.media_id}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- CDN URL */}
+                  <img src={item.url ?? ""} alt={heading} loading="lazy" className="w-full rounded-lg object-cover" />
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {price ? (
             <p className="mt-space-sm font-title-md text-title-md text-on-surface">{price}</p>
           ) : null}

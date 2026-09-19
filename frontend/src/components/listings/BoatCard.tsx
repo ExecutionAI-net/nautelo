@@ -65,14 +65,23 @@ export default function BoatCard({
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
-      {/* Spec §29.1: primary approved image or a defined placeholder. Turning a
-          storage_key into a CDN URL is Phase 15 (spec §24), so until then the
-          placeholder is the defined state — not a fixture image. */}
-      <div
-        aria-hidden="true"
-        data-testid={primaryImage ? "boat-image-slot" : "boat-image-placeholder"}
-        className="mb-space-sm aspect-[4/3] w-full rounded-lg bg-surface-container-high"
-      />
+      {/* Spec §29.1: primary approved image or a defined placeholder. */}
+      {primaryImage?.url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- CDN URL, size unknown
+        <img
+          src={primaryImage.url}
+          alt={heading}
+          loading="lazy"
+          data-testid="boat-image"
+          className="mb-space-sm aspect-[4/3] w-full rounded-lg bg-surface-container-high object-cover"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          data-testid={primaryImage ? "boat-image-slot" : "boat-image-placeholder"}
+          className="mb-space-sm aspect-[4/3] w-full rounded-lg bg-surface-container-high"
+        />
+      )}
 
       <div className="flex items-center justify-between font-body-sm text-on-surface-variant">
         <span>{location}</span>

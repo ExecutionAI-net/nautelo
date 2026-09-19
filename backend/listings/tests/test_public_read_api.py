@@ -404,3 +404,13 @@ def test_the_public_read_endpoints_are_rate_limited(api, monkeypatch):
 
     assert api.get(reverse("listing-list")).status_code == 429
     assert api.get(detail_url).status_code == 429
+
+
+def test_media_entries_carry_a_cdn_url_only_when_a_public_base_is_configured(settings):
+    from listings.serializers import _with_url
+
+    item = {"media_id": "m", "storage_key": "listings/1/abc"}
+    settings.MEDIA_PUBLIC_BASE_URL = ""
+    assert _with_url(item)["url"] is None
+    settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example/"
+    assert _with_url(item)["url"] == "https://cdn.example/listings/1/abc"

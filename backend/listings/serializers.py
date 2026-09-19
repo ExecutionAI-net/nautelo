@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
 
@@ -142,6 +143,14 @@ class StaffRevisionSerializer(serializers.Serializer):
         }
 
 
+def _with_url(item: dict) -> dict:
+    """Adds the CDN URL (spec 24): `MEDIA_PUBLIC_BASE_URL` fronts the bucket's
+    public-read path. Unset means media is not publicly served yet -> null."""
+    base = (getattr(settings, "MEDIA_PUBLIC_BASE_URL", "") or "").rstrip("/")
+    key = item.get("storage_key")
+    return {**item, "url": f"{base}/{key}" if base and key else None}
+
+
 class PublicListingSerializer(serializers.Serializer):
     """Public representation, built ENTIRELY from the approved snapshot.
 
@@ -228,7 +237,7 @@ class PublicListingSerializer(serializers.Serializer):
                 "amount": f"{snapshot.price:f}",
                 "currency": snapshot.currency,
             },
-            "media": snapshot.media_manifest,
+            "media": [_with_url(item) for item in snapshot.media_manifest],
             "view_count": listing.view_count_cached,
             # Spec §18.5. Six keys when eligible, exactly {"visible": False}
             # when not — never zeros or a disabled placeholder (spec §18.2).
