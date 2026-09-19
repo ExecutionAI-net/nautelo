@@ -42,7 +42,7 @@ never merge a PR without green CI and a clean/conflict-free merge state.
 | 20 | Public card/profile integration and responsive QA | 5-10 | **partial** | (no plan doc) | Immutable listing slug + `listings/by-slug/`, `/boats/<slug>/` detail with WhatsApp/copy-link share (spec §29.7) and LISTING InquiryForm, cards link to detail, `/boats/` navigable from messaging. Public `/brokers/` and `/brokers/<slug>/` (ACTIVE only, broker-filtered cards, BROKER InquiryForm). Not built: responsive QA pass. |
 | 21 | Data migration, redirects and SEO | 5, 11, 20 | **partial** | (no plan doc) | Slug backfill migration, sitemap lists boats, robots.txt. `manage.py reconcile_listings` reconciliation report. Not built: legacy `/brokers/profile/?id=` redirect (no legacy ids exist), hreflang. |
 | 22 | Security, privacy, performance and observability | all features | **partial** | (no plan doc) | Fail-closed prod settings (wsgi/asgi default prod, hosts required, HSTS, proxy header) and baseline frontend headers done. CSP ships Report-Only (enforce after reports are clean). Not built: enforcing CSP, privacy/retention review, load/perf pass, observability dashboards. |
-| 23 | Automated QA and UAT | all prior | idea | — | |
+| 23 | Automated QA and UAT | all prior | **partial** | (no plan doc) | Backend lifecycle acceptance (`test_phase_23_lifecycle.py`), throttle-coverage and prod-settings tests. Not built: browser E2E, axe/responsive sweep, UAT with staff. |
 | 24 | Deployment, rollback and post-launch verification | 23 | **partial** | `docs/DEPLOYMENT.md` | Runbook written (env, sequence, rollback). Not exercised against staging. |
 
 ## Execution waves
