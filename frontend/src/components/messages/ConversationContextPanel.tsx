@@ -13,6 +13,7 @@ import type { Locale } from "@/lib/i18n/directory";
  * and deletes this constant along with the check below. */
 export const NAVIGABLE_URL_PREFIXES: readonly string[] = [
   "/services/professionals/",
+  "/boats/",
 ];
 
 function isNavigable(url: string | null): url is string {
