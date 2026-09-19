@@ -1,5 +1,14 @@
 from django.urls import path
 
+from .staff_taxonomy_views import (
+    StaffBrandDetailView,
+    StaffBrandListView,
+    StaffListingMapView,
+    StaffModelDetailView,
+    StaffModelListView,
+    StaffModelMergeView,
+    StaffOtherQueueView,
+)
 from .views import (
     ListingDraftCreateView,
     ListingDraftUpdateView,
@@ -59,6 +68,33 @@ urlpatterns = [
         "listings/<uuid:listing_id>/media/<uuid:media_id>/",
         ListingMediaDetailView.as_view(),
         name="listing-media-detail",
+    ),
+    path("staff/taxonomy/brands/", StaffBrandListView.as_view(), name="staff-brand-list"),
+    path(
+        "staff/taxonomy/brands/<uuid:brand_id>/",
+        StaffBrandDetailView.as_view(),
+        name="staff-brand-detail",
+    ),
+    path("staff/taxonomy/models/", StaffModelListView.as_view(), name="staff-model-list"),
+    path(
+        "staff/taxonomy/models/<uuid:model_id>/",
+        StaffModelDetailView.as_view(),
+        name="staff-model-detail",
+    ),
+    path(
+        "staff/taxonomy/models/<uuid:model_id>/merge/",
+        StaffModelMergeView.as_view(),
+        name="staff-model-merge",
+    ),
+    path(
+        "staff/taxonomy/other-queue/",
+        StaffOtherQueueView.as_view(),
+        name="staff-other-queue",
+    ),
+    path(
+        "staff/taxonomy/listings/<uuid:listing_id>/map/",
+        StaffListingMapView.as_view(),
+        name="staff-listing-map",
     ),
     path(
         "staff/moderation/queue/",

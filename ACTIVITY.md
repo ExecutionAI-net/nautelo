@@ -89,6 +89,13 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 17 (staff operations) backend complete
+
+- Moderation: `GET /api/v1/staff/moderation/queue/?tab=initial|revisions|other_model|suspended|expiring` (live counts per tab, seller_type filter, oldest/newest), `GET /api/v1/staff/revisions/<id>/` (field diff, media diff, warnings, entitlement summary without payment data, audit trail), `POST /api/v1/staff/listings/<id>/suspension/`. Moderator tier. `assigned_moderator` is always null (no assignment model exists).
+- Entitlements (staff-admin only, ruling): list/grant/revoke/restore under `/api/v1/staff/entitlements/`, all through `entitlements.services` (reason required, audited); no Stripe order edits. Grantable: PAID_LISTING, MEDIA_UPGRADE.
+- Taxonomy (spec 13.3): brand and model CRUD/deactivate, Other queue, map-to-existing, create-model-and-map, merge preview + merge. Mapping a published listing runs the spec 20.3 correction path (staff-correction revision approved in the same transaction -> next snapshot; history keeps the custom text and the audit event preserves it); unpublished listings are updated in place. Models are never deleted; merge re-maps every listing then deactivates the source.
+- Products API already existed (Phase 14). Not built: every staff frontend page (`/dashboard/staff/...`, `products/`, `taxonomy/`), navigation additions, moderator assignment.
+
 ### 2026-09-19 — Phase 18 (in-app, WebSocket, email notifications) backend complete
 
 - `GET /api/v1/notifications/` (+`?unread=true`, `unread_count`), `POST .../<id>/read/`, `POST .../read-all/`; the REST list is the source of truth a reconnecting client reads. `/ws/notifications/` authenticates with the project JWT sent as the FIRST message (`{"type":"auth","token":...}`, closed with 4401 after 10 s or on a bad token) so no token is in a URL; a socket joins only the HMAC-derived group of its own user, never a client-named group. Frames carry `kind: "notification"` plus id, type, title/body keys, payload, target_url, created_at.
