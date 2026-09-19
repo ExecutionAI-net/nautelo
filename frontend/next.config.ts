@@ -48,11 +48,8 @@ const nextConfig: NextConfig = {
     // would emit 308. /professionals/profile/?id= is NOT listed here: it needs
     // a database lookup and is handled by src/app/professionals/profile/route.ts.
     return [
-      {
-        source: "/services/",
-        destination: "/services/professionals/",
-        statusCode: 301,
-      },
+      // /services/ is the design's services landing page (ruling: the supplied
+      // design overrides the spec 4.3 redirect); only /professionals/ is retired.
       {
         source: "/professionals/",
         destination: "/services/professionals/",

@@ -3,10 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import InquiryForm from "@/components/inquiry/InquiryForm";
+import BoatCard from "@/components/listings/BoatCard";
 import ShareButtons from "@/components/listings/ShareButtons";
-import { safeMoney } from "@/components/listings/money";
+import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
-import { fetchPublishedListingBySlug, listingPath } from "@/lib/api/listings";
+import { fetchPublishedListingBySlug, fetchPublishedListings, financingHref, listingPath } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
 
@@ -50,57 +51,123 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
     ([, value]) => value !== null && value !== "",
   );
 
+  const others = ((await fetchPublishedListings({ page_size: "5" }).catch(() => null))?.results ?? [])
+    .filter((item) => item.id !== listing.id)
+    .slice(0, 4);
+  const mainImage = images[0];
+  const sideImages = images.slice(1, 3);
+  const monthly =
+    listing.finance?.visible === true && isFinanceablePrice(listing.price)
+      ? safeMoney(locale, listing.finance.monthly_payment, listing.price.currency)
+      : null;
+
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <div className="grid grid-cols-1 gap-space-xl lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div>
-          <h1 className="font-headline-md text-headline-md text-primary">
-            {listing.title[locale] || heading}
-          </h1>
-          <p className="mt-space-xs font-body-md text-on-surface-variant">
-            {heading}
-            {location ? ` · ${location}` : ""}
-          </p>
-          {images.length > 0 ? (
-            <ul className="mt-space-md grid grid-cols-2 gap-space-sm">
-              {images.map((item) => (
-                <li key={item.media_id}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- CDN URL */}
-                  <img src={item.url ?? ""} alt={heading} loading="lazy" className="w-full rounded-lg object-cover" />
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {price ? (
-            <p className="mt-space-sm font-title-md text-title-md text-on-surface">{price}</p>
-          ) : null}
-          <div className="mt-space-md">
-            <ShareButtons url={canonicalUrl} locale={locale} />
-          </div>
-          {listing.description[locale] ? (
-            <p className="mt-space-lg whitespace-pre-line font-body-md text-on-surface">
-              {listing.description[locale]}
+    <main className="w-full bg-surface">
+      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-lg md:px-margin lg:px-margin-desktop">
+        <nav aria-label="Breadcrumb" className="font-body-sm text-on-surface-variant">
+          <Link href="/boats/" className="hover:text-primary">
+            {tf(locale, "boats.title")}
+          </Link>
+          <span aria-hidden="true"> / </span>
+          <span>{listing.brand_name}</span>
+        </nav>
+
+        <div className="mt-space-md flex flex-col justify-between gap-space-md md:flex-row md:items-start">
+          <div>
+            <span className="rounded bg-surface-container px-2 py-0.5 font-label-sm uppercase text-on-surface-variant">
+              {listing.seller_type === "BROKER" ? "Professional seller" : "Private seller"}
+            </span>
+            <h1 className="mt-space-xs font-headline-lg text-headline-lg text-primary">
+              {listing.title[locale] || heading}
+            </h1>
+            <p className="mt-space-xs font-body-md text-on-surface-variant">
+              {heading}
+              {location ? ` · ${location}` : ""}
             </p>
+          </div>
+          <div className="md:text-right">
+            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">Asking price</p>
+            {price ? <p className="font-spec-num text-headline-lg font-semibold text-primary">{price}</p> : null}
+            <div className="mt-space-xs">
+              <ShareButtons url={canonicalUrl} locale={locale} />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-space-lg grid grid-cols-1 gap-space-sm lg:grid-cols-3">
+          <div className="overflow-hidden rounded-xl bg-surface-container-high lg:col-span-2">
+            {mainImage ? (
+              // eslint-disable-next-line @next/next/no-img-element -- CDN URL
+              <img src={mainImage.url ?? ""} alt={heading} className="aspect-[16/10] w-full object-cover" />
+            ) : (
+              <div aria-hidden="true" className="aspect-[16/10] w-full" />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-space-sm lg:grid-cols-1">
+            {sideImages.map((item) => (
+              // eslint-disable-next-line @next/next/no-img-element -- CDN URL
+              <img key={item.media_id} src={item.url ?? ""} alt={heading} loading="lazy" className="aspect-[16/10] w-full rounded-xl object-cover" />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {specs.length > 0 ? (
+        <section aria-label="Key specifications" className="bg-surface-container-low py-space-md">
+          <dl className="mx-auto grid max-w-[1440px] grid-cols-2 gap-space-sm px-margin-mobile sm:grid-cols-4 md:px-margin lg:grid-cols-6 lg:px-margin-desktop">
+            {specs.map(([key, value]) => (
+              <div key={key} className="rounded-lg bg-surface-container-lowest p-space-sm">
+                <dt className="font-label-sm uppercase text-on-surface-variant">{key.replace(/_/g, " ")}</dt>
+                <dd className="font-spec-num text-title-md text-primary">{String(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
+
+      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-space-xl px-margin-mobile py-space-xl md:px-margin lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:px-margin-desktop">
+        <div>
+          {listing.description[locale] ? (
+            <>
+              <h2 className="font-headline-md text-headline-md text-primary">Description</h2>
+              <p className="mt-space-md whitespace-pre-line rounded-xl bg-surface-container-lowest p-space-lg font-body-md text-on-surface shadow-sm">
+                {listing.description[locale]}
+              </p>
+            </>
           ) : null}
-          {specs.length > 0 ? (
-            <dl className="mt-space-lg grid grid-cols-1 gap-space-sm sm:grid-cols-2">
-              {specs.map(([key, value]) => (
-                <div key={key}>
-                  <dt className="font-body-sm text-on-surface-variant">{key.replace(/_/g, " ")}</dt>
-                  <dd className="font-body-md text-on-surface">{String(value)}</dd>
-                </div>
-              ))}
-            </dl>
+          {monthly ? (
+            <div className="mt-space-lg flex flex-col justify-between gap-space-sm rounded-xl bg-surface-container-low p-space-lg sm:flex-row sm:items-center">
+              <div>
+                <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">Marine financing</p>
+                <p className="font-title-lg text-title-lg text-primary">
+                  {tf(locale, "finance.estimated_payment")} {monthly}
+                  {tf(locale, "finance.per_month")}
+                </p>
+                <p className="font-body-sm text-on-surface-variant">{tf(locale, "finance.illustrative_disclaimer")}</p>
+              </div>
+              <a
+                href={financingHref(listing)}
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary"
+              >
+                {tf(locale, "finance.calculate")}
+              </a>
+            </div>
           ) : null}
         </div>
         <aside className="flex flex-col gap-space-md">
-          {listing.broker ? (
-            <p className="font-body-md text-on-surface">
-              <Link href={`/brokers/${listing.broker.slug}/`} className="text-primary underline">
-                {listing.broker.name}
-              </Link>
+          <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">
+              {listing.broker ? "Listing brokerage" : "Private seller"}
             </p>
-          ) : null}
+            {listing.broker ? (
+              <p className="font-title-md text-title-md text-primary">
+                <Link href={`/brokers/${listing.broker.slug}/`} className="underline">
+                  {listing.broker.name}
+                </Link>
+              </p>
+            ) : null}
+            {location ? <p className="font-body-sm text-on-surface-variant">{location}</p> : null}
+          </div>
           {inquiryConfig?.enabled ? (
             <InquiryForm
               context={{ type: "LISTING", id: listing.id, label: heading }}
@@ -108,11 +175,24 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
               locale={locale}
             />
           ) : null}
-          <Link href="/boats/" className="font-body-md text-primary underline">
-            <span aria-hidden="true">←</span> {tf(locale, "boats.title")}
-          </Link>
         </aside>
       </div>
+
+      {others.length > 0 ? (
+        <section className="bg-surface-container-low py-space-xl">
+          <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
+            <span className="font-label-sm uppercase tracking-widest text-secondary">Curated selection</span>
+            <h2 className="mb-space-lg font-headline-lg text-headline-lg text-primary">Similar boats</h2>
+            <ul className="grid grid-cols-1 gap-space-lg sm:grid-cols-2 lg:grid-cols-4">
+              {others.map((item) => (
+                <li key={item.id}>
+                  <BoatCard locale={locale} listing={item} disclaimerId={`finance-disclaimer-${item.id}`} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

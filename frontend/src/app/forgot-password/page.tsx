@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import AuthShell from "@/components/auth/AuthShell";
 import { useState } from "react";
 
 import { apiFetch } from "@/lib/api/client";
@@ -22,15 +24,14 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
+    <AuthShell tab="recovery" heading="Reset your password">
       {sent ? (
         <p role="status" className="max-w-sm font-body-md">
           If that address has an account, a reset link is on its way. It expires in one hour.
         </p>
       ) : (
-        <form onSubmit={submit} className="w-full max-w-sm space-y-space-md">
-          <h1 className="font-headline-md text-headline-md text-primary">Reset your password</h1>
-          <label className="block font-label-md text-label-md">
+        <form onSubmit={submit} className="w-full space-y-space-md">
+                    <label className="block font-label-md text-label-md">
             Email
             <input
               type="email"
@@ -54,6 +55,6 @@ export default function ForgotPasswordPage() {
           </Link>
         </form>
       )}
-    </main>
+    </AuthShell>
   );
 }

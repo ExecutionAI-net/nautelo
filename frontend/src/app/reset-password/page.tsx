@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import AuthShell from "@/components/auth/AuthShell";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -40,9 +42,8 @@ function ResetForm() {
     );
   }
   return (
-    <form onSubmit={submit} className="w-full max-w-sm space-y-space-md">
-      <h1 className="font-headline-md text-headline-md text-primary">Choose a new password</h1>
-      <label className="block font-label-md text-label-md">
+    <form onSubmit={submit} className="w-full space-y-space-md">
+            <label className="block font-label-md text-label-md">
         New password
         <input
           type="password"
@@ -67,10 +68,10 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
+    <AuthShell tab="recovery" heading="Choose a new password">
       <Suspense fallback={<p>Loading…</p>}>
         <ResetForm />
       </Suspense>
-    </main>
+    </AuthShell>
   );
 }

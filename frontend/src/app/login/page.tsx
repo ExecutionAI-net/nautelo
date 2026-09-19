@@ -2,6 +2,8 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+
+import AuthShell from "@/components/auth/AuthShell";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
@@ -38,9 +40,8 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-space-md">
-      <h1 className="font-headline-md text-headline-md text-primary">Sign in</h1>
-      <label className="block font-label-md text-label-md" htmlFor="email">
+    <form onSubmit={handleSubmit} className="w-full space-y-space-md">
+            <label className="block font-label-md text-label-md" htmlFor="email">
         Email
         <input
           id="email"
@@ -95,10 +96,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
+    <AuthShell tab="login" heading="Sign in">
       <Suspense fallback={<p className="font-body-md">Loading…</p>}>
         <LoginForm />
       </Suspense>
-    </main>
+    </AuthShell>
   );
 }
