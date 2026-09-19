@@ -97,7 +97,9 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   const messageFor = useCallback(
     (caught: unknown): string => {
       if (caught instanceof ApiError) {
-        const fieldMessages = Object.values(caught.fields).flat();
+        const fieldMessages = Object.values(caught.fields)
+          .flat()
+          .map((field) => field.message);
         if (caught.code === "validation_error" && fieldMessages.length > 0) {
           return fieldMessages.join(" ");
         }

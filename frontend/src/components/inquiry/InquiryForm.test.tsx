@@ -327,7 +327,7 @@ describe("InquiryForm", () => {
     sessionValue = signedIn();
     submitInquiry.mockRejectedValue(
       new ApiError(400, "validation_error", "invalid", {
-        message: ["Ensure this field has at least 20 characters."],
+        message: [{ message: "Ensure this field has at least 20 characters.", code: "min_length" }],
       }),
     );
     renderForm();
