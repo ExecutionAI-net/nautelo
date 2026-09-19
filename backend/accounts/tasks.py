@@ -36,3 +36,30 @@ def send_email_verification_email(user_id: str, raw_token: str) -> None:
         recipient_list=[user.email],
     )
     logger.info("verification email sent", extra={"user_id": str(user.pk)})
+
+
+RESET_SUBJECTS = {
+    "EN": "Reset your NAUTA password",
+    "IT": "Reimposta la tua password NAUTA",
+    "ES": "Restablece tu contrasena NAUTA",
+}
+RESET_BODIES = {
+    "EN": "Hello {name},\n\nChoose a new password by opening:\n{url}\n\nThis link expires in 1 hour. If you did not ask for it, ignore this email.",
+    "IT": "Ciao {name},\n\nScegli una nuova password aprendo:\n{url}\n\nIl link scade tra 1 ora. Se non l'hai richiesto, ignora questa email.",
+    "ES": "Hola {name},\n\nElige una nueva contrasena abriendo:\n{url}\n\nEl enlace caduca en 1 hora. Si no lo pediste, ignora este correo.",
+}
+
+
+@shared_task(queue="notifications")
+def send_password_reset_email(user_id: str, raw_token: str) -> None:
+    user = User.objects.filter(pk=user_id, is_active=True).first()
+    if user is None:
+        return
+    locale = user.locale if user.locale in RESET_SUBJECTS else "EN"
+    url = f"{settings.PUBLIC_BASE_URL}/reset-password?token={raw_token}"
+    send_mail(
+        subject=RESET_SUBJECTS[locale],
+        message=RESET_BODIES[locale].format(name=user.get_short_name(), url=url),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+    )

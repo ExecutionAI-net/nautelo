@@ -1,6 +1,8 @@
 from django.urls import path
 
 from accounts.views import (
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
     AccountView,
     LoginView,
     LogoutView,
@@ -18,6 +20,12 @@ urlpatterns = [
         "auth/resend-verification/",
         ResendVerificationView.as_view(),
         name="auth-resend-verification",
+    ),
+    path("auth/password-reset/", PasswordResetRequestView.as_view(), name="auth-password-reset"),
+    path(
+        "auth/password-reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="auth-password-reset-confirm",
     ),
     path("auth/login/", LoginView.as_view(), name="auth-login"),
     path("auth/token/refresh/", RefreshView.as_view(), name="auth-token-refresh"),
