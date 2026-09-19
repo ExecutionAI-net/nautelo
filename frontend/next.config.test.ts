@@ -22,17 +22,12 @@ describe("next.config", () => {
     );
   });
 
-  it("301-redirects both retired directory URLs and the retired broker services URL", async () => {
+  it("301-redirects the retired directory URL and the retired broker services URL", async () => {
     const redirects = await nextConfig.redirects!();
 
-    expect(redirects).toHaveLength(3);
+    expect(redirects).toHaveLength(2);
     expect(redirects).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          source: "/services/",
-          destination: "/services/professionals/",
-          statusCode: 301,
-        }),
         expect.objectContaining({
           source: "/professionals/",
           destination: "/services/professionals/",

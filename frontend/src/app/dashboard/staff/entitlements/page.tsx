@@ -1,12 +1,13 @@
 import RequirePermission from "@/components/auth/RequirePermission";
 import EntitlementLedger from "@/components/staff/EntitlementLedger";
+import AreaShell from "@/components/layout/AreaShell";
 
 export default function StaffEntitlementsPage() {
   return (
-    <main className="mx-auto w-full max-w-5xl p-space-lg">
+    <AreaShell area="staff" active="/dashboard/staff/entitlements/">
       <RequirePermission permission="configure_products_and_settings">
         <EntitlementLedger />
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

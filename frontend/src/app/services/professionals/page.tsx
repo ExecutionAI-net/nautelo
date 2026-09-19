@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import CategoryGrid from "@/components/directory/CategoryGrid";
 import DirectorySearchForm from "@/components/directory/DirectorySearchForm";
+import PageBand from "@/components/layout/PageBand";
 import ProfessionalResultCard from "@/components/directory/ProfessionalCard";
 import { fetchProfessionals, fetchServiceCategories } from "@/lib/api/directory";
 import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
@@ -100,18 +101,15 @@ export default async function CombinedDirectoryPage({
   };
 
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <section aria-labelledby="directory-title">
-        <h1
-          id="directory-title"
-          className="font-headline-md text-headline-md text-primary"
-        >
-          {t(locale, "directory.services_professionals.title")}
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-on-surface-variant">
-          {t(locale, "directory.intro")}
-        </p>
-        <div className="mt-space-lg">
+    <main className="w-full bg-surface">
+      <PageBand
+        eyebrow="Directory / Nautical professionals"
+        title={t(locale, "directory.services_professionals.title")}
+        subtitle={t(locale, "directory.intro")}
+      />
+      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
+      <section aria-label={t(locale, "directory.services_professionals.title")}>
+        <div>
           <DirectorySearchForm
             locale={locale}
             categories={categories.map((category) => ({
@@ -215,6 +213,7 @@ export default async function CombinedDirectoryPage({
           </ul>
         </section>
       ) : null}
+      </div>
     </main>
   );
 }

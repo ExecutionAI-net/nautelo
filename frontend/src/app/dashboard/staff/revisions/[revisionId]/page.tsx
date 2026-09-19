@@ -1,5 +1,6 @@
 import RequirePermission from "@/components/auth/RequirePermission";
 import RevisionReview from "@/components/staff/RevisionReview";
+import AreaShell from "@/components/layout/AreaShell";
 
 export default async function StaffRevisionPage({
   params,
@@ -8,10 +9,10 @@ export default async function StaffRevisionPage({
 }) {
   const { revisionId } = await params;
   return (
-    <main className="mx-auto w-full max-w-4xl p-space-lg">
+    <AreaShell area="staff" active="/dashboard/staff/">
       <RequirePermission permission="approve_listings_and_revisions">
         <RevisionReview revisionId={revisionId} />
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

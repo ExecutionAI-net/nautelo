@@ -13,6 +13,7 @@ import {
 import { useSession } from "@/lib/auth/session";
 import { tConversations } from "@/lib/i18n/conversations";
 import { resolveLocale } from "@/lib/i18n/directory";
+import AreaShell from "@/components/layout/AreaShell";
 
 export default function BrokerHomePage() {
   const { session, loading } = useSession();
@@ -46,7 +47,7 @@ export default function BrokerHomePage() {
   }, [loading, brokerId]);
 
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
+    <AreaShell area="broker" active="/dashboard/broker/">
       <RequirePermission>
         {membership === null ? (
           <p className="font-body-md text-on-surface-variant">
@@ -70,6 +71,6 @@ export default function BrokerHomePage() {
           </>
         )}
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

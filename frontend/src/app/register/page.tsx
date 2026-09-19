@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import AuthShell from "@/components/auth/AuthShell";
 import { useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api/client";
@@ -43,7 +45,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
+    <AuthShell tab="register" heading="Create your account">
       {done ? (
         <p role="status" className="max-w-sm font-body-md">
           Account created. Check your inbox for the verification link, then{" "}
@@ -53,9 +55,8 @@ export default function RegisterPage() {
           .
         </p>
       ) : (
-        <form onSubmit={submit} className="w-full max-w-sm space-y-space-md">
-          <h1 className="font-headline-md text-headline-md text-primary">Create your account</h1>
-          <label className="block font-label-md text-label-md">
+        <form onSubmit={submit} className="w-full space-y-space-md">
+                    <label className="block font-label-md text-label-md">
             Full name
             <input className={INPUT} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </label>
@@ -97,6 +98,6 @@ export default function RegisterPage() {
           </p>
         </form>
       )}
-    </main>
+    </AuthShell>
   );
 }
