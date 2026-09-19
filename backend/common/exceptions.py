@@ -1,12 +1,17 @@
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.db import IntegrityError
 from django.http import Http404
+from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
 GENERIC_VALIDATION_MESSAGE = "The submitted data is invalid."
 GENERIC_ERROR_MESSAGE = "Request failed."
+GENERIC_CONFLICT_MESSAGE = "The request could not be completed because of a conflicting change. Please try again."
 NON_FIELD_ERRORS_KEY = "non_field_errors"
 _MAX_UNWRAP_DEPTH = 5
+_UNIQUE_VIOLATION_SQLSTATE = "23505"
 
 
 def _as_list(value):
@@ -84,6 +89,18 @@ def _safe_code(detail, exc):
     return str(getattr(detail, "code", "") or getattr(exc, "default_code", "error"))
 
 
+def _is_unique_violation(exc):
+    """True only for a uniqueness race (SQLSTATE 23505), never other IntegrityErrors.
+
+    A NOT NULL or foreign-key violation means a real bug upstream, not a
+    client-triggerable race - it must keep surfacing as a bare 500 rather than
+    being disguised as a routine 409 conflict.
+    """
+    cause = exc.__cause__
+    sqlstate = getattr(cause, "sqlstate", None) or getattr(cause, "pgcode", None)
+    return sqlstate == _UNIQUE_VIOLATION_SQLSTATE
+
+
 def _normalized(exc):
     """Rebind Django-core exceptions onto their DRF equivalents.
 
@@ -112,22 +129,28 @@ def _normalized(exc):
 def nauta_exception_handler(exc, context):
     """Render every DRF error as spec 30.2's envelope."""
     exc = _normalized(exc)
-    response = drf_exception_handler(exc, context)
-    if response is None:
-        return None
-
     request = context.get("request")
     request_id = getattr(request, "request_id", "") or ""
 
-    if isinstance(exc, ValidationError):
-        code = "validation_error"
-        message = GENERIC_VALIDATION_MESSAGE
-        fields = _field_map(exc.detail)
-    else:
-        detail = getattr(exc, "detail", None)
-        code = _safe_code(detail, exc)
-        message = _safe_message(detail, GENERIC_ERROR_MESSAGE)
+    if isinstance(exc, IntegrityError) and _is_unique_violation(exc):
+        response = Response(status=status.HTTP_409_CONFLICT)
+        code = "conflict"
+        message = GENERIC_CONFLICT_MESSAGE
         fields = {}
+    else:
+        response = drf_exception_handler(exc, context)
+        if response is None:
+            return None
+
+        if isinstance(exc, ValidationError):
+            code = "validation_error"
+            message = GENERIC_VALIDATION_MESSAGE
+            fields = _field_map(exc.detail)
+        else:
+            detail = getattr(exc, "detail", None)
+            code = _safe_code(detail, exc)
+            message = _safe_message(detail, GENERIC_ERROR_MESSAGE)
+            fields = {}
 
     response.data = {
         "error": {
