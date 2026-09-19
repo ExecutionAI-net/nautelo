@@ -4,6 +4,9 @@ import os
 from .base import *  # noqa: F401,F403
 
 DEBUG = False
+# Existing pipeline tests upload header-only synthetic images Pillow cannot decode;
+# the sanitizer has its own tests that enable it explicitly.
+MEDIA_IMAGE_SANITIZER = None
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}

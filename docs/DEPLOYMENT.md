@@ -40,4 +40,4 @@ Processes: web (gunicorn/uvicorn on `config.asgi`), Celery worker with queues `d
 
 ## Known gaps before launch
 
-No virus scanner or image/video processing (Pillow/ffmpeg) is wired; media is validated by signature and dimensions only. No CSP header. No WebSocket client in the frontend (notifications poll). See `docs/superpowers/PHASE-TRACKER.md` for the rest.
+No virus scanner or video processing (ffmpeg) is wired; images are decoded and re-encoded without metadata by Pillow, videos are validated by signature only. No CSP header. No WebSocket client in the frontend (notifications poll). See `docs/superpowers/PHASE-TRACKER.md` for the rest.

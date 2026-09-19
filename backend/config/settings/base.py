@@ -259,6 +259,8 @@ AWS_S3_ADDRESSING_STYLE = "path"
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = True
 
+# Phase 15: re-encode uploaded images without metadata (EXIF/GPS/XMP).
+MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")

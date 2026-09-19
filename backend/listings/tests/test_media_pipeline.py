@@ -47,6 +47,12 @@ class FakeStorage:
     def sha256(self, key):
         return hashlib.sha256(self.objects[key]).hexdigest()
 
+    def read(self, key):
+        return self.objects[key]
+
+    def write(self, key, data, content_type):
+        self.objects[key] = data
+
     def delete(self, key):
         self.objects.pop(key, None)
 
@@ -329,3 +335,32 @@ def test_a_guest_gets_401():
     seller = make_private_seller("s2@example.com")
     listing = make_private_listing(owner=seller)
     assert intent(c, listing).status_code == 401
+
+
+def test_the_pipeline_strips_metadata_and_updates_the_row_when_the_sanitizer_is_on(
+    client, fake_storage, settings
+):
+    import io
+
+    from PIL import Image
+
+    settings.MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
+    image = Image.new("RGB", (1920, 1080), (10, 20, 30))
+    exif = Image.Exif()
+    exif[0x010F] = "SecretCameraCo"
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", exif=exif)
+    data = buffer.getvalue()
+
+    listing = make_private_listing(owner=client.handler._force_user)
+    media_id, done = upload_and_complete(
+        client, listing, fake_storage, data, name="boat.jpg", mime="image/jpeg"
+    )
+    assert done.status_code == 202, done.data
+
+    media = ListingMedia.objects.get(pk=media_id)
+    assert media.status == MediaStatus.READY
+    stored = fake_storage.objects[media.storage_key]
+    assert b"SecretCameraCo" not in stored
+    assert media.checksum_sha256 == hashlib.sha256(stored).hexdigest()
+    assert media.byte_size == len(stored)

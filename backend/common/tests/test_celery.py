@@ -6,8 +6,11 @@ from common.tasks import flush_expired_tokens, ping
 
 
 def test_ping_task_returns_pong():
-    result = ping.delay()
-    assert result.get(timeout=5) == "pong"
+    # `.result` on the eager result, not `.get()`: get() raises "Never call
+    # result.get() within a task" whenever another test in the (randomised)
+    # run leaked a current task, which made this test order-dependent.
+    result = ping.apply()
+    assert result.result == "pong"
 
 
 def test_flush_expired_tokens_task_calls_management_command():
