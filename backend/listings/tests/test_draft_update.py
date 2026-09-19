@@ -239,7 +239,10 @@ def test_a_published_private_listing_rejects_locked_fields(api, workflow_enabled
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["manufacture_year"] == [
-        "This field cannot be changed after the listing was first published."
+        {
+            "message": "This field cannot be changed after the listing was first published.",
+            "code": "immutable_after_publication",
+        }
     ]
     listing.refresh_from_db()
     assert listing.manufacture_year != 2001
@@ -260,7 +263,7 @@ def test_a_null_cannot_delete_a_locked_field(api, workflow_enabled):
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["manufacture_year"] == [
-        "This field cannot be changed."
+        {"message": "This field cannot be changed.", "code": "immutable_after_publication"}
     ]
     # The whole request rolled back: no revision was opened behind the refusal.
     assert not ListingRevision.objects.filter(listing=listing).exists()
@@ -270,8 +273,9 @@ def test_a_null_cannot_delete_a_locked_field(api, workflow_enabled):
 
 @pytest.mark.django_db
 def test_the_removal_guard_codes_a_locked_field_as_immutable_after_publication(workflow_enabled):
-    """Spec §30.2's envelope stringifies field errors, so the machine-readable
-    code is asserted at the service boundary where it is still an ErrorDetail."""
+    """Asserted at the service boundary, where the detail is still an ErrorDetail
+    - see test_a_published_private_listing_rejects_locked_fields for the same
+    code surviving all the way into the rendered envelope's `fields` map."""
     owner = _seller()
     listing = _published(owner)
 
@@ -351,7 +355,7 @@ def test_a_patched_model_must_belong_to_the_listings_brand(api, workflow_enabled
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["model_id"] == [
-        "Select an active model belonging to the chosen brand."
+        {"message": "Select an active model belonging to the chosen brand.", "code": "invalid_model"}
     ]
     listing.refresh_from_db()
     assert listing.model_id != foreign_model.pk
@@ -384,7 +388,7 @@ def test_a_brand_only_patch_is_refused_while_the_old_model_belongs_to_the_old_br
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["model_id"] == [
-        "Select an active model belonging to the chosen brand."
+        {"message": "Select an active model belonging to the chosen brand.", "code": "invalid_model"}
     ]
     assert "brand_id" not in response.data["error"]["fields"]
     listing.refresh_from_db()

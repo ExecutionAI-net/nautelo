@@ -3,10 +3,11 @@ from datetime import timedelta
 
 import pytest
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.db import IntegrityError
 from django.http import Http404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import NotAuthenticated, PermissionDenied, ValidationError
+from rest_framework.exceptions import ErrorDetail, NotAuthenticated, PermissionDenied, ValidationError
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
@@ -17,6 +18,22 @@ from accounts.tests.factories import DEFAULT_TEST_PASSWORD, make_user
 from brokers.enums import BrokerMembershipRole
 from brokers.tests.factories import make_broker, make_membership
 from common.exceptions import GENERIC_ERROR_MESSAGE, nauta_exception_handler
+
+
+class _FakeUniqueViolation(Exception):
+    """Stands in for psycopg's UniqueViolation without needing a real DB hit."""
+
+    sqlstate = "23505"
+
+
+class _FakeNotNullViolation(Exception):
+    sqlstate = "23502"
+
+
+def _integrity_error(cause):
+    exc = IntegrityError("simulated")
+    exc.__cause__ = cause
+    return exc
 
 
 def _context():
@@ -56,7 +73,29 @@ def test_validation_error_maps_fields():
     response = nauta_exception_handler(exc, _context())
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.data["error"]["code"] == "validation_error"
-    assert response.data["error"]["fields"] == {"email": ["This field is required."]}
+    assert response.data["error"]["fields"] == {
+        "email": [{"message": "This field is required.", "code": "invalid"}]
+    }
+
+
+def test_field_error_code_survives_into_the_envelope():
+    """ErrorDetail is a str subclass carrying `.code`; a bare `str(item)` on it
+    (the previous behavior) silently threw the code away, breaking spec §30.2's
+    promise of "a stable machine code" for every field-level error, not just the
+    top-level one. Each `fields` entry must now carry both the message and the
+    code, not just the message.
+    """
+    exc = ValidationError(
+        {
+            "token": [
+                ErrorDetail("Verification link expired.", code="invalid_verification_token")
+            ]
+        }
+    )
+    response = nauta_exception_handler(exc, _context())
+    assert response.data["error"]["fields"] == {
+        "token": [{"message": "Verification link expired.", "code": "invalid_verification_token"}]
+    }
 
 
 def test_dict_keyed_non_field_errors_are_preserved_under_the_validation_error_code():
@@ -65,21 +104,26 @@ def test_dict_keyed_non_field_errors_are_preserved_under_the_validation_error_co
     exc = ValidationError({"non_field_errors": ["Bad credentials."]})
     response = nauta_exception_handler(exc, _context())
     assert response.data["error"]["code"] == "validation_error"
-    assert response.data["error"]["fields"] == {"non_field_errors": ["Bad credentials."]}
+    assert response.data["error"]["fields"] == {
+        "non_field_errors": [{"message": "Bad credentials.", "code": "invalid"}]
+    }
 
 
 def test_string_validation_error_is_mapped_to_non_field_errors():
     # `raise ValidationError("...")` inside a validate() method must not be swallowed.
     response = nauta_exception_handler(ValidationError("Passwords do not match."), _context())
     assert response.data["error"]["fields"] == {
-        "non_field_errors": ["Passwords do not match."]
+        "non_field_errors": [{"message": "Passwords do not match.", "code": "invalid"}]
     }
 
 
 def test_list_validation_error_is_mapped_to_non_field_errors():
     response = nauta_exception_handler(ValidationError(["First problem.", "Second."]), _context())
     assert response.data["error"]["fields"] == {
-        "non_field_errors": ["First problem.", "Second."]
+        "non_field_errors": [
+            {"message": "First problem.", "code": "invalid"},
+            {"message": "Second.", "code": "invalid"},
+        ]
     }
 
 
@@ -111,6 +155,34 @@ def test_expired_jwt_yields_a_clean_message_not_a_python_repr():
 
 def test_unhandled_exception_returns_none_so_django_handles_it():
     assert nauta_exception_handler(RuntimeError("boom"), _context()) is None
+
+
+def test_a_unique_constraint_race_returns_a_conflict_envelope_not_a_500():
+    # Two concurrent requests can both pass an app-level uniqueness check and then
+    # race the database's own unique index (e.g. registration's duplicate-email
+    # check). The loser must still get spec 30.2's envelope, not a bare 500.
+    exc = _integrity_error(_FakeUniqueViolation())
+
+    response = nauta_exception_handler(exc, _context())
+
+    assert response is not None
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.data == {
+        "error": {
+            "code": "conflict",
+            "message": response.data["error"]["message"],
+            "fields": {},
+            "request_id": "req-test-1",
+        }
+    }
+
+
+def test_a_non_unique_integrity_error_is_not_swallowed():
+    # A NOT NULL or FK violation is a real bug, not a client-triggerable race - it
+    # must keep surfacing as Django's default 500 rather than being disguised as a
+    # routine 409 conflict.
+    exc = _integrity_error(_FakeNotNullViolation())
+    assert nauta_exception_handler(exc, _context()) is None
 
 
 def test_django_http404_is_normalized_to_the_not_found_code():

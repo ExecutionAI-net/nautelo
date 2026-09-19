@@ -223,7 +223,10 @@ def test_the_other_placeholder_requires_custom_text(api, workflow_enabled):
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["custom_model_name"] == [
-        "The Other model requires custom text between 2 and 100 characters."
+        {
+            "message": "The Other model requires custom text between 2 and 100 characters.",
+            "code": "invalid",
+        }
     ]
     assert BoatListing.objects.count() == 0
 
@@ -247,7 +250,10 @@ def test_a_real_model_rejects_custom_text(api, workflow_enabled):
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["custom_model_name"] == [
-        "Custom model text is only allowed when the Other model is selected."
+        {
+            "message": "Custom model text is only allowed when the Other model is selected.",
+            "code": "invalid",
+        }
     ]
     assert BoatListing.objects.count() == 0
 

@@ -1,5 +1,8 @@
+import threading
+
 import pytest
 from django.core import mail
+from django.db import connection
 from rest_framework.test import APIClient
 
 from accounts.enums import Locale, UserRole
@@ -96,6 +99,39 @@ def test_registration_rejects_a_duplicate_email_case_insensitively(api):
     )
     assert response.status_code == 400
     assert "email" in response.data["error"]["fields"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_registration_for_the_same_email_yields_one_conflict_not_a_500():
+    # RegistrationSerializer's duplicate-email check is read-then-write: two
+    # requests can both see "no existing user" and both proceed to
+    # register_user(), leaving the loser to hit accounts_user_email_ci_unique at
+    # the database level. That must surface as a clean enveloped 409, not a bare
+    # Django 500.
+    responses = []
+
+    def attempt_register():
+        try:
+            response = APIClient().post(
+                REGISTER_URL,
+                {"email": "racer@example.com", "password": VALID_PASSWORD},
+                format="json",
+            )
+            responses.append(response)
+        finally:
+            connection.close()
+
+    threads = [threading.Thread(target=attempt_register) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(r.status_code for r in responses) == [201, 409]
+    loser = next(r for r in responses if r.status_code == 409)
+    assert loser.data["error"]["code"] == "conflict"
+    assert loser.data["error"]["fields"] == {}
+    assert User.objects.filter(email="racer@example.com").count() == 1
 
 
 @pytest.mark.django_db
