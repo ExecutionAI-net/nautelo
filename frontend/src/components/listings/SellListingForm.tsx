@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import SearchSelect from "@/components/forms/SearchSelect";
 import MediaUpgradePanel from "@/components/listings/MediaUpgradePanel";
 import type { Locale } from "@/lib/i18n/directory";
 import { tSell } from "@/lib/i18n/sell";
 import { ApiError } from "@/lib/api/client";
+import { fetchEligibility, fetchFormOptions, type Eligibility, type FormOptions } from "@/lib/api/listingForm";
 import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
@@ -13,6 +15,7 @@ import {
   listModels,
   removeMedia,
   searchBrands,
+  startListingRightCheckout,
   submitListing,
   updateDraft,
   uploadMedia,
@@ -26,7 +29,6 @@ const FIELD =
 const CARD = "rounded-xl bg-surface-container-lowest p-space-lg shadow-sm";
 const LABEL = "block font-label-sm uppercase tracking-wider text-on-surface-variant";
 
-const BOAT_TYPES = ["Motor yacht", "Sailing yacht", "Catamaran", "Motorboat", "RIB", "Fishing boat"];
 const LANGS = [
   { code: "en", label: "English (Original)" },
   { code: "it", label: "Italiano" },
@@ -100,6 +102,11 @@ export default function SellListingForm({
   const [translateEnabled, setTranslateEnabled] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translateError, setTranslateError] = useState(false);
+  const [translatedLangs, setTranslatedLangs] = useState<Lang[]>([]);
+  const [options, setOptions] = useState<FormOptions | null>(null);
+  const [eligibility, setEligibility] = useState<Eligibility | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [modelQuery, setModelQuery] = useState("");
   const [titles, setTitles] = useState<Record<Lang, string>>({
     en: text(seed, "title_en"),
     it: text(seed, "title_it"),
@@ -143,7 +150,7 @@ export default function SellListingForm({
   useEffect(() => {
     if (!brandId) return;
     let cancelled = false;
-    listModels(brandId)
+    listModels(brandId, modelQuery)
       .then((choices) => {
         if (!cancelled) {
           setModels(choices.models);
@@ -154,7 +161,7 @@ export default function SellListingForm({
     return () => {
       cancelled = true;
     };
-  }, [brandId]);
+  }, [brandId, modelQuery]);
 
   const isOther = other !== null && modelId === other.id;
   const initialId = initial?.id;
@@ -173,6 +180,25 @@ export default function SellListingForm({
 
   useEffect(() => {
     let active = true;
+    void fetchFormOptions()
+      .then((loaded) => {
+        if (active) setOptions(loaded);
+      })
+      .catch(() => {});
+    if (!initialId && !brokerId) {
+      void fetchEligibility()
+        .then((loaded) => {
+          if (active) setEligibility(loaded);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [initialId, brokerId]);
+
+  useEffect(() => {
+    let active = true;
     void fetchTranslationEnabled().then((enabled) => {
       if (active) setTranslateEnabled(enabled);
     });
@@ -184,11 +210,15 @@ export default function SellListingForm({
   async function runTranslate() {
     setTranslating(true);
     setTranslateError(false);
+    setTranslatedLangs([]);
     try {
       const targets = LANGS.map((item) => item.code as Lang).filter((code) => code !== lang);
       const result = await translateListingText({ title: titles[lang], description: descriptions[lang], source: lang, targets });
       setTitles((current) => ({ ...current, ...Object.fromEntries(targets.map((code) => [code, result[code]?.title ?? current[code]])) }));
       setDescriptions((current) => ({ ...current, ...Object.fromEntries(targets.map((code) => [code, result[code]?.description ?? current[code]])) }));
+      const done = targets.filter((code) => result[code]);
+      setTranslatedLangs(done);
+      if (done.length === 0) setTranslateError(true);
     } catch {
       setTranslateError(true);
     } finally {
@@ -251,10 +281,21 @@ export default function SellListingForm({
         ? await updateDraft(listing.id, listing.revision?.version ?? listing.version, payload())
         : await createDraft(payload(), brokerId);
       setListing(saved);
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 3000);
     } catch (caught) {
       setError(describe(caught, locale));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function buyRight() {
+    try {
+      const { checkout_url } = await startListingRightCheckout(window.location.href);
+      window.location.assign(checkout_url);
+    } catch (caught) {
+      setError(describe(caught, locale));
     }
   }
 
@@ -314,6 +355,31 @@ export default function SellListingForm({
     );
   }
 
+  const toOptions = (values: string[] | undefined) => (values ?? []).map((value) => ({ value, label: value }));
+  const countryNames = (() => {
+    try {
+      return new Intl.DisplayNames([locale], { type: "region" });
+    } catch {
+      return null;
+    }
+  })();
+  const countryOptions = (options?.countries ?? []).map((code) => ({ value: code, label: countryNames?.of(code) ?? code }));
+  countryOptions.sort((a, b) => a.label.localeCompare(b.label, locale));
+  const yearOptions = (options?.years ?? []).map((year) => ({ value: String(year), label: String(year) }));
+  const pick = (label: string, key: string, values: string[] | undefined) => (
+    <SearchSelect
+      label={label}
+      labelClassName={LABEL}
+      value={specs[key]}
+      options={toOptions(values)}
+      onChange={(value) => setSpec(key, value)}
+      placeholder={t("sell.select")}
+      searchPlaceholder={t("sell.search")}
+      emptyText={t("sell.no_results")}
+    />
+  );
+  const blocked = eligibility !== null && !eligibility.can_start_listing && !listing;
+
   const steps = [
     ["basic", t("sell.step.basic")],
     ["specs", t("sell.step.specs")],
@@ -326,6 +392,31 @@ export default function SellListingForm({
   const modelLabel = isOther ? customModel : (models.find((m) => m.id === modelId)?.name ?? "");
   const previewTitle = titles.en || [year, brandName, modelLabel].filter(Boolean).join(" ") || t("sell.title");
   const previewImage = media.find((row) => row.status === "READY" && row.media_type === "IMAGE");
+
+  if (blocked) {
+    const next = eligibility?.free.next_available_at;
+    const date = next ? new Date(next).toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" }) : null;
+    return (
+      <div className="flex flex-col gap-space-lg">
+        <header>
+          <span className="font-label-sm uppercase tracking-widest text-secondary">{t("sell.eyebrow")}</span>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t("sell.title")}</h1>
+        </header>
+        <section role="alert" className={`${CARD} border-l-4 border-secondary`}>
+          <h2 className="font-headline-sm text-headline-sm text-primary">{t("sell.allowance_title")}</h2>
+          {date ? <p className="mt-space-xs font-body-md text-on-surface-variant">{t("sell.allowance_next", { date })}</p> : null}
+          <button
+            type="button"
+            onClick={() => void buyRight()}
+            className="mt-space-md rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container"
+          >
+            {t("sell.allowance_buy")}
+          </button>
+          {error ? <p role="alert" className="mt-space-sm text-error">{error}</p> : null}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -366,6 +457,7 @@ export default function SellListingForm({
                       className={`rounded-md px-space-md py-space-xs font-label-md ${lang === item.code ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}
                     >
                       {item.label}
+                      {translatedLangs.includes(item.code) ? <span className="ml-1 rounded bg-secondary-container px-1 text-[10px] uppercase text-on-secondary-container">{t("sell.translated_badge")}</span> : null}
                     </button>
                   ))}
                 </div>
@@ -392,51 +484,57 @@ export default function SellListingForm({
               </div>
 
               <div className="mt-space-md grid gap-space-md sm:grid-cols-2">
-                <label className={LABEL}>
-                  {t("sell.boat_type")}
-                  <select className={FIELD} value={specs.boat_type} onChange={(e) => setSpec("boat_type", e.target.value)}>
-                    <option value="">{t("sell.select")}</option>
-                    {BOAT_TYPES.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={LABEL}>
-                  {t("sell.brand_search")}
-                  <input className={FIELD} value={brandQuery} onChange={(e) => setBrandQuery(e.target.value)} disabled={locked} />
-                </label>
-                <label className={LABEL}>
-                  {t("sell.brand")}
-                  <select className={FIELD} value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(""); }} disabled={locked} required>
-                    <option value="">{t("sell.select")}</option>
-                    {brands.some((b) => b.id === brandId) || !brandId ? null : (
-                      <option value={brandId}>{t("sell.current_brand")}</option>
-                    )}
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={LABEL}>
-                  {t("sell.model")}
-                  <select className={FIELD} value={modelId} onChange={(e) => setModelId(e.target.value)} disabled={locked || !brandId} required>
-                    <option value="">{t("sell.select")}</option>
-                    {models.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                    {other ? <option value={other.id}>{other.label}</option> : null}
-                  </select>
-                </label>
+                {pick(t("sell.boat_type"), "boat_type", options?.boat_types)}
+                <SearchSelect
+                  label={t("sell.brand")}
+                  labelClassName={LABEL}
+                  value={brandId}
+                  options={brands.map((b) => ({ value: b.id, label: b.name }))}
+                  onChange={(value) => {
+                    setBrandId(value);
+                    setModelId("");
+                    setModelQuery("");
+                  }}
+                  onSearch={setBrandQuery}
+                  selectedLabel={t("sell.current_brand")}
+                  placeholder={t("sell.select")}
+                  searchPlaceholder={t("sell.search")}
+                  emptyText={t("sell.no_results")}
+                  disabled={locked}
+                  required
+                />
+                <SearchSelect
+                  label={t("sell.model")}
+                  labelClassName={LABEL}
+                  value={modelId}
+                  options={[...models.map((m) => ({ value: m.id, label: m.name })), ...(other ? [{ value: other.id, label: other.label }] : [])]}
+                  onChange={setModelId}
+                  onSearch={setModelQuery}
+                  selectedLabel={t("sell.current_brand")}
+                  placeholder={t("sell.select")}
+                  searchPlaceholder={t("sell.search")}
+                  emptyText={t("sell.no_results")}
+                  disabled={locked || !brandId}
+                  required
+                />
                 {isOther ? (
                   <label className={LABEL}>
                     {t("sell.model_name")}
                     <input className={FIELD} value={customModel} onChange={(e) => setCustomModel(e.target.value)} minLength={2} required />
                   </label>
                 ) : null}
-                <label className={LABEL}>
-                  {t("sell.year")}
-                  <input className={FIELD} type="number" value={year} onChange={(e) => setYear(e.target.value)} disabled={locked} required />
-                </label>
+                <SearchSelect
+                  label={t("sell.year")}
+                  labelClassName={LABEL}
+                  value={year}
+                  options={yearOptions}
+                  onChange={setYear}
+                  placeholder={t("sell.select")}
+                  searchPlaceholder={t("sell.search")}
+                  emptyText={t("sell.no_results")}
+                  disabled={locked}
+                  required
+                />
               </div>
 
               {translateEnabled ? (
@@ -450,6 +548,11 @@ export default function SellListingForm({
                     {translating ? t("sell.translate_ai_busy") : t("sell.translate_ai")}
                   </button>
                   <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("sell.translate_ai_help")}</p>
+                  {translatedLangs.length > 0 ? (
+                    <p role="status" className="mt-space-xs rounded-lg bg-secondary-container px-space-sm py-space-xs font-body-sm text-on-secondary-container">
+                      {t("sell.translate_done", { langs: translatedLangs.map((code) => code.toUpperCase()).join(", ") })}
+                    </p>
+                  ) : null}
                   {translateError ? <p role="alert" className="mt-space-xs font-body-sm text-error">{t("sell.translate_ai_failed")}</p> : null}
                 </div>
               ) : null}
@@ -481,20 +584,20 @@ export default function SellListingForm({
                 <label className={LABEL}>{t("sell.loa")}<input className={FIELD} inputMode="decimal" value={specs.loa_m} onChange={(e) => setSpec("loa_m", e.target.value)} /></label>
                 <label className={LABEL}>{t("sell.beam")}<input className={FIELD} inputMode="decimal" value={specs.beam_m} onChange={(e) => setSpec("beam_m", e.target.value)} /></label>
                 <label className={LABEL}>{t("sell.draft")}<input className={FIELD} inputMode="decimal" value={specs.draft_m} onChange={(e) => setSpec("draft_m", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.hull")}<input className={FIELD} value={specs.hull_material} onChange={(e) => setSpec("hull_material", e.target.value)} /></label>
+                {pick(t("sell.hull"), "hull_material", options?.hull_materials)}
               </div>
             </section>
 
             <section className={CARD} aria-labelledby="step-engine">
               <StepHeading n={3} id="step-engine">{t("sell.step.engine")}</StepHeading>
               <div className="grid gap-space-md sm:grid-cols-2">
-                <label className={LABEL}>{t("sell.engine_type")}<input className={FIELD} value={specs.engine_type} onChange={(e) => setSpec("engine_type", e.target.value)} /></label>
+                {pick(t("sell.engine_type"), "engine_type", options?.engine_types)}
                 <label className={LABEL}>{t("sell.engine_model")}<input className={FIELD} value={specs.engine_model} onChange={(e) => setSpec("engine_model", e.target.value)} /></label>
                 <label className={LABEL}>{t("sell.power")}<input className={FIELD} inputMode="numeric" value={specs.power_hp} onChange={(e) => setSpec("power_hp", e.target.value)} /></label>
                 <label className={LABEL}>{t("sell.hours")}<input className={FIELD} inputMode="numeric" value={specs.engine_hours} onChange={(e) => setSpec("engine_hours", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.fuel")}<input className={FIELD} value={specs.fuel_type} onChange={(e) => setSpec("fuel_type", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.cabins")}<input className={FIELD} inputMode="numeric" value={specs.cabins} onChange={(e) => setSpec("cabins", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.bathrooms")}<input className={FIELD} inputMode="numeric" value={specs.bathrooms} onChange={(e) => setSpec("bathrooms", e.target.value)} /></label>
+                {pick(t("sell.fuel"), "fuel_type", options?.fuel_types)}
+                {pick(t("sell.cabins"), "cabins", options?.cabins)}
+                {pick(t("sell.bathrooms"), "bathrooms", options?.bathrooms)}
               </div>
             </section>
 
@@ -505,10 +608,17 @@ export default function SellListingForm({
                   {t("sell.price")}
                   <input className={FIELD} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required />
                 </label>
-                <label className={LABEL}>
-                  {t("sell.country")}
-                  <input className={FIELD} value={country} onChange={(e) => setCountry(e.target.value)} maxLength={2} required />
-                </label>
+                <SearchSelect
+                  label={t("sell.country")}
+                  labelClassName={LABEL}
+                  value={country.toUpperCase()}
+                  options={countryOptions}
+                  onChange={setCountry}
+                  placeholder={t("sell.select")}
+                  searchPlaceholder={t("sell.search")}
+                  emptyText={t("sell.no_results")}
+                  required
+                />
                 <label className={LABEL}>{t("sell.region")}<input className={FIELD} value={region} onChange={(e) => setRegion(e.target.value)} /></label>
                 <label className={LABEL}>
                   {t("sell.city")}
@@ -544,10 +654,11 @@ export default function SellListingForm({
               ) : null}
             </section>
 
-            <div className="sticky bottom-0 z-10 flex items-center justify-between gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-md">
+            <div className="fixed inset-x-space-md bottom-space-md z-40 mx-auto flex max-w-xl items-center justify-between gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-xl ring-1 ring-outline-variant">
               <span className="font-label-sm uppercase tracking-wider text-on-surface-variant">
-                {listing ? t("sell.draft_state") : t("sell.draft_unsaved")}
+                {savedFlash ? t("sell.draft_saved_toast") : listing ? t("sell.draft_state") : t("sell.draft_unsaved")}
               </span>
+              {savedFlash ? <span role="status" className="sr-only">{t("sell.draft_saved_toast")}</span> : null}
               <button type="submit" disabled={busy} className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container disabled:opacity-50">
                 {listing ? t("sell.save_changes") : t("sell.save_draft")}
               </button>

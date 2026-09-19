@@ -238,6 +238,7 @@ REST_FRAMEWORK = {
         # endpoint rather than like the `auth` bucket. It is authenticated and
         # returns only the caller's own quota, so it is not a scraping surface.
         "listing_eligibility": "120/min",
+        "listing_form_options": "120/min",
     },
     "EXCEPTION_HANDLER": "common.exceptions.nauta_exception_handler",
 }

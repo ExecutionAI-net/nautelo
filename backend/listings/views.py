@@ -496,3 +496,16 @@ class ListingMediaDetailView(_MediaBaseView):
         _, media = self.get_media(request, listing_id, media_id)
         remove_media(actor=request.user, media=media)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ListingFormOptionsView(APIView):
+    """GET /api/v1/listing-form/options/ - closed choice lists for the sell form."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser]
+    throttle_scope = "listing_form_options"
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        from .form_options import form_options
+
+        return Response(form_options())

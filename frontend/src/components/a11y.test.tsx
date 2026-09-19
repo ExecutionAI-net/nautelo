@@ -2,7 +2,7 @@
 // in phases 16-20. axe-core runs on the rendered DOM; colour-contrast is skipped
 // because jsdom has no layout or computed styles for it.
 import axe from "axe-core";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import MediaUpgradePanel from "@/components/listings/MediaUpgradePanel";
@@ -29,6 +29,29 @@ vi.mock("@/lib/api/sellerListings", () => ({
     { id: "a", title: "Boat", status: "DRAFT", seller_type: "PRIVATE", slug: null, updated_at: "", expires_at: null },
   ]),
 }));
+vi.mock("@/lib/api/listingForm", () => ({
+  fetchFormOptions: vi.fn().mockResolvedValue({
+    years: [2026, 2025],
+    boat_types: ["Motor yacht"],
+    hull_materials: ["Steel"],
+    engine_types: ["Inboard"],
+    fuel_types: ["Diesel"],
+    cabins: ["1"],
+    bathrooms: ["1"],
+    countries: ["IT", "TR"],
+  }),
+  fetchEligibility: vi.fn().mockResolvedValue({
+    can_start_listing: true,
+    blocking_reason: null,
+    free: { available: true, next_available_at: null, used_at: null },
+    paid_listing_rights_available: 0,
+    purchase_product_code: "INDIVIDUAL_LISTING_RIGHT",
+  }),
+}));
+vi.mock("@/lib/api/translation", () => ({
+  fetchTranslationEnabled: vi.fn().mockResolvedValue(false),
+  translateListingText: vi.fn(),
+}));
 vi.mock("@/lib/api/staffModeration", () => ({
   QUEUE_TABS: ["initial", "revisions", "other_model", "suspended", "expiring"],
   fetchModerationQueue: vi.fn().mockResolvedValue({
@@ -52,10 +75,12 @@ describe("accessibility", () => {
 
   it("SellListingForm (private and broker)", async () => {
     const { container, unmount } = render(<SellListingForm />);
+    fireEvent.click(await screen.findByRole("combobox", { name: /brand/i }));
     await screen.findByRole("option", { name: "Bavaria" });
     expect(await violations(container)).toEqual([]);
     unmount();
     const broker = render(<SellListingForm brokerId="b1" />);
+    fireEvent.click(await screen.findByRole("combobox", { name: /brand/i }));
     await screen.findByRole("option", { name: "Bavaria" });
     expect(await violations(broker.container)).toEqual([]);
   });
