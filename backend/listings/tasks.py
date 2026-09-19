@@ -11,6 +11,7 @@ from celery import shared_task
 
 from .expiry import expire_due_listings as _expire_due_listings
 from .expiry import send_expiry_reminders as _send_expiry_reminders
+from .media_scan import ScannerUnavailable
 from .media_uploads import cleanup_stale_uploads as _cleanup_stale_uploads
 from .media_uploads import process_media as _process_media
 
@@ -33,7 +34,13 @@ def send_listing_expiry_reminders() -> dict:
     return {str(threshold): count for threshold, count in counts.items()}
 
 
-@shared_task(queue="media")
+@shared_task(
+    queue="media",
+    autoretry_for=(ScannerUnavailable, RuntimeError),
+    retry_backoff=30,
+    retry_backoff_max=600,
+    max_retries=8,
+)
 def process_listing_media(media_id: str) -> str | None:
     media = _process_media(media_id)
     return media.status if media is not None else None

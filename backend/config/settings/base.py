@@ -271,6 +271,14 @@ MEDIA_PUBLIC_BASE_URL = env("MEDIA_PUBLIC_BASE_URL", default="")
 MEDIA_SIGNED_URLS = env.bool("MEDIA_SIGNED_URLS", default=False)
 # Phase 15: re-encode uploaded images without metadata (EXIF/GPS/XMP).
 MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
+# Malware scanning is on whenever a clamd host is configured (spec 24.2 step 7).
+CLAMAV_HOST = env("CLAMAV_HOST", default="")
+CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
+MEDIA_SCANNER = "listings.media_scan.clamd_scan" if CLAMAV_HOST else None
+# ffprobe video checks (spec 24.3); needs ffmpeg in the image.
+MEDIA_VIDEO_INSPECTOR = (
+    "listings.media_video.probe_video" if env.bool("MEDIA_VIDEO_PROBE", default=False) else None
+)
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")

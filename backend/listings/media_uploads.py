@@ -201,6 +201,14 @@ def _sanitize(storage, media: ListingMedia) -> None:
         import_string(path)(storage, media.storage_key, media)
 
 
+def _inspect_video(storage, media: ListingMedia) -> None:
+    """Video inspection hook: `settings.MEDIA_VIDEO_INSPECTOR` is a dotted path to
+    `callable(storage, key, media)` that raises RejectedMedia on a bad video."""
+    path = getattr(settings, "MEDIA_VIDEO_INSPECTOR", None)
+    if path and media.media_type == MediaType.VIDEO:
+        import_string(path)(storage, media.storage_key, media)
+
+
 def process_media(media_id) -> ListingMedia | None:
     """Spec §24.2 steps 7-8. Idempotent: only a SCANNING row is worked on."""
     with transaction.atomic():
@@ -226,6 +234,7 @@ def process_media(media_id) -> ListingMedia | None:
         media.height = found.height
         try:
             _sanitize(storage, media)
+            _inspect_video(storage, media)
         except RejectedMedia as exc:
             return reject_media(media, exc.reason)
         media.status = MediaStatus.READY

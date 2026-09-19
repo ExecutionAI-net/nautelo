@@ -120,6 +120,7 @@ def environments(secret, region, environment="prod"):
         "REDIS_URL": "redis://redis:6379/0", "CELERY_BROKER_URL": "redis://redis:6379/1",
         "CELERY_RESULT_BACKEND": "redis://redis:6379/2", "CHANNELS_REDIS_URL": "redis://redis:6379/3",
         "MEDIA_SIGNED_URLS": "True", "MEDIA_PUBLIC_BASE_URL": "",
+        "CLAMAV_HOST": "clamav", "MEDIA_VIDEO_PROBE": "True",
     })
     frontend = {"NEXT_PUBLIC_BASE_URL": web, "NEXT_PUBLIC_API_BASE_URL": api,
                 "INTERNAL_SERVICE_SECRET": secret["INTERNAL_SERVICE_SECRET"]}
