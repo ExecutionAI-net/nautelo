@@ -282,17 +282,23 @@ def test_the_permission_stack_matches_the_house_order():
     """
     from rest_framework.permissions import IsAuthenticated
 
-    from accounts.permissions import IsActiveUser, IsEmailVerified
+    from accounts.permissions import IsActiveUser, IsEmailVerified, IsStaffAdmin
     from payments.permissions import StripeCheckoutEnabled
     from payments.views import (
         CheckoutSessionCreateView,
         PaymentOrderDetailView,
+        StaffProductDetailView,
+        StaffProductListView,
     )
 
     assert CheckoutSessionCreateView.permission_classes == [
         IsAuthenticated, IsActiveUser, IsEmailVerified, StripeCheckoutEnabled,
     ]
     assert PaymentOrderDetailView.permission_classes == [IsAuthenticated, IsActiveUser]
+    for view in (StaffProductListView, StaffProductDetailView):
+        assert view.permission_classes == [
+            IsAuthenticated, IsActiveUser, IsEmailVerified, IsStaffAdmin,
+        ]
 
 
 @pytest.mark.django_db
