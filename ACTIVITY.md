@@ -90,6 +90,16 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-20 - Translation, catalogue import, sell form and Lighthouse pass
+
+- **OpenRouter translation** (`backend/translation`): the full OpenRouter catalogue (`/models?output_modalities=all`, 604 models, 447 text-output) is stored and refreshed daily (04:30 beat) or on demand (Django admin "Sync from OpenRouter", `manage.py sync_openrouter_models`). `TranslationSettings` (admin singleton) picks the model through a searchable dropdown limited to text-output models. `POST /api/v1/translate/` and `GET /api/v1/translate/status/` back the "Translate with AI" button in the sell form. The key is `OPENROUTER_API_KEY` (AWS Secrets Manager `nautelo/dev`, never in the repo or DB).
+- **Brand/model catalogue**: `manage.py import_boat_catalogue` loads 200 brands and 3053 models from the supplied spreadsheet (bundled as `taxonomy/data_boat_models.csv`); idempotent. Divisions (Sailing/Motor) are not modelled: one brand per marque.
+- **Sell form** (shared by private sellers and brokers, one component): closed choice lists come from `GET /api/v1/listing-form/options/` (years current year down to 1900, hull, engine, fuel, cabins, bathrooms, countries incl. EU/US/CA/RU/TR and flag states); a reusable `SearchSelect` puts a search box at the top of every dropdown; floating "Save draft" with a saved toast; AI-translate feedback and per-language badges; free-allowance banner (with next free date and buy button) is shown before the form; design-accurate live preview card with photo and translation coverage.
+- **Upload fix**: media upload and checkout depended on `crypto.subtle` / `crypto.randomUUID`, which do not exist on plain-http origins (the dev server), so uploads silently failed. Both now have fallbacks (`lib/sha256.ts`). The S3 bucket CORS on dev still has to allow PUT from the dev origin.
+- **Lighthouse** (mobile, local production build): accessibility 100 on all measured pages; Material Symbols font subset (3.9 MB to a few KB), `outline` token darkened for AA contrast, home selects labelled, heading order, LCP priority on /sell. Remaining: canonical/CORS/CSP findings are local-environment artefacts; `/login` is intentionally noindex.
+- **Server-side logic**: dashboard listing counters (`listings/mine/summary/`) and related-listing exclusion (`exclude=`) moved to the backend; boats list gained `boat_type`, `condition`, `fuel_type`, `cabins_min` filters; boat cards and filter panel follow the design (badges, location pill, spec line, asking-price label).
+- Known gaps: Stitch language switcher and user menu icon; per-field "Translate with AI" dropdown from the design (a single button translates all fields); video transcode/poster; `script-src 'unsafe-inline'`; legal pages not in the sitemap.
+
 ### 2026-09-19 — Gap closing (phases 3, 15-24)
 
 - Found and fixed: `CELERY_BEAT_SCHEDULE` was assigned twice in `base.py`, silently dropping listing expiry, reminders, media cleanup and the entitlement sweep.
