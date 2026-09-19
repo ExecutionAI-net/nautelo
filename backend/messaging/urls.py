@@ -1,6 +1,7 @@
 from django.urls import path
 
 from messaging.views import (
+    ConversationListView,
     InquiryConfigView,
     InquiryCreateView,
     InquiryDraftCreateView,
@@ -20,4 +21,5 @@ urlpatterns = [
         InquiryDraftResolveView.as_view(),
         name="inquiry-draft-resolve",
     ),
+    path("conversations/", ConversationListView.as_view(), name="conversation-list"),
 ]

@@ -16,6 +16,7 @@ from messaging.enums import (
     SUBJECT_MIN_LENGTH,
 )
 from messaging.exceptions import ConsentRequired, SpamDetected
+from messaging.services import message_excerpt
 
 #: Spec 15.1: "E.164-compatible input and country selector." E.164 is a leading
 #: "+", a non-zero country code digit, then up to 14 more digits. The bound here
@@ -146,3 +147,75 @@ class InquiryDraftCreateSerializer(serializers.Serializer):
 
 class InquiryDraftResolveSerializer(serializers.Serializer):
     draft_token = serializers.CharField(max_length=8000)
+
+
+class ConversationSerializer(serializers.Serializer):
+    """Spec 28's conversation row. Carries no contact value of any kind."""
+
+    id = serializers.UUIDField(read_only=True)
+    conversation_type = serializers.CharField(read_only=True)
+    subject = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    last_message_at = serializers.DateTimeField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    unread_count = serializers.IntegerField(read_only=True)
+    context = serializers.SerializerMethodField()
+    counterparty_name = serializers.SerializerMethodField()
+    last_message_excerpt = serializers.SerializerMethodField()
+
+    def _viewer(self):
+        return self.context["request"].user
+
+    def get_context(self, conversation) -> dict:
+        if conversation.listing_id is not None:
+            snapshot = conversation.listing.current_public_snapshot
+            label = ""
+            if snapshot is not None:
+                model_name = (
+                    snapshot.custom_model_name_snapshot
+                    or snapshot.model_name_snapshot
+                )
+                label = f"{snapshot.brand_name_snapshot} {model_name}".strip()
+            return {
+                "type": "LISTING",
+                "id": str(conversation.listing_id),
+                "label": label,
+            }
+        if conversation.broker_id is not None:
+            return {
+                "type": "BROKER",
+                "id": str(conversation.broker_id),
+                "label": conversation.broker.name,
+            }
+        if conversation.professional_id is not None:
+            return {
+                "type": "PROFESSIONAL",
+                "id": str(conversation.professional_id),
+                "label": conversation.professional.display_name,
+            }
+        return {"type": "SUPPORT", "id": "", "label": ""}
+
+    def get_counterparty_name(self, conversation) -> str:
+        """Who the OTHER side is, from this viewer's seat.
+
+        For the initiator it is the context's own public label - never the
+        private seller's personal name, which is not public information and is
+        not what a grant reveals either. For the recipient it is the name the
+        sender stated on their first message (spec 15.1's Full name), read from
+        the snapshot rather than joined to a live profile.
+
+        `first_sender_name` is an annotation from selectors.annotate_last_message();
+        reading `conversation.messages.first()` here instead would be one query
+        per row (spec 33.3). It may legitimately be the empty string - see
+        services._reply_display_name - and the client renders the localized
+        `inquiry.sender_unnamed` string for that case rather than showing an
+        email address.
+        """
+        if conversation.initiator_id == self._viewer().pk:
+            return self.get_context(conversation)["label"]
+        return getattr(conversation, "first_sender_name", None) or ""
+
+    def get_last_message_excerpt(self, conversation) -> str:
+        # Annotation, not a per-row query - same reason as above.
+        body = getattr(conversation, "last_message_body", None) or ""
+        return message_excerpt(body) if body else ""

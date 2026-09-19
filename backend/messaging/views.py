@@ -2,6 +2,7 @@
 
 from rest_framework import status
 from rest_framework.exceptions import NotAuthenticated
+from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,6 +12,8 @@ from messaging.drafts import read_inquiry_draft, sign_inquiry_draft
 from messaging.enums import (
     CURRENT_PRIVACY_POLICY_VERSION,
     DRAFT_TOKEN_MAX_AGE_SECONDS,
+    ConversationStatus,
+    ConversationType,
     FULL_NAME_MAX_LENGTH,
     FULL_NAME_MIN_LENGTH,
     HONEYPOT_FIELD_NAME,
@@ -22,8 +25,15 @@ from messaging.enums import (
     UNIFIED_INQUIRIES_FLAG,
 )
 from messaging.exceptions import MessagingThrottled
+from messaging.pagination import ConversationPagination
 from messaging.permissions import InquiryEmailVerified, UnifiedInquiriesEnabled
+from messaging.selectors import (
+    annotate_last_message,
+    annotate_unread,
+    conversations_visible_to,
+)
 from messaging.serializers import (
+    ConversationSerializer,
     InquiryDraftCreateSerializer,
     InquiryDraftResolveSerializer,
     InquiryResultSerializer,
@@ -202,3 +212,52 @@ class InquiryDraftResolveView(MessagingAPIView):
         serializer = InquiryDraftResolveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(read_inquiry_draft(serializer.validated_data["draft_token"]))
+
+
+class ConversationListView(MessagingAPIView, ListAPIView):
+    """GET /api/v1/conversations/ - spec 30.1's "authorized inbox".
+
+    Filters are spec 28's five, expressed as query parameters so one endpoint
+    serves the broker screen, the private-seller screen and the sender's own
+    list. MessagingAPIView comes first in the MRO so its permission_denied and
+    throttled overrides win over ListAPIView's inherited APIView versions.
+    """
+
+    # Flag gate FIRST - see InquiryCreateView's docstring. Every messaging view
+    # in this app lists UnifiedInquiriesEnabled first, without exception.
+    permission_classes = [UnifiedInquiriesEnabled, IsAuthenticated, IsActiveUser]
+    throttle_scope = "messaging_read"
+    pagination_class = ConversationPagination
+    serializer_class = ConversationSerializer
+
+    def get_queryset(self):
+        params = self.request.query_params
+        queryset = annotate_last_message(
+            annotate_unread(
+                conversations_visible_to(self.request.user), self.request.user
+            )
+        )
+
+        status_filter = params.get("status", ConversationStatus.OPEN).upper()
+        if status_filter != "ALL":
+            queryset = queryset.filter(status=status_filter)
+
+        requested_types = [
+            value
+            for value in params.getlist("type")
+            if value in ConversationType.values
+        ]
+        if params.getlist("type"):
+            # An unrecognised value filters everything out rather than being
+            # silently dropped: a client asking for a type that does not exist
+            # should see an empty inbox, not somebody else's whole inbox.
+            queryset = queryset.filter(conversation_type__in=requested_types)
+
+        broker_id = params.get("broker")
+        if broker_id:
+            queryset = queryset.filter(broker_id=broker_id)
+
+        if params.get("unread", "").lower() == "true":
+            queryset = queryset.filter(unread_count__gt=0)
+
+        return queryset
