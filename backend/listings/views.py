@@ -34,6 +34,7 @@ from .drafts import create_listing_draft, update_listing_draft
 from .enums import ListingStatus
 from .models import BoatListing, ListingMedia, ListingRevision
 from .permissions import ListingWorkflowEnabled
+from .public_filters import apply_public_filters, facets
 from .serializers import (
     ListingMediaSerializer,
     MediaIntentSerializer,
@@ -329,7 +330,14 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
         broker = self.request.query_params.get("broker", "").strip()
         if broker:
             queryset = queryset.filter(broker__slug=broker)
-        return queryset
+        return apply_public_filters(queryset, self.request.query_params)
+
+
+class PublicListingFacetsView(PublicListingReadView, APIView):
+    """GET /api/v1/listings/facets/ - distinct filter choices for the boat filter panel."""
+
+    def get(self, request):
+        return Response(facets(published_listings_queryset()))
 
 
 class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):

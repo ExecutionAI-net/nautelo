@@ -24,6 +24,7 @@ from .views import (
     ListingWithdrawView,
     PublicListingBySlugView,
     PublicListingDetailView,
+    PublicListingFacetsView,
     PublicListingListView,
     StaffRevisionDecisionView,
 )
@@ -31,6 +32,7 @@ from .views import (
 from .owner_views import ListingWorkflowDetailView, MyListingsView
 
 urlpatterns = [
+    path("listings/facets/", PublicListingFacetsView.as_view(), name="listing-facets"),
     path("listings/mine/", MyListingsView.as_view(), name="my-listings"),
     path(
         "listings/<uuid:listing_id>/workflow/",

@@ -87,6 +87,31 @@ export interface ListingSearch {
   page?: string;
   page_size?: string;
   broker?: string;
+  q?: string;
+  brand?: string;
+  country?: string;
+  region?: string;
+  seller_type?: string;
+  price_min?: string;
+  price_max?: string;
+  year_min?: string;
+  year_max?: string;
+  sort?: string;
+}
+
+export interface ListingFacets {
+  brands: string[];
+  countries: string[];
+  regions: string[];
+}
+
+export async function fetchListingFacets(): Promise<ListingFacets> {
+  try {
+    const body = await directoryFetch<ListingFacets>("/api/v1/listings/facets/");
+    return body ?? { brands: [], countries: [], regions: [] };
+  } catch {
+    return { brands: [], countries: [], regions: [] };
+  }
 }
 
 export function listingQuery(params: ListingSearch): string {
