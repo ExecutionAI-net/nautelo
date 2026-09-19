@@ -181,6 +181,11 @@ REST_FRAMEWORK = {
         # `message_send` because archiving reaches nobody and creates nothing;
         # tighter than `messaging_read` because it takes a row lock.
         "conversation_status": "120/hour",
+        # Broker home is a screen a brokerage refreshes through the working day,
+        # and every field is a live aggregate. Matches `taxonomy_search`'s order
+        # of magnitude: well above a human's page loads, well below scripted
+        # polling of another organization's counters.
+        "broker_dashboard": "120/min",
         # Spec §30.4 lists finance quote logging among the rate-limited
         # surfaces while allowing "the calculation itself [to] remain
         # reasonably accessible". The finance page recalculates on every

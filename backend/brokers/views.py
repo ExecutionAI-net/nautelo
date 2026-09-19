@@ -14,8 +14,10 @@ from accounts.permissions import (
     IsStaffAdmin,
     IsStaffModerator,
 )
+from brokers.dashboard import broker_dashboard_metrics
 from brokers.models import BrokerMembership, BrokerOrganization
 from brokers.moderation import bulk_approve_pending_broker_revisions
+from brokers.permissions import IsBrokerMember
 from brokers.serializers import (
     BrokerApprovalPolicySerializer,
     BrokerBulkApproveSerializer,
@@ -211,3 +213,28 @@ class BrokerPendingApprovalsView(APIView):
                 "broker": StaffBrokerDetailSerializer().to_representation(broker),
             }
         )
+
+
+class BrokerDashboardView(APIView):
+    """GET /api/v1/brokers/<id>/dashboard/ — spec 28's "Dashboard metrics".
+
+    An addition beyond spec 30.1's table, flagged here rather than presented as
+    spec-literal, exactly as Phase 12 flagged its two staff routes. Spec 28's
+    "Broker home may show only backend-derived useful metrics" cannot be true
+    without one (spec 2.1), and spec 30.1's closing sentence grants the latitude.
+
+    NOT flag-gated, so `IsAuthenticated` is first and Phase 6 contract rule 11a
+    does not apply (it governs messaging views that HAVE a flag gate). The
+    listing metrics are Phase 11/12 state and have nothing to do with
+    `unified_inquiries`; the messaging block reports enabled=false with null
+    counts when the flag is off, so broker home keeps working with its messaging
+    tiles hidden rather than 403-ing whole. Every messaging *mutation* stays
+    behind Phase 6's gate.
+    """
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsBrokerMember]
+    throttle_scope = "broker_dashboard"
+
+    def get(self, request, broker_id):
+        broker = get_object_or_404(BrokerOrganization, pk=broker_id)
+        return Response(broker_dashboard_metrics(broker, viewer=request.user))
