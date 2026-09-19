@@ -41,3 +41,61 @@ export function mapListing(
     body: JSON.stringify({ ...target, note }),
   });
 }
+
+export interface StaffBrand {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+}
+
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+export function fetchBrands(): Promise<StaffBrand[]> {
+  return apiFetch<StaffBrand[]>("/api/v1/staff/taxonomy/brands/");
+}
+
+export function createBrand(name: string) {
+  return apiFetch<StaffBrand>("/api/v1/staff/taxonomy/brands/", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function setBrandActive(id: string, is_active: boolean) {
+  return apiFetch<StaffBrand>(`/api/v1/staff/taxonomy/brands/${id}/`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ is_active }),
+  });
+}
+
+export function createModel(brand_id: string, name: string) {
+  return apiFetch<StaffModel>("/api/v1/staff/taxonomy/models/", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ brand_id, name }),
+  });
+}
+
+export function setModelActive(id: string, is_active: boolean) {
+  return apiFetch<StaffModel>(`/api/v1/staff/taxonomy/models/${id}/`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ is_active }),
+  });
+}
+
+export function mergePreview(sourceId: string, intoId: string) {
+  return apiFetch<{ affected_count: number }>(
+    `/api/v1/staff/taxonomy/models/${sourceId}/merge/?into=${encodeURIComponent(intoId)}`,
+  );
+}
+
+export function mergeModels(sourceId: string, intoId: string, note: string) {
+  return apiFetch<{ merged_listings: number }>(
+    `/api/v1/staff/taxonomy/models/${sourceId}/merge/`,
+    { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ into: intoId, note }) },
+  );
+}
