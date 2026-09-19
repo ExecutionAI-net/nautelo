@@ -7,10 +7,10 @@ describe("next.config", () => {
     expect(nextConfig.trailingSlash).toBe(true);
   });
 
-  it("301-redirects both retired directory URLs to the combined directory", async () => {
+  it("301-redirects both retired directory URLs and the retired broker services URL", async () => {
     const redirects = await nextConfig.redirects!();
 
-    expect(redirects).toHaveLength(2);
+    expect(redirects).toHaveLength(3);
     expect(redirects).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -23,8 +23,21 @@ describe("next.config", () => {
           destination: "/services/professionals/",
           statusCode: 301,
         }),
+        expect.objectContaining({
+          source: "/dashboard/broker/services/",
+          destination: "/dashboard/broker/messages/",
+          statusCode: 301,
+        }),
       ]),
     );
+  });
+
+  it("redirects the retired broker route to a page that exists", async () => {
+    const redirects = await nextConfig.redirects!();
+    const legacy = redirects.find(
+      (redirect) => redirect.source === "/dashboard/broker/services/",
+    );
+    expect(legacy?.destination).toBe("/dashboard/broker/messages/");
   });
 
   it("never emits 308 by using permanent instead of an explicit 301", async () => {

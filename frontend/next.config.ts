@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
         destination: "/services/professionals/",
         statusCode: 301,
       },
+      {
+        // Spec 4.2/4.3: slashed form is canonical (trailingSlash above), so this
+        // stays a single hop.
+        source: "/dashboard/broker/services/",
+        destination: "/dashboard/broker/messages/",
+        statusCode: 301,
+      },
     ];
   },
 };
