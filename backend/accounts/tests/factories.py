@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from django.utils import timezone
 
 from accounts.enums import Locale, UserRole
@@ -7,7 +9,7 @@ DEFAULT_TEST_PASSWORD = "n4uta-test-Passw0rd"
 
 
 def make_user(
-    email="user@example.com",
+    email=None,
     *,
     password=DEFAULT_TEST_PASSWORD,
     verified=True,
@@ -17,6 +19,8 @@ def make_user(
     full_name="",
     **extra,
 ):
+    if email is None:
+        email = f"user-{uuid4().hex[:8]}@example.com"
     user = User.objects.create_user(
         email=email,
         password=password,
