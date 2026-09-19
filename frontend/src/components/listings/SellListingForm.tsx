@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import MediaUpgradePanel from "@/components/listings/MediaUpgradePanel";
 import { ApiError } from "@/lib/api/client";
 import {
   createDraft,
@@ -249,6 +250,10 @@ export default function SellListingForm({ brokerId }: { brokerId?: string }) {
             disabled={busy}
             onChange={(e) => void addFiles(e.target.files)}
             className="mt-space-sm"
+          />
+          <MediaUpgradePanel
+            listingId={listing.id}
+            onApplied={() => setError(null)}
           />
           <ul className="mt-space-sm flex flex-col gap-space-xs">
             {media.map((row) => (
