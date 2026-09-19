@@ -23,6 +23,12 @@ export const metadata: Metadata = {
   description: "Yacht and boat marketplace for Spain and Italy",
 };
 
+// Only the icons the app uses (the full font is ~4 MB). Add a name here when a
+// new icon is introduced; keep the list alphabetical, as Google Fonts requires.
+const MATERIAL_SYMBOLS_ICONS =
+  "3d_rotation,ac_unit,account_balance,add_circle,ads_click,alt_route,analytics,anchor,architecture,arrow_downward,arrow_forward,arrow_outward,arrows_outward,assignment,assignment_turned_in,assured_workload,badge,balance,bed,bolt,build,calendar_today,call,check,check_circle,chevron_right,close,cloud_upload,compare_arrows,delete,description,directions_boat,dock,domain,draw,east,engineering,euro,expand_more,explore,fact_check,file_upload_off,flag,flight,fmd_good,gavel,group,handshake,handyman,headset_mic,home,hub,imagesmode,info,language,local_gas_station,local_shipping,location_on,lock,lock_open,mail,manage_search,military_tech,navigation,near_me,north_east,open_in_new,pace,payments,person,phone_in_talk,photo_camera,picture_as_pdf,pin_drop,policy,precision_manufacturing,price_check,print,qr_code_2,real_estate_agent,receipt_long,rv_hookup,sailing,satellite_alt,schedule,school,search,search_check,security,send,settings,settings_suggest,share,shield,shield_with_heart,shower,south,speed,straighten,support_agent,terminal,timer,tune,upload_file,verified,verified_user,videocam,view_in_ar,watch,water,water_drop";
+const MATERIAL_SYMBOLS_URL = `https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=${MATERIAL_SYMBOLS_ICONS}&display=block`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -30,7 +36,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+          href={MATERIAL_SYMBOLS_URL}
           rel="stylesheet"
         />
       </head>
