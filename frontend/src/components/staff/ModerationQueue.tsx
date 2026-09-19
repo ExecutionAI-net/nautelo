@@ -72,6 +72,10 @@ export default function ModerationQueue() {
         <Link href="/dashboard/staff/taxonomy/" className="font-body-md text-primary underline">
           Other-model queue
         </Link>
+        {" · "}
+        <Link href="/dashboard/staff/entitlements/" className="font-body-md text-primary underline">
+          Entitlement ledger
+        </Link>
       </p>
       <div role="tablist" aria-label="Queue tabs" className="mt-space-md flex flex-wrap gap-space-sm">
         {QUEUE_TABS.map((key) => (
