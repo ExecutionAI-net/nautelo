@@ -84,6 +84,21 @@ def consume_email_verification_token(raw_token: str) -> User:
     return user
 
 
+def revoke_refresh_tokens(user: User) -> int:
+    """Blacklist every outstanding refresh token so a changed password ends all
+    other sessions (a thief holding an old session loses it)."""
+    from rest_framework_simplejwt.token_blacklist.models import (
+        BlacklistedToken,
+        OutstandingToken,
+    )
+
+    count = 0
+    for outstanding in OutstandingToken.objects.filter(user=user):
+        _, created = BlacklistedToken.objects.get_or_create(token=outstanding)
+        count += int(created)
+    return count
+
+
 PASSWORD_RESET_TOKEN_TTL = timedelta(hours=1)
 
 
@@ -129,6 +144,7 @@ def reset_password(raw_token: str, new_password: str) -> User:
     user.set_password(new_password)
     user.save(update_fields=["password", "updated_at"])
     PasswordResetToken.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
+    revoke_refresh_tokens(user)
     return user
 
 
