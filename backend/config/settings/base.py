@@ -170,6 +170,10 @@ REST_FRAMEWORK = {
         "messaging_read": "120/min",
         "inquiry_draft": "30/hour",
         "message_send": "60/hour",
+        # Phase 7, spec §30.4. Looser than `services_directory` because the
+        # contact panel fetches once per profile view AND again after a
+        # successful inquiry, on top of the page's own directory calls.
+        "contact_access": "120/min",
         # Spec §30.4 lists finance quote logging among the rate-limited
         # surfaces while allowing "the calculation itself [to] remain
         # reasonably accessible". The finance page recalculates on every
