@@ -94,16 +94,15 @@ describe("PrimaryNav", () => {
     expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("links to no page that does not exist yet", () => {
-    // Every permission granted: the nav must STILL not offer /sell/ or /fleet/,
-    // because Phase 11/16 have not built those pages. See the note in Step 6.
+  it("offers /sell/ only with the private-listing right and never /fleet/", () => {
+    // /sell/ exists (Phase 16) and is gated; /fleet/ has no page yet.
     mockSession(
       Object.fromEntries(
         Object.keys(ALL_FALSE).map((key) => [key, true]),
       ) as PermissionMap,
     );
     render(<PrimaryNav />);
-    expect(screen.queryByRole("link", { name: "Sell" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sell" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Fleet" })).not.toBeInTheDocument();
   });
 
