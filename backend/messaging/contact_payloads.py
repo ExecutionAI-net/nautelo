@@ -53,3 +53,22 @@ def contact_payload(access) -> dict:
     else:
         raise TypeError(f"Not a contact access result: {type(access).__name__}")
     return {"contact": body}
+
+
+def staff_grant_payload(grant) -> dict:
+    """Spec §30.2: "Mutations return updated resource".
+
+    Safe object IDs only — no contact value, no entity name and not the
+    viewer's email address, because a moderator does not need one to act and
+    this body is logged by every proxy in front of the API.
+    """
+    return {
+        "grant": {
+            "id": str(grant.pk),
+            "target_type": grant.target_type,
+            "target_entity_id": str(grant.broker_id or grant.professional_id),
+            "viewer_id": str(grant.viewer_id),
+            "granted_at": _isoformat(grant.granted_at),
+            "revoked_at": _isoformat(grant.revoked_at) if grant.revoked_at else None,
+        }
+    }
