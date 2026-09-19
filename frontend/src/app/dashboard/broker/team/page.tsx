@@ -48,7 +48,7 @@ export default function BrokerTeam() {
             Team
             <span className="px-2 py-0.5 rounded-full bg-primary text-on-primary font-label-sm text-label-sm">6</span>
 </Link>
-<Link href="/services/" className="py-3 font-title-md text-body-md text-on-surface-variant hover:text-primary transition-colors inline-flex items-center gap-1.5" >
+<Link href="/services/professionals/" className="py-3 font-title-md text-body-md text-on-surface-variant hover:text-primary transition-colors inline-flex items-center gap-1.5" >
             Services
           </Link>
 <Link href="#" className="py-3 font-title-md text-body-md text-on-surface-variant hover:text-primary transition-colors inline-flex items-center gap-1.5" >

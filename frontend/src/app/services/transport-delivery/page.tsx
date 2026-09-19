@@ -10,7 +10,7 @@ export default function TransportDelivery() {
 <nav aria-label="Breadcrumbs" className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
 <Link href="#" className="hover:text-primary transition-colors" >Home</Link>
 <span className="text-outline-variant font-label-sm">/</span>
-<Link href="/services/" className="hover:text-primary transition-colors" >Services</Link>
+<Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="text-outline-variant font-label-sm">/</span>
 <span className="text-on-surface font-medium">Transport &amp; Delivery</span>
 </nav>

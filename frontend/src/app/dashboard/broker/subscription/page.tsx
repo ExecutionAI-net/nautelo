@@ -37,7 +37,7 @@ export default function BrokerSubscription() {
 <Link href="#" className="py-space-sm font-body-md text-on-surface-variant hover:text-primary transition-colors" >Fleet</Link>
 <Link href="#" className="py-space-sm font-body-md text-on-surface-variant hover:text-primary transition-colors" >Leads</Link>
 <Link href="#" className="py-space-sm font-body-md text-on-surface-variant hover:text-primary transition-colors" >Team</Link>
-<Link href="/services/" className="py-space-sm font-body-md text-on-surface-variant hover:text-primary transition-colors" >Services</Link>
+<Link href="/services/professionals/" className="py-space-sm font-body-md text-on-surface-variant hover:text-primary transition-colors" >Services</Link>
 <Link href="#" className="py-space-sm font-body-md text-on-surface-variant hover:text-primary transition-colors" >Company Profile</Link>
 <Link href="#" className="py-space-sm font-title-md text-primary relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-secondary" >Subscription</Link>
 </nav>

@@ -8,7 +8,7 @@ export default function FullBrokerage() {
 <div className="w-full bg-surface-container-low">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop py-space-sm flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
 <nav aria-label="Breadcrumb" className="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant">
-<Link href="/services/" className="hover:text-primary transition-colors" >Services</Link>
+<Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="text-outline">/</span>
 <span className="text-primary font-semibold">Full Brokerage</span>
 </nav>

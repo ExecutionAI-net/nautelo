@@ -73,7 +73,7 @@ export default function BrokerLeads() {
 <Link href="#" className="px-space-md py-space-xs rounded-lg font-title-md text-title-md text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap" >
           Team
         </Link>
-<Link href="/services/" className="px-space-md py-space-xs rounded-lg font-title-md text-title-md text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap" >
+<Link href="/services/professionals/" className="px-space-md py-space-xs rounded-lg font-title-md text-title-md text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap" >
           Services
         </Link>
 <Link href="#" className="px-space-md py-space-xs rounded-lg font-title-md text-title-md text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap" >

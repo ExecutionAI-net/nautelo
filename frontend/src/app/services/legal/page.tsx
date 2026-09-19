@@ -8,7 +8,7 @@ export default function LegalServices() {
 <section className="w-full bg-surface-container-lowest">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop py-space-sm flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
 <nav className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
-<Link href="/services/" className="hover:text-primary transition-colors" >Services</Link>
+<Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="material-symbols-outlined text-[14px] text-outline-variant">chevron_right</span>
 <span className="text-primary font-medium">Nautical Legal Services</span>
 </nav>
