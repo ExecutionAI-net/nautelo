@@ -62,7 +62,7 @@ function VerifyEmail() {
 
 export default function VerifyEmailPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-space-lg">
+    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
       <Suspense fallback={<p className="font-body-md">Loading…</p>}>
         <VerifyEmail />
       </Suspense>

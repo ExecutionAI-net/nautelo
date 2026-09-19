@@ -43,7 +43,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-space-lg">
+    <main className="flex min-h-[70vh] items-center justify-center bg-background p-space-lg">
       {done ? (
         <p role="status" className="max-w-sm font-body-md">
           Account created. Check your inbox for the verification link, then{" "}
