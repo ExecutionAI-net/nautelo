@@ -77,3 +77,15 @@ class NotificationDelivery(UUIDTimeStampedModel):
 
     def __str__(self):
         return f"{self.channel}:{self.status} for {self.notification_id}"
+
+
+class NotificationPreference(UUIDTimeStampedModel):
+    """Per-user delivery choices (spec 27.3). Absent row means defaults: email on.
+    In-app delivery is always on; only the email channel can be opted out."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notification_preference",
+    )
+    email_enabled = models.BooleanField(default=True)

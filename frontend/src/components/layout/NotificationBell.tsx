@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  fetchNotificationPreferences,
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  setEmailNotifications,
   type NotificationRow,
 } from "@/lib/api/notifications";
 import { connectNotifications } from "@/lib/realtime/notificationSocket";
@@ -16,9 +18,9 @@ import { NOTIFICATION_TEXT } from "@/lib/i18n/notifications";
 const POLL_MS = 60_000;
 
 const UI = {
-  en: { label: "Notifications", empty: "No notifications", markAll: "Mark all as read", unread: "unread" },
-  it: { label: "Notifiche", empty: "Nessuna notifica", markAll: "Segna tutto come letto", unread: "non lette" },
-  es: { label: "Notificaciones", empty: "Sin notificaciones", markAll: "Marcar todo como leido", unread: "sin leer" },
+  en: { label: "Notifications", empty: "No notifications", markAll: "Mark all as read", email: "Email me about these", unread: "unread" },
+  it: { label: "Notifiche", empty: "Nessuna notifica", markAll: "Segna tutto come letto", email: "Inviami anche un'email", unread: "non lette" },
+  es: { label: "Notificaciones", empty: "Sin notificaciones", markAll: "Marcar todo como leido", email: "Enviarme tambien un correo", unread: "sin leer" },
 } as const;
 
 function text(key: string, locale: Locale): string {
@@ -37,6 +39,29 @@ export default function NotificationBell({ locale }: { locale: Locale }) {
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [emailOn, setEmailOn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchNotificationPreferences()
+      .then((pref) => {
+        if (!cancelled) setEmailOn(pref.email_enabled);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  async function toggleEmail(next: boolean) {
+    setEmailOn(next);
+    try {
+      await setEmailNotifications(next);
+    } catch {
+      setEmailOn(!next);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +122,12 @@ export default function NotificationBell({ locale }: { locale: Locale }) {
       </button>
       {open ? (
         <div className="absolute right-0 z-10 mt-space-xs w-80 max-w-[90vw] rounded-lg border border-outline-variant bg-surface p-space-sm shadow-lg">
+          {emailOn !== null ? (
+            <label className="mb-space-sm block font-body-sm">
+              <input type="checkbox" checked={emailOn} onChange={(e) => void toggleEmail(e.target.checked)} />{" "}
+              {ui.email}
+            </label>
+          ) : null}
           {rows.length === 0 ? (
             <p className="font-body-sm text-on-surface-variant">{ui.empty}</p>
           ) : (
