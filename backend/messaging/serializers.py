@@ -122,3 +122,27 @@ class InquiryResultSerializer(serializers.Serializer):
 
     def get_message_id(self, result) -> str:
         return str(result.message.pk)
+
+
+class InquiryDraftCreateSerializer(serializers.Serializer):
+    """No minimum lengths: a draft is work in progress, not a submission. The
+    maximums are kept so the signed token cannot be inflated without bound."""
+
+    context_type = serializers.CharField(max_length=32)
+    context_id = serializers.CharField(max_length=64)
+    full_name = serializers.CharField(
+        required=False, allow_blank=True, max_length=FULL_NAME_MAX_LENGTH, default=""
+    )
+    phone = serializers.CharField(
+        required=False, allow_blank=True, max_length=PHONE_MAX_LENGTH, default=""
+    )
+    subject = serializers.CharField(
+        required=False, allow_blank=True, max_length=SUBJECT_MAX_LENGTH, default=""
+    )
+    message = serializers.CharField(
+        required=False, allow_blank=True, max_length=MESSAGE_MAX_LENGTH, default=""
+    )
+
+
+class InquiryDraftResolveSerializer(serializers.Serializer):
+    draft_token = serializers.CharField(max_length=8000)
