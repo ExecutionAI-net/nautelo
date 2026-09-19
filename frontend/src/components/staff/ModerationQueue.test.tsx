@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   fetchModerationQueue: vi.fn(),
   fetchRevisionDetail: vi.fn(),
   decideRevision: vi.fn().mockResolvedValue({}),
+  setSuspension: vi.fn().mockResolvedValue({}),
   QUEUE_TABS: ["initial", "revisions", "other_model", "suspended", "expiring"],
 }));
 vi.mock("@/lib/api/staffModeration", () => api);
@@ -83,7 +84,6 @@ describe("RevisionReview", () => {
 
 describe("suspension", () => {
   it("suspends a listing row with a reason and reloads", async () => {
-    api.setSuspension = vi.fn().mockResolvedValue({});
     vi.spyOn(window, "prompt").mockReturnValue("Policy breach");
     api.fetchModerationQueue.mockResolvedValue({
       tab: "expiring",
