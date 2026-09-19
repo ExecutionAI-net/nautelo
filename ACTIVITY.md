@@ -89,6 +89,11 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 15 (media limits, uploads, upgrade) backend complete
+
+- Merged as PRs for Tasks 1-3 (no separate plan document; unattended controller run). `apply_media_upgrade` (`POST /api/v1/listings/<id>/media-upgrade/apply/`) consumes the MEDIA_UPGRADE entitlement bound at checkout; `effective_media_allowance` returns 20/1 only once it is CONSUMED. Upload pipeline: `media/intents/` (allowance judged under a listing row lock, counting all non-rejected rows), `media/<id>/complete/` (size check, then `process_listing_media` on the `media` queue), list, and delete (refused while a public snapshot shows the item, spec 24.5). Stale UPLOADING rows are rejected after one hour by an hourly beat task. Migration `0009` adds `ListingMedia.rejection_reason`.
+- Known limitations: no Pillow/ffmpeg/scanner dependency, so no re-encode, metadata stripping, derivatives, video transcode/poster or duration check (video duration is unverified); malware scanning is a hook (`settings.MEDIA_SCANNER`, unset). Signatures and image dimensions are read from bytes in pure Python (`listings/media_policy.py`). No WebSocket push of upload state (Phase 18). No frontend upload UI or upgrade modal (Phase 16). No concurrency test with real threads; the lock is `select_for_update` on the listing.
+
 ### 2026-09-19 — Phase 19 broker dashboard and messaging complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-19-broker-dashboard-messages.md` in full (11 tasks).
