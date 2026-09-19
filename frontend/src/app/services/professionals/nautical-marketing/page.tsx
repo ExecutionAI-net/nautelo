@@ -8,7 +8,7 @@ export default function NauticalMarketing() {
 <section className="w-full bg-surface-container-low/60 py-space-sm">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm">
 <nav className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
-<Link href="#" className="hover:text-primary transition-colors" >Home</Link>
+<Link href="/" className="hover:text-primary transition-colors" >Home</Link>
 <span className="text-outline-variant">/</span>
 <Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="text-outline-variant">/</span>
@@ -59,11 +59,11 @@ export default function NauticalMarketing() {
 </div>
 
 <div className="flex flex-wrap items-center gap-space-md">
-<Link href="#" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container font-title-md text-title-md px-space-lg py-3 rounded-lg shadow-sm transition-all duration-200" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container font-title-md text-title-md px-space-lg py-3 rounded-lg shadow-sm transition-all duration-200" >
               Request marketing proposal
               <span className="material-symbols-outlined ml-2 text-[20px]">arrow_downward</span>
 </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-transparent text-primary hover:bg-surface-container font-title-md text-title-md px-space-lg py-3 rounded-lg transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-transparent text-primary hover:bg-surface-container font-title-md text-title-md px-space-lg py-3 rounded-lg transition-colors" >
               Explore media packages
             </Link>
 </div>
@@ -408,7 +408,7 @@ export default function NauticalMarketing() {
               Specialist safety chase tenders, twin-engine ribs, and certified marine port authority authorizations for drone cinematography in Mallorca, Ibiza, and Menorca.
             </p>
 </div>
-<Link href="#" className="shrink-0 inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-md py-2.5 rounded-md font-title-md text-title-md transition-colors" >
+<Link href="/services/professionals/" className="shrink-0 inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-md py-2.5 rounded-md font-title-md text-title-md transition-colors" >
             View Production Support
             <span className="material-symbols-outlined ml-1.5 text-[18px]">open_in_new</span>
 </Link>
@@ -704,14 +704,14 @@ export default function NauticalMarketing() {
             Complementary Nautical Services
           </h2>
 </div>
-<Link href="#" className="font-title-md text-title-md text-secondary hover:text-primary transition-colors inline-flex items-center gap-1 mt-2 sm:mt-0" >
+<Link href="/services/professionals/" className="font-title-md text-title-md text-secondary hover:text-primary transition-colors inline-flex items-center gap-1 mt-2 sm:mt-0" >
           View all maritime services
           <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
 
-<Link href="#" className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all group flex flex-col justify-between" >
+<Link href="/services/professionals/" className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all group flex flex-col justify-between" >
 <div>
 <span className="material-symbols-outlined text-secondary text-[32px] mb-space-sm">directions_boat</span>
 <h3 className="font-title-lg text-title-lg text-primary group-hover:text-secondary transition-colors mb-space-xs font-serif">Full Brokerage</h3>
@@ -725,7 +725,7 @@ export default function NauticalMarketing() {
 </div>
 </Link>
 
-<Link href="#" className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all group flex flex-col justify-between" >
+<Link href="/services/professionals/" className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all group flex flex-col justify-between" >
 <div>
 <span className="material-symbols-outlined text-secondary text-[32px] mb-space-sm">gavel</span>
 <h3 className="font-title-lg text-title-lg text-primary group-hover:text-secondary transition-colors mb-space-xs font-serif">Nautical Legal Services</h3>
@@ -739,7 +739,7 @@ export default function NauticalMarketing() {
 </div>
 </Link>
 
-<Link href="#" className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all group flex flex-col justify-between" >
+<Link href="/services/professionals/" className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all group flex flex-col justify-between" >
 <div>
 <span className="material-symbols-outlined text-secondary text-[32px] mb-space-sm">verified_user</span>
 <h3 className="font-title-lg text-title-lg text-primary group-hover:text-secondary transition-colors mb-space-xs font-serif">Yacht Insurance</h3>
@@ -769,10 +769,10 @@ export default function NauticalMarketing() {
           </p>
 </div>
 <div className="flex flex-wrap items-center justify-center gap-space-md shrink-0">
-<Link href="#" className="inline-flex items-center justify-center bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim font-title-md text-title-md px-space-lg py-3 rounded-lg shadow-md transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim font-title-md text-title-md px-space-lg py-3 rounded-lg shadow-md transition-colors" >
             Request marketing proposal
           </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-transparent text-on-primary hover:bg-white/10 font-title-md text-title-md px-space-lg py-3 rounded-lg transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-transparent text-on-primary hover:bg-white/10 font-title-md text-title-md px-space-lg py-3 rounded-lg transition-colors" >
             All nautical services
           </Link>
 </div>

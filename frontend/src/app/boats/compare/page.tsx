@@ -9,7 +9,7 @@ export default function ComparePage() {
 <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
 <div>
 <nav className="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-space-xs">
-<Link href="#" className="hover:text-primary transition-colors" >Vessels</Link>
+<Link href="/boats/" className="hover:text-primary transition-colors" >Vessels</Link>
 <span className="text-outline-variant">/</span>
 <span className="text-primary font-semibold">Technical Comparison</span>
 </nav>
@@ -75,7 +75,7 @@ export default function ComparePage() {
 <span className="font-body-sm text-body-sm text-on-surface-variant">EU VAT Paid</span>
 </div>
 <div className="flex flex-col gap-space-xs mt-auto">
-<Link href="#" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
+<Link href="/boats/" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
                     View listing
                   </Link>
 <button className="w-full text-center text-on-surface-variant hover:text-error py-1.5 font-label-md text-label-md transition-colors flex items-center justify-center gap-1">
@@ -106,7 +106,7 @@ export default function ComparePage() {
 <span className="font-body-sm text-body-sm text-on-surface-variant">Excl. VAT</span>
 </div>
 <div className="flex flex-col gap-space-xs mt-auto">
-<Link href="#" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
+<Link href="/boats/" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
                     View listing
                   </Link>
 <button className="w-full text-center text-on-surface-variant hover:text-error py-1.5 font-label-md text-label-md transition-colors flex items-center justify-center gap-1">
@@ -137,7 +137,7 @@ export default function ComparePage() {
 <span className="font-body-sm text-body-sm text-on-surface-variant">EU VAT Paid</span>
 </div>
 <div className="flex flex-col gap-space-xs mt-auto">
-<Link href="#" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
+<Link href="/boats/" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
                     View listing
                   </Link>
 <button className="w-full text-center text-on-surface-variant hover:text-error py-1.5 font-label-md text-label-md transition-colors flex items-center justify-center gap-1">
@@ -367,7 +367,7 @@ export default function ComparePage() {
 <span className="material-symbols-outlined text-secondary">add_circle</span>
 <span className="font-body-md text-body-md text-primary font-medium">Comparison slot open. Browse our Mediterranean fleet to compare another vessel.</span>
 </div>
-<Link href="#" className="inline-flex items-center gap-1 px-space-md py-1.5 rounded bg-primary text-on-primary font-body-sm text-body-sm hover:bg-primary-container transition-colors" >
+<Link href="/boats/" className="inline-flex items-center gap-1 px-space-md py-1.5 rounded bg-primary text-on-primary font-body-sm text-body-sm hover:bg-primary-container transition-colors" >
 <span>Browse inventory</span>
 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
 </Link>

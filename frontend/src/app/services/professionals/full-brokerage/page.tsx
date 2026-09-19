@@ -60,7 +60,7 @@ export default function FullBrokerage() {
 </div>
 </div>
 <div className="pt-space-xs flex items-center gap-space-md">
-<Link href="#" className="inline-flex items-center justify-center bg-primary-container text-on-primary hover:bg-primary font-body-md text-body-md px-space-lg py-space-sm rounded-lg transition-colors shadow-sm" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary-container text-on-primary hover:bg-primary font-body-md text-body-md px-space-lg py-space-sm rounded-lg transition-colors shadow-sm" >
               Initiate Brokerage Mandate
             </Link>
 <span className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
@@ -304,7 +304,7 @@ export default function FullBrokerage() {
           </p>
 </div>
 <div className="shrink-0 flex items-center gap-space-md">
-<Link href="#" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container font-label-md text-label-md px-space-md py-space-sm rounded-lg transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container font-label-md text-label-md px-space-md py-space-sm rounded-lg transition-colors" >
             Inquire Drydock Availability
           </Link>
 </div>
@@ -575,7 +575,7 @@ export default function FullBrokerage() {
 </div>
 <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
 
-<Link href="#" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div>
 <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-secondary mb-space-sm group-hover:bg-primary-container group-hover:text-on-primary transition-colors">
 <span className="material-symbols-outlined text-2xl">gavel</span>
@@ -591,7 +591,7 @@ export default function FullBrokerage() {
 </div>
 </Link>
 
-<Link href="#" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div>
 <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-secondary mb-space-sm group-hover:bg-primary-container group-hover:text-on-primary transition-colors">
 <span className="material-symbols-outlined text-2xl">shield</span>
@@ -607,7 +607,7 @@ export default function FullBrokerage() {
 </div>
 </Link>
 
-<Link href="#" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div>
 <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-secondary mb-space-sm group-hover:bg-primary-container group-hover:text-on-primary transition-colors">
 <span className="material-symbols-outlined text-2xl">rv_hookup</span>
@@ -637,7 +637,7 @@ export default function FullBrokerage() {
           Submit your vessel specifications today. Receive a confidential, data-backed comparative market appraisal from our lead broker in your home port within 24 hours.
         </p>
 <div className="pt-space-xs flex flex-col sm:flex-row items-center gap-space-md">
-<Link href="#" className="inline-flex items-center justify-center bg-secondary text-on-secondary hover:bg-on-secondary-container font-title-md text-title-md px-space-xl py-space-sm rounded-lg transition-colors shadow-md" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-secondary text-on-secondary hover:bg-on-secondary-container font-title-md text-title-md px-space-xl py-space-sm rounded-lg transition-colors shadow-md" >
             Request brokerage service
           </Link>
 <span className="font-body-sm text-body-sm text-on-primary-container">

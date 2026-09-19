@@ -9,7 +9,7 @@ export default function EnginesMaintenance() {
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop flex items-center justify-between">
 
 <nav aria-label="Breadcrumb" className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
-<Link href="#" className="hover:text-primary transition-colors" >Home</Link>
+<Link href="/" className="hover:text-primary transition-colors" >Home</Link>
 <span className="text-outline-variant font-label-sm">/</span>
 <Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="text-outline-variant font-label-sm">/</span>
@@ -59,11 +59,11 @@ export default function EnginesMaintenance() {
 </div>
 
 <div className="flex flex-wrap items-center gap-space-md pt-space-sm">
-<Link href="#" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-lg py-3 rounded-lg font-title-md text-title-md shadow-md transition-colors gap-space-xs" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-lg py-3 rounded-lg font-title-md text-title-md shadow-md transition-colors gap-space-xs" >
 <span>Request technical service</span>
 <span className="material-symbols-outlined text-[20px]">arrow_downward</span>
 </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-primary px-space-lg py-3 rounded-lg font-title-md text-title-md transition-colors gap-space-xs" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-primary px-space-lg py-3 rounded-lg font-title-md text-title-md transition-colors gap-space-xs" >
 <span>Explore service scope</span>
 <span className="material-symbols-outlined text-[18px]">south</span>
 </Link>
@@ -472,7 +472,7 @@ export default function EnginesMaintenance() {
             Custom precision lathe machining, titanium exhaust custom piping, and tailored propeller shafts for luxury yachts and commercial vessels up to 70m.
           </p>
 </div>
-<Link href="#" className="inline-flex items-center gap-space-xs bg-surface-container-lowest hover:bg-surface text-primary px-space-md py-2.5 rounded font-body-md text-body-md font-semibold shrink-0 shadow-sm transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center gap-space-xs bg-surface-container-lowest hover:bg-surface text-primary px-space-md py-2.5 rounded font-body-md text-body-md font-semibold shrink-0 shadow-sm transition-colors" >
 <span>Visit Partner Facility</span>
 <span className="material-symbols-outlined text-[18px]">north_east</span>
 </Link>
@@ -770,14 +770,14 @@ export default function EnginesMaintenance() {
             Related Nautical Services
           </h2>
 </div>
-<Link href="#" className="font-title-md text-title-md text-secondary hover:underline flex items-center gap-space-xs" >
+<Link href="/services/professionals/" className="font-title-md text-title-md text-secondary hover:underline flex items-center gap-space-xs" >
 <span>View all maritime services</span>
 <span className="material-symbols-outlined text-[18px]">east</span>
 </Link>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
 
-<Link href="#" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div className="relative h-52 bg-primary overflow-hidden">
 <img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c5d7c9c3a7.jpg"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
@@ -797,7 +797,7 @@ export default function EnginesMaintenance() {
 </div>
 </Link>
 
-<Link href="#" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div className="relative h-52 bg-primary overflow-hidden">
 <img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/87e9f1fad5.jpg"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
@@ -817,7 +817,7 @@ export default function EnginesMaintenance() {
 </div>
 </Link>
 
-<Link href="#" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div className="relative h-52 bg-primary overflow-hidden">
 <img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c7c7a91759.jpg"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
@@ -853,10 +853,10 @@ export default function EnginesMaintenance() {
           </p>
 </div>
 <div className="flex flex-wrap items-center justify-center gap-space-md shrink-0">
-<Link href="#" className="bg-surface text-primary hover:bg-surface-container-low px-space-xl py-3.5 rounded-lg font-title-md text-title-md shadow-md transition-colors" >
+<Link href="/services/professionals/" className="bg-surface text-primary hover:bg-surface-container-low px-space-xl py-3.5 rounded-lg font-title-md text-title-md shadow-md transition-colors" >
             Request technical service
           </Link>
-<Link href="#" className="bg-primary-container hover:bg-primary text-on-primary px-space-xl py-3.5 rounded-lg font-title-md text-title-md transition-colors" >
+<Link href="/services/professionals/" className="bg-primary-container hover:bg-primary text-on-primary px-space-xl py-3.5 rounded-lg font-title-md text-title-md transition-colors" >
             All nautical services
           </Link>
 </div>

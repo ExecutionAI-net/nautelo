@@ -496,7 +496,7 @@ return (
             Engineered in La Spezia for naval navigators and yacht skippers demanding Swiss mechanical escapements, magnetic shielding, and barometric logging.
           </p>
 <div className="pt-space-sm">
-<Link href="#" className="inline-flex items-center gap-space-xs font-title-md text-title-md text-secondary hover:text-primary transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center gap-space-xs font-title-md text-title-md text-secondary hover:text-primary transition-colors" >
 <span>Explore the 2026 Coastal Navigational Edition</span>
 <span className="material-symbols-outlined text-[16px]">arrow_outward</span>
 </Link>

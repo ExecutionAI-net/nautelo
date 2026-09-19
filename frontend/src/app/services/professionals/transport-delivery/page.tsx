@@ -8,7 +8,7 @@ export default function TransportDelivery() {
 <section className="w-full bg-surface-container-low/60">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop py-space-sm flex flex-wrap items-center justify-between gap-space-sm">
 <nav aria-label="Breadcrumbs" className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
-<Link href="#" className="hover:text-primary transition-colors" >Home</Link>
+<Link href="/" className="hover:text-primary transition-colors" >Home</Link>
 <span className="text-outline-variant font-label-sm">/</span>
 <Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="text-outline-variant font-label-sm">/</span>
@@ -61,10 +61,10 @@ export default function TransportDelivery() {
 </div>
 
 <div className="flex flex-wrap items-center gap-space-md pt-space-xs">
-<Link href="#" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-lg py-3 rounded font-title-md text-title-md transition-all shadow-sm" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-lg py-3 rounded font-title-md text-title-md transition-all shadow-sm" >
               Request transport quote
             </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-transparent text-primary hover:bg-surface-container-high px-space-lg py-3 rounded font-title-md text-title-md transition-all" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-transparent text-primary hover:bg-surface-container-high px-space-lg py-3 rounded font-title-md text-title-md transition-all" >
               Explore delivery options
             </Link>
 </div>
@@ -359,7 +359,7 @@ export default function TransportDelivery() {
           </p>
 </div>
 <div className="shrink-0">
-<Link href="#" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-md py-2 rounded font-title-md text-title-md transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-md py-2 rounded font-title-md text-title-md transition-colors" >
             Visit Partner Fleet
           </Link>
 </div>
@@ -675,14 +675,14 @@ export default function TransportDelivery() {
 <span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold block mb-1">End-to-End Maritime Ecosystem</span>
 <h2 className="font-headline-md text-headline-md text-primary tracking-tight">Related Maritime Services</h2>
 </div>
-<Link href="#" className="font-title-md text-title-md text-secondary hover:underline inline-flex items-center gap-1" >
+<Link href="/services/professionals/" className="font-title-md text-title-md text-secondary hover:underline inline-flex items-center gap-1" >
 <span>View all nautical services</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
 
-<Link href="#" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
+<Link href="/services/professionals/" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
 <div className="h-48 overflow-hidden bg-surface-container-low">
 <img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/50977b2590.jpg"/>
 </div>
@@ -701,7 +701,7 @@ export default function TransportDelivery() {
 </div>
 </Link>
 
-<Link href="#" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
+<Link href="/services/professionals/" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
 <div className="h-48 overflow-hidden bg-surface-container-low">
 <img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c0a1e49c37.jpg"/>
 </div>
@@ -720,7 +720,7 @@ export default function TransportDelivery() {
 </div>
 </Link>
 
-<Link href="#" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
+<Link href="/services/professionals/" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
 <div className="h-48 overflow-hidden bg-surface-container-low">
 <img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/54f3bbf12d.jpg"/>
 </div>
@@ -751,10 +751,10 @@ export default function TransportDelivery() {
         </p>
 </div>
 <div className="flex flex-wrap items-center justify-center gap-space-md shrink-0">
-<Link href="#" className="inline-flex items-center justify-center bg-secondary text-on-secondary hover:bg-secondary-fixed hover:text-on-secondary-fixed px-space-lg py-3 rounded font-title-md text-title-md transition-all shadow-md" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-secondary text-on-secondary hover:bg-secondary-fixed hover:text-on-secondary-fixed px-space-lg py-3 rounded font-title-md text-title-md transition-all shadow-md" >
           Request transport quote
         </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-transparent text-white hover:bg-white/10 px-space-lg py-3 rounded font-title-md text-title-md transition-all" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-transparent text-white hover:bg-white/10 px-space-lg py-3 rounded font-title-md text-title-md transition-all" >
           All nautical services
         </Link>
 </div>
