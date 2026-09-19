@@ -132,9 +132,9 @@ def test_acceptance_3_a_private_sellers_crafted_finance_payload_is_rejected(api)
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["show_finance_estimate"][0] == (
-        "Finance options are available to broker listings only."
-    )
+    assert response.data["error"]["fields"]["show_finance_estimate"][0][
+        "message"
+    ] == ("Finance options are available to broker listings only.")
     listing.refresh_from_db()
     assert listing.show_finance_estimate is False
 

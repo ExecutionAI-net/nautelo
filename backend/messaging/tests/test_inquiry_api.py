@@ -237,7 +237,10 @@ def test_a_forged_email_is_refused_as_a_field_error(api, asker, professional):
     assert response.status_code == 400
     assert response.data["error"]["code"] == "validation_error"
     assert response.data["error"]["fields"]["email"] == [
-        "Send from your own verified account email address."
+        {
+            "message": "Send from your own verified account email address.",
+            "code": "email_mismatch",
+        }
     ]
     assert Message.objects.count() == 0
 

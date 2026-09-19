@@ -22,7 +22,7 @@ const FIELD =
 
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
-    const first = Object.values(error.fields)[0]?.[0];
+    const first = Object.values(error.fields)[0]?.[0]?.message;
     return first || error.message || "The request failed.";
   }
   return "The request failed.";
