@@ -13,6 +13,7 @@ describe("next.config", () => {
     expect(rules[0].source).toBe("/:path*");
     expect(keys).toEqual(
       expect.arrayContaining([
+        "Content-Security-Policy-Report-Only",
         "X-Content-Type-Options",
         "X-Frame-Options",
         "Referrer-Policy",
