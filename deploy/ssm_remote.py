@@ -25,6 +25,8 @@ def main(payload):
         deploy = release / 'deploy'
         deploy.mkdir(parents=True, exist_ok=True)
         expected = {'manage.py', f'docker-compose.{environment}.yml', f'config.{environment}.json'}
+        if environment == 'dev':
+            expected.update({'docker-compose.proxy.dev-http.yml', 'nginx.dev-http.conf'})
         if set(data['files']) != expected:
             raise ValueError('Unexpected release files')
         for name, content in data['files'].items():

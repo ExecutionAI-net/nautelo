@@ -22,6 +22,9 @@ def request(environment, tag, instance_id, config):
     # Explicit allowlist: never send .env files or Secrets Manager contents to SSM.
     public_config = {key: config[key] for key in ('region', 'registry', 'secret_id')}
     files = {name: (ROOT / name).read_text() for name in ('manage.py', f'docker-compose.{environment}.yml')}
+    if environment == 'dev':
+        for name in ('docker-compose.proxy.dev-http.yml', 'nginx.dev-http.conf'):
+            files[name] = (ROOT / name).read_text()
     files[f'config.{environment}.json'] = json.dumps(public_config)
     payload = base64.b64encode(gzip.compress(json.dumps({
         'environment': environment, 'tag': tag, 'files': files,

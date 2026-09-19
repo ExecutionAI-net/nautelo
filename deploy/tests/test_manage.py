@@ -60,6 +60,67 @@ class DeploymentConfigurationTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 manage.origin(url)
 
+    def http_secret(self):
+        return dict(self.secret, DEPLOY_ALLOW_HTTP='true',
+                    NEXT_PUBLIC_BASE_URL='http://108.130.226.143',
+                    NEXT_PUBLIC_API_BASE_URL='http://108.130.226.143')
+
+    def test_http_dev_uses_same_origin_and_insecure_cookie_only_when_opted_in(self):
+        values = manage.environments(self.http_secret(), 'eu-west-1', 'dev')
+        backend = values['backend']
+        self.assertEqual(backend['DJANGO_SETTINGS_MODULE'], 'config.settings.dev_http')
+        self.assertEqual(backend['DEPLOY_ENVIRONMENT'], 'dev')
+        self.assertEqual(backend['REFRESH_COOKIE_SECURE'], 'False')
+        self.assertEqual(backend['DJANGO_ALLOWED_HOSTS'], '108.130.226.143')
+        self.assertEqual(backend['DJANGO_CORS_ALLOWED_ORIGINS'], 'http://108.130.226.143')
+        self.assertEqual(values['frontend']['NEXT_PUBLIC_API_BASE_URL'], 'http://108.130.226.143')
+
+    def test_http_rejected_for_prod_or_without_explicit_opt_in(self):
+        with self.assertRaisesRegex(ValueError, 'never prod'):
+            manage.environments(self.http_secret(), 'eu-west-1', 'prod')
+        secret = self.http_secret()
+        secret.pop('DEPLOY_ALLOW_HTTP')
+        with self.assertRaises(ValueError):
+            manage.environments(secret, 'eu-west-1', 'dev')
+
+    def test_http_rejects_mismatched_hosts_extra_ports_or_mixed_schemes(self):
+        for api in ('http://108.130.226.143:8080', 'https://108.130.226.143', 'http://108.130.226.144'):
+            with self.subTest(api=api), self.assertRaises(ValueError):
+                manage.environments(dict(self.http_secret(), NEXT_PUBLIC_API_BASE_URL=api), 'eu-west-1', 'dev')
+
+    def test_https_dev_keeps_secure_settings(self):
+        backend = manage.environments(self.secret, 'eu-west-1', 'dev')['backend']
+        self.assertEqual(backend['DJANGO_SETTINGS_MODULE'], 'config.settings.prod')
+        self.assertEqual(backend['REFRESH_COOKIE_SECURE'], 'True')
+
+    def test_http_deploy_starts_proxy_before_apps_and_checks_routed_api(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'deploy').mkdir()
+            (root / 'deploy/config.dev.json').write_text(json.dumps({
+                'region': 'eu-west-1', 'registry': '790702264138.dkr.ecr.eu-west-1.amazonaws.com',
+                'secret_id': 'nautelo/dev'}))
+            commands = []
+            def fake_run(command, **kwargs):
+                commands.append(command)
+                if 'get-secret-value' in command:
+                    return manage.subprocess.CompletedProcess(command, 0, stdout=json.dumps(json.dumps(self.http_secret())))
+                if 'get-login-password' in command:
+                    return manage.subprocess.CompletedProcess(command, 0, stdout=b'password')
+                return manage.subprocess.CompletedProcess(command, 0)
+            with patch.object(manage, 'ROOT', root), patch.object(manage, 'run', side_effect=fake_run), \
+                 patch.object(manage.subprocess, 'run', return_value=manage.subprocess.CompletedProcess([], 0)), \
+                 patch('sys.argv', ['manage.py', 'deploy', 'dev', '42']):
+                manage.main()
+            proxy_up = next(i for i, cmd in enumerate(commands)
+                            if 'up' in cmd and any('proxy.dev-http.yml' in value for value in cmd))
+            apps_up = next(i for i, cmd in enumerate(commands) if 'up' in cmd and 'api' in cmd)
+            migration = next(i for i, cmd in enumerate(commands) if 'run' in cmd and 'migrate' in cmd)
+            self.assertLess(migration, proxy_up)
+            self.assertLess(proxy_up, apps_up)
+            self.assertIn('http://127.0.0.1/api/v1/health/', commands[-1])
+            self.assertIn('Host: 108.130.226.143', commands[-1])
+
     def test_deploy_stops_if_migration_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

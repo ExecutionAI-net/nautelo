@@ -22,10 +22,18 @@ class SSMDeploymentTests(unittest.TestCase):
         args = shlex.split(body['Parameters']['commands'][-1])
         self.assertEqual(args[:2], ['python3', '-c'])
         data = json.loads(gzip.decompress(base64.b64decode(args[-1])))
-        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.dev.yml', 'config.dev.json'})
+        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.dev.yml', 'config.dev.json', 'docker-compose.proxy.dev-http.yml', 'nginx.dev-http.conf'})
         self.assertNotIn('private-value', json.dumps(data))
         self.assertEqual(body['InstanceIds'], ['i-0123456789abcdef0'])
         self.assertEqual(body['Parameters']['executionTimeout'], ['1800'])
+
+    def test_prod_bundle_excludes_http_proxy(self):
+        body = ssm.request('prod', '42', 'i-0123456789abcdef0', {
+            'region': 'eu-west-1', 'registry': 'example', 'secret_id': 'nautelo/prod',
+        })
+        args = shlex.split(body['Parameters']['commands'][-1])
+        data = json.loads(gzip.decompress(base64.b64decode(args[-1])))
+        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.prod.yml', 'config.prod.json'})
 
     def test_rejects_non_numeric_tags_and_command_injection(self):
         for env, tag, instance in [('prod', 'dev-abc', 'i-0123456789abcdef0'),

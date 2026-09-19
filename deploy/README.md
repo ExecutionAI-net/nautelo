@@ -16,9 +16,53 @@ Image references use these four ECR repositories:
 790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/backend/prod:GITHUB_RUN_NUMBER
 ```
 
-`GITHUB_RUN_NUMBER` is replaced with the workflow's numeric run number, for example `42`. Both EC2 environments use hardened Django production settings; the dev environment is a deployed test environment. The root `docker-compose.yml` remains the local Postgres/Redis/MinIO setup.
+`GITHUB_RUN_NUMBER` is replaced with the workflow's numeric run number, for example `42`. The HTTPS configuration uses hardened Django production settings; the dev environment is a deployed test environment. The root `docker-compose.yml` remains the local Postgres/Redis/MinIO setup.
 
 Each environment has its own Postgres, Redis, Celery worker, Celery beat, frontend, API, volumes, Secrets Manager secret, and S3 bucket. Only Nginx publishes host ports (80 and 443). API and frontend join their environment's proxy network. Databases and Redis stay on their environment's default network. The worker consumes all four queues, including notifications.
+
+## Current rollout: dev only on the EC2 public IP
+
+For the initial test, use **http://108.130.226.143**. The API is at **http://108.130.226.143/api/v1/** on the same port. Nginx routes `/api/`, `/ws/`, `/admin/`, and Django `/static/` assets to the backend; other requests go to the frontend. Only host port **80** is published by this temporary proxy. Your existing security group ports 80, 443, and 22 are sufficient. Keep database, Redis, 3000, 8000, and 8080 closed.
+
+Update these three keys in the existing **`nautelo/dev`** Secrets Manager JSON, keeping all other required keys:
+
+```json
+{
+  "DEPLOY_ALLOW_HTTP": "true",
+  "NEXT_PUBLIC_BASE_URL": "http://108.130.226.143",
+  "NEXT_PUBLIC_API_BASE_URL": "http://108.130.226.143"
+}
+```
+
+This is a partial update example, not a replacement for the complete secret. Prod must keep HTTPS URLs and omit `DEPLOY_ALLOW_HTTP` (or set it to `false`). The deployment script rejects HTTP mode for prod. Dev HTTP keeps `DEBUG=False` and explicit allowed hosts, while disabling SSL redirects, HSTS, and secure-only cookies for this test. HTTP does not encrypt logins or session traffic; use test accounts and data.
+
+Apply the dev bucket CORS origin using AWS credentials with `s3:PutBucketCORS` (an AWS administration session or the S3 console; this configuration permission is not required on the application role):
+
+```bash
+aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-dev \
+  --cors-configuration '{"CORSRules":[{"AllowedOrigins":["http://108.130.226.143"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
+```
+
+Set `EC2_INSTANCE_ID=i-0a628b595b9e8d709` in the GitHub dev environment along with the OIDC role variable. Push `devops` and merge it into `dev` when ready. CI builds the dev images with these public URLs, then SSM deploys the app and automatically starts the temporary dev HTTP proxy. No certificates, domains, prod secret lookup, prod network, or manual proxy bootstrap is needed for this mode. Leave `main` unchanged until you are ready for prod. Port 80 must be free of any existing host Nginx/Apache or HTTPS proxy before the first deployment.
+
+After the workflow succeeds:
+
+```bash
+curl --fail http://108.130.226.143/api/v1/health/
+curl --fail http://108.130.226.143/login/
+```
+
+Check login/refresh, a photo/video upload, and signed S3 downloads in your browser. WebSocket connections use `ws://108.130.226.143/ws/...`. If the IP changes, update both public URLs, bucket CORS, and rebuild/redeploy.
+
+When moving to domains, set the dev URLs to the distinct HTTPS frontend/API origins, remove the HTTP opt-in, update S3 CORS, obtain the certificate, and bootstrap the shared HTTPS proxy as described below. Stop the temporary proxy first to release port 80:
+
+```bash
+sudo docker ps --filter label=com.docker.compose.project=nautelo-dev-http-proxy
+# In the last successful dev release directory:
+sudo env DEV_HTTP_HOST=108.130.226.143 docker compose -f deploy/docker-compose.proxy.dev-http.yml down
+```
+
+Do not use `down -v`; the static volume is shared with the dev application. HTTP-to-HTTPS migration should be a planned cutover. Normal HTTPS deployments do not automatically delete or replace the temporary proxy.
 
 ## 1. Prepare AWS and EC2
 
@@ -124,7 +168,7 @@ Use the numeric run number assigned to the release; avoid manually publishing ta
 
 Attach **AmazonSSMManagedInstanceCore** to your existing EC2 role if it is not already attached. Install/start the SSM Agent and verify the instance is **Online** in Systems Manager in `eu-west-1`. The instance needs outbound HTTPS access to Systems Manager/SSM Messages, ECR, Secrets Manager, and S3 through internet/NAT or the appropriate VPC endpoints. No inbound SSM port is needed.
 
-Keep Python 3, Docker, Compose 2.30+, AWS CLI v2, certificates, and the shared Nginx proxy installed on the host. SSM runs the deployment as root, and owns `/opt/nautelo/releases` and `/opt/nautelo/deploy/runtime`; use `sudo` for manual operational commands that read those runtime files. The shared Nginx proxy is bootstrapped once using the next section and is not recreated by each app deployment.
+Keep Python 3, Docker, Compose 2.30+, AWS CLI v2, certificates, and the shared Nginx proxy installed on the host. SSM runs the deployment as root, and owns `/opt/nautelo/releases` and `/opt/nautelo/deploy/runtime`; use `sudo` for manual operational commands that read those runtime files. For HTTPS, the shared Nginx proxy is bootstrapped once using the next section and is not recreated by each app deployment. Dev HTTP mode instead automatically starts its own temporary proxy.
 
 ## 6. Start the shared HTTPS proxy
 
@@ -213,3 +257,5 @@ Run helper tests with `python3 -m unittest discover -s deploy/tests -v`. On a Do
 - [Run Command IAM setup](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command-setting-up.html).
 
 - [Secrets Manager accepts secret names or ARNs](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html); [ARN suffix matching in IAM](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_iam-policies.html).
+
+- [Nginx proxy Host headers](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).

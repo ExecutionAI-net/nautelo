@@ -1,0 +1,29 @@
+# Temporary dev-only IP access. Cannot share port 80 with the HTTPS proxy.
+name: nautelo-dev-http-proxy
+services:
+  nginx:
+    image: nginx:stable-alpine
+    ports: ["80:80"]
+    environment:
+      DEV_HTTP_HOST: ${DEV_HTTP_HOST:?Set DEV_HTTP_HOST to the EC2 IPv4 address}
+      NGINX_ENVSUBST_FILTER: '^DEV_HTTP_HOST$$'
+    volumes:
+      - ./nginx.dev-http.conf:/etc/nginx/templates/default.conf.template:ro
+      - dev_static:/srv/static/dev:ro
+    networks: [dev]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1/proxy-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+networks:
+  dev:
+    external: true
+    name: nautelo-dev-edge
+volumes:
+  dev_static:
+    name: nautelo-dev-static

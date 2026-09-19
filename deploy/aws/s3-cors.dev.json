@@ -2,7 +2,7 @@
   "CORSRules": [
     {
       "AllowedOrigins": [
-        "https://dev.example.com"
+        "http://108.130.226.143"
       ],
       "AllowedMethods": [
         "GET",

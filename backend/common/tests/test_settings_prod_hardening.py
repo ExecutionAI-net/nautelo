@@ -5,13 +5,13 @@ import sys
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-_MODULES = ("config.settings.base", "config.settings.prod")
+_MODULES = ("config.settings.base", "config.settings.prod", "config.settings.dev_http")
 
 
-def _load_prod():
+def _load_prod(module="prod"):
     saved = {name: sys.modules.pop(name, None) for name in _MODULES}
     try:
-        return importlib.import_module("config.settings.prod")
+        return importlib.import_module(f"config.settings.{module}")
     finally:
         for name, module in saved.items():
             if module is None:
@@ -58,3 +58,37 @@ def test_s3_can_use_instance_role_without_static_keys_or_endpoint(monkeypatch):
     assert prod.AWS_S3_ENDPOINT_URL is None
     assert prod.AWS_S3_ADDRESSING_STYLE == "virtual"
     assert prod.AWS_S3_SIGNATURE_VERSION == "s3v4"
+
+
+def test_http_dev_disables_transport_settings_but_keeps_debug_off(monkeypatch):
+    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "108.130.226.143")
+    monkeypatch.setenv("DEPLOY_ENVIRONMENT", "dev")
+    monkeypatch.setenv("DEPLOY_ALLOW_HTTP", "true")
+    settings = _load_prod("dev_http")
+    assert settings.DEBUG is False
+    assert settings.SECURE_SSL_REDIRECT is False
+    assert settings.SESSION_COOKIE_SECURE is False
+    assert settings.CSRF_COOKIE_SECURE is False
+    assert settings.REFRESH_COOKIE_SECURE is False
+    assert settings.SECURE_HSTS_SECONDS == 0
+    assert settings.CORS_ALLOW_ALL_ORIGINS is False
+
+
+@pytest.mark.parametrize("environment,allow", [("prod", "true"), ("dev", "false"), ("", "true")])
+def test_http_settings_refuse_other_environments_or_missing_opt_in(monkeypatch, environment, allow):
+    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "108.130.226.143")
+    monkeypatch.setenv("DEPLOY_ENVIRONMENT", environment)
+    monkeypatch.setenv("DEPLOY_ALLOW_HTTP", allow)
+    with pytest.raises(ImproperlyConfigured):
+        _load_prod("dev_http")
+
+
+def test_prod_keeps_https_even_if_http_flag_is_set(monkeypatch):
+    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "api.example.com")
+    monkeypatch.setenv("DEPLOY_ENVIRONMENT", "prod")
+    monkeypatch.setenv("DEPLOY_ALLOW_HTTP", "true")
+    settings = _load_prod()
+    assert settings.SECURE_SSL_REDIRECT is True
+    assert settings.SESSION_COOKIE_SECURE is True
+    assert settings.CSRF_COOKIE_SECURE is True
+    assert settings.SECURE_HSTS_SECONDS > 0

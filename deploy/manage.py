@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import json
+import ipaddress
 import os
 from pathlib import Path
 import re
@@ -23,18 +24,20 @@ def run(args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
 
-def origin(value):
+def origin(value, allow_http=False):
     parsed = urlsplit(value)
-    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or
-            parsed.password or parsed.port or parsed.path not in ("", "/") or
-            parsed.query or parsed.fragment):
-        raise ValueError("Public URLs must be HTTPS origins without paths, credentials or ports")
+    if (parsed.scheme not in (("http", "https") if allow_http else ("https",)) or
+            not parsed.hostname or parsed.username or parsed.password or
+            (parsed.port is not None and not (allow_http and parsed.scheme == "http" and parsed.port == 80)) or
+            parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+        raise ValueError("Public URLs must be HTTPS origins, or explicitly enabled dev HTTP origins on port 80")
     if not re.fullmatch(r"[a-zA-Z0-9.-]+", parsed.hostname):
         raise ValueError("Invalid public hostname")
-    return "https://" + parsed.hostname
+    port = f":{parsed.port}" if parsed.port and parsed.port != 80 else ""
+    return f"{parsed.scheme}://{parsed.hostname}{port}"
 
 
-def environments(secret, region):
+def environments(secret, region, environment="prod"):
     if not isinstance(secret, dict):
         raise ValueError("SecretString must contain a JSON object")
     for key, value in secret.items():
@@ -50,17 +53,29 @@ def environments(secret, region):
         "OBJECT_STORAGE_ACCESS_KEY", "OBJECT_STORAGE_SECRET_KEY", "OBJECT_STORAGE_ENDPOINT_URL")]
     if forbidden:
         raise ValueError("Remove static AWS credentials/endpoint overrides from the AWS deployment secret")
-    web = origin(secret["NEXT_PUBLIC_BASE_URL"])
-    api = origin(secret["NEXT_PUBLIC_API_BASE_URL"])
-    if web == api:
-        raise ValueError("Use distinct frontend and API hostnames")
+    allow_http = secret.get("DEPLOY_ALLOW_HTTP", "false").lower()
+    if allow_http not in ("true", "false"):
+        raise ValueError("DEPLOY_ALLOW_HTTP must be true or false")
+    allow_http = allow_http == "true"
+    if allow_http and environment != "dev":
+        raise ValueError("HTTP testing is permitted only for dev, never prod")
+    web = origin(secret["NEXT_PUBLIC_BASE_URL"], allow_http)
+    api = origin(secret["NEXT_PUBLIC_API_BASE_URL"], allow_http)
+    if allow_http:
+        host = str(ipaddress.IPv4Address(urlsplit(web).hostname))
+        if web != f"http://{host}" or api != f"http://{host}":
+            raise ValueError("Dev HTTP requires frontend and API to use the same IPv4 address on port 80")
+    if web == api and not allow_http:
+        raise ValueError("Use distinct frontend and API origins")
     backend = {k: v for k, v in secret.items() if not k.startswith("NEXT_PUBLIC_") and k != "POSTGRES_PASSWORD"}
     backend.update({
-        "DJANGO_SETTINGS_MODULE": "config.settings.prod", "AWS_DEFAULT_REGION": region,
+        "DJANGO_SETTINGS_MODULE": "config.settings.dev_http" if allow_http else "config.settings.prod",
+        "DEPLOY_ENVIRONMENT": environment, "DEPLOY_ALLOW_HTTP": str(allow_http).lower(),
+        "AWS_DEFAULT_REGION": region,
         "DJANGO_ALLOWED_HOSTS": urlsplit(api).hostname,
         "DJANGO_CSRF_TRUSTED_ORIGINS": f"{web},{api}",
         "DJANGO_CORS_ALLOWED_ORIGINS": web, "PUBLIC_BASE_URL": web,
-        "TRUSTED_PROXY_COUNT": "1", "REFRESH_COOKIE_SECURE": "True",
+        "TRUSTED_PROXY_COUNT": "1", "REFRESH_COOKIE_SECURE": "False" if allow_http else "True",
         "DATABASE_URL": "postgres://nautelo:" + quote(secret["POSTGRES_PASSWORD"], safe="") + "@postgres:5432/nautelo",
         "REDIS_URL": "redis://redis:6379/0", "CELERY_BROKER_URL": "redis://redis:6379/1",
         "CELERY_RESULT_BACKEND": "redis://redis:6379/2", "CHANNELS_REDIS_URL": "redis://redis:6379/3",
@@ -110,7 +125,7 @@ def main():
         raw = run(["aws", "secretsmanager", "get-secret-value", "--region", region,
                    "--secret-id", config["secret_id"], "--query", "SecretString", "--output", "json"],
                   capture_output=True, text=True).stdout
-        values = environments(json.loads(json.loads(raw)), region)
+        values = environments(json.loads(json.loads(raw)), region, args.environment)
         images = image_references(registry, args.environment, args.tag)
         password = run(["aws", "ecr", "get-login-password", "--region", region], capture_output=True).stdout
         run(["docker", "login", "--username", "AWS", "--password-stdin", registry], input=password)
@@ -147,8 +162,17 @@ def main():
         run(compose + ["up", "-d", "--wait", "postgres", "redis"], env=process_env)
         # Run migrations for EVERY deployment; completed one-shot containers must not be reused.
         run(compose + ["run", "--rm", "--no-deps", "migrate"], env=process_env)
+        if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
+            proxy_env = dict(process_env, DEV_HTTP_HOST=urlsplit(values["frontend"]["NEXT_PUBLIC_BASE_URL"]).hostname)
+            proxy = ["docker", "compose", "-f", str(ROOT / "deploy/docker-compose.proxy.dev-http.yml")]
+            run(proxy + ["config", "--quiet"], env=proxy_env)
+            run(proxy + ["up", "-d", "--force-recreate", "--wait", "--wait-timeout", "90"], env=proxy_env)
         run(compose + ["up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "180",
                        "api", "worker", "beat", "web"], env=process_env)
+        if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
+            run(proxy + ["exec", "-T", "nginx", "wget", "-q", "-O", "/dev/null",
+                         "--header", f"Host: {proxy_env['DEV_HTTP_HOST']}",
+                         "http://127.0.0.1/api/v1/health/"], env=proxy_env)
         print(f"Deployed {args.environment}: {args.tag}")
 
 
