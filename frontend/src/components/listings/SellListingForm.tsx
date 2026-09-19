@@ -43,6 +43,10 @@ export default function SellListingForm({ brokerId }: { brokerId?: string }) {
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [price, setPrice] = useState("");
+  const [showFinance, setShowFinance] = useState(false);
+  const [downOverride, setDownOverride] = useState("");
+  const [rateOverride, setRateOverride] = useState("");
+  const [termOverride, setTermOverride] = useState("");
 
   const [listing, setListing] = useState<WorkflowListing | null>(null);
   const [media, setMedia] = useState<MediaRow[]>([]);
@@ -90,6 +94,14 @@ export default function SellListingForm({ brokerId }: { brokerId?: string }) {
       price,
       currency: "EUR",
     };
+    if (brokerId) {
+      body.show_finance_estimate = showFinance;
+      if (showFinance) {
+        if (downOverride.trim()) body.finance_down_payment_override_percent = downOverride.trim();
+        if (rateOverride.trim()) body.finance_rate_override_percent = rateOverride.trim();
+        if (termOverride.trim()) body.finance_term_override_months = Number(termOverride);
+      }
+    }
     if (!locked) {
       body.brand_id = brandId;
       body.manufacture_year = Number(year);
@@ -231,6 +243,34 @@ export default function SellListingForm({ brokerId }: { brokerId?: string }) {
           Price (EUR)
           <input className={FIELD} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required />
         </label>
+        {brokerId ? (
+          <fieldset className="flex flex-col gap-space-sm rounded-lg border border-outline-variant p-space-sm">
+            <legend className="font-title-sm text-title-sm">Financing estimate</legend>
+            <label className="font-body-md">
+              <input type="checkbox" checked={showFinance} onChange={(e) => setShowFinance(e.target.checked)} />{" "}
+              Show an estimated monthly payment on this listing
+            </label>
+            {showFinance ? (
+              <>
+                <p className="font-body-sm text-on-surface-variant">
+                  Leave blank to use the platform defaults. The estimate is illustrative and not a credit offer.
+                </p>
+                <label className="font-body-md">
+                  Down payment override (%)
+                  <input className={FIELD} inputMode="decimal" value={downOverride} onChange={(e) => setDownOverride(e.target.value)} />
+                </label>
+                <label className="font-body-md">
+                  Annual rate override (%)
+                  <input className={FIELD} inputMode="decimal" value={rateOverride} onChange={(e) => setRateOverride(e.target.value)} />
+                </label>
+                <label className="font-body-md">
+                  Term override (months)
+                  <input className={FIELD} inputMode="numeric" value={termOverride} onChange={(e) => setTermOverride(e.target.value)} />
+                </label>
+              </>
+            ) : null}
+          </fieldset>
+        ) : null}
         <button type="submit" disabled={busy} className="self-start rounded-lg bg-primary px-space-md py-space-sm text-on-primary">
           {listing ? "Save changes" : "Save draft"}
         </button>
