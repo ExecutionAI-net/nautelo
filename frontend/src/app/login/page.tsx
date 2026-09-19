@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
@@ -77,6 +78,12 @@ function LoginForm() {
       >
         {submitting ? "Signing in…" : "Sign in"}
       </button>
+      <p className="font-body-sm">
+        New here?{" "}
+        <Link href="/register" className="text-primary underline">
+          Create an account
+        </Link>
+      </p>
     </form>
   );
 }
