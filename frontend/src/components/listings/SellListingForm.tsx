@@ -722,17 +722,58 @@ export default function SellListingForm({
         </div>
 
         <aside aria-label={t("sell.preview")} className="h-fit lg:sticky lg:top-space-lg">
-          <div className={CARD}>
-            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("sell.preview")}</p>
-            <div className="mt-space-sm overflow-hidden rounded-lg bg-surface-container-high">
-              <div aria-hidden="true" className="aspect-[16/10] w-full bg-surface-container-high" data-testid="preview-image">
-                {previewImage ? null : null}
+          <div className="overflow-hidden rounded-lg bg-surface-container-lowest shadow-sm">
+            <div className="flex items-center justify-between bg-surface-container-low p-space-md">
+              <span className="font-label-sm text-label-sm font-semibold uppercase text-primary">{t("sell.preview")}</span>
+              <span className="rounded bg-surface-container-lowest px-2 py-0.5 font-label-sm text-label-sm text-on-surface-variant">{t("sell.live_sync")}</span>
+            </div>
+            <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary-container" data-testid="preview-image">
+              {previewImage?.preview_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="" className="h-full w-full object-cover" src={previewImage.preview_url} />
+              ) : null}
+              {city || country ? (
+                <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded bg-surface-container-lowest/90 px-2.5 py-1 font-label-sm text-label-sm text-primary shadow-sm backdrop-blur">
+                  <span className="material-symbols-outlined text-xs text-secondary" aria-hidden="true">location_on</span>
+                  <span>{[city, country.toUpperCase()].filter(Boolean).join(", ")}</span>
+                </div>
+              ) : null}
+              {specs.condition ? (
+                <div className="absolute left-3 top-3 rounded bg-primary/80 px-2.5 py-1 font-label-sm text-label-sm uppercase tracking-wider text-on-primary backdrop-blur">
+                  {specs.condition === "new" ? t("sell.condition.new") : t("sell.condition.used")}
+                  {year ? ` · ${year}` : ""}
+                </div>
+              ) : null}
+            </div>
+            <div className="p-space-lg">
+              <p className="font-headline-sm text-headline-sm leading-snug text-primary">{previewTitle}</p>
+              <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
+                {[year, specs.loa_m ? `${specs.loa_m} m` : "", specs.engine_model].filter(Boolean).join(" · ") || " "}
+              </p>
+              <div className="mt-space-md pt-space-sm">
+                <span className="block font-label-sm text-label-sm uppercase text-outline">{t("sell.asking_price")}</span>
+                <span className="font-spec-num text-lg font-semibold text-primary">{price ? `€ ${price}` : "—"}</span>
+              </div>
+              <div className="mt-space-lg rounded-lg bg-surface-container p-space-sm">
+                <span className="mb-1 block font-label-sm text-label-sm uppercase text-on-surface-variant">{t("sell.translation_health")}</span>
+                <div className="flex flex-wrap items-center gap-space-sm text-body-sm">
+                  {LANGS.map((item) => {
+                    const filled = [titles[item.code], descriptions[item.code]].filter((value) => value.trim()).length;
+                    const percent = Math.round((filled / 2) * 100);
+                    return (
+                      <span key={item.code} className={`flex items-center gap-1 ${percent === 100 ? "font-medium text-secondary" : "text-outline"}`}>
+                        <span className={`h-2 w-2 rounded-full ${percent === 100 ? "bg-secondary" : "bg-surface-dim"}`} aria-hidden="true" />
+                        {item.code.toUpperCase()} ({percent}%)
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-            <p className="mt-space-sm font-title-lg text-title-lg text-primary">{previewTitle}</p>
-            <p className="font-body-sm text-on-surface-variant">{[city, country.toUpperCase()].filter(Boolean).join(", ")}</p>
-            <p className="mt-space-sm font-label-sm uppercase tracking-widest text-on-surface-variant">{t("sell.asking_price")}</p>
-            <p className="font-spec-num text-headline-sm font-semibold text-primary">{price ? `€ ${price}` : "—"}</p>
+            <div className="flex items-start gap-space-sm bg-surface-container-low p-space-md font-body-sm text-body-sm text-on-surface-variant">
+              <span className="material-symbols-outlined mt-0.5 shrink-0 text-base text-secondary" aria-hidden="true">policy</span>
+              <p>{t("sell.preview_note")}</p>
+            </div>
           </div>
         </aside>
       </div>

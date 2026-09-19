@@ -272,3 +272,10 @@ class ListingMediaSerializer(serializers.Serializer):
     sort_order = serializers.IntegerField(read_only=True)
     rejection_reason = serializers.CharField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
+    preview_url = serializers.SerializerMethodField()
+
+    def get_preview_url(self, obj):
+        """A viewable URL for the owner's own ready images (form preview card)."""
+        if obj.media_type != "IMAGE" or obj.status != "READY":
+            return None
+        return _with_url({"storage_key": obj.storage_key})["url"]

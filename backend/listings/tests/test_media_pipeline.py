@@ -292,6 +292,14 @@ def test_the_owner_lists_their_uploads_without_rejected_ones(client, seller, fak
     assert [r["status"] for r in rows] == ["READY"]
 
 
+def test_ready_images_carry_a_preview_url_for_the_owner_form(client, seller, settings):
+    settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example.test"
+    listing = make_private_listing(owner=seller)
+    ready = make_media(listing, status=MediaStatus.READY)
+    rows = client.get(reverse("listing-media-list", args=[listing.pk])).data
+    assert rows[0]["preview_url"] == f"https://cdn.example.test/{ready.storage_key}"
+
+
 def test_removing_media_frees_a_slot_but_not_when_a_snapshot_shows_it(client, seller):
     from listings.tests.factories import make_snapshot
 

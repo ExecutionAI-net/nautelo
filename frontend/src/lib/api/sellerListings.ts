@@ -34,6 +34,7 @@ export interface MediaRow {
   byte_size: number;
   sort_order: number;
   rejection_reason: string;
+  preview_url?: string | null;
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
