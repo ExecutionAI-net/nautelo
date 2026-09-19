@@ -317,7 +317,7 @@ export default function SellListingForm({
         ))}
       </ol>
 
-      <div className="grid gap-space-lg lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-space-lg lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-space-lg">
           <form onSubmit={saveDetails} className="flex flex-col gap-space-lg">
             <section className={CARD} aria-labelledby="step-basic">

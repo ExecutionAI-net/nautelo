@@ -99,7 +99,7 @@ export default function PrimaryNav() {
           </li>
         ))}
       </ul>
-      <div className="ml-auto flex shrink-0 items-center gap-space-md">
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-space-md gap-y-space-xs">
         {loading ? null : authenticated ? (
           <>
             <NotificationBell locale={locale} />
