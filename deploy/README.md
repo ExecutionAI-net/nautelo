@@ -35,7 +35,7 @@ aws ecr create-repository --region eu-west-1 --repository-name nautelo/backend/p
 aws ecr create-repository --region eu-west-1 --repository-name nautelo/frontend/prod --image-tag-mutability IMMUTABLE
 ```
 
-Keep your existing EC2 IAM role with Secrets Manager, S3, and ECR permissions. `aws/ec2-policy.example.json` is a reference to compare resource scope with your account `790702264138` and after replacing the example bucket names; do not create a duplicate role. The role needs Secrets Manager read, ECR pull, and object access to the two buckets. If using a customer-managed KMS key, also grant the appropriate KMS permissions and key-policy access. Require IMDSv2 and set the response hop limit to **2**, so container SDKs can retrieve rotating role credentials:
+Keep your existing EC2 IAM role with Secrets Manager, S3, and ECR permissions. `aws/ec2-policy.example.json` is a reference to compare resource scope with your account `790702264138` and your confirmed buckets `nautelo-dev` / `nautelo-prod`; do not create a duplicate role. The role needs Secrets Manager read, ECR pull, and object access to the two buckets. If using a customer-managed KMS key, also grant the appropriate KMS permissions and key-policy access. Require IMDSv2 and set the response hop limit to **2**, so container SDKs can retrieve rotating role credentials:
 
 ```bash
 aws ec2 modify-instance-metadata-options --region eu-west-1 --instance-id i-REPLACE \
@@ -44,22 +44,29 @@ aws ec2 modify-instance-metadata-options --region eu-west-1 --instance-id i-REPL
 
 Do not put AWS access keys in Secrets Manager or Compose. The instance role supplies S3 credentials. These environments share a host and its IAM role: Docker network separation is not a security boundary against a compromised host/container with role access. Use separate instances/roles if dev must be unable to access prod AWS resources.
 
-## 2. Create private S3 buckets
+## 2. Configure the existing private S3 buckets
 
-Use your existing private media bucket in Secrets Manager as `OBJECT_STORAGE_BUCKET_NAME`; no CloudFront distribution is needed. Separate dev/prod buckets are recommended because the application generates the same key structure in both environments. If you currently have only one bucket, create a second for environment separation. For a new bucket, the example commands are:
+Use the existing buckets directly; no CloudFront distribution is needed. Set these values in each Secrets Manager JSON:
+
+| Secret | `OBJECT_STORAGE_BUCKET_NAME` | `OBJECT_STORAGE_REGION` |
+|---|---|---|
+| `nautelo/dev` | `nautelo-dev` | `eu-west-1` |
+| `nautelo/prod` | `nautelo-prod` | `eu-west-1` |
+
+The secret example uses the dev bucket. Change it to `nautelo-prod` when preparing the prod secret. The application reads this setting from Secrets Manager at deployment. The EC2 IAM policy example covers these exact buckets and their objects.
+
+Apply or verify the following configuration on the existing dev bucket:
 
 ```bash
-aws s3api create-bucket --region eu-west-1 --bucket nautelo-dev-media-ACCOUNT_ID \
-  --create-bucket-configuration LocationConstraint=eu-west-1
-aws s3api put-public-access-block --region eu-west-1 --bucket nautelo-dev-media-ACCOUNT_ID \
+aws s3api put-public-access-block --region eu-west-1 --bucket nautelo-dev \
   --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-aws s3api put-bucket-versioning --region eu-west-1 --bucket nautelo-dev-media-ACCOUNT_ID \
+aws s3api put-bucket-versioning --region eu-west-1 --bucket nautelo-dev \
   --versioning-configuration Status=Enabled
-aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-dev-media-ACCOUNT_ID \
+aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-dev \
   --cors-configuration file://deploy/aws/s3-cors.dev.json
 ```
 
-Repeat for prod using `s3-cors.prod.json`. Replace CORS origins with the actual frontend origins. Keep default encryption enabled; configure lifecycle retention for noncurrent versions to control storage usage. Do not delete active media by age.
+Repeat for bucket `nautelo-prod` using `s3-cors.prod.json`. Replace CORS origins with the actual frontend origins. Keep default encryption enabled; configure lifecycle retention for noncurrent versions to control storage usage. Do not delete active media by age.
 
 The existing upload-intent API gives the browser a presigned PUT URL. Photo/video bytes go directly to S3, avoiding Nginx's 5 MB API request limit. Workers validate uploads and sanitize images. The deployment enables `MEDIA_SIGNED_URLS`, which adds expiring signed GET URLs to approved public snapshot media; unsigned bucket access stays blocked. URLs expire (django-storages defaults to one hour), so long-lived browser pages must refetch listing data when needed. Existing video validation/processing behavior is unchanged; this setup does not add transcoding.
 
