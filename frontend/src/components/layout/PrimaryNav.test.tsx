@@ -94,8 +94,7 @@ describe("PrimaryNav", () => {
     expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("offers /sell/ only with the private-listing right and never /fleet/", () => {
-    // /sell/ exists (Phase 16) and is gated; /fleet/ has no page yet.
+  it("offers /sell/ and /fleet/ only with their listing rights", () => {
     mockSession(
       Object.fromEntries(
         Object.keys(ALL_FALSE).map((key) => [key, true]),
@@ -103,7 +102,7 @@ describe("PrimaryNav", () => {
     );
     render(<PrimaryNav />);
     expect(screen.getByRole("link", { name: "Sell" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Fleet" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Fleet" })).toBeInTheDocument();
   });
 
   it("shows the moderation link only to approvers", () => {
