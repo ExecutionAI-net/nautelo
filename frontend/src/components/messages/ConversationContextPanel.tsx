@@ -32,7 +32,7 @@ export default function ConversationContextPanel({ locale, context }: Props) {
   return (
     <aside
       aria-labelledby="thread-context-heading"
-      className="rounded-xl border border-outline-variant p-space-md"
+      className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm"
     >
       <h2
         id="thread-context-heading"

@@ -39,7 +39,7 @@ export default function ConversationThread({
   return (
     <div className="grid gap-space-lg lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section aria-labelledby="thread-subject">
-        <div className="flex flex-wrap items-center gap-space-sm">
+        <div className="flex flex-wrap items-center gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
           <h1
             id="thread-subject"
             className="font-headline-sm text-headline-sm text-primary"
@@ -79,11 +79,15 @@ export default function ConversationThread({
             {tConversations(locale, "messages.thread.empty")}
           </p>
         ) : (
-          <ol className="mt-space-lg flex flex-col gap-space-md">
+          <ol className="mt-space-lg flex flex-col gap-space-lg">
             {messages.map((message) => (
               <li
                 key={message.id}
-                className="rounded-xl border border-outline-variant p-space-md"
+                className={`max-w-[85%] rounded-xl p-space-md shadow-sm ${
+                  message.sender.is_you && !message.is_system
+                    ? "ml-auto bg-primary text-on-primary"
+                    : "bg-surface-container-lowest"
+                }`}
               >
                 {/* The attribution is its OWN span, for the same reason the
                     inbox row splits its context label: Testing Library matches
@@ -91,7 +95,7 @@ export default function ConversationThread({
                     children, so leaving the name and the " · " separator as
                     siblings of <time> inside this <p> would give it the text
                     "You ·" and no exact query could address "You". */}
-                <p className="font-label-md text-label-md text-on-surface-variant">
+                <p className="font-label-md text-label-md opacity-70">
                   <span>
                     {message.is_system
                       ? tConversations(locale, "messages.thread.system_note")
@@ -105,7 +109,7 @@ export default function ConversationThread({
                     {new Date(message.created_at).toLocaleString(locale)}
                   </time>
                 </p>
-                <p className="mt-space-xs whitespace-pre-wrap font-body-md text-on-surface">
+                <p className="mt-space-xs whitespace-pre-wrap font-body-md">
                   {message.body}
                 </p>
               </li>

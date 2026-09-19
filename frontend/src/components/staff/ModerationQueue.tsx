@@ -67,8 +67,19 @@ export default function ModerationQueue() {
 
   return (
     <section>
-      <h1 className="font-headline-md text-headline-md text-primary">Moderation queue</h1>
-      <p className="mt-space-xs">
+      <span className="font-label-sm uppercase tracking-widest text-secondary">Moderation / Registry control</span>
+      <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">Moderation queue</h1>
+      {counts ? (
+        <dl className="mt-space-md grid grid-cols-2 gap-space-md lg:grid-cols-5" aria-label="Queue totals">
+          {QUEUE_TABS.map((key) => (
+            <div key={key} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+              <dt className="font-label-sm uppercase tracking-wider text-on-surface-variant">{TAB_LABEL[key]}</dt>
+              <dd className="mt-space-xs font-headline-lg text-headline-lg text-primary">{counts[key]}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      <p className="mt-space-md">
         <Link href="/dashboard/staff/taxonomy/" className="font-body-md text-primary underline">
           Other-model queue
         </Link>
@@ -85,8 +96,8 @@ export default function ModerationQueue() {
             type="button"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`rounded-lg border border-outline-variant px-space-sm py-space-xs font-body-md ${
-              tab === key ? "bg-primary text-on-primary" : "text-primary"
+            className={`rounded-full px-space-md py-space-xs font-label-md ${
+              tab === key ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant"
             }`}
           >
             {TAB_LABEL[key]}
@@ -109,12 +120,13 @@ export default function ModerationQueue() {
       ) : current.results.length === 0 ? (
         <p className="mt-space-md font-body-md text-on-surface-variant">Nothing in this queue.</p>
       ) : (
-        <ul className="mt-space-md flex flex-col gap-space-sm">
+        <ul className="mt-space-md flex flex-col divide-y divide-outline-variant overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
           {current.results.map((row) => (
             <li
               key={`${row.kind}-${row.id}`}
-              className="rounded-lg border border-outline-variant p-space-sm"
+              className="flex flex-wrap items-center justify-between gap-space-sm p-space-md hover:bg-surface-container-low"
             >
+              <div>
               <p className="font-title-sm text-title-sm text-on-surface">
                 {row.year} {row.brand} {row.is_other_model ? row.custom_model_name || "Other" : row.model}
               </p>
@@ -123,6 +135,7 @@ export default function ModerationQueue() {
                 {row.waiting_seconds !== null ? ` · waiting ${waitLabel(row.waiting_seconds)}` : ""}
                 {row.is_other_model ? " · Other model" : ""}
               </p>
+              </div>
               {row.kind === "revision" ? (
                 <Link
                   href={`/dashboard/staff/revisions/${row.id}/`}
