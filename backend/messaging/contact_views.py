@@ -6,20 +6,25 @@ from a test, a management command or another view without going through HTTP.
 """
 
 from django.utils.cache import patch_vary_headers
-from rest_framework.exceptions import NotFound
+from rest_framework import serializers, status
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from accounts.permissions import IsActiveUser, IsStaffModerator
 from messaging.views import MessagingAPIView
 
 from .contact_access import (
+    ContactGrantAlreadyRevoked,
     ContactTargetNotFound,
     GrantedContact,
     record_first_reveal,
     record_staff_reveal,
     resolve_contact_access,
+    revoke_contact_access,
 )
-from .contact_payloads import contact_payload
+from .contact_payloads import contact_payload, staff_grant_payload
+from .models import ContactAccessGrant
 
 #: Spec §16: contact data is never public. This URL returns LOCKED to one viewer
 #: and GRANTED to the next, discriminated only by the Authorization header, and
@@ -115,3 +120,52 @@ class ContactAccessView(MessagingAPIView):
                 )
 
         return Response(contact_payload(access))
+
+
+class ContactGrantStateConflict(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "This contact access grant is no longer active."
+    default_code = "invalid_grant_state"
+
+
+class StaffContactGrantRevokeSerializer(serializers.Serializer):
+    # trim_whitespace + allow_blank=False together reject "   ".
+    reason = serializers.CharField(max_length=500, allow_blank=False, trim_whitespace=True)
+
+
+class StaffContactGrantRevokeView(MessagingAPIView):
+    """Extends MessagingAPIView for the same reason the read view does: an
+    anonymous caller must hear `authentication_required`, not DRF's
+    `not_authenticated` (Phase 6 contract rule 11).
+
+    No flag gate here either (rule 11a), and for a sharper reason than on the
+    read view: revocation is spec §16's abuse remedy, and the moment a feature
+    is switched off is exactly when an operator is most likely to be
+    firefighting. `test_revocation_still_works_when_the_reveal_flag_is_off`
+    pins it.
+    """
+
+    permission_classes = [IsActiveUser, IsStaffModerator]
+    throttle_scope = "contact_grant_admin"
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        # The body carries a viewer id and grant timestamps. It is not contact
+        # data, but it is per-staff-actor and has no business in any cache.
+        response = super().finalize_response(request, response, *args, **kwargs)
+        return apply_no_store(response)
+
+    def post(self, request, grant_id):
+        serializer = StaffContactGrantRevokeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            grant = revoke_contact_access(
+                grant_id=grant_id,
+                actor=request.user,
+                reason=serializer.validated_data["reason"],
+                request_id=getattr(request, "request_id", "") or None,
+            )
+        except ContactAccessGrant.DoesNotExist:
+            raise NotFound()
+        except ContactGrantAlreadyRevoked:
+            raise ContactGrantStateConflict()
+        return Response(staff_grant_payload(grant))

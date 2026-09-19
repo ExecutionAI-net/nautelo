@@ -264,3 +264,49 @@ def record_staff_reveal(*, segment, target_id, actor, request_id=None) -> None:
         metadata={"target_type": str(target_type), "reason": "staff_reveal_any_contact"},
         request_id=request_id,
     )
+
+
+class ContactGrantAlreadyRevoked(Exception):
+    """The grant is already revoked; re-revoking is a conflict, not a no-op."""
+
+
+@transaction.atomic
+def revoke_contact_access(*, grant_id, actor, reason, request_id=None) -> ContactAccessGrant:
+    """Spec §16's staff remedy, and §36.6's default response to a block.
+
+    Raises ContactAccessGrant.DoesNotExist for an unknown id (the view renders
+    404) and ContactGrantAlreadyRevoked for a second attempt (409). The row is
+    locked for the check-then-act so two moderators cannot both write a
+    revocation event for the same grant.
+    """
+    grant = ContactAccessGrant.objects.select_for_update().get(pk=grant_id)
+    if grant.revoked_at is not None:
+        raise ContactGrantAlreadyRevoked(str(grant_id))
+
+    now = timezone.now()
+    grant.revoked_at = now
+    # Drop "updated_at" from update_fields if Phase 6's ContactAccessGrant does
+    # not inherit common.models.UUIDTimeStampedModel (reconciliation row 2).
+    grant.save(update_fields=["revoked_at", "updated_at"])
+
+    record_audit_event(
+        actor_user=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        action="contact_access.revoked",
+        target_type="messaging.ContactAccessGrant",
+        target_id=grant.pk,
+        source=AuditEvent.Source.ADMIN,
+        before={"revoked_at": None},
+        # Same ISO 8601 UTC normalization as record_first_reveal above.
+        after={"revoked_at": now.isoformat().replace("+00:00", "Z")},
+        # Safe object IDs and the staff-supplied reason. No contact value, no
+        # entity name, no viewer email (spec §33.5).
+        metadata={
+            "target_type": grant.target_type,
+            "target_entity_id": str(grant.broker_id or grant.professional_id),
+            "viewer_id": str(grant.viewer_id),
+            "reason": reason,
+        },
+        request_id=request_id,
+    )
+    return grant
