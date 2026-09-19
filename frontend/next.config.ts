@@ -3,14 +3,17 @@ import type { NextConfig } from "next";
 const API_ORIGIN = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8020";
 
 // `next dev` needs eval for React refresh; production never gets it.
-const DEV_EVAL = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const DEV_EVAL = IS_PRODUCTION ? "" : " 'unsafe-eval'";
+// Local MinIO serves images over plain http; production media is https (S3).
+const DEV_IMG = IS_PRODUCTION ? "" : " http://localhost:* http://127.0.0.1:*";
 
 export const CSP = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${DEV_EVAL}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https:",
+  `img-src 'self' data: blob: https:${DEV_IMG}`,
   `connect-src 'self' ${API_ORIGIN} ${API_ORIGIN.replace(/^http/, "ws")} https:`,
   "object-src 'none'",
   "frame-ancestors 'none'",

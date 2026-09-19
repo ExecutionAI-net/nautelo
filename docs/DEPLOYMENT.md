@@ -47,3 +47,11 @@ No virus scanner or video processing (ffmpeg) is wired; images are decoded and r
 
 - `landing/`: static holding site (home, privacy, terms, contact) for email-provider domain approval. Edit `landing/site.json` (legal name, address, VAT, contact email, domain), run `python landing/build.py`, upload `landing/dist/` to any static host.
 - `deploy/`: `docker-compose.prod.yml` (postgres, redis, migrate, api/daphne, celery worker+beat, Next.js, nginx), Dockerfiles, `nginx.conf` (TLS + WebSocket + `X-Forwarded-Proto`), `.env.example`. Run: `docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build`.
+
+## Demo data on dev
+
+`python manage.py seed_demo_data --reset --enable-flags` fills a dev/staging database with about 90 listings (72 published, plus pending, draft, rejected, suspended and expired ones), 10 brokers, 14 service providers, conversations, entitlements, guides and ads, with photos stored through the configured object storage. Every account uses the `@demo.nauta.test` domain and one shared password (printed at the end, or set with `--password`). `--reset-only` removes it again. The command refuses to run when `DEPLOY_ENVIRONMENT=prod`. On the EC2 dev stack run it inside the `api` container, for example:
+
+```bash
+sudo sh -c 'cd "$(cat /opt/nautelo/deploy/runtime/dev/last-successful-release)" && docker compose --env-file /opt/nautelo/deploy/runtime/dev/compose.env -f deploy/docker-compose.dev.yml exec api python manage.py seed_demo_data --reset --enable-flags'
+```
