@@ -33,3 +33,15 @@ export function markAllNotificationsRead(): Promise<{ marked_read: number }> {
     method: "POST",
   });
 }
+
+export function fetchNotificationPreferences(): Promise<{ email_enabled: boolean }> {
+  return apiFetch("/api/v1/notifications/preferences/");
+}
+
+export function setEmailNotifications(email_enabled: boolean): Promise<{ email_enabled: boolean }> {
+  return apiFetch("/api/v1/notifications/preferences/", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email_enabled }),
+  });
+}

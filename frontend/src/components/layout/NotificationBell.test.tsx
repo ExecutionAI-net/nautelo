@@ -7,6 +7,8 @@ const api = vi.hoisted(() => ({
   fetchNotifications: vi.fn(),
   markNotificationRead: vi.fn().mockResolvedValue({}),
   markAllNotificationsRead: vi.fn().mockResolvedValue({ marked_read: 1 }),
+  fetchNotificationPreferences: vi.fn().mockResolvedValue({ email_enabled: true }),
+  setEmailNotifications: vi.fn().mockResolvedValue({ email_enabled: false }),
 }));
 vi.mock("@/lib/api/notifications", () => api);
 vi.mock("@/lib/realtime/notificationSocket", () => ({ connectNotifications: () => () => {} }));
@@ -47,5 +49,14 @@ describe("NotificationBell", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Notifications/ }));
     await screen.findByText("Your listing was approved");
     expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("lets the user opt out of email", async () => {
+    api.fetchNotifications.mockResolvedValue({ results: [], unread_count: 0 });
+    render(<NotificationBell locale="en" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Notifications/ }));
+    const box = await screen.findByLabelText("Email me about these");
+    fireEvent.click(box);
+    await waitFor(() => expect(api.setEmailNotifications).toHaveBeenCalledWith(false));
   });
 });

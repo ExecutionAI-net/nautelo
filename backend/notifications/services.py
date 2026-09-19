@@ -8,7 +8,11 @@ from notifications.enums import (
     DeliveryChannel,
     DeliveryStatus,
 )
-from notifications.models import Notification, NotificationDelivery
+from notifications.models import (
+    Notification,
+    NotificationDelivery,
+    NotificationPreference,
+)
 
 
 def _find_deduplicated(*, recipient, notification_type, dedupe_key):
@@ -23,6 +27,11 @@ def _find_deduplicated(*, recipient, notification_type, dedupe_key):
         notification_type=notification_type,
         dedupe_key=dedupe_key,
     ).first()
+
+
+def _email_enabled(user) -> bool:
+    preference = NotificationPreference.objects.filter(user=user).first()
+    return preference is None or preference.email_enabled
 
 
 def create_notification(
@@ -115,7 +124,7 @@ def create_notification(
         push_id = str(notification.pk)
         transaction.on_commit(lambda: push_notification_ws.delay(push_id))
 
-    if email_to:
+    if email_to and _email_enabled(recipient):
         NotificationDelivery.objects.create(
             notification=notification,
             channel=DeliveryChannel.EMAIL,

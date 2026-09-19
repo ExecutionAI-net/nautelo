@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser
 
-from .models import Notification
+from .models import Notification, NotificationPreference
 from .serializers import NotificationSerializer
 
 
@@ -61,3 +61,25 @@ class NotificationReadAllView(_Base):
             read_at=timezone.now()
         )
         return Response({"marked_read": marked})
+
+
+class NotificationPreferenceView(_Base):
+    """GET/PATCH /api/v1/notifications/preferences/ - {email_enabled}."""
+
+    def _payload(self, request):
+        preference = NotificationPreference.objects.filter(user=request.user).first()
+        return {"email_enabled": True if preference is None else preference.email_enabled}
+
+    def get(self, request):
+        return Response(self._payload(request))
+
+    def patch(self, request):
+        value = request.data.get("email_enabled")
+        if not isinstance(value, bool):
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"email_enabled": "Send true or false."})
+        NotificationPreference.objects.update_or_create(
+            user=request.user, defaults={"email_enabled": value}
+        )
+        return Response(self._payload(request))
