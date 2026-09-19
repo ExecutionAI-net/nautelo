@@ -10,7 +10,10 @@ from brokers.views import (
     StaffBrokerDetailView,
 )
 
+from brokers.profile_views import BrokerProfileView
+
 urlpatterns = [
+    path("brokers/<uuid:broker_id>/profile/", BrokerProfileView.as_view(), name="broker-profile"),
     path("brokers/", PublicBrokerListView.as_view(), name="public-broker-list"),
     path(
         "brokers/by-slug/<slug:slug>/",
