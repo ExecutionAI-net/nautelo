@@ -20,6 +20,7 @@ export default function StaffBrokersPage() {
             { key: "listing_count", label: "Listings" },
           ]}
           statusOptions={["DRAFT", "PENDING", "ACTIVE", "SUSPENDED"]}
+        statusActionsBase="/api/v1/staff/brokers/"
         />
       </RequirePermission>
     </AreaShell>

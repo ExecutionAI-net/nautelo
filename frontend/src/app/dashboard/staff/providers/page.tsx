@@ -20,6 +20,7 @@ export default function StaffProvidersPage() {
             { key: "country_code", label: "Country" },
           ]}
           statusOptions={["DRAFT", "PENDING", "ACTIVE", "SUSPENDED"]}
+        statusActionsBase="/api/v1/staff/providers/"
         />
       </RequirePermission>
     </AreaShell>

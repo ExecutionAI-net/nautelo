@@ -54,3 +54,28 @@ def test_user_search_and_role_filter(staff_api):
 def test_reports_counts(staff_api):
     body = staff_api.get(reverse("staff-reports")).json()
     assert body["users"] >= 1 and set(body) >= {"brokers", "providers", "listings"}
+
+
+def test_staff_admin_activates_and_suspends_a_provider_and_it_is_audited(staff_api):
+    from audit.models import AuditEvent
+    from professionals.models import ProfessionalProfile
+
+    owner = make_user(email="prov-owner@example.com", role=UserRole.SERVICE_PROVIDER, verified=True)
+    profile = ProfessionalProfile.objects.create(
+        owner_user=owner, display_name="P", slug="p", public_email="p@example.com", public_phone="+34600", country_code="ES", status="PENDING"
+    )
+    url = reverse("staff-provider-status", args=[profile.id])
+    assert staff_api.post(url, {"status": "ACTIVE"}, format="json").json()["status"] == "ACTIVE"
+    profile.refresh_from_db()
+    assert profile.status == "ACTIVE"
+    assert staff_api.post(url, {"status": "DRAFT"}, format="json").status_code == 400
+    assert AuditEvent.objects.filter(action="professionals.ProfessionalProfile.status_changed").count() == 1
+
+
+def test_status_change_needs_staff_admin():
+    from brokers.models import BrokerOrganization
+
+    broker = BrokerOrganization.objects.create(name="B", slug="b", public_email="b@example.com", public_phone="+34600")
+    seller = APIClient()
+    seller.force_authenticate(make_user(email="not-staff@example.com", role=UserRole.PRIVATE_SELLER, verified=True))
+    assert seller.post(reverse("staff-broker-status", args=[broker.id]), {"status": "ACTIVE"}, format="json").status_code == 403
