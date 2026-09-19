@@ -84,6 +84,7 @@ export interface FinanceConfigurationDefaults {
 export interface ListingSearch {
   page?: string;
   page_size?: string;
+  broker?: string;
 }
 
 export function listingQuery(params: ListingSearch): string {

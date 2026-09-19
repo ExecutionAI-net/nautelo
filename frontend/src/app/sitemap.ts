@@ -5,6 +5,7 @@ import {
   fetchServiceCategories,
   type ProfessionalCard,
 } from "@/lib/api/directory";
+import { fetchBrokers } from "@/lib/api/brokers";
 import { fetchPublishedListings, listingPath } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
@@ -54,17 +55,40 @@ async function allListingPaths(): Promise<string[]> {
   }
 }
 
+async function allBrokerPaths(): Promise<string[]> {
+  const paths: string[] = [];
+  let page = 1;
+  for (;;) {
+    const batch = await fetchBrokers(String(page));
+    if (batch === null) {
+      return paths;
+    }
+    paths.push(...batch.results.map((broker) => broker.url));
+    if (!batch.next) {
+      return paths;
+    }
+    page += 1;
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [categories, professionals, listingPaths] = await Promise.all([
+  const [categories, professionals, listingPaths, brokerPaths] = await Promise.all([
     fetchServiceCategories(DEFAULT_LOCALE),
     allProfessionals(),
     allListingPaths().catch(() => [] as string[]),
+    allBrokerPaths().catch(() => [] as string[]),
   ]);
 
   // With the flag off the directory has no public URLs at all, so the sitemap
   // is empty rather than advertising a page that now 404s.
   const boats: MetadataRoute.Sitemap = [
     { url: `${PUBLIC_BASE_URL}/boats/`, changeFrequency: "daily", priority: 1 },
+    { url: `${PUBLIC_BASE_URL}/brokers/`, changeFrequency: "daily", priority: 0.9 },
+    ...brokerPaths.map((path) => ({
+      url: `${PUBLIC_BASE_URL}${path}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    })),
     ...listingPaths.map((path) => ({
       url: `${PUBLIC_BASE_URL}${path}`,
       changeFrequency: "weekly" as const,

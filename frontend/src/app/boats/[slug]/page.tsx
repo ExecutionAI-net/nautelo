@@ -83,7 +83,11 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
         </div>
         <aside className="flex flex-col gap-space-md">
           {listing.broker ? (
-            <p className="font-body-md text-on-surface">{listing.broker.name}</p>
+            <p className="font-body-md text-on-surface">
+              <Link href={`/brokers/${listing.broker.slug}/`} className="text-primary underline">
+                {listing.broker.name}
+              </Link>
+            </p>
           ) : null}
           {inquiryConfig?.enabled ? (
             <InquiryForm

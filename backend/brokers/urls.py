@@ -1,5 +1,6 @@
 from django.urls import path
 
+from brokers.public_views import PublicBrokerDetailView, PublicBrokerListView
 from brokers.views import (
     BrokerDashboardView,
     BrokerApprovalPolicyView,
@@ -10,6 +11,12 @@ from brokers.views import (
 )
 
 urlpatterns = [
+    path("brokers/", PublicBrokerListView.as_view(), name="public-broker-list"),
+    path(
+        "brokers/by-slug/<slug:slug>/",
+        PublicBrokerDetailView.as_view(),
+        name="public-broker-detail",
+    ),
     path(
         "brokers/<uuid:broker_id>/members/",
         BrokerMemberListView.as_view(),
