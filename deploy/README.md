@@ -26,7 +26,7 @@ Use a Linux **x86_64** EC2 instance (the GitHub build runner builds amd64 images
 
 Allow inbound TCP 80 and 443; restrict SSH to your administration IP or use SSM. Do not open PostgreSQL, Redis, 3000, or 8000. Point all four DNS A records at the Elastic IP. Use the domains directly; adding a CDN proxy changes the trusted client-IP configuration.
 
-The two backend repositories and frontend prod repository are already supplied. The frontend dev path `nautelo/frontend/dev` is assumed to follow the same structure; confirm it exists. Create only missing repositories (do not recreate existing ones):
+All four ECR repository paths above have been confirmed, including `790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/frontend/dev`. The creation commands below are reference only; do not recreate existing repositories:
 
 ```bash
 aws ecr create-repository --region eu-west-1 --repository-name nautelo/backend/dev --image-tag-mutability IMMUTABLE
