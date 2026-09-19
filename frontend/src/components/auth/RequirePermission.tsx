@@ -9,7 +9,9 @@ import { useSession } from "@/lib/auth/session";
 import type { PermissionKey } from "@/lib/auth/types";
 
 interface Props {
-  permission: PermissionKey;
+  /** Optional. When omitted the component is only the sign-in guard: authorization
+   * for conversations is server-side (no PermissionKey exists for it in spec 5). */
+  permission?: PermissionKey;
   children: React.ReactNode;
 }
 
@@ -19,7 +21,7 @@ export default function RequirePermission({ permission, children }: Props) {
   const { session, loading, can } = useSession();
 
   const authenticated = session?.authenticated === true;
-  const allowed = can(permission);
+  const allowed = permission === undefined || can(permission);
 
   useEffect(() => {
     if (loading || authenticated) return;
