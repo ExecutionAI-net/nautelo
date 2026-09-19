@@ -99,3 +99,25 @@ class SpamDetected(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "This submission could not be accepted."
     default_code = "spam_detected"
+
+
+class InvalidInquiryDraft(APIException):
+    """A draft token that is not ours, or has been altered."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "This saved draft could not be read."
+    default_code = "invalid_draft"
+
+
+class InquiryDraftExpired(APIException):
+    """Spec 15.2's "short-lived" half, made visible.
+
+    A separate code from invalid_draft because the two mean different things to
+    a person: "start again" versus "something is wrong". 400 rather than 410,
+    because the draft is a value inside the request body, not the resource the
+    URL names.
+    """
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "This saved draft has expired. Please retype your message."
+    default_code = "draft_expired"

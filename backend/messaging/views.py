@@ -7,8 +7,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser
+from messaging.drafts import read_inquiry_draft, sign_inquiry_draft
 from messaging.enums import (
     CURRENT_PRIVACY_POLICY_VERSION,
+    DRAFT_TOKEN_MAX_AGE_SECONDS,
     FULL_NAME_MAX_LENGTH,
     FULL_NAME_MIN_LENGTH,
     HONEYPOT_FIELD_NAME,
@@ -21,7 +23,12 @@ from messaging.enums import (
 )
 from messaging.exceptions import MessagingThrottled
 from messaging.permissions import InquiryEmailVerified, UnifiedInquiriesEnabled
-from messaging.serializers import InquiryResultSerializer, InquirySubmissionSerializer
+from messaging.serializers import (
+    InquiryDraftCreateSerializer,
+    InquiryDraftResolveSerializer,
+    InquiryResultSerializer,
+    InquirySubmissionSerializer,
+)
 from messaging.services import submit_inquiry
 from platform_settings.services import is_feature_enabled
 
@@ -151,3 +158,47 @@ class InquiryConfigView(MessagingAPIView):
                 },
             }
         )
+
+
+class InquiryDraftCreateView(MessagingAPIView):
+    """POST /api/v1/inquiry-drafts/ - an addition beyond spec 30.1's table,
+    required by spec 15.2. AllowAny by definition: its whole purpose is to hold
+    a guest's work while they authenticate."""
+
+    permission_classes = [UnifiedInquiriesEnabled, AllowAny]
+    throttle_scope = "inquiry_draft"
+
+    def post(self, request):
+        serializer = InquiryDraftCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            {
+                "draft_token": sign_inquiry_draft(serializer.validated_data),
+                "expires_in": DRAFT_TOKEN_MAX_AGE_SECONDS,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InquiryDraftResolveView(MessagingAPIView):
+    """POST /api/v1/inquiry-drafts/resolve/ - the return half of spec 15.2.
+
+    Verified account required, for the same reason submission is: restoring a
+    draft is the step immediately before sending one, and there is no case where
+    an unverified account should reach it. It returns the fields and nothing
+    else - it never sends (spec 15.2: "Do not send an inquiry automatically
+    after login").
+    """
+
+    permission_classes = [
+        UnifiedInquiriesEnabled,
+        IsAuthenticated,
+        IsActiveUser,
+        InquiryEmailVerified,
+    ]
+    throttle_scope = "inquiry_draft"
+
+    def post(self, request):
+        serializer = InquiryDraftResolveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(read_inquiry_draft(serializer.validated_data["draft_token"]))
