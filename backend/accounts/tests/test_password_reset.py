@@ -51,3 +51,18 @@ def test_weak_password_is_refused_and_the_token_survives_and_a_new_request_kills
     stale = client.post(reverse("auth-password-reset-confirm"), {"token": first, "password": "Br4nd-new-pass-77"}, format="json")
     assert stale.status_code == 400
     assert PasswordResetToken.objects.filter(user=user, used_at__isnull=True).count() == 1
+
+
+def test_a_reset_ends_every_existing_refresh_token():
+    from rest_framework_simplejwt.tokens import RefreshToken
+
+    user = make_user()
+    old = str(RefreshToken.for_user(user))
+    client = APIClient()
+    client.post(reverse("auth-password-reset"), {"email": user.email}, format="json")
+    client.post(
+        reverse("auth-password-reset-confirm"),
+        {"token": _token_from_mail(), "password": "Br4nd-new-pass-77"},
+        format="json",
+    )
+    assert client.post(reverse("auth-token-refresh"), {"refresh": old}, format="json").status_code == 401
