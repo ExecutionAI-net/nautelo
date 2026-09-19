@@ -29,6 +29,17 @@ const AREAS = {
     ] as Tab[],
     cta: { href: "/dashboard/broker/fleet/", label: "Add to fleet" },
   },
+  provider: {
+    eyebrow: "Service provider area",
+    title: "Provider workspace",
+    tabs: [
+      { href: "/dashboard/service-provider/", label: "Dashboard" },
+      { href: "/dashboard/service-provider/requests/", label: "Requests" },
+      { href: "/dashboard/service-provider/services/", label: "Services" },
+      { href: "/dashboard/service-provider/profile/", label: "Profile" },
+    ] as Tab[],
+    cta: null,
+  },
   staff: {
     eyebrow: "Staff area",
     title: "Platform administration",
