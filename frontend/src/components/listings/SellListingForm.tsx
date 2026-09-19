@@ -29,26 +29,39 @@ function describe(error: unknown): string {
   return "The request failed.";
 }
 
-export default function SellListingForm({ brokerId }: { brokerId?: string }) {
+function text(payload: Record<string, unknown>, key: string): string {
+  const value = payload[key];
+  return value === null || value === undefined ? "" : String(value);
+}
+
+export default function SellListingForm({
+  brokerId,
+  initial,
+}: {
+  brokerId?: string;
+  /** An existing listing (from GET listings/<id>/workflow/) to keep editing. */
+  initial?: WorkflowListing;
+}) {
+  const seed = initial?.revision?.payload ?? {};
   const [brands, setBrands] = useState<TaxonomyItem[]>([]);
   const [models, setModels] = useState<TaxonomyItem[]>([]);
   const [other, setOther] = useState<{ id: string; label: string } | null>(null);
   const [brandQuery, setBrandQuery] = useState("");
-  const [brandId, setBrandId] = useState("");
-  const [modelId, setModelId] = useState("");
-  const [customModel, setCustomModel] = useState("");
-  const [year, setYear] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [country, setCountry] = useState("");
-  const [city, setCity] = useState("");
-  const [price, setPrice] = useState("");
-  const [showFinance, setShowFinance] = useState(false);
-  const [downOverride, setDownOverride] = useState("");
-  const [rateOverride, setRateOverride] = useState("");
-  const [termOverride, setTermOverride] = useState("");
+  const [brandId, setBrandId] = useState(text(seed, "brand_id"));
+  const [modelId, setModelId] = useState(text(seed, "model_id"));
+  const [customModel, setCustomModel] = useState(text(seed, "custom_model_name"));
+  const [year, setYear] = useState(text(seed, "manufacture_year"));
+  const [title, setTitle] = useState(text(seed, "title_en"));
+  const [description, setDescription] = useState(text(seed, "description_en"));
+  const [country, setCountry] = useState(text(seed, "location_country"));
+  const [city, setCity] = useState(text(seed, "location_city"));
+  const [price, setPrice] = useState(text(seed, "price"));
+  const [showFinance, setShowFinance] = useState(seed.show_finance_estimate === true);
+  const [downOverride, setDownOverride] = useState(text(seed, "finance_down_payment_override_percent"));
+  const [rateOverride, setRateOverride] = useState(text(seed, "finance_rate_override_percent"));
+  const [termOverride, setTermOverride] = useState(text(seed, "finance_term_override_months"));
 
-  const [listing, setListing] = useState<WorkflowListing | null>(null);
+  const [listing, setListing] = useState<WorkflowListing | null>(initial ?? null);
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,6 +96,20 @@ export default function SellListingForm({ brokerId }: { brokerId?: string }) {
   }, [brandId]);
 
   const isOther = other !== null && modelId === other.id;
+  const initialId = initial?.id;
+  useEffect(() => {
+    if (!initialId) return;
+    let cancelled = false;
+    listMedia(initialId)
+      .then((rows) => {
+        if (!cancelled) setMedia(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [initialId]);
+
   const locked = (listing?.policy.immutable_fields.length ?? 0) > 0;
 
   function payload(): Record<string, unknown> {

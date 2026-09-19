@@ -145,3 +145,21 @@ export function startMediaUpgradeCheckout(listingId: string, returnUrl: string) 
     }),
   });
 }
+
+export interface MyListingRow {
+  id: string;
+  title: string;
+  status: string;
+  seller_type: string;
+  slug: string | null;
+  updated_at: string;
+  expires_at: string | null;
+}
+
+export function fetchMyListings() {
+  return apiFetch<MyListingRow[]>("/api/v1/listings/mine/");
+}
+
+export function fetchWorkflowListing(id: string) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(id)}/workflow/`);
+}
