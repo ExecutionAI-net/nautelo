@@ -153,3 +153,23 @@ class StaffReportsView(APIView):
                 "entitlements": UserEntitlement.objects.count(),
             }
         )
+
+
+class BoatRowSerializer(serializers.ModelSerializer):
+    brand_name = serializers.CharField(source="brand.name", read_only=True)
+    owner_email = serializers.EmailField(source="owner_user.email", read_only=True, default=None)
+    broker_name = serializers.CharField(source="broker.name", read_only=True, default=None)
+
+    class Meta:
+        model = BoatListing
+        fields = (
+            "id", "slug", "status", "seller_type", "brand_name", "manufacture_year", "price", "currency",
+            "owner_email", "broker_name", "published_at", "created_at",
+        )
+
+
+class StaffBoatListView(StaffListView):
+    serializer_class = BoatRowSerializer
+    search_fields = ("brand__name", "owner_user__email", "broker__name", "slug")
+    status_field = "status"
+    queryset = BoatListing.objects.select_related("brand", "owner_user", "broker").order_by("-created_at")

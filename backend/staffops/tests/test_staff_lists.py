@@ -11,6 +11,7 @@ from accounts.tests.factories import make_user
 pytestmark = pytest.mark.django_db
 
 NAMES = [
+    "staff-boat-list",
     "staff-user-list",
     "staff-broker-list",
     "staff-provider-list",
