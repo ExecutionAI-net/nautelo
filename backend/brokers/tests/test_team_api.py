@@ -111,7 +111,9 @@ def test_adding_an_unknown_email_returns_a_stable_code(api, broker_with_admin):
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["user_email"] == ["user_not_found"]
+    assert response.data["error"]["fields"]["user_email"] == [
+        {"message": "user_not_found", "code": "invalid"}
+    ]
 
 
 @pytest.mark.django_db
@@ -124,7 +126,9 @@ def test_adding_the_same_user_twice_is_rejected(api, broker_with_admin):
     response = api.post(members_url(broker), {"user_email": "twice@example.com"}, format="json")
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["user_email"] == ["membership_exists"]
+    assert response.data["error"]["fields"]["user_email"] == [
+        {"message": "membership_exists", "code": "invalid"}
+    ]
 
 
 @pytest.mark.django_db
@@ -179,7 +183,9 @@ def test_a_manager_cannot_promote_themselves_to_admin(api, broker_with_admin_and
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["role"] == ["cannot_change_own_broker_role"]
+    assert response.data["error"]["fields"]["role"] == [
+        {"message": "cannot_change_own_broker_role", "code": "invalid"}
+    ]
     manager_membership.refresh_from_db()
     assert manager_membership.role == BrokerMembershipRole.MANAGER
 
@@ -200,7 +206,7 @@ def test_a_manager_cannot_grant_admin_to_a_third_party(api, broker_with_admin_an
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["role"] == [
-        "broker_admin_grant_requires_admin"
+        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
     ]
     agent_membership.refresh_from_db()
     assert agent_membership.role == BrokerMembershipRole.AGENT
@@ -243,7 +249,7 @@ def test_a_manager_cannot_hand_out_can_manage_team(api, broker_with_admin_and_ma
     # The rejection is keyed under the field that carried the grant, not `role`:
     # this request never mentioned `role`.
     assert response.data["error"]["fields"]["can_manage_team"] == [
-        "broker_admin_grant_requires_admin"
+        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
     ]
     agent_membership.refresh_from_db()
     assert agent_membership.can_manage_team is False
@@ -264,7 +270,7 @@ def test_a_manager_cannot_create_an_admin_membership(api, broker_with_admin_and_
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["role"] == [
-        "broker_admin_grant_requires_admin"
+        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
     ]
     assert not BrokerMembership.objects.filter(
         broker=broker, user__email="freshadmin@example.com"
@@ -285,7 +291,9 @@ def test_even_an_admin_cannot_edit_their_own_role(api, broker_with_admin):
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["role"] == ["cannot_change_own_broker_role"]
+    assert response.data["error"]["fields"]["role"] == [
+        {"message": "cannot_change_own_broker_role", "code": "invalid"}
+    ]
 
 
 @pytest.mark.django_db
@@ -327,7 +335,7 @@ def test_a_role_change_and_a_flag_change_cannot_share_one_request(
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["can_read_messages"] == [
-        "set_flags_in_a_separate_request"
+        {"message": "set_flags_in_a_separate_request", "code": "invalid"}
     ]
 
 
@@ -351,7 +359,9 @@ def test_the_last_active_admin_cannot_be_demoted(api, broker_with_admin):
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["role"] == ["last_broker_admin"]
+    assert response.data["error"]["fields"]["role"] == [
+        {"message": "last_broker_admin", "code": "invalid"}
+    ]
     membership.refresh_from_db()
     assert membership.role == BrokerMembershipRole.ADMIN
 
@@ -367,7 +377,9 @@ def test_the_last_active_admin_cannot_be_deactivated(api, broker_with_admin):
     response = api.delete(member_url(broker, membership))
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["is_active"] == ["last_broker_admin"]
+    assert response.data["error"]["fields"]["is_active"] == [
+        {"message": "last_broker_admin", "code": "invalid"}
+    ]
 
 
 @pytest.mark.django_db
@@ -458,7 +470,7 @@ def test_a_manager_cannot_create_a_membership_holding_can_manage_team(
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["can_manage_team"] == [
-        "broker_admin_grant_requires_admin"
+        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
     ]
     assert not BrokerMembership.objects.filter(
         broker=broker, user__email="freshmanager@example.com"
@@ -485,7 +497,7 @@ def test_a_manager_cannot_touch_an_admins_membership_even_for_an_unrelated_flag(
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["role"] == [
-        "broker_admin_grant_requires_admin"
+        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
     ]
     admin_membership.refresh_from_db()
     assert admin_membership.can_edit_listings is True
@@ -506,7 +518,7 @@ def test_a_manager_cannot_deactivate_the_brokers_admin(api, broker_with_admin_an
 
     assert response.status_code == 400
     assert response.data["error"]["fields"]["role"] == [
-        "broker_admin_grant_requires_admin"
+        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
     ]
     admin_membership.refresh_from_db()
     assert admin_membership.is_active is True
@@ -534,7 +546,9 @@ def test_a_role_change_bundled_with_is_active_cannot_dodge_the_last_admin_guard(
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["role"] == ["last_broker_admin"]
+    assert response.data["error"]["fields"]["role"] == [
+        {"message": "last_broker_admin", "code": "invalid"}
+    ]
     membership.refresh_from_db()
     assert membership.role == BrokerMembershipRole.ADMIN
     assert membership.is_active is True
@@ -599,7 +613,9 @@ def test_a_self_deactivation_cannot_smuggle_a_role_change(
     )
 
     assert response.status_code == 400
-    assert response.data["error"]["fields"]["role"] == ["cannot_change_own_broker_role"]
+    assert response.data["error"]["fields"]["role"] == [
+        {"message": "cannot_change_own_broker_role", "code": "invalid"}
+    ]
     manager_membership.refresh_from_db()
     assert manager_membership.role == BrokerMembershipRole.MANAGER
     assert manager_membership.is_active is True

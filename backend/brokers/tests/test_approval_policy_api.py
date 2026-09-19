@@ -398,7 +398,7 @@ def test_a_missing_or_blank_reason_reaches_the_client_with_the_shared_message(
         response = api.patch(_url(broker), body, format="json")
         assert response.status_code == 400
         assert response.data["error"]["fields"]["reason"] == [
-            POLICY_REASON_REQUIRED_MESSAGE
+            {"message": POLICY_REASON_REQUIRED_MESSAGE, "code": "policy_reason_required"}
         ]
 
 
