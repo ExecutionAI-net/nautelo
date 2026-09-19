@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "platform_settings",
     "payments",
     "content",
+    "staffops",
 ]
 
 MIDDLEWARE = [
