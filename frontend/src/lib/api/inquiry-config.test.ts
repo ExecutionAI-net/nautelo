@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchInquiryConfig } from "@/lib/api/inquiries";
+import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
 
 const directoryFetch = vi.fn();
 vi.mock("@/lib/api/directory", async (importOriginal) => {

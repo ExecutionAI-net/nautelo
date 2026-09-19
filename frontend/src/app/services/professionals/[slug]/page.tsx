@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import InquiryForm from "@/components/inquiry/InquiryForm";
 import ProfileMonogram from "@/components/directory/ProfileMonogram";
 import { fetchProfessional, formatProfessionalLocation } from "@/lib/api/directory";
+import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
 import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +37,9 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
   if (!professional) {
     notFound();
   }
+
+  // Spec 35.1: the flag gates frontend exposure too; null means the API is unreachable, so render without the form.
+  const inquiryConfig = await fetchInquiryConfig();
 
   const location = formatProfessionalLocation(professional);
 
@@ -138,13 +143,17 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
             </section>
           ) : null}
 
-          {/* PHASE 6 SEAM — the shared InquiryForm mounts here.
-              Spec 14.2 requires a shared inquiry form on this page and spec
-              15.1/39 forbid a professional-specific copy, so Phase 6 renders
-              <InquiryForm context={{ type: "PROFESSIONAL", id: professional.id }} />
-              at this position. Nothing is rendered in the meantime: a
-              non-functional form would be the visual-only implementation
-              spec 39 prohibits. */}
+          {inquiryConfig?.enabled ? (
+            <InquiryForm
+              context={{
+                type: "PROFESSIONAL",
+                id: professional.id,
+                label: professional.display_name,
+              }}
+              config={inquiryConfig}
+              locale={locale}
+            />
+          ) : null}
         </div>
 
         <aside>
