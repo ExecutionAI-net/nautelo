@@ -62,6 +62,14 @@ const nextConfig: NextConfig = {
       { source: "/fleet/", destination: "/dashboard/broker/fleet/", statusCode: 301 },
       { source: "/settings/", destination: "/dashboard/staff/settings/", statusCode: 301 },
       { source: "/compare/", destination: "/boats/compare/", statusCode: 301 },
+      // The six service detail pages live under the directory page.
+      ...["full-brokerage", "legal", "insurance", "engines-maintenance", "transport-delivery", "nautical-marketing"].map(
+        (slug) => ({
+          source: `/services/${slug}/`,
+          destination: `/services/professionals/${slug}/`,
+          statusCode: 301 as const,
+        }),
+      ),
       {
         source: "/professionals/",
         destination: "/services/professionals/",
