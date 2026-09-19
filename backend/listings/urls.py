@@ -28,7 +28,15 @@ from .views import (
     StaffRevisionDecisionView,
 )
 
+from .owner_views import ListingWorkflowDetailView, MyListingsView
+
 urlpatterns = [
+    path("listings/mine/", MyListingsView.as_view(), name="my-listings"),
+    path(
+        "listings/<uuid:listing_id>/workflow/",
+        ListingWorkflowDetailView.as_view(),
+        name="listing-workflow-detail",
+    ),
     path("listings/drafts/", ListingDraftCreateView.as_view(), name="listing-draft-create"),
     path(
         "listings/<uuid:listing_id>/draft/",

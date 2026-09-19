@@ -27,6 +27,8 @@ interface NavLink {
    * spec 5's table has no "broker dashboard" row, and an AGENT with every flag
    * false is still a member of the organization. */
   requiresBrokerMembership?: boolean;
+  /** Shown to anyone who can create either kind of listing. */
+  requiresListingRight?: boolean;
 }
 
 // Public routes come from spec 4.1; the gated ones from spec 5's capability table.
@@ -36,6 +38,7 @@ const LINKS: NavLink[] = [
   { href: "/services/professionals/", label: "Services / Professionals" },
   { href: "/financing/", label: "Financing" },
   { href: "/sell/", label: "Sell", permission: "create_private_listing" },
+  { href: "/dashboard/listings/", label: "My listings", requiresListingRight: true },
   { href: "/fleet/", label: "Fleet", permission: "create_broker_listing" },
   {
     href: "/dashboard/broker/",
@@ -72,6 +75,7 @@ export default function PrimaryNav() {
   const visible = LINKS.filter((link) => {
     if (link.permission !== undefined && !can(link.permission)) return false;
     if (link.requiresBrokerMembership && !isBrokerMember) return false;
+    if (link.requiresListingRight && !(can("create_private_listing") || can("create_broker_listing"))) return false;
     return true;
   });
 
