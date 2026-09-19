@@ -57,3 +57,30 @@ class MessagingThrottled(Throttled):
     def __init__(self, wait=None, detail=None, code=None):
         super().__init__(wait=wait, detail=detail, code=code)
         self.meta = {} if self.wait is None else {"retry_after_seconds": int(self.wait)}
+
+
+class FeatureDisabled(APIException):
+    """Spec 35.1's flag, off.
+
+    Raised from UnifiedInquiriesEnabled.has_permission() rather than signalled by
+    returning False, because DRF's APIView.permission_denied() short-circuits to
+    `401 NotAuthenticated` for any request without credentials and never reaches
+    a permission class's `code`. On the AllowAny guest-draft route that would
+    have answered `401 authentication_required` to a flag-off request. See the
+    permission class's docstring.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Inquiries are temporarily unavailable."
+    default_code = "feature_disabled"
+
+
+class ConsentRequired(APIException):
+    """Spec 15.1's required privacy consent, and spec 33.2's "Obtain required
+    consent/version on inquiry". Raised both when the checkbox is missing and
+    when the submitted version is not the current one - a consent recorded
+    against a superseded policy is not consent to the current one."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Accept the current privacy policy to send this message."
+    default_code = "consent_required"
