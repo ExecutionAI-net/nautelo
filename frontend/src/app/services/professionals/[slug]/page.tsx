@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import ContactPanel from "@/components/contact/ContactPanel";
 import InquiryForm from "@/components/inquiry/InquiryForm";
 import ProfileMonogram from "@/components/directory/ProfileMonogram";
 import { fetchProfessional, formatProfessionalLocation } from "@/lib/api/directory";
@@ -157,12 +158,15 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
         </div>
 
         <aside>
-          {/* PHASE 7 SEAM — the contact panel governed by ContactAccessService
-              mounts here, as <ContactPanel targetType="PROFESSIONAL"
-              targetId={professional.id} />. It is not rendered now and no
-              contact data reaches this page: public_email, public_phone and
-              website_url are absent from the API payload by design, so there is
-              nothing to blur and nothing to leak (spec 1, spec 39). */}
+          {/* Spec 14.2's contact panel. A client component that fetches
+              GET /api/v1/contacts/professional/<id>/ after mount, so this
+              server-rendered HTML contains no contact value at all, masked or
+              otherwise (spec 16). */}
+          <ContactPanel
+            targetType="professional"
+            targetId={professional.id}
+            locale={locale}
+          />
 
           {/* Portfolio/gallery is absent: spec 14.2 permits it "only when real
               backend records exist" and no media model exists yet (Phase 15). */}
