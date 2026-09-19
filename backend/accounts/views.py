@@ -21,6 +21,8 @@ from accounts.serializers import (
 from accounts.services import (
     consume_email_verification_token,
     queue_email_verification,
+    queue_password_reset,
+    reset_password,
     register_user,
 )
 
@@ -103,6 +105,32 @@ class ResendVerificationView(APIView):
             queue_email_verification(user)
         # Always 202: the response must not reveal whether the address is registered.
         return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class PasswordResetRequestView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        email = str(request.data.get("email", "")).strip().lower()
+        user = User.objects.filter(email=email, is_active=True).first() if email else None
+        if user is not None:
+            queue_password_reset(user)
+        # Always 202: never reveal whether the address is registered.
+        return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class PasswordResetConfirmView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        reset_password(
+            str(request.data.get("token", "")), str(request.data.get("password", ""))
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class LoginView(TokenObtainPairView):

@@ -102,3 +102,20 @@ class EmailVerificationToken(UUIDTimeStampedModel):
 
     def __str__(self):
         return f"verification for {self.user_id}"
+
+
+class PasswordResetToken(UUIDTimeStampedModel):
+    """Single-use, hashed, short-lived password-reset token."""
+
+    user = models.ForeignKey(
+        "accounts.User",
+        related_name="password_reset_tokens",
+        on_delete=models.CASCADE,
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["user", "used_at"])]

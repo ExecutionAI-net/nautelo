@@ -10,8 +10,8 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from accounts.enums import Locale, SellerType, StaffGroup, UserRole
-from accounts.models import EmailVerificationToken, User
-from accounts.tasks import send_email_verification_email
+from accounts.models import EmailVerificationToken, PasswordResetToken, User
+from accounts.tasks import send_email_verification_email, send_password_reset_email
 
 EMAIL_VERIFICATION_TOKEN_TTL = timedelta(hours=24)
 
@@ -81,6 +81,54 @@ def consume_email_verification_token(raw_token: str) -> User:
     if user.email_verified_at is None:
         user.email_verified_at = now
         user.save(update_fields=["email_verified_at", "updated_at"])
+    return user
+
+
+PASSWORD_RESET_TOKEN_TTL = timedelta(hours=1)
+
+
+def queue_password_reset(user: User) -> None:
+    """Issue a reset token and email it after commit. Older open tokens die."""
+    raw_token = secrets.token_urlsafe(32)
+    now = timezone.now()
+    PasswordResetToken.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
+    PasswordResetToken.objects.create(
+        user=user,
+        token_hash=hash_verification_token(raw_token),
+        expires_at=now + PASSWORD_RESET_TOKEN_TTL,
+    )
+    transaction.on_commit(
+        lambda: send_password_reset_email.apply_async(
+            args=[str(user.pk), raw_token], queue="notifications"
+        )
+    )
+
+
+@transaction.atomic
+def reset_password(raw_token: str, new_password: str) -> User:
+    """Single-use consumption under a row lock. Every failure is the same
+    `invalid_reset_token` so a caller learns nothing about which tokens exist."""
+    token = (
+        PasswordResetToken.objects.select_for_update()
+        .filter(token_hash=hash_verification_token(raw_token or ""))
+        .first()
+    )
+    now = timezone.now()
+    if token is None or token.used_at is not None or token.expires_at <= now:
+        raise ValidationError({"token": ["invalid_reset_token"]})
+    user = User.objects.select_for_update().get(pk=token.user_id)
+    if not user.is_active:
+        raise ValidationError({"token": ["invalid_reset_token"]})
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    try:
+        validate_password(new_password, user)
+    except DjangoValidationError as exc:
+        raise ValidationError({"password": list(exc.messages)}) from exc
+    user.set_password(new_password)
+    user.save(update_fields=["password", "updated_at"])
+    PasswordResetToken.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
     return user
 
 

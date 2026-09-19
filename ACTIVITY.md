@@ -96,7 +96,7 @@ cloning `dev` once the project is in a shippable state.
 - Added missing user-facing surfaces: `/register/`, `/account/`, `/settings/` (staff products), a real home page (it was the create-next-app scaffold), `/dashboard/listings/`, `/sell/<id>/`, `/fleet/`.
 - Media: Pillow metadata stripping and `MEDIA_PUBLIC_BASE_URL` so public images render.
 - Security/ops: throttle coverage test, fail-closed prod settings, report-only CSP, lifecycle acceptance test, axe sweep, `reconcile_listings`.
-- Still open: ffmpeg video processing and a malware scanner (hooks exist), enforcing CSP, browser E2E and UAT, staging rehearsal of `docs/DEPLOYMENT.md`, IT/ES copy for staff screens, password reset (no backend endpoint yet).
+- Still open: ffmpeg video processing and a malware scanner (hooks exist), enforcing CSP, browser E2E and UAT, staging rehearsal of `docs/DEPLOYMENT.md`, IT/ES copy for staff screens.
 
 ### 2026-09-19 — Phases 15-21 frontend increments
 
