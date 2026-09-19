@@ -160,6 +160,10 @@ REST_FRAMEWORK = {
         # putting a ceiling on bulk scraping of the public catalogue.
         "public_listing_read": "300/min",
         "auth": "10/min",
+        # Phase 15: applying a purchased media upgrade takes a row lock.
+        "media_upgrade_apply": "30/hour",
+        # Phase 15: upload intents and completions from the listing form.
+        "media_upload": "120/hour",
         # Silent refresh runs on every fresh page load and requires an already-valid
         # HttpOnly cookie, so it is not a credential-guessing surface. Sharing the
         # stricter `auth` bucket would let a handful of reloads lock real people out

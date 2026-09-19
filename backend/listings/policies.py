@@ -2,7 +2,7 @@
 
   * ListingEntitlementGate    -> spec §22 (Phase 13) — IMPLEMENTED
   * requires_staff_approval   -> spec Phase 12 (§21, broker auto-approval) — stub
-  * effective_media_allowance -> spec Phase 15 (§24, media upgrade tier) — stub
+  * effective_media_allowance -> spec Phase 15 (§24, media upgrade tier) — IMPLEMENTED
 """
 
 from dataclasses import dataclass
@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from accounts.enums import SellerType
 from entitlements.consumption import ListingEntitlementRequired, consume_listing_right
 from entitlements.eligibility import ListingEligibilityService
-from entitlements.enums import EntitlementType
+from entitlements.enums import EntitlementState, EntitlementType
+from entitlements.models import UserEntitlement
 from entitlements.policy import enforcement_enabled, free_publication_days
 from platform_settings.services import get_setting_value
 
@@ -24,6 +25,7 @@ __all__ = [
     "ListingEntitlementRequired",
     "MediaAllowance",
     "effective_media_allowance",
+    "is_media_upgraded",
     "media_counts",
     "requires_staff_approval",
 ]
@@ -221,19 +223,33 @@ def effective_media_allowance(listing: BoatListing) -> MediaAllowance:
     """Total images/videos permitted on this listing (spec §24.1 — totals, not
     increments).
 
-    KNOWN LIMITATION: the private-seller *upgrade* tier (20 images / 1 video) is
-    granted by a MEDIA_UPGRADE entitlement bound to the listing, which is spec
-    Phase 13/14/15. Until then a private seller gets the base tier only.
+    A private seller gets the upgraded tier (20 images / 1 video, spec §24.1) once
+    a MEDIA_UPGRADE entitlement bound to THIS listing has been CONSUMED. A merely
+    AVAILABLE one grants nothing: spec §24.4 requires the owner to apply it
+    explicitly.
     """
     if listing.seller_type == SellerType.BROKER:
         return MediaAllowance(
             images=int(get_setting_value("media.broker_image_limit")),
             videos=int(get_setting_value("media.broker_video_limit")),
         )
+    if is_media_upgraded(listing):
+        return MediaAllowance(
+            images=int(get_setting_value("media.upgraded_image_limit")),
+            videos=int(get_setting_value("media.upgraded_video_limit")),
+        )
     return MediaAllowance(
         images=int(get_setting_value("media.private_base_image_limit")),
         videos=int(get_setting_value("media.private_base_video_limit")),
     )
+
+
+def is_media_upgraded(listing: BoatListing) -> bool:
+    return UserEntitlement.objects.filter(
+        listing=listing,
+        entitlement_type=EntitlementType.MEDIA_UPGRADE,
+        state=EntitlementState.CONSUMED,
+    ).exists()
 
 
 def media_counts(listing: BoatListing) -> tuple[int, int]:

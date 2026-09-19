@@ -20,6 +20,7 @@ from analytics.recording import record_listing_view
 from common.authentication import OptionalJWTAuthentication
 
 from .decisions import approve_revision, reject_revision, request_revision_changes
+from .media_upgrade import apply_media_upgrade
 from .drafts import create_listing_draft, update_listing_draft
 from .enums import ListingStatus
 from .models import BoatListing, ListingRevision
@@ -298,3 +299,25 @@ class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
         response["Cache-Control"] = "private, no-store"
         patch_vary_headers(response, ("Authorization",))
         return response
+
+
+class ListingMediaUpgradeApplyView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/media-upgrade/apply/ (spec §24.4).
+
+    Inherits the draft view's permission stack and `get_listing` (owner or
+    broker editor); the service further requires the PRIVATE owner.
+    """
+
+    http_method_names = ["post", "options"]
+    throttle_scope = "media_upgrade_apply"
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        entitlement = apply_media_upgrade(actor=request.user, listing=listing)
+        return Response(
+            {
+                "listing_id": str(listing.pk),
+                "entitlement_id": str(entitlement.pk),
+                "state": entitlement.state,
+            }
+        )
