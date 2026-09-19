@@ -173,6 +173,11 @@ REST_FRAMEWORK = {
         # putting a ceiling on bulk scraping of the public catalogue.
         "public_listing_read": "300/min",
         "auth": "10/min",
+        # Phase 22: previously unthrottled surfaces.
+        "listing_workflow": "120/min",
+        "account": "120/min",
+        "broker_team": "120/min",
+        "public_settings": "300/min",
         # Phase 15: applying a purchased media upgrade takes a row lock.
         "media_upgrade_apply": "30/hour",
         # Phase 15: upload intents and completions from the listing form.

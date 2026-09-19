@@ -184,6 +184,7 @@ class StaffProductListView(StaffProductBaseView):
 
 class StaffProductDetailView(StaffProductBaseView):
     """GET/PATCH /api/v1/staff/products/<id>/ (spec §30.1, §23.5, §26.4)."""
+    throttle_scope = "staff_moderation"
 
     http_method_names = ["get", "patch", "options"]
 

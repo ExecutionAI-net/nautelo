@@ -175,6 +175,7 @@ class SessionView(APIView):
 
 class AccountView(APIView):
     """The caller's own account. Identity and privilege fields are read-only."""
+    throttle_scope = "account"
 
     permission_classes = [IsActiveUser]
 
