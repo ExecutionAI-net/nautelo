@@ -44,3 +44,12 @@ def cleanup_stale_media_uploads() -> int:
     count = _cleanup_stale_uploads()
     logger.info("stale media upload sweep complete", extra={"count": count})
     return count
+
+
+@shared_task(queue="maintenance")
+def send_staff_moderation_digest() -> int:
+    from .staff_digest import send_staff_digest
+
+    count = send_staff_digest()
+    logger.info("staff moderation digest sent", extra={"count": count})
+    return count
