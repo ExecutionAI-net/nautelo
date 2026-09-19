@@ -9,6 +9,9 @@ from .views import (
     ListingMediaListView,
     ListingMediaUpgradeApplyView,
     ListingSubmitView,
+    StaffListingSuspensionView,
+    StaffModerationQueueView,
+    StaffRevisionDetailView,
     ListingWithdrawView,
     PublicListingDetailView,
     PublicListingListView,
@@ -56,6 +59,21 @@ urlpatterns = [
         "listings/<uuid:listing_id>/media/<uuid:media_id>/",
         ListingMediaDetailView.as_view(),
         name="listing-media-detail",
+    ),
+    path(
+        "staff/moderation/queue/",
+        StaffModerationQueueView.as_view(),
+        name="staff-moderation-queue",
+    ),
+    path(
+        "staff/revisions/<uuid:revision_id>/",
+        StaffRevisionDetailView.as_view(),
+        name="staff-revision-detail",
+    ),
+    path(
+        "staff/listings/<uuid:listing_id>/suspension/",
+        StaffListingSuspensionView.as_view(),
+        name="staff-listing-suspension",
     ),
     path(
         "staff/revisions/<uuid:revision_id>/decision/",
