@@ -89,6 +89,19 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 6 (shared inquiry form and messaging core) complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-6-inquiry-messaging.md` in full (15 tasks, PRs #141 to #193 range).
+- **Migrations:** `messaging/0001_conversation`, `0002_seed_unified_inquiries_flag`, `0003_message_contactaccessgrant`, `notifications/0001_initial`. All additive; reversing 0002 is a deliberate no-op.
+- **New:** apps `messaging` and `notifications`; models `Conversation`, `Message`, `ContactAccessGrant`, `Notification`, `NotificationDelivery`; services `submit_inquiry`, `post_reply`, `mark_conversation_read`, `grant_contact_access`, `resolve_inquiry_context`, `create_notification`, `send_notification_email`.
+- **Endpoints:** `POST /api/v1/inquiries/`, `GET /api/v1/inquiries/config/`, `POST /api/v1/inquiry-drafts/` (+ `resolve/`), `GET /api/v1/conversations/`, `GET|POST /api/v1/conversations/<id>/messages/`, `POST /api/v1/conversations/<id>/read/`.
+- **Frontend:** `InquiryForm`, `lib/api/inquiries.ts`, `lib/api/inquiry-config.ts` (server-only; split out because the client form must not import `next/headers`), `lib/i18n/inquiry.ts`, `lib/inquiry/draft-storage.ts`; mounted at the professional detail page's PHASE 6 SEAM.
+- **Permissions/audit:** `UnifiedInquiriesEnabled`, `InquiryEmailVerified`; audit actions `inquiry.submitted`, `contact_access.granted`.
+- **Tests:** messaging acceptance suite plus a two-thread PostgreSQL concurrency test (spec 34.2). Ordering experiment (transactional test first): 735 passed, no fallback needed. Frontend: 411 passed at Task 13.
+- **Flag:** `unified_inquiries` seeded enabled; off means 403 `feature_disabled` and no form.
+- **Known limitations:** see the plan's Known Limitations (no messages page until Phase 19/20, no WebSocket until Phase 18, brokers without a `can_read_messages` member get no notification). Contract summary is required reading before Phases 7, 18 and 19.
+- Screenshots for the UI states were not captured (autonomous run).
+
 ### 2026-09-19 — Phase 14 (Stripe products, Checkout and fulfillment) complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-14-stripe-products-fulfillment.md`
