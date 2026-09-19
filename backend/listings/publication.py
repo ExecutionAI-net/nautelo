@@ -36,6 +36,7 @@ from .enums import ListingStatus, RevisionStatus
 from .locking import bump_version
 from .models import BoatListing, ListingRevision, ListingSnapshot
 from .policies import ListingEntitlementGate
+from .slugs import listing_slug_base
 from .signals import listing_published, listing_revision_approved
 from .snapshots import create_snapshot_from_revision
 
@@ -141,6 +142,8 @@ def publish_revision(
         # moment, not the latest snapshot's.
         publication_days = ListingEntitlementGate.publication_days(listing=listing)
         updates["status"] = ListingStatus.PUBLISHED
+        if not listing.slug:
+            updates["slug"] = listing_slug_base(listing)
         updates["published_at"] = decided_at
         updates["expires_at"] = (
             decided_at + timedelta(days=publication_days)

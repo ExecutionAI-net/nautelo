@@ -283,7 +283,7 @@ def published_listings_queryset() -> QuerySet[BoatListing]:
         BoatListing.objects.filter(
             status=ListingStatus.PUBLISHED, current_public_snapshot__isnull=False
         )
-        .select_related("current_public_snapshot")
+        .select_related("current_public_snapshot", "broker")
         .order_by("-published_at", "-created_at")
     )
 
@@ -370,6 +370,13 @@ class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
         response["Cache-Control"] = "private, no-store"
         patch_vary_headers(response, ("Authorization",))
         return response
+
+
+class PublicListingBySlugView(PublicListingDetailView):
+    """GET /api/v1/listings/by-slug/<slug>/ - the page behind /boats/<slug>/."""
+
+    lookup_field = "slug"
+    lookup_url_kwarg = "slug"
 
 
 class ListingMediaUpgradeApplyView(ListingDraftUpdateView):

@@ -182,7 +182,20 @@ class PublicListingSerializer(serializers.Serializer):
         snapshot = listing.current_public_snapshot
         return {
             "id": str(listing.pk),
+            # Spec 4.1's canonical /boats/<slug>/ and 29.7's share URL.
+            "slug": listing.slug,
             "seller_type": listing.seller_type,
+            # Spec 29.1 "Broker identity where applicable": real fields, so a
+            # client never infers the seller from display text.
+            "broker": (
+                {
+                    "id": str(listing.broker_id),
+                    "name": listing.broker.name,
+                    "slug": listing.broker.slug,
+                }
+                if listing.broker_id
+                else None
+            ),
             "snapshot_version": snapshot.version,
             "published_at": listing.published_at,
             "expires_at": listing.expires_at,

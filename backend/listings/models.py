@@ -98,6 +98,9 @@ class BoatListing(UUIDTimeStampedModel):
     view_count_cached = models.BigIntegerField(default=0)
     # Optimistic locking (spec §20.5); bumped by listings.locking.bump_version().
     version = models.PositiveIntegerField(default=1)
+    # Spec 4.1's canonical /boats/<listing-slug>/. Assigned once, at first
+    # publication, and never changed afterwards so a shared link stays valid.
+    slug = models.SlugField(max_length=190, unique=True, null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

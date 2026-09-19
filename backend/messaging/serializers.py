@@ -199,7 +199,11 @@ class ConversationSerializer(serializers.Serializer):
                 "type": "LISTING",
                 "id": str(conversation.listing_id),
                 "label": label,
-                "url": None,
+                "url": (
+                    f"/boats/{conversation.listing.slug}/"
+                    if conversation.listing.slug
+                    else None
+                ),
             }
         if conversation.broker_id is not None:
             return {
