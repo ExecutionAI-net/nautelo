@@ -158,7 +158,7 @@ def test_a_valid_submission_returns_spec_15_5_s_success_body(
         "conversation_id": str(conversation.pk),
         "message_id": str(message.pk),
         "contact_access": "GRANTED",
-        "next_url": f"/dashboard/messages/{conversation.pk}/",
+        "next_url": f"/dashboard/private-seller/messages/{conversation.pk}/",
     }
     assert response["X-Request-ID"] == "req-inquiry-1"
 

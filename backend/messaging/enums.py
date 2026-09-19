@@ -109,7 +109,7 @@ HONEYPOT_FIELD_NAME = "company_website"
 # /dashboard/broker/messages/, which is the RECIPIENT broker's screen; those are
 # two seats on one conversation, so they are two URLs. Phase 19 builds both
 # pages and deliberately leaves this line alone.
-SENDER_CONVERSATION_URL_TEMPLATE = "/dashboard/messages/{conversation_id}/"
+SENDER_CONVERSATION_URL_TEMPLATE = "/dashboard/private-seller/messages/{conversation_id}/"
 
 
 def conversation_url(conversation_id) -> str:
