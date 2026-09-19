@@ -14,6 +14,7 @@ import type { Locale } from "@/lib/i18n/directory";
 export const NAVIGABLE_URL_PREFIXES: readonly string[] = [
   "/services/professionals/",
   "/boats/",
+  "/brokers/",
 ];
 
 function isNavigable(url: string | null): url is string {

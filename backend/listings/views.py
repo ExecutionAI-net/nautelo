@@ -321,6 +321,13 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
 
     pagination_class = PublicListingPagination
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        broker = self.request.query_params.get("broker", "").strip()
+        if broker:
+            queryset = queryset.filter(broker__slug=broker)
+        return queryset
+
 
 class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):
     """GET /api/v1/listings/<id>/ — public detail and counted view (spec §30.1).

@@ -28,9 +28,7 @@ describe("ConversationContextPanel", () => {
     );
   });
 
-  it("does NOT link a broker context, because /brokers/ has no page yet", () => {
-    // Spec 39 and the precedent in PrimaryNav.test.tsx: never ship a control
-    // that leads to a 404. Phase 20 builds /brokers/ and deletes the allowlist.
+  it("links a broker context now that /brokers/<slug>/ exists", () => {
     render(
       <ConversationContextPanel
         locale="en"
@@ -42,8 +40,10 @@ describe("ConversationContextPanel", () => {
         }}
       />,
     );
-    expect(screen.getByText("Phase19 Alpha Brokers")).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Phase19 Alpha Brokers/ })).toHaveAttribute(
+      "href",
+      "/brokers/phase19-alpha-brokers/",
+    );
   });
 
   it("does not link a listing context, whose url is null", () => {

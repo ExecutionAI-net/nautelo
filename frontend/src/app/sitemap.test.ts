@@ -13,6 +13,10 @@ vi.mock("@/lib/api/listings", () => ({
   listingPath: (l: { slug: string | null }) => (l.slug ? `/boats/${l.slug}/` : null),
 }));
 
+vi.mock("@/lib/api/brokers", () => ({
+  fetchBrokers: vi.fn().mockResolvedValue({ results: [{ url: "/brokers/acme/" }], next: null }),
+}));
+
 import sitemap from "@/app/sitemap";
 
 describe("sitemap", () => {
@@ -20,6 +24,7 @@ describe("sitemap", () => {
     const urls = (await sitemap()).map((e) => e.url);
     expect(urls.some((u) => u.endsWith("/boats/"))).toBe(true);
     expect(urls.some((u) => u.endsWith("/boats/a-1/"))).toBe(true);
-    expect(urls).toHaveLength(2);
+    expect(urls.some((u) => u.endsWith("/brokers/acme/"))).toBe(true);
+    expect(urls).toHaveLength(4);
   });
 });
