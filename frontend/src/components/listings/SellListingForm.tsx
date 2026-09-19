@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 import MediaUpgradePanel from "@/components/listings/MediaUpgradePanel";
+import type { Locale } from "@/lib/i18n/directory";
+import { tSell } from "@/lib/i18n/sell";
 import { ApiError } from "@/lib/api/client";
 import {
   createDraft,
@@ -21,12 +23,12 @@ import {
 const FIELD =
   "mt-space-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md";
 
-function describe(error: unknown): string {
+function describe(error: unknown, locale: Locale): string {
   if (error instanceof ApiError) {
     const first = Object.values(error.fields)[0]?.[0]?.message;
-    return first || error.message || "The request failed.";
+    return first || error.message || tSell(locale, "sell.request_failed");
   }
-  return "The request failed.";
+  return tSell(locale, "sell.request_failed");
 }
 
 function text(payload: Record<string, unknown>, key: string): string {
@@ -37,12 +39,15 @@ function text(payload: Record<string, unknown>, key: string): string {
 export default function SellListingForm({
   brokerId,
   initial,
+  locale = "en",
 }: {
   brokerId?: string;
+  locale?: Locale;
   /** An existing listing (from GET listings/<id>/workflow/) to keep editing. */
   initial?: WorkflowListing;
 }) {
   const seed = initial?.revision?.payload ?? {};
+  const t = (key: string, vars?: Record<string, string | number>) => tSell(locale, key, vars);
   const [brands, setBrands] = useState<TaxonomyItem[]>([]);
   const [models, setModels] = useState<TaxonomyItem[]>([]);
   const [other, setOther] = useState<{ id: string; label: string } | null>(null);
@@ -150,7 +155,7 @@ export default function SellListingForm({
         : await createDraft(payload(), brokerId);
       setListing(saved);
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, locale));
     } finally {
       setBusy(false);
     }
@@ -166,7 +171,7 @@ export default function SellListingForm({
       }
       setMedia(await listMedia(listing.id));
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, locale));
     } finally {
       setBusy(false);
     }
@@ -178,7 +183,7 @@ export default function SellListingForm({
       await removeMedia(listing.id, row.id);
       setMedia(await listMedia(listing.id));
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, locale));
     }
   }
 
@@ -198,7 +203,7 @@ export default function SellListingForm({
       await submitListing(listing.id, withMedia.revision?.version ?? withMedia.version);
       setSubmitted(true);
     } catch (caught) {
-      setError(describe(caught));
+      setError(describe(caught, locale));
     } finally {
       setBusy(false);
     }
@@ -207,7 +212,7 @@ export default function SellListingForm({
   if (submitted) {
     return (
       <p role="status" className="font-body-md">
-        Your listing was submitted for review.
+        {t("sell.submitted")}
       </p>
     );
   }
@@ -215,25 +220,28 @@ export default function SellListingForm({
   return (
     <div className="flex flex-col gap-space-lg">
       <form onSubmit={saveDetails} className="flex flex-col gap-space-md">
-        <h1 className="font-headline-md text-headline-md text-primary">Sell your boat</h1>
+        <h1 className="font-headline-md text-headline-md text-primary">{t("sell.title")}</h1>
 
         <label className="font-body-md">
-          Search brand
+          {t("sell.brand_search")}
           <input className={FIELD} value={brandQuery} onChange={(e) => setBrandQuery(e.target.value)} disabled={locked} />
         </label>
         <label className="font-body-md">
-          Brand
+          {t("sell.brand")}
           <select className={FIELD} value={brandId} onChange={(e) => { setBrandId(e.target.value); setModelId(""); }} disabled={locked} required>
-            <option value="">Select…</option>
+            <option value="">{t("sell.select")}</option>
+            {brands.some((b) => b.id === brandId) || !brandId ? null : (
+              <option value={brandId}>{t("sell.current_brand")}</option>
+            )}
             {brands.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
         </label>
         <label className="font-body-md">
-          Model
+          {t("sell.model")}
           <select className={FIELD} value={modelId} onChange={(e) => setModelId(e.target.value)} disabled={locked || !brandId} required>
-            <option value="">Select…</option>
+            <option value="">{t("sell.select")}</option>
             {models.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
@@ -242,56 +250,56 @@ export default function SellListingForm({
         </label>
         {isOther ? (
           <label className="font-body-md">
-            Model name
+            {t("sell.model_name")}
             <input className={FIELD} value={customModel} onChange={(e) => setCustomModel(e.target.value)} minLength={2} required />
           </label>
         ) : null}
         <label className="font-body-md">
-          Year
+          {t("sell.year")}
           <input className={FIELD} type="number" value={year} onChange={(e) => setYear(e.target.value)} disabled={locked} required />
         </label>
         <label className="font-body-md">
-          Title
+          {t("sell.listing_title")}
           <input className={FIELD} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} required />
         </label>
         <label className="font-body-md">
-          Description
+          {t("sell.description")}
           <textarea className={FIELD} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required />
         </label>
         <label className="font-body-md">
-          Country (2-letter code)
+          {t("sell.country")}
           <input className={FIELD} value={country} onChange={(e) => setCountry(e.target.value)} maxLength={2} required />
         </label>
         <label className="font-body-md">
-          City
+          {t("sell.city")}
           <input className={FIELD} value={city} onChange={(e) => setCity(e.target.value)} required />
         </label>
         <label className="font-body-md">
-          Price (EUR)
+          {t("sell.price")}
           <input className={FIELD} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required />
         </label>
         {brokerId ? (
           <fieldset className="flex flex-col gap-space-sm rounded-lg border border-outline-variant p-space-sm">
-            <legend className="font-title-sm text-title-sm">Financing estimate</legend>
+            <legend className="font-title-sm text-title-sm">{t("sell.finance_title")}</legend>
             <label className="font-body-md">
               <input type="checkbox" checked={showFinance} onChange={(e) => setShowFinance(e.target.checked)} />{" "}
-              Show an estimated monthly payment on this listing
+              {t("sell.finance_toggle")}
             </label>
             {showFinance ? (
               <>
                 <p className="font-body-sm text-on-surface-variant">
-                  Leave blank to use the platform defaults. The estimate is illustrative and not a credit offer.
+                  {t("sell.finance_help")}
                 </p>
                 <label className="font-body-md">
-                  Down payment override (%)
+                  {t("sell.down_override")}
                   <input className={FIELD} inputMode="decimal" value={downOverride} onChange={(e) => setDownOverride(e.target.value)} />
                 </label>
                 <label className="font-body-md">
-                  Annual rate override (%)
+                  {t("sell.rate_override")}
                   <input className={FIELD} inputMode="decimal" value={rateOverride} onChange={(e) => setRateOverride(e.target.value)} />
                 </label>
                 <label className="font-body-md">
-                  Term override (months)
+                  {t("sell.term_override")}
                   <input className={FIELD} inputMode="numeric" value={termOverride} onChange={(e) => setTermOverride(e.target.value)} />
                 </label>
               </>
@@ -299,21 +307,21 @@ export default function SellListingForm({
           </fieldset>
         ) : null}
         <button type="submit" disabled={busy} className="self-start rounded-lg bg-primary px-space-md py-space-sm text-on-primary">
-          {listing ? "Save changes" : "Save draft"}
+          {listing ? t("sell.save_changes") : t("sell.save_draft")}
         </button>
       </form>
 
       {listing ? (
         <section aria-labelledby="media-heading">
-          <h2 id="media-heading" className="font-title-md text-title-md">Photos and videos</h2>
+          <h2 id="media-heading" className="font-title-md text-title-md">{t("sell.media")}</h2>
           <p className="font-body-sm text-on-surface-variant">
-            Up to {listing.policy.image_limit} images and {listing.policy.video_limit} videos.
+            {t("sell.media_limits", { images: listing.policy.image_limit, videos: listing.policy.video_limit })}
           </p>
           <input
             type="file"
             multiple
             accept="image/jpeg,image/png,image/webp,video/mp4"
-            aria-label="Add media"
+            aria-label={t("sell.add_media")}
             disabled={busy}
             onChange={(e) => void addFiles(e.target.files)}
             className="mt-space-sm"
@@ -328,7 +336,7 @@ export default function SellListingForm({
                 <span>{row.media_type} · {row.status}</span>
                 {row.rejection_reason ? <span role="note">{row.rejection_reason}</span> : null}
                 <button type="button" onClick={() => void remove(row)} className="text-primary underline">
-                  Remove
+                  {t("sell.remove")}
                 </button>
               </li>
             ))}
@@ -339,7 +347,7 @@ export default function SellListingForm({
             onClick={() => void submit()}
             className="mt-space-md rounded-lg bg-primary px-space-md py-space-sm text-on-primary"
           >
-            Submit for review
+            {t("sell.submit")}
           </button>
         </section>
       ) : null}
