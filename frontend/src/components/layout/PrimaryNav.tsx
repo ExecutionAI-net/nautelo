@@ -33,9 +33,9 @@ interface NavLink {
 
 // Public routes come from spec 4.1; the gated ones from spec 5's capability table.
 const LINKS: NavLink[] = [
-  { href: "/boats/", label: "Boats" },
+  { href: "/boats/", label: "Buy" },
+  { href: "/services/professionals/", label: "Services" },
   { href: "/brokers/", label: "Brokers" },
-  { href: "/services/professionals/", label: "Services / Professionals" },
   { href: "/financing/", label: "Financing" },
   { href: "/sell/", label: "Sell", permission: "create_private_listing" },
   { href: "/dashboard/listings/", label: "My listings", requiresListingRight: true },
@@ -82,51 +82,45 @@ export default function PrimaryNav() {
   return (
     <nav
       aria-label="Primary"
-      className="flex flex-wrap items-center gap-space-md border-b border-outline-variant bg-surface px-margin-mobile py-space-sm md:px-margin"
+      className="sticky top-0 z-50 flex min-h-20 flex-wrap items-center gap-x-space-lg gap-y-space-xs py-space-xs bg-surface-container-lowest px-margin-mobile shadow-[0_1px_8px_rgba(0,0,0,0.04)] md:px-margin lg:px-margin-desktop"
     >
-      <Link href="/" className="font-title-lg text-title-lg text-primary">
+      <Link href="/" className="font-title-lg text-title-lg uppercase tracking-tight text-primary">
         NAUTA
       </Link>
-      <ul className="flex flex-wrap items-center gap-space-md">
+      <ul className="order-last flex w-full flex-wrap items-center gap-x-space-md xl:order-none xl:w-auto xl:flex-1 xl:gap-x-space-lg">
         {visible.map((link) => (
           <li key={link.href}>
             <Link
               href={link.href}
-              className="font-body-md text-on-surface-variant hover:text-primary"
+              className="inline-flex items-center whitespace-nowrap py-space-xs font-body-md text-on-surface-variant transition-colors hover:text-on-surface"
             >
-              {link.messageKey
-                ? tConversations(locale, link.messageKey)
-                : link.label}
+              {link.messageKey ? tConversations(locale, link.messageKey) : link.label}
             </Link>
           </li>
         ))}
       </ul>
-      <div className="ml-auto flex items-center gap-space-sm">
+      <div className="ml-auto flex shrink-0 items-center gap-space-md">
         {loading ? null : authenticated ? (
           <>
             <NotificationBell locale={locale} />
-            <Link
-              href="/account/"
-              className="font-body-sm text-on-surface-variant hover:text-primary"
-            >
+            <Link href="/account/" className="font-body-sm text-on-surface-variant hover:text-primary">
               {session?.user?.full_name || session?.user?.email}
             </Link>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="font-label-md text-label-md text-primary"
-            >
+            <button type="button" onClick={() => void logout()} className="font-label-md text-label-md text-primary">
               Sign out
             </button>
           </>
         ) : (
-          <Link
-            href="/login"
-            className="font-label-md text-label-md text-primary"
-          >
+          <Link href="/login" className="font-body-md font-medium text-primary transition-colors hover:text-secondary">
             Sign in
           </Link>
         )}
+        <Link
+          href="/sell/"
+          className="inline-flex items-center justify-center rounded-lg bg-primary-container px-space-md py-space-sm font-body-md text-on-primary shadow-sm transition-colors hover:bg-primary"
+        >
+          List my boat
+        </Link>
       </div>
     </nav>
   );

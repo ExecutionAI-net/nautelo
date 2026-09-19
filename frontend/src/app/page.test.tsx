@@ -14,14 +14,14 @@ describe("Home", () => {
   it("links to the main journeys and renders latest boats", async () => {
     listings.fetchPublishedListings.mockResolvedValue({ results: [{ id: "1" }] });
     render(await Home());
-    expect(screen.getByRole("link", { name: "Browse boats" }).getAttribute("href")).toBe("/boats/");
+    expect(screen.getByRole("link", { name: /View all boats/ }).getAttribute("href")).toBe("/boats/");
     expect(screen.getByText("card")).toBeTruthy();
   });
 
   it("still renders when the catalogue is unavailable", async () => {
     listings.fetchPublishedListings.mockRejectedValue(new Error("down"));
     render(await Home());
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Find your next boat");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Find the right boat. With the services you need.");
     expect(screen.queryByText("card")).toBeNull();
   });
 });

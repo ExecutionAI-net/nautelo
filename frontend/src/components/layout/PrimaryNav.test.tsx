@@ -89,7 +89,7 @@ describe("PrimaryNav", () => {
   it("shows only public links to a guest", () => {
     mockSession(ALL_FALSE, false);
     render(<PrimaryNav />);
-    expect(screen.getByRole("link", { name: "Boats" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buy" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Moderation" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
   });

@@ -62,20 +62,22 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
   const nextHref = pageLink(results.next);
 
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <h1 className="font-headline-md text-headline-md text-primary">
-        {tf(locale, "boats.title")}
-      </h1>
-      <p className="mt-space-sm font-body-md text-on-surface-variant">
-        {tf(locale, "boats.intro")}
-      </p>
+    <main className="w-full bg-surface">
+      <header className="bg-surface-container-low py-space-xl">
+        <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
+          <span className="font-label-sm uppercase tracking-widest text-secondary">Mediterranean yacht exchange</span>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{tf(locale, "boats.title")}</h1>
+          <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{tf(locale, "boats.intro")}</p>
+        </div>
+      </header>
+      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
 
       {results.results.length === 0 ? (
         <p className="mt-space-xl font-body-md text-on-surface-variant">
           {tf(locale, "boats.empty")}
         </p>
       ) : (
-        <ul className="mt-space-lg grid grid-cols-1 gap-space-md sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-space-lg grid grid-cols-1 gap-space-lg sm:grid-cols-2 lg:grid-cols-4">
           {results.results.map((listing) => (
             <li key={listing.id}>
               <BoatCard locale={locale} listing={listing} disclaimerId={DISCLAIMER_ID} />
@@ -102,6 +104,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
           {nextHref ? <Link href={nextHref}>{tf(locale, "boats.next")}</Link> : null}
         </nav>
       ) : null}
+      </div>
     </main>
   );
 }
