@@ -5,6 +5,7 @@ import {
   fetchServiceCategories,
   type ProfessionalCard,
 } from "@/lib/api/directory";
+import { fetchPublishedListings, listingPath } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
@@ -32,21 +33,52 @@ async function allProfessionals(): Promise<ProfessionalCard[]> {
   }
 }
 
+async function allListingPaths(): Promise<string[]> {
+  const paths: string[] = [];
+  let page = 1;
+  for (;;) {
+    const batch = await fetchPublishedListings({ page: String(page), page_size: "48" });
+    if (batch === null) {
+      return paths;
+    }
+    for (const listing of batch.results) {
+      const path = listingPath(listing);
+      if (path) {
+        paths.push(path);
+      }
+    }
+    if (!batch.next) {
+      return paths;
+    }
+    page += 1;
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [categories, professionals] = await Promise.all([
+  const [categories, professionals, listingPaths] = await Promise.all([
     fetchServiceCategories(DEFAULT_LOCALE),
     allProfessionals(),
+    allListingPaths().catch(() => [] as string[]),
   ]);
 
   // With the flag off the directory has no public URLs at all, so the sitemap
   // is empty rather than advertising a page that now 404s.
+  const boats: MetadataRoute.Sitemap = [
+    { url: `${PUBLIC_BASE_URL}/boats/`, changeFrequency: "daily", priority: 1 },
+    ...listingPaths.map((path) => ({
+      url: `${PUBLIC_BASE_URL}${path}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    })),
+  ];
   if (categories === null) {
-    return [];
+    return boats;
   }
 
   // /services/ and /professionals/ are never emitted: nothing in the database
   // produces them, so the retired URLs are absent by construction (spec 32.2).
   return [
+    ...boats,
     {
       url: `${PUBLIC_BASE_URL}/services/professionals/`,
       changeFrequency: "daily",
