@@ -1,69 +1,55 @@
-import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+import BoatCard from "@/components/listings/BoatCard";
+import { fetchPublishedListings, type PublicListing } from "@/lib/api/listings";
+import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
+import { tHome } from "@/lib/i18n/home";
+
+export const dynamic = "force-dynamic";
+
+async function latest(): Promise<PublicListing[]> {
+  try {
+    const page = await fetchPublishedListings({ page_size: "6" });
+    return page?.results ?? [];
+  } catch {
+    // The landing page must render even when the catalogue is unavailable.
+    return [];
+  }
+}
+
+export default async function Home() {
+  const locale = DEFAULT_LOCALE;
+  const boats = await latest();
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
+      <h1 className="font-headline-lg text-headline-lg text-primary">{tHome(locale, "home.title")}</h1>
+      <p className="mt-space-sm max-w-2xl font-body-lg text-on-surface-variant">{tHome(locale, "home.intro")}</p>
+      <div className="mt-space-md flex flex-wrap gap-space-sm">
+        <Link href="/boats/" className="rounded-lg bg-primary px-space-md py-space-sm text-on-primary">
+          {tHome(locale, "home.browse")}
+        </Link>
+        <Link href="/sell/" className="rounded-lg border border-outline-variant px-space-md py-space-sm text-primary">
+          {tHome(locale, "home.sell")}
+        </Link>
+        <Link href="/services/professionals/" className="rounded-lg border border-outline-variant px-space-md py-space-sm text-primary">
+          {tHome(locale, "home.services")}
+        </Link>
+      </div>
+
+      {boats.length > 0 ? (
+        <section className="mt-space-xl" aria-labelledby="latest-heading">
+          <h2 id="latest-heading" className="font-title-lg text-title-lg text-primary">
+            {tHome(locale, "home.latest")}
+          </h2>
+          <ul className="mt-space-md grid grid-cols-1 gap-space-md sm:grid-cols-2 lg:grid-cols-3">
+            {boats.map((listing) => (
+              <li key={listing.id}>
+                <BoatCard locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </main>
   );
 }
