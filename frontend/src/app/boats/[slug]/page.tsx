@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 // Next 16: params is a Promise.
 type Params = Promise<{ slug: string }>;
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
