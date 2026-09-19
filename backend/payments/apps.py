@@ -8,4 +8,5 @@ class PaymentsConfig(AppConfig):
 
     def ready(self):
         from . import fulfillment  # noqa: F401
+        from . import notification_receivers  # noqa: F401
         from . import refunds  # noqa: F401

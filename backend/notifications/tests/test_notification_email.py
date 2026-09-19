@@ -135,7 +135,8 @@ def test_the_email_job_is_queued_only_after_the_transaction_commits(
     with django_capture_on_commit_callbacks(execute=True) as callbacks:
         _notify(recipient, email_to="office3@phase6.example")
         assert mail.outbox == []
-    assert len(callbacks) == 1
+    # The email job and the WebSocket push, both queued on commit.
+    assert len(callbacks) == 2
     assert len(mail.outbox) == 1
 
 

@@ -177,6 +177,8 @@ REST_FRAMEWORK = {
         "services_directory": "60/min",
         "inquiry_submit": "20/hour",
         "messaging_read": "120/min",
+        # Phase 18: notification list/read; the bell polls on reconnect only.
+        "notifications": "120/min",
         "inquiry_draft": "30/hour",
         "message_send": "60/hour",
         # Phase 7, spec §30.4. Looser than `services_directory` because the
