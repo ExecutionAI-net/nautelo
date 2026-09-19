@@ -56,9 +56,8 @@ def test_no_email_delivery_row_exists_when_no_address_is_supplied():
     assert notification.deliveries.filter(channel=DeliveryChannel.EMAIL).exists() is False
 
 
-def test_no_websocket_delivery_row_is_ever_written_by_this_phase():
-    """Spec 2.1: a QUEUED row for a channel nothing drains is a fabricated state.
-    Phase 18 owns 27.2 and adds the WEBSOCKET row when it adds the consumer."""
+def test_an_inquiry_notification_has_in_app_websocket_and_email_deliveries():
+    """Spec 27.1: inquiry.received goes to in-app, WS and email."""
     notification = create_notification(
         recipient=make_user(email="recipient3@phase6.example"),
         notification_type=NotificationType.INQUIRY_RECEIVED,
@@ -69,6 +68,7 @@ def test_no_websocket_delivery_row_is_ever_written_by_this_phase():
     )
     assert set(notification.deliveries.values_list("channel", flat=True)) == {
         DeliveryChannel.IN_APP,
+        DeliveryChannel.WEBSOCKET,
         DeliveryChannel.EMAIL,
     }
 
@@ -106,7 +106,7 @@ def test_a_repeated_dedupe_key_returns_the_same_row_and_adds_no_delivery():
 
     assert second.pk == first.pk
     assert Notification.objects.count() == 1
-    assert first.deliveries.count() == 1
+    assert first.deliveries.count() == 2  # IN_APP + WEBSOCKET
 
 
 def test_a_repeated_dedupe_key_queues_no_second_email():
@@ -287,7 +287,7 @@ def test_losing_the_create_race_returns_the_winners_row_without_breaking_the_out
     # the IntegrityError, which is where the winner's row is found.
     assert calls["n"] == 2
     assert loser.pk == winner.pk
-    assert winner.deliveries.count() == 1
+    assert winner.deliveries.count() == 2  # IN_APP + WEBSOCKET
 
 
 def test_notifications_imports_nothing_from_messaging_or_listings():

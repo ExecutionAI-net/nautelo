@@ -18,7 +18,8 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from notifications.enums import DeliveryChannel, DeliveryStatus
+from notifications.copy import text_for
+from notifications.enums import DeliveryChannel, DeliveryStatus, NotificationType
 from notifications.models import Notification, NotificationDelivery
 
 logger = logging.getLogger(__name__)
@@ -88,12 +89,20 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
         locale = "EN"
 
     payload = notification.payload or {}
-    body = BODIES[locale].format(
-        sender=payload.get("sender_display_name") or SENDER_FALLBACK[locale],
-        context=payload.get("context_label", ""),
-        excerpt=payload.get("excerpt", ""),
-        url=f"{settings.PUBLIC_BASE_URL}{notification.target_url}",
-    )
+    url = f"{settings.PUBLIC_BASE_URL}{notification.target_url}"
+    generic = text_for(notification.notification_type, locale)
+    if notification.notification_type == NotificationType.INQUIRY_RECEIVED or generic is None:
+        subject = SUBJECTS[locale]
+        body = BODIES[locale].format(
+            sender=payload.get("sender_display_name") or SENDER_FALLBACK[locale],
+            context=payload.get("context_label", ""),
+            excerpt=payload.get("excerpt", ""),
+            url=url,
+        )
+    else:
+        # Spec 27.3: a safe summary and a signed-in platform URL, nothing else.
+        subject, summary = generic
+        body = f"{summary}\n\n{url}"
 
     delivery, _ = NotificationDelivery.objects.get_or_create(
         notification=notification, channel=DeliveryChannel.EMAIL
@@ -111,7 +120,7 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
     delivery.attempt_count += 1
     try:
         send_mail(
-            subject=SUBJECTS[locale],
+            subject=subject,
             message=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[to_email],
@@ -139,3 +148,33 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
     logger.info(
         "notification email sent", extra={"notification_id": str(notification.pk)}
     )
+
+
+@shared_task(queue="notifications", bind=True, max_retries=MAX_RETRIES)
+def push_notification_ws(self, notification_id: str) -> None:
+    """Spec 27.2: publish to the recipient's group. Idempotent - a delivery that
+    is already SENT is left alone. A missing channel layer marks the delivery
+    SKIPPED; the notification stays readable over REST either way."""
+    from notifications.push import push_to_user
+
+    notification = Notification.objects.filter(pk=notification_id).first()
+    if notification is None:
+        return
+    delivery, _ = NotificationDelivery.objects.get_or_create(
+        notification=notification, channel=DeliveryChannel.WEBSOCKET
+    )
+    if delivery.status in (DeliveryStatus.SENT, DeliveryStatus.SKIPPED):
+        return
+    delivery.attempt_count += 1
+    try:
+        published = push_to_user(notification)
+    except Exception as exc:  # noqa: BLE001 - retried below
+        delivery.status = DeliveryStatus.FAILED
+        delivery.last_error_code = type(exc).__name__[:64]
+        delivery.save(
+            update_fields=["status", "last_error_code", "attempt_count", "updated_at"]
+        )
+        raise self.retry(exc=exc, countdown=RETRY_DELAY_SECONDS)
+    delivery.status = DeliveryStatus.SENT if published else DeliveryStatus.SKIPPED
+    delivery.sent_at = timezone.now() if published else None
+    delivery.save(update_fields=["status", "sent_at", "attempt_count", "updated_at"])

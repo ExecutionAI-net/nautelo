@@ -3,7 +3,11 @@
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from notifications.enums import DeliveryChannel, DeliveryStatus
+from notifications.enums import (
+    NO_WEBSOCKET_TYPES,
+    DeliveryChannel,
+    DeliveryStatus,
+)
 from notifications.models import Notification, NotificationDelivery
 
 
@@ -54,9 +58,8 @@ def create_notification(
     to a notification detail. The nested block rolls back to a savepoint
     instead, leaving the caller's transaction intact.
 
-    A rolled-back business transaction leaves no notification and sends no
-    email. No WEBSOCKET delivery row is written: Phase 18 owns spec 27.2 and
-    adds the row in the same change that adds the consumer that drains it.
+    A rolled-back business transaction leaves no notification, no email and
+    no WebSocket push: both are queued with transaction.on_commit().
     """
     fields = {
         "recipient": recipient,
@@ -100,6 +103,17 @@ def create_notification(
         attempt_count=1,
         sent_at=timezone.now(),
     )
+
+    if notification_type not in NO_WEBSOCKET_TYPES:
+        NotificationDelivery.objects.create(
+            notification=notification,
+            channel=DeliveryChannel.WEBSOCKET,
+            status=DeliveryStatus.QUEUED,
+        )
+        from notifications.tasks import push_notification_ws
+
+        push_id = str(notification.pk)
+        transaction.on_commit(lambda: push_notification_ws.delay(push_id))
 
     if email_to:
         NotificationDelivery.objects.create(
