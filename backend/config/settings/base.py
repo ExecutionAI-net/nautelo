@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "payments",
     "content",
     "staffops",
+    "translation",
 ]
 
 MIDDLEWARE = [
@@ -141,6 +142,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "listings.tasks.cleanup_stale_media_uploads",
         "schedule": crontab(minute=10),
     },
+    "sync-openrouter-models": {
+        "task": "translation.tasks.sync_openrouter_models",
+        "schedule": crontab(hour=4, minute=30),
+    },
     "staff-moderation-digest": {
         "task": "listings.tasks.send_staff_moderation_digest",
         "schedule": crontab(hour=7, minute=0),
@@ -199,6 +204,8 @@ REST_FRAMEWORK = {
         "notifications": "120/min",
         # Phase 17: staff console reads and ledger operations.
         "staff_moderation": "300/min",
+        "translation": "30/hour",
+        "translation_status": "120/min",
         "staff_entitlements": "120/min",
         "inquiry_draft": "30/hour",
         "message_send": "60/hour",
@@ -270,6 +277,9 @@ MEDIA_PUBLIC_BASE_URL = env("MEDIA_PUBLIC_BASE_URL", default="")
 # Private S3 downloads for approved public snapshots when no CDN is configured.
 MEDIA_SIGNED_URLS = env.bool("MEDIA_SIGNED_URLS", default=False)
 # Phase 15: re-encode uploaded images without metadata (EXIF/GPS/XMP).
+# AI translation through OpenRouter. The key comes from the environment (server secret), never the database.
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
+OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
 # Malware scanning is on whenever a clamd host is configured (spec 24.2 step 7).
 CLAMAV_HOST = env("CLAMAV_HOST", default="")

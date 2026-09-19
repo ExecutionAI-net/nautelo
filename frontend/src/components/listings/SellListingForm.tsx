@@ -6,6 +6,7 @@ import MediaUpgradePanel from "@/components/listings/MediaUpgradePanel";
 import type { Locale } from "@/lib/i18n/directory";
 import { tSell } from "@/lib/i18n/sell";
 import { ApiError } from "@/lib/api/client";
+import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
   listMedia,
@@ -96,6 +97,9 @@ export default function SellListingForm({
   const [customModel, setCustomModel] = useState(text(seed, "custom_model_name"));
   const [year, setYear] = useState(text(seed, "manufacture_year"));
   const [lang, setLang] = useState<Lang>("en");
+  const [translateEnabled, setTranslateEnabled] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState(false);
   const [titles, setTitles] = useState<Record<Lang, string>>({
     en: text(seed, "title_en"),
     it: text(seed, "title_it"),
@@ -166,6 +170,31 @@ export default function SellListingForm({
       cancelled = true;
     };
   }, [initialId]);
+
+  useEffect(() => {
+    let active = true;
+    void fetchTranslationEnabled().then((enabled) => {
+      if (active) setTranslateEnabled(enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function runTranslate() {
+    setTranslating(true);
+    setTranslateError(false);
+    try {
+      const targets = LANGS.map((item) => item.code as Lang).filter((code) => code !== lang);
+      const result = await translateListingText({ title: titles[lang], description: descriptions[lang], source: lang, targets });
+      setTitles((current) => ({ ...current, ...Object.fromEntries(targets.map((code) => [code, result[code]?.title ?? current[code]])) }));
+      setDescriptions((current) => ({ ...current, ...Object.fromEntries(targets.map((code) => [code, result[code]?.description ?? current[code]])) }));
+    } catch {
+      setTranslateError(true);
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   const locked = (listing?.policy.immutable_fields.length ?? 0) > 0;
   const setSpec = (key: string, value: string) => setSpecs((current) => ({ ...current, [key]: value }));
@@ -410,6 +439,20 @@ export default function SellListingForm({
                 </label>
               </div>
 
+              {translateEnabled ? (
+                <div className="mt-space-md">
+                  <button
+                    type="button"
+                    onClick={runTranslate}
+                    disabled={translating || locked || !(titles[lang] || descriptions[lang])}
+                    className="rounded-lg bg-secondary-container px-space-md py-space-xs font-label-md text-on-secondary-container disabled:opacity-50"
+                  >
+                    {translating ? t("sell.translate_ai_busy") : t("sell.translate_ai")}
+                  </button>
+                  <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("sell.translate_ai_help")}</p>
+                  {translateError ? <p role="alert" className="mt-space-xs font-body-sm text-error">{t("sell.translate_ai_failed")}</p> : null}
+                </div>
+              ) : null}
               <label className={`${LABEL} mt-space-md`}>
                 {lang === "en" ? t("sell.listing_title") : `${t("sell.listing_title")} (${lang.toUpperCase()})`}
                 <input

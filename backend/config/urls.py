@@ -34,6 +34,7 @@ urlpatterns = [
     path("api/v1/finance/quotes/", FinanceQuoteView.as_view(), name="finance-quote"),
     path("api/v1/", include("content.urls")),
     path("api/v1/", include("staffops.urls")),
+    path("api/v1/", include("translation.urls")),
     path("api/v1/", include("taxonomy.urls")),
     path("api/v1/", include("listings.urls")),
     path("api/v1/", include("accounts.urls")),
