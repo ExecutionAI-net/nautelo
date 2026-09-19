@@ -183,6 +183,16 @@ export function fetchMyListings() {
   return apiFetch<MyListingRow[]>("/api/v1/listings/mine/");
 }
 
+export interface MyListingsSummary {
+  published: number;
+  drafts: number;
+  in_review: number;
+}
+
+export function fetchMyListingsSummary() {
+  return apiFetch<MyListingsSummary>("/api/v1/listings/mine/summary/");
+}
+
 export function fetchWorkflowListing(id: string) {
   return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(id)}/workflow/`);
 }

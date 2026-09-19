@@ -39,3 +39,13 @@ def test_workflow_detail_is_owner_only_and_carries_policy():
     assert ok.status_code == 200 and "policy" in ok.data
     assert _client(other).get(url).status_code in (403, 404)
     assert APIClient().get(url).status_code == 401
+
+
+def test_summary_counts_only_my_listings_by_status():
+    me = make_user(role=UserRole.PRIVATE_SELLER)
+    other = make_user(role=UserRole.PRIVATE_SELLER)
+    make_private_listing(owner=me)
+    make_private_listing(owner=other)
+    body = _client(me).get(reverse("my-listings-summary")).data
+    assert set(body) == {"published", "drafts", "in_review"}
+    assert sum(body.values()) <= 1

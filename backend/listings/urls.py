@@ -30,12 +30,13 @@ from .views import (
     StaffRevisionDecisionView,
 )
 
-from .owner_views import ListingWorkflowDetailView, MyListingsView
+from .owner_views import ListingWorkflowDetailView, MyListingsSummaryView, MyListingsView
 
 urlpatterns = [
     path("listings/facets/", PublicListingFacetsView.as_view(), name="listing-facets"),
     path("listing-form/options/", ListingFormOptionsView.as_view(), name="listing-form-options"),
     path("listings/mine/", MyListingsView.as_view(), name="my-listings"),
+    path("listings/mine/summary/", MyListingsSummaryView.as_view(), name="my-listings-summary"),
     path(
         "listings/<uuid:listing_id>/workflow/",
         ListingWorkflowDetailView.as_view(),

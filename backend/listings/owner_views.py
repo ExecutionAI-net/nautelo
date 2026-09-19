@@ -4,7 +4,7 @@ The public endpoints only ever serve published snapshots, so a seller needs
 their own read path to find a draft, see its state and reopen it.
 """
 
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,6 +14,7 @@ from accounts.permissions import IsActiveUser, IsOwnerOrBrokerEditor
 from brokers.models import BrokerMembership
 
 from .drafts import open_revision_for
+from .enums import ListingStatus
 from .models import BoatListing
 from .permissions import ListingWorkflowEnabled
 from .serializers import ListingWorkflowSerializer
@@ -60,6 +61,33 @@ class MyListingsView(APIView):
                 }
                 for item in rows
             ]
+        )
+
+
+class MyListingsSummaryView(APIView):
+    """GET /api/v1/listings/mine/summary/ - dashboard counters, computed here."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser, ListingWorkflowEnabled]
+    throttle_scope = "listing_workflow"
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        broker_ids = BrokerMembership.objects.filter(
+            user=request.user, is_active=True, can_edit_listings=True
+        ).values_list("broker_id", flat=True)
+        counts = dict(
+            BoatListing.objects.filter(
+                Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
+            )
+            .values_list("status")
+            .annotate(total=Count("pk"))
+        )
+        return Response(
+            {
+                "published": counts.get(ListingStatus.PUBLISHED, 0),
+                "drafts": counts.get(ListingStatus.DRAFT, 0),
+                "in_review": counts.get(ListingStatus.PENDING_APPROVAL, 0),
+            }
         )
 
 
