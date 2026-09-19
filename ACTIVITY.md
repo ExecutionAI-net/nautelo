@@ -90,6 +90,15 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phases 15-21 frontend increments
+
+- Phase 20: `BoatListing.slug` (assigned once at first publication, backfilled), `GET /api/v1/listings/by-slug/<slug>/`, broker identity block in the public payload, `/boats/<slug>/` page with share (WhatsApp + accessible copy-link, canonical URL only) and a LISTING InquiryForm; cards link to it; sitemap and robots.
+- Phase 18: notification bell in PrimaryNav (polling, 60s). Copy dictionary `lib/i18n/notifications.ts` was generated from `backend/notifications/copy.py`; keep them in sync.
+- Phase 17: staff moderation queue and revision review pages.
+- Phase 16: `/sell/` form and media uploader.
+- Field-error envelope is now `{message, code}` per field (dev #136); frontend `ApiError.fields` consumers read `.message`.
+- Still open: Phase 16 upgrade modal and `/fleet/`; Phase 17 taxonomy/entitlement/suspension UI; Phase 18 WebSocket client; Phase 20 `/brokers/` pages; Phase 21 legacy broker redirect and hreflang; Phases 22-24.
+
 ### 2026-09-19 — Phase 17 (staff operations) backend complete
 
 - Moderation: `GET /api/v1/staff/moderation/queue/?tab=initial|revisions|other_model|suspended|expiring` (live counts per tab, seller_type filter, oldest/newest), `GET /api/v1/staff/revisions/<id>/` (field diff, media diff, warnings, entitlement summary without payment data, audit trail), `POST /api/v1/staff/listings/<id>/suspension/`. Moderator tier. `assigned_moderator` is always null (no assignment model exists).
