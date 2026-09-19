@@ -99,3 +99,18 @@ def test_exclude_drops_one_listing_and_ignores_garbage(api, catalogue):
     left = [row["id"] for row in api.get(reverse("listing-list"), {"exclude": dropped}).json()["results"]]
     assert dropped not in left and len(left) == len(everything) - 1
     assert len(api.get(reverse("listing-list"), {"exclude": "not-a-uuid"}).json()["results"]) == len(everything)
+
+
+def test_spec_filters_match_boat_type_condition_fuel_and_minimum_cabins(api):
+    _published(title_en="Diesel Cat", specifications={"boat_type": "Catamaran", "condition": "used", "fuel_type": "Diesel", "cabins": "4"})
+    _published(title_en="Petrol Rib", specifications={"boat_type": "RIB", "condition": "new", "fuel_type": "Petrol", "cabins": 0})
+    assert _titles(api, boat_type="catamaran") == ["Diesel Cat"]
+    assert _titles(api, condition="new") == ["Petrol Rib"]
+    assert _titles(api, fuel_type="Diesel") == ["Diesel Cat"]
+    assert _titles(api, cabins_min="3") == ["Diesel Cat"]
+    assert set(_titles(api, cabins_min="0")) == {"Diesel Cat", "Petrol Rib"}
+
+
+def test_facets_offer_the_closed_type_and_fuel_lists(api):
+    body = api.get(reverse("listing-facets")).json()
+    assert "Catamaran" in body["boat_types"] and "Diesel" in body["fuel_types"]

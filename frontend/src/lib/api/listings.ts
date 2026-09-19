@@ -92,6 +92,11 @@ export interface ListingSearch {
   country?: string;
   region?: string;
   seller_type?: string;
+  boat_type?: string;
+  condition?: string;
+  fuel_type?: string;
+  cabins_min?: string;
+  model?: string;
   exclude?: string;
   price_min?: string;
   price_max?: string;
@@ -104,6 +109,8 @@ export interface ListingFacets {
   brands: string[];
   countries: string[];
   regions: string[];
+  boat_types?: string[];
+  fuel_types?: string[];
 }
 
 export async function fetchListingFacets(): Promise<ListingFacets> {

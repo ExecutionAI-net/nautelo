@@ -62,26 +62,54 @@ export default function BoatCard({
       : null;
 
   const href = listingPath(listing);
+  const specs = listing.specifications;
+  const condition = specs.condition === "new" ? "new" : specs.condition === "used" ? "used" : null;
+  const boatType = typeof specs.boat_type === "string" ? specs.boat_type : "";
+  const specLine = [
+    String(listing.manufacture_year),
+    specs.loa_m ? `${specs.loa_m} m` : "",
+    specs.cabins ? tf(locale, "listing.cabins", { count: String(specs.cabins) }) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
       {/* Spec §29.1: primary approved image or a defined placeholder. */}
-      {primaryImage?.url ? (
-        // eslint-disable-next-line @next/next/no-img-element -- CDN URL, size unknown
-        <img
-          src={primaryImage.url}
-          alt={heading}
-          loading="lazy"
-          data-testid="boat-image"
-          className="aspect-[16/10] w-full bg-surface-container-high object-cover"
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          data-testid={primaryImage ? "boat-image-slot" : "boat-image-placeholder"}
-          className="aspect-[16/10] w-full bg-surface-container-high"
-        />
-      )}
+      <div className="relative">
+        {primaryImage?.url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- CDN URL, size unknown
+          <img
+            src={primaryImage.url}
+            alt={heading}
+            loading="lazy"
+            data-testid="boat-image"
+            className="aspect-[16/10] w-full bg-surface-container-high object-cover"
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            data-testid={primaryImage ? "boat-image-slot" : "boat-image-placeholder"}
+            className="aspect-[16/10] w-full bg-surface-container-high"
+          />
+        )}
+        {condition || boatType ? (
+          <div className="absolute left-3 top-3 flex gap-1 font-label-sm text-label-sm uppercase">
+            {condition ? (
+              <span className="rounded bg-primary/80 px-2 py-0.5 text-on-primary backdrop-blur">
+                {tf(locale, `listing.condition.${condition}`)}
+              </span>
+            ) : null}
+            {boatType ? <span className="rounded bg-surface-container-lowest/90 px-2 py-0.5 text-primary backdrop-blur">{boatType}</span> : null}
+          </div>
+        ) : null}
+        {location ? (
+          <p className="absolute bottom-3 right-3 flex items-center gap-1 rounded bg-surface-container-lowest/90 px-2.5 py-1 font-label-sm text-label-sm text-primary shadow-sm backdrop-blur">
+            <span className="material-symbols-outlined text-xs text-secondary" aria-hidden="true">location_on</span>
+            {location}
+          </p>
+        ) : null}
+      </div>
 
       <div className="flex flex-1 flex-col p-space-md">
       <div className="flex items-center justify-between font-label-sm uppercase tracking-wide text-secondary">
@@ -122,15 +150,16 @@ export default function BoatCard({
         )}
       </h3>
 
-      {location ? (
-        <p className="mt-space-xs font-body-sm text-on-surface-variant">{location}</p>
-      ) : null}
+      <p className="mt-space-xs font-body-sm text-on-surface-variant">{specLine}</p>
 
       {/* Spec §29.5: this row stacks cleanly below a breakpoint and neither
           value truncates ambiguously. */}
       <div className="mt-space-sm flex flex-col gap-space-xs sm:flex-row sm:items-end sm:justify-between">
         {price ? (
-          <p className="font-spec-num text-headline-sm font-semibold text-primary">{price}</p>
+          <div>
+            <span className="block font-label-sm text-label-sm uppercase text-outline">{tf(locale, "listing.asking_price")}</span>
+            <p className="font-spec-num text-headline-sm font-semibold text-primary">{price}</p>
+          </div>
         ) : null}
         {monthly ? (
           // Spec §2.5: every estimate carries the disclaimer. The asterisk is
