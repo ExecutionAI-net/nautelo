@@ -89,6 +89,13 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 18 (in-app, WebSocket, email notifications) backend complete
+
+- `GET /api/v1/notifications/` (+`?unread=true`, `unread_count`), `POST .../<id>/read/`, `POST .../read-all/`; the REST list is the source of truth a reconnecting client reads. `/ws/notifications/` authenticates with the project JWT sent as the FIRST message (`{"type":"auth","token":...}`, closed with 4401 after 10 s or on a bad token) so no token is in a URL; a socket joins only the HMAC-derived group of its own user, never a client-named group. Frames carry `kind: "notification"` plus id, type, title/body keys, payload, target_url, created_at.
+- `create_notification` now also writes a WEBSOCKET delivery (except `listing.expiring`, per spec 27.1) and queues `push_notification_ws` on commit; the task is idempotent and bounded-retry. Event emails for the ten new types use `notifications/copy.py` (EN/IT/ES, EN fallback): summary plus signed-in URL only.
+- Producers live in `listings/notification_receivers.py` and `payments/notification_receivers.py` (the arrow stays producer -> notifications; `notifications` imports neither, pinned by an existing test). Initial submissions suppress the generic revision event; auto-approved publications send no `listing.approved`. Taxonomy staff == moderator/admin groups (no separate group exists).
+- Not built: per-staff email digest preference (27.4; in-app is always created, payment failures always notify every staff admin), frontend bell/toast UI, and target URLs `/dashboard/private-seller/` and `/dashboard/staff/` point at pages Phase 16/17 will build.
+
 ### 2026-09-19 — Phase 15 (media limits, uploads, upgrade) backend complete
 
 - Merged as PRs for Tasks 1-3 (no separate plan document; unattended controller run). `apply_media_upgrade` (`POST /api/v1/listings/<id>/media-upgrade/apply/`) consumes the MEDIA_UPGRADE entitlement bound at checkout; `effective_media_allowance` returns 20/1 only once it is CONSUMED. Upload pipeline: `media/intents/` (allowance judged under a listing row lock, counting all non-rejected rows), `media/<id>/complete/` (size check, then `process_listing_media` on the `media` queue), list, and delete (refused while a public snapshot shows the item, spec 24.5). Stale UPLOADING rows are rejected after one hour by an hourly beat task. Migration `0009` adds `ListingMedia.rejection_reason`.
