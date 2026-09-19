@@ -14,7 +14,12 @@ from datetime import datetime
 from typing import ClassVar
 from uuid import UUID
 
+from django.db import transaction
+from django.utils import timezone
+
 from accounts.services import is_staff_moderator
+from audit.models import AuditEvent
+from audit.services import record_audit_event
 from brokers.enums import BrokerOrganizationStatus
 from brokers.models import BrokerOrganization
 from platform_settings.services import is_feature_enabled
@@ -23,6 +28,7 @@ from professionals.models import ProfessionalProfile
 
 from .enums import CONTACT_UNLOCK_FLAG, ContactTargetType
 from .masking import mask_email, mask_phone
+from .models import ContactAccessGrant
 from .selectors import active_contact_grant
 
 #: Spec §16's only unlock_rule value.
@@ -189,4 +195,72 @@ def _locked(target: ContactTarget) -> LockedContact:
     return LockedContact(
         email_mask=mask_email(target.instance.public_email),
         phone_mask=mask_phone(target.instance.public_phone),
+    )
+
+
+@transaction.atomic
+def record_first_reveal(*, grant_id, actor, request_id=None) -> bool:
+    """Stamp `first_revealed_at` and audit the reveal — once per grant.
+
+    Returns True only for the caller whose UPDATE matched, so two concurrent
+    first requests produce exactly one audit event. The conditional UPDATE is
+    the entire concurrency control: it is one atomic statement, so no row lock,
+    no select_for_update and no retry loop is needed.
+    """
+    now = timezone.now()
+    updated = ContactAccessGrant.objects.filter(
+        pk=grant_id, first_revealed_at__isnull=True
+    ).update(first_revealed_at=now)
+    if not updated:
+        return False
+
+    grant = ContactAccessGrant.objects.get(pk=grant_id)
+    record_audit_event(
+        actor_user=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        action="contact_access.revealed",
+        target_type="messaging.ContactAccessGrant",
+        target_id=grant.pk,
+        source=AuditEvent.Source.API,
+        before={"first_revealed_at": None},
+        # Spec §30.2's ISO 8601 UTC spelling, the same `.replace("+00:00", "Z")`
+        # normalization contact_payloads._isoformat() applies. An audit row is
+        # read by people and diffed by tools; two spellings of the same instant
+        # in one project is a needless difference.
+        after={"first_revealed_at": now.isoformat().replace("+00:00", "Z")},
+        # Safe object IDs only (spec §33.5). No email, no phone, no entity name.
+        metadata={
+            "target_type": grant.target_type,
+            "target_entity_id": str(grant.broker_id or grant.professional_id),
+        },
+        request_id=request_id,
+    )
+    return True
+
+
+def record_staff_reveal(*, segment, target_id, actor, request_id=None) -> None:
+    """Audit a grant-less staff reveal (spec §5's staff row, §33.1's "staff
+    high-impact actions").
+
+    Written on EVERY such request, unlike record_first_reveal's once-per-grant
+    rule: there is no grant row to carry a first-reveal stamp, staff reveals are
+    rare, and a staff member reading a contact repeatedly is exactly the pattern
+    an abuse review needs to see. No contact value is recorded.
+    """
+    target_type = TARGET_TYPE_BY_SEGMENT[segment]
+    record_audit_event(
+        actor_user=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        action="contact_access.staff_revealed",
+        target_type=(
+            "brokers.BrokerOrganization"
+            if target_type == ContactTargetType.BROKER
+            else "professionals.ProfessionalProfile"
+        ),
+        target_id=target_id,
+        source=AuditEvent.Source.API,
+        before=None,
+        after=None,
+        metadata={"target_type": str(target_type), "reason": "staff_reveal_any_contact"},
+        request_id=request_id,
     )

@@ -234,6 +234,12 @@ class ContactAccessGrant(UUIDTimeStampedModel):
     # semantic field separate from the row's bookkeeping timestamp.
     granted_at = models.DateTimeField(default=timezone.now)
     revoked_at = models.DateTimeField(null=True, blank=True)
+    # Phase 7 (spec §2.4): when the raw contact values were first DELIVERED to
+    # the viewer, as distinct from `granted_at`, which is when access was
+    # authorized. Set exactly once, by contact_access.record_first_reveal(),
+    # whose conditional UPDATE is also what decides which of two concurrent
+    # requests writes the single "contact_access.revealed" audit event.
+    first_revealed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("-granted_at",)
