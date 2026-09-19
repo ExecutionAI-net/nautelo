@@ -219,3 +219,40 @@ class ConversationSerializer(serializers.Serializer):
         # Annotation, not a per-row query - same reason as above.
         body = getattr(conversation, "last_message_body", None) or ""
         return message_excerpt(body) if body else ""
+
+
+class MessageSerializer(serializers.Serializer):
+    """One message in a thread.
+
+    Returns NO email address and NO phone number - not the sender's, not the
+    recipient's. `sender_email_snapshot` and `sender_phone_snapshot` are stored
+    for the record (spec 11.8, 15.1) and served by nothing in this phase; contact
+    reveal is Phase 7's, through its own endpoint, after a grant.
+    """
+
+    id = serializers.UUIDField(read_only=True)
+    body = serializers.CharField(read_only=True)
+    is_system = serializers.BooleanField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    read_at = serializers.DateTimeField(read_only=True)
+    sender = serializers.SerializerMethodField()
+
+    def get_sender(self, message) -> dict:
+        """`display_name` may be the empty string, and that is the correct
+        answer for a replier whose account has no name: the alternative -
+        User.get_full_name()'s `full_name or email` - would publish an email
+        address to the other party. The client renders the localized
+        `inquiry.sender_unnamed` string for a blank name (spec 37)."""
+        viewer = self.context["request"].user
+        return {
+            "display_name": message.sender_name_snapshot,
+            "is_you": message.sender_id == viewer.pk,
+        }
+
+
+class MessageCreateSerializer(serializers.Serializer):
+    """Spec 15.1's Message rule applies to a reply too: 20-4000 characters."""
+
+    message = serializers.CharField(
+        min_length=MESSAGE_MIN_LENGTH, max_length=MESSAGE_MAX_LENGTH
+    )

@@ -121,3 +121,19 @@ class InquiryDraftExpired(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "This saved draft has expired. Please retype your message."
     default_code = "draft_expired"
+
+
+class ConversationClosed(APIException):
+    """Spec 36.6: "Recipient blocking a user prevents new messages."
+
+    ARCHIVED is refused for the same reason, deliberately: archiving is a filing
+    decision by one side, and silently re-opening a thread because the other
+    side typed into it would undo it without asking. Nothing in this phase
+    archives or blocks a thread - Phase 19's inbox and any future staff
+    moderation are the producers - so today this is a guard, and the guard is
+    what makes those phases safe to build.
+    """
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "This conversation is closed."
+    default_code = "conversation_closed"

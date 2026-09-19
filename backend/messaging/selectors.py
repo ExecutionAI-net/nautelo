@@ -174,3 +174,40 @@ def annotate_last_message(queryset):
             visible.order_by("-created_at").values("body")[:1]
         ),
     )
+
+
+def conversation_recipients(conversation) -> tuple[list, str]:
+    """The RECIPIENT side of a stored thread: who to notify in-app, and the one
+    address to email (spec 15.4). Mirrors messaging.context's resolution rules,
+    but reads them off a saved Conversation rather than a request."""
+    if conversation.broker_id is not None:
+        return (
+            list(broker_message_readers(conversation.broker)),
+            conversation.broker.public_email,
+        )
+    if conversation.professional_id is not None:
+        owner = conversation.professional.owner_user
+        return ([owner] if owner is not None else []), conversation.professional.public_email
+    if conversation.listing_id is not None:
+        owner = conversation.listing.owner_user
+        return ([owner], owner.email) if owner is not None else ([], "")
+    return [], ""
+
+
+def conversation_context(conversation) -> tuple[str, str]:
+    """(context type, human label) for a stored thread - the notification
+    payload's `context_type` and `context_label`."""
+    if conversation.listing_id is not None:
+        snapshot = conversation.listing.current_public_snapshot
+        label = ""
+        if snapshot is not None:
+            model_name = (
+                snapshot.custom_model_name_snapshot or snapshot.model_name_snapshot
+            )
+            label = f"{snapshot.brand_name_snapshot} {model_name}".strip()
+        return "LISTING", label
+    if conversation.broker_id is not None:
+        return "BROKER", conversation.broker.name
+    if conversation.professional_id is not None:
+        return "PROFESSIONAL", conversation.professional.display_name
+    return "SUPPORT", ""

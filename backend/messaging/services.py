@@ -22,13 +22,18 @@ from messaging.context import resolve_inquiry_context
 from messaging.enums import (
     CURRENT_PRIVACY_POLICY_VERSION,
     DUPLICATE_MESSAGE_WINDOW_SECONDS,
+    FULL_NAME_MAX_LENGTH,
     ContactAccessOutcome,
     ConversationStatus,
     conversation_url,
 )
-from messaging.exceptions import ConsentRequired, MessagingThrottled
+from messaging.exceptions import ConsentRequired, ConversationClosed, MessagingThrottled
 from messaging.models import ContactAccessGrant, Conversation, Message
-from messaging.selectors import active_contact_grant
+from messaging.selectors import (
+    active_contact_grant,
+    conversation_context,
+    conversation_recipients,
+)
 from messaging.signals import inquiry_received
 from notifications.enums import EXCERPT_MAX_LENGTH, NotificationType
 from notifications.services import create_notification
@@ -168,37 +173,43 @@ def grant_contact_access(*, viewer, context, conversation, request_id=None):
     return grant, True
 
 
-def _notify_recipients(context, conversation, message) -> list[str]:
-    """Spec 15.4. In-app goes to every recipient; the email goes to exactly one
-    address, carried by exactly one of those notifications."""
-    recipients = list(context.recipient_users)
+def _dispatch_notifications(
+    *, recipients, email_to, conversation, message, context_type, context_label
+) -> list[str]:
+    """One fan-out, used by both submit_inquiry() and post_reply().
+
+    In-app goes to every recipient; the email goes to exactly one address,
+    carried by exactly one of those notifications (spec 15.4: "not every member
+    by default").
+    """
+    recipients = list(recipients)
     if not recipients:
         # Truthful consequence of can_read_messages defaulting to False: nobody
-        # at this organization can read messages, so nobody is told. The
-        # conversation is still real and appears the moment staff grants the
-        # capability. Surfaced as a warning so spec 33.4's alerting can see it.
+        # on the recipient side can read messages, so nobody is told. The thread
+        # is still real and appears the moment staff grants the capability.
+        # Surfaced as a warning so spec 33.4's alerting can see it.
         logger.warning(
-            "inquiry has no in-app recipient",
+            "message has no in-app recipient",
             extra={"conversation_id": str(conversation.pk)},
         )
         return []
 
     # Deterministic: prefer the recipient whose own account address IS the
     # configured address (the private-seller and professional-owner cases), so
-    # one person does not receive both the in-app row and an email that reads as
-    # if it were meant for a shared inbox. Otherwise the lowest pk, because
+    # one person does not get both the in-app row and an email that reads as if
+    # it were meant for a shared inbox. Otherwise the lowest pk, because
     # broker_message_readers() orders by pk.
     email_index = 0
     for index, user in enumerate(recipients):
-        if user.email == context.recipient_email:
+        if user.email == email_to:
             email_index = index
             break
 
     payload = {
         "conversation_id": str(conversation.pk),
         "message_id": str(message.pk),
-        "context_type": context.context_type,
-        "context_label": context.context_label,
+        "context_type": context_type,
+        "context_label": context_label,
         "sender_display_name": message.sender_name_snapshot,
         "excerpt": message_excerpt(message.body),
     }
@@ -212,14 +223,25 @@ def _notify_recipients(context, conversation, message) -> list[str]:
             body_key=INQUIRY_BODY_KEY,
             target_url=conversation_url(conversation.pk),
             payload=payload,
-            email_to=(
-                context.recipient_email
-                if index == email_index and context.recipient_email
-                else ""
-            ),
+            email_to=email_to if index == email_index and email_to else "",
+            # Spec 27.1's deduplication key for `inquiry.received` is the
+            # message ID. Scoped per recipient by the model's constraint, so a
+            # broker team still gets one notification each.
+            dedupe_key=str(message.pk),
         )
         notification_ids.append(str(notification.pk))
     return notification_ids
+
+
+def _notify_recipients(context, conversation, message) -> list[str]:
+    return _dispatch_notifications(
+        recipients=context.recipient_users,
+        email_to=context.recipient_email,
+        conversation=conversation,
+        message=message,
+        context_type=context.context_type,
+        context_label=context.context_label,
+    )
 
 
 @transaction.atomic
@@ -317,4 +339,103 @@ def submit_inquiry(
         next_url=conversation_url(conversation.pk),
         created_conversation=created_conversation,
         created_grant=created_grant,
+    )
+
+
+def _reply_display_name(actor) -> str:
+    """The replier's stated name, or the empty string - NEVER their email.
+
+    `actor.full_name` and nothing else. Do not reach for `User.get_full_name()`
+    or `get_short_name()`: both are `self.full_name or self.email`
+    (accounts/models.py), so an account that never set a name would put its
+    EMAIL ADDRESS into `Message.sender_name_snapshot`, which
+    `MessageSerializer.get_sender()["display_name"]` and
+    `ConversationSerializer.get_counterparty_name()` hand straight to the other
+    party. `accounts.services.register_user` defaults `full_name=""`, so this is
+    the common case, not an edge one - and spec 15.1's Full name field exists on
+    the inquiry form precisely because an account name is not guaranteed.
+
+    An empty string is returned rather than a fabricated English placeholder:
+    backend-generated user-visible text must be a translation key, not a
+    concatenated literal (spec 37). The thread UI renders
+    `inquiry.sender_unnamed` for a blank name (Phase 19), and the notification
+    email substitutes its own per-locale fallback in notifications/tasks.py.
+
+    TRUNCATED to FULL_NAME_MAX_LENGTH, and that is not defensive padding:
+    `accounts.User.full_name` is `max_length=150` while spec 15.1 caps the
+    inquiry form's Full name at 120, which is what `Message.sender_name_snapshot`
+    is sized to. An account carrying a 121-150 character name would otherwise
+    raise `DataError: value too long for type character varying(120)` inside
+    post_reply's transaction, rolling back a message the sender was told nothing
+    about. Truncating is the right call rather than widening the column: 120 is
+    the spec's number for this field, and every INQUIRY row already obeys it, so
+    widening would let replies hold names no inquiry could.
+    """
+    return (actor.full_name or "").strip()[:FULL_NAME_MAX_LENGTH]
+
+
+@transaction.atomic
+def post_reply(*, actor, conversation, body, request_id=None) -> Message:
+    """A reply inside an existing thread (spec 30.1's POST .../messages/).
+
+    Authorization is the CALLER's job - messaging.selectors.can_view_conversation
+    decides who may see a thread, and the view refuses before reaching here.
+    This function owns what happens once they may.
+    """
+    if conversation.status != ConversationStatus.OPEN:
+        raise ConversationClosed()
+
+    _refuse_duplicate(conversation, actor, body)
+
+    message = Message.objects.create(
+        conversation=conversation,
+        sender=actor,
+        body=body,
+        sender_email_snapshot=actor.email,
+        sender_name_snapshot=_reply_display_name(actor),
+        sender_phone_snapshot="",
+        is_system=False,
+        # Empty on purpose: consent belongs to the inquiry, not to every reply.
+        privacy_policy_version="",
+        marketing_consent=False,
+    )
+    conversation.last_message_at = message.created_at
+    conversation.save(update_fields=["last_message_at", "updated_at"])
+
+    recipient_side, recipient_email = conversation_recipients(conversation)
+    if actor.pk == conversation.initiator_id:
+        recipients, email_to = recipient_side, recipient_email
+    else:
+        recipients, email_to = [conversation.initiator], conversation.initiator.email
+
+    context_type, context_label = conversation_context(conversation)
+    notification_ids = _dispatch_notifications(
+        recipients=recipients,
+        email_to=email_to,
+        conversation=conversation,
+        message=message,
+        context_type=context_type,
+        context_label=context_label,
+    )
+
+    transaction.on_commit(
+        lambda: inquiry_received.send(
+            sender=Message,
+            conversation=conversation,
+            message=message,
+            notification_ids=notification_ids,
+        )
+    )
+    return message
+
+
+@transaction.atomic
+def mark_conversation_read(*, actor, conversation) -> int:
+    """Marks every message the actor did NOT send as read, and returns how many
+    changed. Spec 11.8 gives Message one read_at, so this means "read by the
+    recipient side" for a broker team - see the plan's Known Limitations."""
+    return (
+        conversation.messages.filter(read_at__isnull=True)
+        .exclude(sender=actor)
+        .update(read_at=timezone.now())
     )

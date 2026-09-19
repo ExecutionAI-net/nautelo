@@ -12,3 +12,12 @@ class ConversationPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class MessagePagination(PageNumberPagination):
+    """A thread is read oldest-first from page 1, so the page is larger than the
+    inbox's: a typical conversation fits on one page."""
+
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200

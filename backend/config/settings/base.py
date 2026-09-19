@@ -169,6 +169,7 @@ REST_FRAMEWORK = {
         "inquiry_submit": "20/hour",
         "messaging_read": "120/min",
         "inquiry_draft": "30/hour",
+        "message_send": "60/hour",
         # Spec §30.4 lists finance quote logging among the rate-limited
         # surfaces while allowing "the calculation itself [to] remain
         # reasonably accessible". The finance page recalculates on every
