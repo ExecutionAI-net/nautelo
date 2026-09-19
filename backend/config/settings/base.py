@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "notifications",
     "platform_settings",
     "payments",
+    "content",
 ]
 
 MIDDLEWARE = [
@@ -180,6 +181,7 @@ REST_FRAMEWORK = {
         "account": "120/min",
         "broker_team": "120/min",
         "public_settings": "300/min",
+        "public_content_read": "300/min",
         # Phase 15: applying a purchased media upgrade takes a row lock.
         "media_upgrade_apply": "30/hour",
         # Phase 15: upload intents and completions from the listing form.
