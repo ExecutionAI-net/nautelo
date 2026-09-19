@@ -26,8 +26,8 @@
         "ecr:BatchGetImage"
       ],
       "Resource": [
-        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-backend-de",
-        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-frontend-de",
+        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-backend-dev",
+        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-frontend-dev",
         "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-backend-prod",
         "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-frontend-prod"
       ]

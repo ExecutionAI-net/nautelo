@@ -7,11 +7,11 @@ Two independent Compose projects run behind one shared Nginx container. Region: 
 | dev | `dev` | `dev.example.com` | `api.dev.example.com` | `GITHUB_RUN_NUMBER` |
 | prod | `main` | `example.com` | `api.example.com` | `GITHUB_RUN_NUMBER` |
 
-Image references use these four ECR repositories (the dev suffix is intentionally `de`):
+Image references use these four ECR repositories:
 
 ```text
-ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-de:GITHUB_RUN_NUMBER
-ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-de:GITHUB_RUN_NUMBER
+ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-dev:GITHUB_RUN_NUMBER
+ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-dev:GITHUB_RUN_NUMBER
 ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-prod:GITHUB_RUN_NUMBER
 ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-prod:GITHUB_RUN_NUMBER
 ```
@@ -29,8 +29,8 @@ Allow inbound TCP 80 and 443; restrict SSH to your administration IP or use SSM.
 Create ECR repositories once:
 
 ```bash
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-de --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-de --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-dev --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-dev --image-tag-mutability IMMUTABLE
 aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-prod --image-tag-mutability IMMUTABLE
 aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-prod --image-tag-mutability IMMUTABLE
 ```

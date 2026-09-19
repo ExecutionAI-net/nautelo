@@ -33,7 +33,7 @@ class DeploymentConfigurationTests(unittest.TestCase):
 
     def test_environment_specific_repositories_use_run_number_tags(self):
         registry = '123456789012.dkr.ecr.eu-west-1.amazonaws.com'
-        for environment, suffix in [('dev', 'de'), ('prod', 'prod')]:
+        for environment, suffix in [('dev', 'dev'), ('prod', 'prod')]:
             with self.subTest(environment=environment):
                 self.assertEqual(manage.image_references(registry, environment, '42'), {
                     'backend': f'{registry}/nautelo-backend-{suffix}:42',
