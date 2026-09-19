@@ -5,6 +5,8 @@ so the one-directional dependency arrow `messaging` -> nothing is preserved
 (see models.py's module docstring).
 """
 
+from django.contrib.auth import get_user_model
+
 from messaging.models import ContactAccessGrant
 
 
@@ -36,4 +38,26 @@ def active_contact_grant(viewer, *, broker=None, professional=None):
         )
         .order_by("-granted_at")
         .first()
+    )
+
+
+def broker_message_readers(broker):
+    """Spec 15.4: "team members with can_read_messages receive in-app visibility."
+
+    Gates on can_read_messages ONLY, never on can_edit_listings (Phase 3
+    contract rule 4): active membership, ACTIVE organization and the flag.
+    """
+    from brokers.enums import BrokerOrganizationStatus
+
+    return (
+        get_user_model()
+        .objects.filter(
+            is_active=True,
+            broker_memberships__broker=broker,
+            broker_memberships__is_active=True,
+            broker_memberships__can_read_messages=True,
+            broker_memberships__broker__status=BrokerOrganizationStatus.ACTIVE,
+        )
+        .order_by("pk")
+        .distinct()
     )
