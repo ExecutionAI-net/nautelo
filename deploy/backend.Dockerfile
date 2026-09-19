@@ -12,7 +12,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/ .
 ENV PATH="/app/.venv/bin:$PATH" DJANGO_SETTINGS_MODULE=config.settings.prod
 
-RUN useradd --create-home app && chown -R app /app
+RUN useradd --create-home app && mkdir -p /app/staticfiles /app/beat && chown -R app /app
 USER app
 EXPOSE 8000
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "config.asgi:application"]

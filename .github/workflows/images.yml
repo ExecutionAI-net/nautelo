@@ -1,0 +1,46 @@
+name: Build and deploy through SSM
+on:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+  images:
+    needs: ci
+    timeout-minutes: 60
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    env:
+      DEPLOY_ENV: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      AWS_REGION: eu-west-1
+      ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '790702264138.dkr.ecr.eu-west-1.amazonaws.com' }}
+      AWS_SECRET_ID: ${{ vars.AWS_SECRET_ID || (github.ref_name == 'main' && 'nautelo/prod' || 'nautelo/dev') }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: eu-west-1
+      - name: Configure build
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          config = {"region": os.environ["AWS_REGION"], "registry": os.environ["ECR_REGISTRY"], "secret_id": os.environ["AWS_SECRET_ID"]}
+          Path(f"deploy/config.{os.environ['DEPLOY_ENV']}.json").write_text(json.dumps(config))
+          PY
+      - name: Choose immutable release tag
+        run: echo "IMAGE_TAG=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+      - name: Build and push immutable images
+        run: python3 deploy/manage.py build "$DEPLOY_ENV" "$IMAGE_TAG"
+      - name: Deploy to EC2 and await health checks through SSM
+        run: python3 deploy/ssm_deploy.py "$DEPLOY_ENV" "$IMAGE_TAG" --instance-id "$EC2_INSTANCE_ID"

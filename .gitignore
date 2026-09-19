@@ -34,3 +34,11 @@ Thumbs.db
 # deploy secrets
 deploy/.env
 deploy/acme/
+
+# Environment deployment configuration and rendered secrets
+deploy/config.*.json
+!deploy/config.*.example.json
+deploy/secret.*.json
+!deploy/secret.example.json
+deploy/runtime/
+deploy/proxy.env

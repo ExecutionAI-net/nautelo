@@ -1,5 +1,5 @@
 # Managed by deploy/manage.py. Both environments use hardened Django settings.
-name: nautelo-prod
+name: nautelo-dev
 x-backend: &backend
   image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE with an explicit tag}
   env_file:
@@ -48,7 +48,7 @@ services:
     networks:
       default: {}
       edge:
-        aliases: [nautelo-prod-api]
+        aliases: [nautelo-dev-api]
     depends_on:
       migrate: {condition: service_completed_successfully}
     healthcheck:
@@ -76,7 +76,7 @@ services:
     networks:
       default: {}
       edge:
-        aliases: [nautelo-prod-web]
+        aliases: [nautelo-dev-web]
     restart: unless-stopped
     logging: *logging
     healthcheck:
@@ -89,10 +89,10 @@ services:
 networks:
   edge:
     external: true
-    name: nautelo-prod-edge
+    name: nautelo-dev-edge
 volumes:
   postgres_data:
   redis_data:
   beat_data:
   static_data:
-    name: nautelo-prod-static
+    name: nautelo-dev-static

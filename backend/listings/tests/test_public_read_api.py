@@ -414,3 +414,22 @@ def test_media_entries_carry_a_cdn_url_only_when_a_public_base_is_configured(set
     assert _with_url(item)["url"] is None
     settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example/"
     assert _with_url(item)["url"] == "https://cdn.example/listings/1/abc"
+
+
+def test_approved_media_can_use_private_s3_downloads(settings):
+    from unittest.mock import patch
+
+    from listings.serializers import _with_url
+
+    settings.MEDIA_PUBLIC_BASE_URL = ""
+    settings.MEDIA_SIGNED_URLS = True
+    item = {"media_id": "m", "storage_key": "listings/1/abc"}
+    with patch("django.core.files.storage.default_storage.url", return_value="https://signed.example/object?signature=test") as sign:
+        assert _with_url(item)["url"] == "https://signed.example/object?signature=test"
+        sign.assert_called_once_with("listings/1/abc")
+        sign.reset_mock()
+        assert _with_url({"media_id": "m"})["url"] is None
+        sign.assert_not_called()
+        settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example"
+        assert _with_url(item)["url"] == "https://cdn.example/listings/1/abc"
+        sign.assert_not_called()

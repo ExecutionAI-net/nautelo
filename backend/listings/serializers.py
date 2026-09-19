@@ -144,11 +144,15 @@ class StaffRevisionSerializer(serializers.Serializer):
 
 
 def _with_url(item: dict) -> dict:
-    """Adds the CDN URL (spec 24): `MEDIA_PUBLIC_BASE_URL` fronts the bucket's
-    public-read path. Unset means media is not publicly served yet -> null."""
+    """Resolve approved snapshot media through a CDN or private S3 signed GET."""
     base = (getattr(settings, "MEDIA_PUBLIC_BASE_URL", "") or "").rstrip("/")
     key = item.get("storage_key")
-    return {**item, "url": f"{base}/{key}" if base and key else None}
+    url = f"{base}/{key}" if base and key else None
+    if key and not base and getattr(settings, "MEDIA_SIGNED_URLS", False):
+        from django.core.files.storage import default_storage
+
+        url = default_storage.url(key)
+    return {**item, "url": url}
 
 
 class PublicListingSerializer(serializers.Serializer):
