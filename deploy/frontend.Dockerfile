@@ -12,10 +12,10 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL NEXT_PUBLIC_BASE_URL=$NEX
 RUN pnpm build
 
 FROM node:22-alpine
-RUN corepack enable
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app ./
+COPY --from=build --chown=node:node /app ./
 USER node
 EXPOSE 3000
-CMD ["pnpm", "start", "-p", "3000"]
+# Start the built app directly: pnpm can attempt dependency installs at runtime.
+CMD ["node", "node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3000"]
