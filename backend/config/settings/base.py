@@ -176,6 +176,11 @@ REST_FRAMEWORK = {
         "contact_access": "120/min",
         # Phase 7, spec §30.4. A staff remedy, used a handful of times a day.
         "contact_grant_admin": "30/min",
+        # Spec 30.4 does not name inbox filing, but this is a write and it sits
+        # on an authenticated screen a broker refreshes all day. Looser than
+        # `message_send` because archiving reaches nobody and creates nothing;
+        # tighter than `messaging_read` because it takes a row lock.
+        "conversation_status": "120/hour",
         # Spec §30.4 lists finance quote logging among the rate-limited
         # surfaces while allowing "the calculation itself [to] remain
         # reasonably accessible". The finance page recalculates on every

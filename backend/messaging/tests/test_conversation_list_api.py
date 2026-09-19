@@ -158,6 +158,7 @@ def test_a_row_carries_every_field_spec_28_names(api, scene):
         "type": "PROFESSIONAL",
         "id": str(scene["professional"].pk),
         "label": "Phase6 Inbox Pro",
+        "url": "/services/professionals/phase6-inbox-pro/",
     }
 
 

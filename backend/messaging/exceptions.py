@@ -137,3 +137,53 @@ class ConversationClosed(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "This conversation is closed."
     default_code = "conversation_closed"
+
+
+class InvalidConversationStatus(APIException):
+    """Spec 28's Archived filter needs a producer; BLOCKED is not one.
+
+    A ChoiceField would have been the obvious way to reject this, and a
+    max_length the obvious way to bound it. Both are wrong here: every DRF
+    ValidationError collapses to code "validation_error" in
+    common.exceptions.nauta_exception_handler (common/exceptions.py:107-110),
+    so the named code spec 30.2 asks for would never reach a client — and it
+    would fail exactly on the oversized input an attacker sends first. The
+    serializer therefore accepts any string of any length and the service
+    raises this.
+    """
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "A conversation may only be set to OPEN or ARCHIVED."
+    default_code = "invalid_conversation_status"
+
+
+class ConversationSuperseded(APIException):
+    """Re-opening an archived thread collided with a newer open one.
+
+    Conversation's three uniqueness constraints are PARTIAL indexes conditioned
+    on status=OPEN (messaging/models.py:111-133), precisely so an archived thread
+    does not block a new inquiry. The consequence is that un-archiving is not
+    always possible, and that is a 409, not a 500.
+    """
+
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "A newer open conversation already exists for this context."
+    default_code = "conversation_superseded"
+
+
+class ConversationFilingForbidden(APIException):
+    """Only the RECIPIENT side may file a conversation (the plan's ruling 5).
+
+    Spec 11.8 gives Conversation ONE status column, so archiving is shared. A
+    sender who could archive would remove their own live lead from the
+    brokerage's default OPEN inbox — the screen spec 28 exists to build. Spec
+    2.2 puts that refusal on the server.
+
+    403 rather than 404 on purpose: the initiator MAY see this conversation, so
+    pretending it does not exist would be theatre. 404 is reserved for callers
+    who may not see it at all.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Only the recipient of a conversation can file it."
+    default_code = "conversation_filing_forbidden"

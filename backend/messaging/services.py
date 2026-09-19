@@ -27,7 +27,14 @@ from messaging.enums import (
     ConversationStatus,
     conversation_url,
 )
-from messaging.exceptions import ConsentRequired, ConversationClosed, MessagingThrottled
+from messaging.exceptions import (
+    ConsentRequired,
+    ConversationClosed,
+    ConversationFilingForbidden,
+    ConversationSuperseded,
+    InvalidConversationStatus,
+    MessagingThrottled,
+)
 from messaging.models import ContactAccessGrant, Conversation, Message
 from messaging.selectors import (
     active_contact_grant,
@@ -439,3 +446,62 @@ def mark_conversation_read(*, actor, conversation) -> int:
         .exclude(sender=actor)
         .update(read_at=timezone.now())
     )
+
+
+#: Spec 28's Archived filter, and nothing else. BLOCKED is deliberately absent:
+#: spec 36.6 makes blocking a moderation act that "may revoke access", and
+#: ContactAccessGrant.revoked_at is Phase 7's column. An inbox toggle that can
+#: silently revoke somebody's contact access is not an inbox toggle.
+ARCHIVABLE_STATUSES: frozenset[str] = frozenset(
+    {ConversationStatus.OPEN, ConversationStatus.ARCHIVED}
+)
+
+
+@transaction.atomic
+def set_conversation_status(*, actor, conversation, new_status: str) -> Conversation:
+    """Archive or un-archive a thread (spec 28's Archived filter).
+
+    VISIBILITY is the caller's job — messaging.selectors.can_view_conversation
+    decides who may see a thread and the view refuses with 404 before reaching
+    here, mirroring post_reply exactly. FILING RIGHTS are this function's job,
+    because they are a rule about the conversation rather than about the route,
+    and a rule that lives only in a view is the thing spec 3's last paragraph
+    forbids.
+
+    Spec 11.8 gives Conversation ONE status column, so archiving is per
+    conversation, not per participant. That is why only the recipient side may
+    do it: a sender archiving their own inquiry would pull a live lead out of
+    the brokerage's default OPEN inbox. See the plan's ruling 5 and Known
+    Limitation 2.
+
+    Not audited: spec 2.4's five audited categories are staff actions,
+    permission-sensitive status transitions, contact reveals, entitlement
+    movements and listing decisions. Filing an inbox is none of them, and Phase 6
+    made the same call for post_reply.
+    """
+    if new_status not in ARCHIVABLE_STATUSES:
+        raise InvalidConversationStatus()
+    if actor.pk == conversation.initiator_id:
+        raise ConversationFilingForbidden()
+
+    locked = Conversation.objects.select_for_update().get(pk=conversation.pk)
+    if locked.status == ConversationStatus.BLOCKED:
+        # Spec 36.6: blocking "prevents new messages". Un-blocking is a
+        # moderation act this phase does not build.
+        raise ConversationClosed()
+    if locked.status == new_status:
+        # Idempotent, which is also why spec 30.3's Idempotency-Key is not
+        # required here.
+        return locked
+
+    locked.status = new_status
+    try:
+        # A NESTED atomic block, and it is load-bearing rather than defensive:
+        # an IntegrityError marks the enclosing atomic block as needing
+        # rollback, so catching it without a savepoint makes the very next query
+        # raise TransactionManagementError instead of returning a 409.
+        with transaction.atomic():
+            locked.save(update_fields=["status", "updated_at"])
+    except IntegrityError as exc:
+        raise ConversationSuperseded() from exc
+    return locked

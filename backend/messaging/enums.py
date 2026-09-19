@@ -103,9 +103,12 @@ DRAFT_TOKEN_SALT = "messaging.inquiry-draft"
 # Spec 15.1's honeypot. Named to look like a field a scraper would fill in.
 HONEYPOT_FIELD_NAME = "company_website"
 
-# Spec 15.5's `next_url`. One constant, because spec 4.2 names /messages/ and
-# spec 28 names /dashboard/broker/messages/ for the same destination - the phase
-# that finally builds the page changes this line and nothing else.
+# Spec 15.5's next_url: the URL given to the person who SENT an inquiry, who is
+# typically a buyer - and spec 4.2 has no buyer row, which is why this path
+# carries no role segment. It is NOT the same destination as spec 28's
+# /dashboard/broker/messages/, which is the RECIPIENT broker's screen; those are
+# two seats on one conversation, so they are two URLs. Phase 19 builds both
+# pages and deliberately leaves this line alone.
 SENDER_CONVERSATION_URL_TEMPLATE = "/dashboard/messages/{conversation_id}/"
 
 
