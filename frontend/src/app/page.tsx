@@ -483,7 +483,7 @@ export default async function Home() {
                 A definitive legal guide navigating deregistration from Italian RID to the Spanish Registro de Buques, including matriculation tax calculations.
               </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="#">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/guides/">
               Read guide <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -501,7 +501,7 @@ export default async function Home() {
                 Protect your powertrain against galvanic corrosion and ensure fuel filtration efficiency before your first offshore summer voyage.
               </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="#">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/guides/">
               Read guide <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
@@ -519,14 +519,14 @@ export default async function Home() {
                 Critical checkpoints during high-speed RPM tests, steering pressure evaluation, and auxiliary systems verification in open water.
               </p>
 </div>
-<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="#">
+<Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/guides/">
               Read guide <span className="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
 </Link>
 </div>
 </article>
 </div>
 <div className="flex justify-center">
-<Link className="inline-flex items-center gap-space-xs bg-primary hover:bg-primary-container text-on-primary py-space-sm px-space-xl rounded-lg font-title-md text-title-md transition-colors shadow-sm" href="#">
+<Link className="inline-flex items-center gap-space-xs bg-primary hover:bg-primary-container text-on-primary py-space-sm px-space-xl rounded-lg font-title-md text-title-md transition-colors shadow-sm" href="/guides/">
           View all guides
           <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
 </Link>
