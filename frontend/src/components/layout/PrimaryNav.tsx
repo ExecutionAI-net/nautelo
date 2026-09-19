@@ -36,7 +36,7 @@ const LINKS: NavLink[] = [
   { href: "/services/professionals/", label: "Services / Professionals" },
   { href: "/financing/", label: "Financing" },
   { href: "/sell/", label: "Sell", permission: "create_private_listing" },
-  // NOTE: /fleet/ (create_broker_listing) stays ABSENT until its page exists.
+  { href: "/fleet/", label: "Fleet", permission: "create_broker_listing" },
   {
     href: "/dashboard/broker/",
     // Spec 37: new UI text is a key, never a literal. `broker.dashboard.title`
