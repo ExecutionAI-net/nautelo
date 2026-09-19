@@ -124,3 +124,24 @@ export async function uploadMedia(listingId: string, file: File): Promise<MediaR
     { method: "POST" },
   );
 }
+
+export function applyMediaUpgrade(listingId: string) {
+  return apiFetch<{ listing_id: string; entitlement_id: string; state: string }>(
+    `/api/v1/listings/${listingId}/media-upgrade/apply/`,
+    { method: "POST" },
+  );
+}
+
+/** Starts Stripe Checkout for the media upgrade; the caller redirects to
+ *  `checkout_url`. Rights are only granted by the verified webhook (spec 2.2). */
+export function startMediaUpgradeCheckout(listingId: string, returnUrl: string) {
+  return apiFetch<{ checkout_url: string }>("/api/v1/checkout-sessions/", {
+    method: "POST",
+    headers: { ...JSON_HEADERS, "Idempotency-Key": crypto.randomUUID() },
+    body: JSON.stringify({
+      product_code: "LISTING_MEDIA_UPGRADE",
+      listing_id: listingId,
+      return_url: returnUrl,
+    }),
+  });
+}
