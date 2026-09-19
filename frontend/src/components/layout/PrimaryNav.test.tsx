@@ -35,7 +35,12 @@ const ALL_FALSE: PermissionMap = {
   manage_taxonomy: false,
 };
 
-function mockSession(permissions: PermissionMap, authenticated = true) {
+function mockSession(
+  permissions: PermissionMap,
+  authenticated = true,
+  brokerMemberships: SessionPayload["broker_memberships"] = [],
+  localeCode: SessionPayload["locale"] = "EN",
+) {
   const value: SessionPayload = {
     authenticated,
     user: authenticated
@@ -44,14 +49,14 @@ function mockSession(permissions: PermissionMap, authenticated = true) {
           email: "nav@example.com",
           full_name: "Nav User",
           primary_role: "BUYER",
-          locale: "EN",
+          locale: localeCode,
           email_verified: true,
           is_active: true,
         }
       : null,
-    locale: "EN",
+    locale: localeCode,
     permissions,
-    broker_memberships: [],
+    broker_memberships: brokerMemberships,
     professional_profile: null,
     staff: { is_staff_moderator: false, is_staff_admin: false },
   };
@@ -65,6 +70,18 @@ function mockSession(permissions: PermissionMap, authenticated = true) {
     reload: vi.fn(),
   });
 }
+
+const BROKER_MEMBERSHIP = {
+  broker_id: "b-1",
+  broker_name: "Phase19 Alpha Brokers",
+  broker_slug: "phase19-alpha-brokers",
+  broker_status: "ACTIVE" as const,
+  broker_auto_approve_listings: false,
+  role: "AGENT" as const,
+  can_edit_listings: false,
+  can_manage_team: false,
+  can_read_messages: false,
+};
 
 afterEach(() => useSessionMock.mockReset());
 
@@ -101,5 +118,41 @@ describe("PrimaryNav", () => {
     mockSession({ ...ALL_FALSE, configure_products_and_settings: true });
     render(<PrimaryNav />);
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("shows the broker dashboard link only to a member of a broker organization", () => {
+    mockSession(ALL_FALSE);
+    render(<PrimaryNav />);
+    expect(
+      screen.queryByRole("link", { name: "Broker dashboard" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the broker dashboard link to a broker member with no permissions at all", () => {
+    // Membership, not a permission: spec 5's capability table has no "broker
+    // dashboard" row, and an AGENT with every flag false is still a member.
+    mockSession(ALL_FALSE, true, [BROKER_MEMBERSHIP]);
+    render(<PrimaryNav />);
+    expect(
+      screen.getByRole("link", { name: "Broker dashboard" }),
+    ).toHaveAttribute("href", "/dashboard/broker/");
+  });
+
+  it.each([
+    ["EN", "Broker dashboard"],
+    ["IT", "Pannello broker"],
+    ["ES", "Panel del bróker"],
+  ])("renders the broker dashboard label in %s", (localeCode, label) => {
+    // Spec 37: this phase's new nav text is a dictionary key, not a literal.
+    // The six entries merged in Phase 3 remain hard-coded English — see this
+    // task's note and Known Limitation 18.
+    mockSession(
+      ALL_FALSE,
+      true,
+      [BROKER_MEMBERSHIP],
+      localeCode as SessionPayload["locale"],
+    );
+    render(<PrimaryNav />);
+    expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
   });
 });
