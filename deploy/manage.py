@@ -73,8 +73,7 @@ def environments(secret, region):
 
 
 def image_references(registry, environment, tag):
-    suffix = {"dev": "dev", "prod": "prod"}[environment]
-    return {part: f"{registry}/nautelo-{part}-{suffix}:{tag}" for part in ("backend", "frontend")}
+    return {part: f"{registry}/nautelo/{part}/{environment}:{tag}" for part in ("backend", "frontend")}
 
 
 def write_env(path, values):

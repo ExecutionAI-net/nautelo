@@ -32,12 +32,12 @@ class DeploymentConfigurationTests(unittest.TestCase):
         self.assertEqual(backend['MEDIA_SIGNED_URLS'], 'True')
 
     def test_environment_specific_repositories_use_run_number_tags(self):
-        registry = '123456789012.dkr.ecr.eu-west-1.amazonaws.com'
-        for environment, suffix in [('dev', 'dev'), ('prod', 'prod')]:
+        registry = '790702264138.dkr.ecr.eu-west-1.amazonaws.com'
+        for environment in ('dev', 'prod'):
             with self.subTest(environment=environment):
                 self.assertEqual(manage.image_references(registry, environment, '42'), {
-                    'backend': f'{registry}/nautelo-backend-{suffix}:42',
-                    'frontend': f'{registry}/nautelo-frontend-{suffix}:42',
+                    'backend': f'{registry}/nautelo/backend/{environment}:42',
+                    'frontend': f'{registry}/nautelo/frontend/{environment}:42',
                 })
 
     def test_raw_file_preserves_special_characters_and_is_private(self):
@@ -65,7 +65,7 @@ class DeploymentConfigurationTests(unittest.TestCase):
             root = Path(tmp)
             (root / 'deploy').mkdir()
             (root / 'deploy/config.dev.json').write_text(json.dumps({
-                'region': 'eu-west-1', 'registry': '123456789012.dkr.ecr.eu-west-1.amazonaws.com', 'secret_id': 'nautelo/dev'}))
+                'region': 'eu-west-1', 'registry': '790702264138.dkr.ecr.eu-west-1.amazonaws.com', 'secret_id': 'nautelo/dev'}))
             commands = []
             def fake_run(command, **kwargs):
                 commands.append(command)

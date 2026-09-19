@@ -8,7 +8,7 @@
       ],
       "Resource": [
         "arn:aws:ssm:eu-west-1::document/AWS-RunShellScript",
-        "arn:aws:ec2:eu-west-1:ACCOUNT_ID:instance/i-REPLACE"
+        "arn:aws:ec2:eu-west-1:790702264138:instance/i-REPLACE"
       ]
     },
     {

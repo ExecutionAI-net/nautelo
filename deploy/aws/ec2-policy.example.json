@@ -7,8 +7,8 @@
         "secretsmanager:GetSecretValue"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:eu-west-1:ACCOUNT_ID:secret:nautelo/dev-*",
-        "arn:aws:secretsmanager:eu-west-1:ACCOUNT_ID:secret:nautelo/prod-*"
+        "arn:aws:secretsmanager:eu-west-1:790702264138:secret:nautelo/dev-??????",
+        "arn:aws:secretsmanager:eu-west-1:790702264138:secret:nautelo/prod-??????"
       ]
     },
     {
@@ -26,10 +26,10 @@
         "ecr:BatchGetImage"
       ],
       "Resource": [
-        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-backend-dev",
-        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-frontend-dev",
-        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-backend-prod",
-        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-frontend-prod"
+        "arn:aws:ecr:eu-west-1:790702264138:repository/nautelo/backend/dev",
+        "arn:aws:ecr:eu-west-1:790702264138:repository/nautelo/frontend/dev",
+        "arn:aws:ecr:eu-west-1:790702264138:repository/nautelo/backend/prod",
+        "arn:aws:ecr:eu-west-1:790702264138:repository/nautelo/frontend/prod"
       ]
     },
     {

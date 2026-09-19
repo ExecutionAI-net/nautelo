@@ -10,10 +10,10 @@ Two independent Compose projects run behind one shared Nginx container. Region: 
 Image references use these four ECR repositories:
 
 ```text
-ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-dev:GITHUB_RUN_NUMBER
-ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-dev:GITHUB_RUN_NUMBER
-ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-frontend-prod:GITHUB_RUN_NUMBER
-ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/nautelo-backend-prod:GITHUB_RUN_NUMBER
+790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/frontend/dev:GITHUB_RUN_NUMBER
+790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/backend/dev:GITHUB_RUN_NUMBER
+790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/frontend/prod:GITHUB_RUN_NUMBER
+790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/backend/prod:GITHUB_RUN_NUMBER
 ```
 
 `GITHUB_RUN_NUMBER` is replaced with the workflow's numeric run number, for example `42`. Both EC2 environments use hardened Django production settings; the dev environment is a deployed test environment. The root `docker-compose.yml` remains the local Postgres/Redis/MinIO setup.
@@ -26,16 +26,16 @@ Use a Linux **x86_64** EC2 instance (the GitHub build runner builds amd64 images
 
 Allow inbound TCP 80 and 443; restrict SSH to your administration IP or use SSM. Do not open PostgreSQL, Redis, 3000, or 8000. Point all four DNS A records at the Elastic IP. Use the domains directly; adding a CDN proxy changes the trusted client-IP configuration.
 
-Create ECR repositories once:
+The two backend repositories and frontend prod repository are already supplied. The frontend dev path `nautelo/frontend/dev` is assumed to follow the same structure; confirm it exists. Create only missing repositories (do not recreate existing ones):
 
 ```bash
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-dev --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-dev --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-backend-prod --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo-frontend-prod --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo/backend/dev --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo/frontend/dev --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo/backend/prod --image-tag-mutability IMMUTABLE
+aws ecr create-repository --region eu-west-1 --repository-name nautelo/frontend/prod --image-tag-mutability IMMUTABLE
 ```
 
-Keep your existing EC2 IAM role with Secrets Manager, S3, and ECR permissions. `aws/ec2-policy.example.json` is a reference to compare resource scope after replacing ACCOUNT_ID and bucket/secret names; do not create a duplicate role. The role needs Secrets Manager read, ECR pull, and object access to the two buckets. If using a customer-managed KMS key, also grant the appropriate KMS permissions and key-policy access. Require IMDSv2 and set the response hop limit to **2**, so container SDKs can retrieve rotating role credentials:
+Keep your existing EC2 IAM role with Secrets Manager, S3, and ECR permissions. `aws/ec2-policy.example.json` is a reference to compare resource scope with your account `790702264138` and after replacing the example bucket names; do not create a duplicate role. The role needs Secrets Manager read, ECR pull, and object access to the two buckets. If using a customer-managed KMS key, also grant the appropriate KMS permissions and key-policy access. Require IMDSv2 and set the response hop limit to **2**, so container SDKs can retrieve rotating role credentials:
 
 ```bash
 aws ec2 modify-instance-metadata-options --region eu-west-1 --instance-id i-REPLACE \
@@ -67,12 +67,14 @@ The deployment helper explicitly sets `MEDIA_PUBLIC_BASE_URL` to an empty string
 
 ## 3. Store environment configuration in Secrets Manager
 
-Copy `deploy/secret.example.json` to an ignored `deploy/secret.dev.json`, fill in every value, and create **one JSON SecretString per environment**. Use independent random Django, contact-hash, internal-service, and database secrets. Use Stripe test credentials in dev and live credentials in prod. Set the two HTTPS URLs, bucket, region, and email settings for each environment.
+Your existing secrets are `nautelo/dev` and `nautelo/prod` in account `790702264138`, region `eu-west-1`. The workflow defaults to these names. The ARNs supplied without the generated suffix are partial ARNs; using the secret names avoids ambiguity. IAM examples match the six-character suffix with `??????`.
+
+Copy `deploy/secret.example.json` to an ignored `deploy/secret.dev.json`, fill in every value, and store **one JSON SecretString per environment** in those existing secrets. Use independent random Django, contact-hash, internal-service, and database secrets. Use Stripe test credentials in dev and live credentials in prod. Set the two HTTPS URLs, bucket, region, and email settings for each environment.
 
 ```bash
-aws secretsmanager create-secret --region eu-west-1 --name nautelo/dev \
+aws secretsmanager put-secret-value --region eu-west-1 --secret-id nautelo/dev \
   --secret-string file://deploy/secret.dev.json
-aws secretsmanager create-secret --region eu-west-1 --name nautelo/prod \
+aws secretsmanager put-secret-value --region eu-west-1 --secret-id nautelo/prod \
   --secret-string file://deploy/secret.prod.json
 ```
 
@@ -89,11 +91,11 @@ Changing `POSTGRES_PASSWORD` in Secrets Manager does **not** change an existing 
 Create GitHub environments `dev` and `prod`, restricting their deployment branches to `dev` and `main` respectively. Configure these environment variables:
 
 - `AWS_BUILD_ROLE_ARN`: the OIDC role to assume for that environment.
-- `ECR_REGISTRY`: `ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com`.
-- `AWS_SECRET_ID`: `nautelo/dev` or `nautelo/prod`.
+- `ECR_REGISTRY` (optional override): defaults to `790702264138.dkr.ecr.eu-west-1.amazonaws.com`.
+- `AWS_SECRET_ID` (optional override): defaults to `nautelo/dev` or `nautelo/prod` based on the branch.
 - `EC2_INSTANCE_ID`: your instance ID, identical in both environments because both run on the same EC2.
 
-Create the GitHub OIDC provider and role using `aws/github-trust.example.json`. Substitute OWNER/REPO/ACCOUNT_ID; use `environment:prod` for the prod role. Attach `aws/build-policy.example.json`, restricting the Secrets Manager resource to the role's own environment. Also attach `aws/ssm-deploy-policy.example.json`, replacing ACCOUNT_ID and `i-REPLACE` with your one target instance. The GitHub role can push images, read configuration, send `AWS-RunShellScript` commands to that instance, and read command status. It does not need S3 access. SSM shell commands execute as root: both GitHub environment roles therefore have administrative access to the shared host; environment rules do not isolate them at the OS level. Set production environment protection/branch rules as needed. The build role reads the secret to obtain public build URLs; the script never prints the secret payload.
+Create the GitHub OIDC provider and role using `aws/github-trust.example.json`. Account `790702264138` is already set; substitute OWNER/REPO; use `environment:prod` for the prod role. Attach `aws/build-policy.example.json`, restricting the Secrets Manager resource to the role's own environment. Also attach `aws/ssm-deploy-policy.example.json`, replacing `i-REPLACE` with your one target instance. The GitHub role can push images, read configuration, send `AWS-RunShellScript` commands to that instance, and read command status. It does not need S3 access. SSM shell commands execute as root: both GitHub environment roles therefore have administrative access to the shared host; environment rules do not isolate them at the OS level. Set production environment protection/branch rules as needed. The build role reads the secret to obtain public build URLs; the script never prints the secret payload.
 
 `.github/workflows/images.yml` runs on pushes to `dev` and `main` and can be manually dispatched on either branch. It first calls the reusable CI workflow (backend tests, frontend checks/build, and deployment configuration validation). Only after CI succeeds does it build/push both images and deploy through SSM. Pull requests run CI without deployment.
 
@@ -101,7 +103,7 @@ Tags are exactly `GITHUB_RUN_NUMBER`; the environment is part of the repository 
 
 The job prints the SSM command ID, polls for completion, and fails on command failure or timeout. It deliberately does not echo remote output into GitHub logs; inspect Run Command output in Systems Manager when troubleshooting. A cancelled GitHub run does not cancel an already-sent remote command: check its status before retrying. Per-environment locks also serialize remote deployments. The last successful release path is recorded in `/opt/nautelo/deploy/runtime/ENV/last-successful-release`.
 
-For a local build, copy `config.dev.example.json` to `config.dev.json`, replace ACCOUNT_ID, authenticate AWS CLI with a permitted role, and run from the appropriate branch:
+For a local build, copy `config.dev.example.json` to `config.dev.json`, authenticate AWS CLI with a permitted role, and run from the appropriate branch:
 
 ```bash
 python3 deploy/manage.py build dev 42
@@ -202,3 +204,5 @@ Run helper tests with `python3 -m unittest discover -s deploy/tests -v`. On a Do
 
 - [Systems Manager instance permissions](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-instance-permissions.html).
 - [Run Command IAM setup](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command-setting-up.html).
+
+- [Secrets Manager accepts secret names or ARNs](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html); [ARN suffix matching in IAM](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_iam-policies.html).
