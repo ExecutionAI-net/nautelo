@@ -30,6 +30,7 @@ const AREAS = {
       { href: "/dashboard/staff/", label: "Moderation" },
       { href: "/dashboard/staff/taxonomy/", label: "Brands & models" },
       { href: "/dashboard/staff/entitlements/", label: "Entitlements" },
+      { href: "/dashboard/staff/content/", label: "Guides & ads" },
       { href: "/settings/", label: "Settings" },
     ] as Tab[],
     cta: null,

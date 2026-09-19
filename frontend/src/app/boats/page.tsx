@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import AdSlot from "@/components/content/AdSlot";
 import BoatCard from "@/components/listings/BoatCard";
 import { isFinanceablePrice } from "@/components/listings/money";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
@@ -273,6 +274,10 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               ))}
             </ul>
           )}
+
+          <div className="mt-space-lg">
+            <AdSlot placement="BOAT_LIST" />
+          </div>
 
           {/* Rendered only when a card on this page actually shows an estimate: an
               asterisk with nothing behind it and a footnote with no asterisk are
