@@ -1,7 +1,7 @@
 """Messaging endpoints (spec 30.1)."""
 
 from rest_framework import status
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, NotFound
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -25,11 +25,13 @@ from messaging.enums import (
     UNIFIED_INQUIRIES_FLAG,
 )
 from messaging.exceptions import MessagingThrottled
-from messaging.pagination import ConversationPagination
+from messaging.models import Conversation
+from messaging.pagination import ConversationPagination, MessagePagination
 from messaging.permissions import InquiryEmailVerified, UnifiedInquiriesEnabled
 from messaging.selectors import (
     annotate_last_message,
     annotate_unread,
+    can_view_conversation,
     conversations_visible_to,
 )
 from messaging.serializers import (
@@ -38,8 +40,10 @@ from messaging.serializers import (
     InquiryDraftResolveSerializer,
     InquiryResultSerializer,
     InquirySubmissionSerializer,
+    MessageCreateSerializer,
+    MessageSerializer,
 )
-from messaging.services import submit_inquiry
+from messaging.services import mark_conversation_read, post_reply, submit_inquiry
 from platform_settings.services import is_feature_enabled
 
 
@@ -261,3 +265,90 @@ class ConversationListView(MessagingAPIView, ListAPIView):
             queryset = queryset.filter(unread_count__gt=0)
 
         return queryset
+
+
+class ConversationScopedView(MessagingAPIView):
+    """Resolve the conversation and refuse with 404, never 403.
+
+    Spec 33.1: "Avoid IDOR by never trusting recipient/owner IDs from client
+    without context resolution." A 403 here would confirm that a conversation id
+    exists, which is itself information about other people's correspondence.
+    """
+
+    # Flag gate FIRST - see InquiryCreateView's docstring.
+    permission_classes = [UnifiedInquiriesEnabled, IsAuthenticated, IsActiveUser]
+
+    def get_conversation(self, conversation_id):
+        conversation = (
+            Conversation.objects.select_related(
+                "broker",
+                "professional__owner_user",
+                "listing__owner_user",
+                "listing__current_public_snapshot",
+                "initiator",
+            )
+            .filter(pk=conversation_id)
+            .first()
+        )
+        if conversation is None or not can_view_conversation(
+            self.request.user, conversation
+        ):
+            raise NotFound()
+        return conversation
+
+
+class ConversationMessagesView(ConversationScopedView):
+    """GET/POST /api/v1/conversations/<id>/messages/ - spec 30.1's thread/reply."""
+
+    def initial(self, request, *args, **kwargs):
+        # throttle_scope is read off the view at request time by
+        # ScopedRateThrottle.allow_request, and check_throttles runs inside
+        # super().initial() - so setting it here, before the super call, is what
+        # lets one route carry spec 30.4's two different limits (a read and a
+        # send are not the same kind of traffic).
+        self.throttle_scope = (
+            "message_send" if request.method == "POST" else "messaging_read"
+        )
+        super().initial(request, *args, **kwargs)
+
+    def get(self, request, conversation_id):
+        conversation = self.get_conversation(conversation_id)
+        paginator = MessagePagination()
+        page = paginator.paginate_queryset(
+            conversation.messages.all(), request, view=self
+        )
+        serializer = MessageSerializer(page, many=True, context={"request": request})
+        return paginator.get_paginated_response(serializer.data)
+
+    def post(self, request, conversation_id):
+        conversation = self.get_conversation(conversation_id)
+        serializer = MessageCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        message = post_reply(
+            actor=request.user,
+            conversation=conversation,
+            body=serializer.validated_data["message"],
+            request_id=getattr(request, "request_id", "") or None,
+        )
+        return Response(
+            MessageSerializer(message, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ConversationReadView(ConversationScopedView):
+    """POST /api/v1/conversations/<id>/read/ - an addition beyond spec 30.1's
+    table, required by spec 28 ("Mark-read and reply endpoints enforce broker
+    organization membership") and by the unread counts spec 28's row carries."""
+
+    throttle_scope = "messaging_read"
+
+    def post(self, request, conversation_id):
+        conversation = self.get_conversation(conversation_id)
+        return Response(
+            {
+                "marked_read": mark_conversation_read(
+                    actor=request.user, conversation=conversation
+                )
+            }
+        )
