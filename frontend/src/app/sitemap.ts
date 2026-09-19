@@ -84,6 +84,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const boats: MetadataRoute.Sitemap = [
     { url: `${PUBLIC_BASE_URL}/boats/`, changeFrequency: "daily", priority: 1 },
     { url: `${PUBLIC_BASE_URL}/brokers/`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${PUBLIC_BASE_URL}/financing/`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${PUBLIC_BASE_URL}/guides/`, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${PUBLIC_BASE_URL}/sell/`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${PUBLIC_BASE_URL}/contact/`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${PUBLIC_BASE_URL}/privacy/`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${PUBLIC_BASE_URL}/terms/`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${PUBLIC_BASE_URL}/cookies/`, changeFrequency: "yearly", priority: 0.2 },
     ...brokerPaths.map((path) => ({
       url: `${PUBLIC_BASE_URL}${path}`,
       changeFrequency: "weekly" as const,
