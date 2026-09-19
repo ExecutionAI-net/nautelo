@@ -1,0 +1,16 @@
+**/.env
+**/.env.*
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/*.pyc
+.git
+.github
+docs
+.superpowers
+deploy/runtime
+deploy/*.json
+deploy/acme
+**/staticfiles
+**/media

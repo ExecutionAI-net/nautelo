@@ -1,0 +1,56 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:eu-west-1:ACCOUNT_ID:secret:nautelo/dev-*",
+        "arn:aws:secretsmanager:eu-west-1:ACCOUNT_ID:secret:nautelo/prod-*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": [
+        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-backend",
+        "arn:aws:ecr:eu-west-1:ACCOUNT_ID:repository/nautelo-frontend"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::nautelo-dev-media-ACCOUNT_ID",
+        "arn:aws:s3:::nautelo-prod-media-ACCOUNT_ID"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::nautelo-dev-media-ACCOUNT_ID/*",
+        "arn:aws:s3:::nautelo-prod-media-ACCOUNT_ID/*"
+      ]
+    }
+  ]
+}

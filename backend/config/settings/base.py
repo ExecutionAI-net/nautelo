@@ -252,17 +252,20 @@ STORAGES = {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
-AWS_ACCESS_KEY_ID = env("OBJECT_STORAGE_ACCESS_KEY")
-AWS_SECRET_ACCESS_KEY = env("OBJECT_STORAGE_SECRET_KEY")
+AWS_ACCESS_KEY_ID = env("OBJECT_STORAGE_ACCESS_KEY", default=None)
+AWS_SECRET_ACCESS_KEY = env("OBJECT_STORAGE_SECRET_KEY", default=None)
 AWS_STORAGE_BUCKET_NAME = env("OBJECT_STORAGE_BUCKET_NAME")
-AWS_S3_ENDPOINT_URL = env("OBJECT_STORAGE_ENDPOINT_URL")
+AWS_S3_ENDPOINT_URL = env("OBJECT_STORAGE_ENDPOINT_URL", default=None) or None
 AWS_S3_REGION_NAME = env("OBJECT_STORAGE_REGION", default="us-east-1")
-AWS_S3_ADDRESSING_STYLE = "path"
+AWS_S3_ADDRESSING_STYLE = "path" if AWS_S3_ENDPOINT_URL else "virtual"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = True
 
 # Public CDN origin in front of the media bucket; empty = not served yet.
 MEDIA_PUBLIC_BASE_URL = env("MEDIA_PUBLIC_BASE_URL", default="")
+# Private S3 downloads for approved public snapshots when no CDN is configured.
+MEDIA_SIGNED_URLS = env.bool("MEDIA_SIGNED_URLS", default=False)
 # Phase 15: re-encode uploaded images without metadata (EXIF/GPS/XMP).
 MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
@@ -319,4 +322,5 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"

@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand"
+      ],
+      "Resource": [
+        "arn:aws:ssm:eu-west-1::document/AWS-RunShellScript",
+        "arn:aws:ec2:eu-west-1:ACCOUNT_ID:instance/i-REPLACE"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetCommandInvocation"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

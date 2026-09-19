@@ -1,0 +1,34 @@
+name: nautelo-proxy
+services:
+  nginx:
+    image: nginx:stable-alpine
+    ports: ["80:80", "443:443"]
+    environment:
+      DEV_WEB_DOMAIN: ${DEV_WEB_DOMAIN:?Set DEV_WEB_DOMAIN}
+      DEV_API_DOMAIN: ${DEV_API_DOMAIN:?Set DEV_API_DOMAIN}
+      PROD_WEB_DOMAIN: ${PROD_WEB_DOMAIN:?Set PROD_WEB_DOMAIN}
+      PROD_API_DOMAIN: ${PROD_API_DOMAIN:?Set PROD_API_DOMAIN}
+      NGINX_ENVSUBST_FILTER: '^(DEV|PROD)_(WEB|API)_DOMAIN$$'
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./acme:/var/www/acme:ro
+      - dev_static:/srv/static/dev:ro
+      - prod_static:/srv/static/prod:ro
+    networks: [dev, prod]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+networks:
+  dev:
+    external: true
+    name: nautelo-dev-edge
+  prod:
+    external: true
+    name: nautelo-prod-edge
+volumes:
+  dev_static:
+    name: nautelo-dev-static
+  prod_static:
+    name: nautelo-prod-static
