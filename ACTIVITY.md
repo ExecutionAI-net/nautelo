@@ -89,6 +89,40 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 14 (Stripe products, Checkout and fulfillment) complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-14-stripe-products-fulfillment.md`
+  in full.
+- New `payments` app: spec §11.9's `MarketplaceProduct`, `PaymentOrder` and
+  `ProcessedWebhookEvent`, spec §6.4's payment state machine, server-authored
+  Checkout Session creation (§23.2) with a spec §30.3 `Idempotency-Key` replay
+  store, the signature-verified and event-id-idempotent webhook (§23.3), refunds
+  and disputes (§23.4), and the staff product configuration API (§23.5, §26.4).
+- `entitlements` change, deliberately minimal: `UserEntitlement.source_payment`
+  is now a real FK to `payments.PaymentOrder` (Phase 13 contract rule 6). The
+  column name is unchanged, so no factory or query needed editing.
+- The Stripe webhook route moved from `common.views` to `payments.views`; the
+  URL `/api/v1/stripe/webhook/` and its route name are unchanged, so no Stripe
+  environment needs reconfiguring.
+- Security: no card data is stored anywhere; signatures are verified against the
+  raw body with Stripe's 300-second tolerance; duplicate deliveries return 200
+  without re-fulfilling; success/cancel URLs come from a closed allowlist of
+  spec §4 paths joined to `PUBLIC_BASE_URL`; amounts come from the Stripe Price,
+  never from the client; no test opens a socket.
+- Rollout: `stripe_entitlement_checkout` is seeded **disabled**, and both
+  products are seeded **inactive with blank Stripe ids and a zero amount**
+  (spec §38). A database constraint makes an unconfigured product impossible to
+  activate. Staff must supply real Stripe ids per environment (§35.2 step 5)
+  before anything can be bought.
+- Known limitations: no staff product SCREEN (Phase 17); no notification
+  receivers — two signals are fired and nothing listens (Phase 18); a product's
+  `publication_days` is not yet honoured at consumption, which still reads
+  `individual.paid_publish_days` (Phase 15/16); partial refunds are flagged for
+  staff, not acted on. See the plan's Known Limitations for the full list with
+  owning phases.
+- Next: Phase 15 (media limits, uploads and upgrade) — it is the first consumer
+  of the `MEDIA_UPGRADE` entitlements this phase grants.
+
 ### 2026-09-19 — Phase 13 (individual free quota and entitlement enforcement) complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-13-quota-entitlement.md` in full.
