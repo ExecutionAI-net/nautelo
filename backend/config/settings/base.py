@@ -166,6 +166,8 @@ REST_FRAMEWORK = {
         # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
         "auth-refresh": "30/min",
         "services_directory": "60/min",
+        "inquiry_submit": "20/hour",
+        "messaging_read": "120/min",
         # Spec §30.4 lists finance quote logging among the rate-limited
         # surfaces while allowing "the calculation itself [to] remain
         # reasonably accessible". The finance page recalculates on every

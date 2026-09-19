@@ -84,3 +84,18 @@ class ConsentRequired(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "Accept the current privacy policy to send this message."
     default_code = "consent_required"
+
+
+class SpamDetected(APIException):
+    """Spec 15.1's honeypot. Addition to spec 15.5's open error list.
+
+    A visible code rather than a fake 201: spec 2.1 and 39 forbid faked state,
+    the frontend would otherwise render "message sent" for a message that does
+    not exist, and no client-side test could tell the two apart. The cost - a
+    determined bot learns the field name - is accepted and written down. See the
+    plan's ruling.
+    """
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "This submission could not be accepted."
+    default_code = "spam_detected"
