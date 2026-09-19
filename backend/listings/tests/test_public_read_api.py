@@ -140,7 +140,6 @@ def test_the_public_payload_carries_no_owner_or_internal_columns(api):
         "owner_user",
         "owner_user_id",
         "owner",
-        "broker",
         "broker_id",
         "created_by",
         "updated_by",

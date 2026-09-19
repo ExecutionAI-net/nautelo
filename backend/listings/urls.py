@@ -22,6 +22,7 @@ from .views import (
     StaffModerationQueueView,
     StaffRevisionDetailView,
     ListingWithdrawView,
+    PublicListingBySlugView,
     PublicListingDetailView,
     PublicListingListView,
     StaffRevisionDecisionView,
@@ -126,6 +127,11 @@ urlpatterns = [
 # `test_the_public_routes_do_not_shadow_the_workflow_routes` pins it anyway.
 urlpatterns += [
     path("listings/", PublicListingListView.as_view(), name="listing-list"),
+    path(
+        "listings/by-slug/<slug:slug>/",
+        PublicListingBySlugView.as_view(),
+        name="listing-detail-by-slug",
+    ),
     path(
         "listings/<uuid:listing_id>/",
         PublicListingDetailView.as_view(),
