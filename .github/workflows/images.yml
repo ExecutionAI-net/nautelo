@@ -30,6 +30,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
           aws-region: eu-west-1
+      - name: Show the AWS caller used by GitHub Actions
+        run: aws sts get-caller-identity --region eu-west-1
       - name: Configure build
         run: |
           python3 - <<'PY'

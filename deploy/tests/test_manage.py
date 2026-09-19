@@ -14,6 +14,40 @@ class DeploymentConfigurationTests(unittest.TestCase):
     def setUp(self):
         self.secret = json.loads((Path(__file__).parents[1] / 'secret.example.json').read_text())
 
+    def test_secrets_access_error_identifies_operation_without_leaking_output(self):
+        error = manage.subprocess.CalledProcessError(254, ['aws', 'secretsmanager', 'get-secret-value'],
+            output='SECRET_PAYLOAD', stderr='An error occurred (AccessDeniedException) when calling the GetSecretValue operation: PRIVATE_DETAILS')
+        message = manage.command_failure(error)
+        self.assertIn('Secrets Manager GetSecretValue', message)
+        self.assertIn('AccessDeniedException', message)
+        self.assertIn('secretsmanager:GetSecretValue', message)
+        self.assertNotIn('SECRET_PAYLOAD', message)
+        self.assertNotIn('PRIVATE_DETAILS', message)
+
+    def test_ecr_access_error_handles_byte_stderr_without_printing_login_token(self):
+        error = manage.subprocess.CalledProcessError(254, ['aws', 'ecr', 'get-login-password'],
+            output=b'ECR_LOGIN_TOKEN', stderr=b'An error occurred (AccessDeniedException) when calling the GetAuthorizationToken operation: PRIVATE_DETAILS')
+        message = manage.command_failure(error)
+        self.assertIn('ecr:GetAuthorizationToken', message)
+        self.assertNotIn('ECR_LOGIN_TOKEN', message)
+        self.assertNotIn('PRIVATE_DETAILS', message)
+
+    def test_unknown_error_and_command_arguments_are_not_echoed(self):
+        error = manage.subprocess.CalledProcessError(254, ['aws', 'secretsmanager', 'get-secret-value'],
+            stderr='An error occurred (PRIVATEVALUE) when calling a request: SECRET')
+        message = manage.command_failure(error)
+        self.assertIn('UnclassifiedAwsError', message)
+        self.assertNotIn('PRIVATEVALUE', message)
+        error = manage.subprocess.CalledProcessError(1, ['docker', 'build', '--build-arg', 'PRIVATEVALUE'])
+        self.assertNotIn('PRIVATEVALUE', manage.command_failure(error))
+
+    def test_missing_secret_reports_account_region_and_identifier_checks(self):
+        error = manage.subprocess.CalledProcessError(254, ['aws', 'secretsmanager', 'get-secret-value'],
+            stderr='An error occurred (ResourceNotFoundException) when calling the GetSecretValue operation: missing')
+        message = manage.command_failure(error)
+        self.assertIn('AWS_SECRET_ID', message)
+        self.assertIn('account', message)
+
     def test_service_credentials_are_scoped_and_database_password_is_encoded(self):
         self.secret['POSTGRES_PASSWORD'] = 'p@ss:/?#$\'"= word'
         result = manage.environments(self.secret, 'eu-west-1')

@@ -259,3 +259,9 @@ Run helper tests with `python3 -m unittest discover -s deploy/tests -v`. On a Do
 - [Secrets Manager accepts secret names or ARNs](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html); [ARN suffix matching in IAM](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_iam-policies.html).
 
 - [Nginx proxy Host headers](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
+
+## Diagnosing AWS failures before image builds
+
+The workflow prints the caller identity after assuming the GitHub role. This can differ from the EC2 instance role. The build helper reports whether Secrets Manager `GetSecretValue` or ECR `GetAuthorizationToken` failed, with the recognized AWS error code and a targeted hint. It never prints the captured secret payload, ECR login password, or raw AWS stderr.
+
+For `AccessDeniedException`, check the permissions on the role shown by the GitHub identity step: `secretsmanager:GetSecretValue` must cover `arn:aws:secretsmanager:eu-west-1:790702264138:secret:nautelo/dev-??????` for dev, and ECR login needs `ecr:GetAuthorizationToken` on `*`. A customer-managed Secrets Manager KMS key additionally requires decrypt access. For `ResourceNotFoundException`, check secret name, region and account. The exit code alone cannot identify which of these conditions occurred.
