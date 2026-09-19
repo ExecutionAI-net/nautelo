@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import BrokerThreadPage from "@/app/dashboard/broker/messages/[conversationId]/page";
 
-vi.mock("@/components/messages/ThreadScreen", () => ({
-  default: ({ conversationId, basePath }: Record<string, unknown>) => (
+vi.mock("@/components/messages/MessagesScreen", () => ({
+  default: ({ selectedId: conversationId, basePath }: Record<string, unknown>) => (
     <div
       data-testid="thread"
       data-conversation-id={String(conversationId)}

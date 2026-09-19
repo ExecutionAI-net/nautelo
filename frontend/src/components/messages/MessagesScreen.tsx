@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import ConversationFilters from "@/components/messages/ConversationFilters";
 import ConversationList from "@/components/messages/ConversationList";
+import ThreadScreen from "@/components/messages/ThreadScreen";
 import {
   fetchConversations,
   messageErrorKey,
@@ -23,9 +24,11 @@ interface Props {
    * both routes (spec 28's "share components where practical"). */
   basePath: string;
   filter: ConversationFilter;
+  /** When set, the thread opens beside the list (two-pane inbox from lg up). */
+  selectedId?: string;
 }
 
-export default function MessagesScreen({ brokerId, basePath, filter }: Props) {
+export default function MessagesScreen({ brokerId, basePath, filter, selectedId }: Props) {
   const { session, loading } = useSession();
   const [result, setResult] = useState<{
     key: string;
@@ -78,34 +81,43 @@ export default function MessagesScreen({ brokerId, basePath, filter }: Props) {
     );
   }
 
+  const list = errorKey ? (
+    <p role="alert" className="mt-space-lg font-body-md text-error">
+      {tConversations(locale, errorKey)}
+    </p>
+  ) : (
+    <div className="mt-space-lg">
+      <ConversationList locale={locale} rows={rows} hrefFor={(id) => `${basePath}${id}/`} />
+    </div>
+  );
+
   return (
     <section aria-labelledby="messages-title">
       <h1 id="messages-title" className="font-headline-md text-headline-md text-primary">
         {tConversations(locale, "messages.title")}
       </h1>
-      <p className="mt-space-sm font-body-md text-on-surface-variant">
-        {tConversations(locale, "messages.intro")}
-      </p>
-      <div className="mt-space-lg">
-        <ConversationFilters
-          locale={locale}
-          active={filter}
-          hrefFor={(value) => `${basePath}?filter=${value}`}
-        />
-      </div>
-      {errorKey ? (
-        <p role="alert" className="mt-space-lg font-body-md text-error">
-          {tConversations(locale, errorKey)}
+      {selectedId ? null : (
+        <p className="mt-space-sm font-body-md text-on-surface-variant">
+          {tConversations(locale, "messages.intro")}
         </p>
-      ) : (
-        <div className="mt-space-lg">
-          <ConversationList
-            locale={locale}
-            rows={rows}
-            hrefFor={(id) => `${basePath}${id}/`}
-          />
-        </div>
       )}
+      <div className={selectedId ? "mt-space-lg grid gap-space-lg lg:grid-cols-[minmax(320px,380px)_1fr]" : undefined}>
+        <div className={selectedId ? "hidden lg:block" : undefined}>
+          <div className="mt-space-lg">
+            <ConversationFilters
+              locale={locale}
+              active={filter}
+              hrefFor={(value) => `${basePath}?filter=${value}`}
+            />
+          </div>
+          {list}
+        </div>
+        {selectedId ? (
+          <div>
+            <ThreadScreen conversationId={selectedId} basePath={basePath} />
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

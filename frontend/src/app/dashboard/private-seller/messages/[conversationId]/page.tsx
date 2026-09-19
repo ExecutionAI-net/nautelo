@@ -1,5 +1,5 @@
 import RequirePermission from "@/components/auth/RequirePermission";
-import ThreadScreen from "@/components/messages/ThreadScreen";
+import MessagesScreen from "@/components/messages/MessagesScreen";
 import AreaShell from "@/components/layout/AreaShell";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +12,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
   return (
     <AreaShell area="seller" active="/dashboard/private-seller/messages/">
       <RequirePermission>
-        <ThreadScreen
-          conversationId={conversationId}
-          basePath="/dashboard/private-seller/messages/"
-        />
+        <MessagesScreen basePath="/dashboard/private-seller/messages/" filter="ALL" selectedId={conversationId} />
       </RequirePermission>
     </AreaShell>
   );

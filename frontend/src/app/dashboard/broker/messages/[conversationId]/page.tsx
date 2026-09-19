@@ -1,5 +1,5 @@
 import RequirePermission from "@/components/auth/RequirePermission";
-import ThreadScreen from "@/components/messages/ThreadScreen";
+import MessagesScreen from "@/components/messages/MessagesScreen";
 import AreaShell from "@/components/layout/AreaShell";
 
 // An async SERVER component, unlike its sibling inbox page: it needs no session
@@ -15,10 +15,7 @@ export default async function BrokerThreadPage({ params }: { params: Params }) {
   return (
     <AreaShell area="broker" active="/dashboard/broker/messages/">
       <RequirePermission>
-        <ThreadScreen
-          conversationId={conversationId}
-          basePath="/dashboard/broker/messages/"
-        />
+        <MessagesScreen basePath="/dashboard/broker/messages/" filter="ALL" selectedId={conversationId} />
       </RequirePermission>
     </AreaShell>
   );
