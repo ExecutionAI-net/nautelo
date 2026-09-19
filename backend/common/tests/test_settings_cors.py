@@ -21,13 +21,15 @@ _SETTINGS_MODULES = ("config.settings.base", "config.settings.prod")
 
 
 @pytest.fixture
-def load_prod_settings():
+def load_prod_settings(monkeypatch):
     """Import `config.settings.prod` fresh, then put `sys.modules` back as it was.
 
     The active settings module for the test run is `config.settings.test`, which
     already holds its own copy of base's values, so this neither disturbs nor is
     disturbed by the running test session.
     """
+
+    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "api.nauta.example")
 
     def _load():
         saved = {name: sys.modules.pop(name, None) for name in _SETTINGS_MODULES}
