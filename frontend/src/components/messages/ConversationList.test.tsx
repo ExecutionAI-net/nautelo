@@ -32,13 +32,13 @@ describe("ConversationList", () => {
       <ConversationList
         locale="en"
         rows={[row("c-1", "Ada"), row("c-2", "Bo")]}
-        hrefFor={(id) => `/dashboard/messages/${id}/`}
+        hrefFor={(id) => `/dashboard/private-seller/messages/${id}/`}
       />,
     );
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByRole("link", { name: /Ada/ })).toHaveAttribute(
       "href",
-      "/dashboard/messages/c-1/",
+      "/dashboard/private-seller/messages/c-1/",
     );
   });
 

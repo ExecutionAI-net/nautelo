@@ -12,7 +12,7 @@ interface Props {
   locale: Locale;
   active: ConversationFilter;
   /** The parent owns the URL shape, so this identical component serves both
-   * /dashboard/messages/ and /dashboard/broker/messages/. */
+   * /dashboard/private-seller/messages/ and /dashboard/broker/messages/. */
   hrefFor: (filter: ConversationFilter) => string;
 }
 

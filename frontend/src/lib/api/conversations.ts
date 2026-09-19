@@ -102,7 +102,7 @@ export const FILTER_MESSAGE_KEYS: Record<ConversationFilter, string> = {
 /** Turn a `?filter=` query value into a filter, defaulting to ALL.
  *
  * Lives HERE, beside CONVERSATION_FILTERS, and not in a page module: both the
- * server page at /dashboard/messages/ and the client page at
+ * server page at /dashboard/private-seller/messages/ and the client page at
  * /dashboard/broker/messages/ need it, and a client component cannot import
  * from a server page module (that module also exports `generateMetadata` and
  * `dynamic`, which are route config, not values). */

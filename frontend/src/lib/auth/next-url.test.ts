@@ -33,6 +33,6 @@ describe("safeNextUrl", () => {
   it("returns the value when safe and the fallback otherwise", () => {
     expect(safeNextUrl("/messages/")).toBe("/messages/");
     expect(safeNextUrl("https://evil.example")).toBe("/");
-    expect(safeNextUrl(null, "/account/")).toBe("/account/");
+    expect(safeNextUrl(null, "/dashboard/private-seller/account/")).toBe("/dashboard/private-seller/account/");
   });
 });

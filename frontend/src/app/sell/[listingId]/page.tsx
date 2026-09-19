@@ -9,7 +9,7 @@ export default async function EditListingPage({
 }) {
   const { listingId } = await params;
   return (
-    <AreaShell area="seller" active="/dashboard/listings/">
+    <AreaShell area="seller" active="/dashboard/private-seller/listings/">
       <RequirePermission>
         <EditListing listingId={listingId} />
       </RequirePermission>

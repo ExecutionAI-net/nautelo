@@ -50,6 +50,13 @@ const nextConfig: NextConfig = {
     return [
       // /services/ is the design's services landing page (ruling: the supplied
       // design overrides the spec 4.3 redirect); only /professionals/ is retired.
+      // Spec 4.2 canonical private routes; the earlier flat paths redirect once.
+      { source: "/dashboard/listings/", destination: "/dashboard/private-seller/listings/", statusCode: 301 },
+      { source: "/dashboard/messages/:path*", destination: "/dashboard/private-seller/messages/:path*", statusCode: 301 },
+      { source: "/account/", destination: "/dashboard/private-seller/account/", statusCode: 301 },
+      { source: "/fleet/", destination: "/dashboard/broker/fleet/", statusCode: 301 },
+      { source: "/settings/", destination: "/dashboard/staff/settings/", statusCode: 301 },
+      { source: "/compare/", destination: "/boats/compare/", statusCode: 301 },
       {
         source: "/professionals/",
         destination: "/services/professionals/",

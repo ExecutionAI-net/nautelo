@@ -34,7 +34,7 @@ export default function MyListings() {
         <p className="mt-space-md text-on-surface-variant">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="mt-space-md text-on-surface-variant">
-          You have no listings yet. <Link href="/sell/" className="text-primary underline">Create one</Link>.
+          You have no listings yet. <Link href="/sell/create/" className="text-primary underline">Create one</Link>.
         </p>
       ) : (
         <ul className="mt-space-md flex flex-col gap-space-sm">

@@ -97,7 +97,7 @@ describe("ThreadScreen", () => {
     });
     markReadMock.mockResolvedValue({ marked_read: 1 });
 
-    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/messages/" />);
+    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/private-seller/messages/" />);
     await waitFor(() =>
       expect(screen.getByText("Hello about the boat, please.")).toBeInTheDocument(),
     );
@@ -119,7 +119,7 @@ describe("ThreadScreen", () => {
     });
     markReadMock.mockResolvedValue({ marked_read: 0 });
 
-    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/messages/" />);
+    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/private-seller/messages/" />);
     await waitFor(() => expect(fetchConversationMock).toHaveBeenCalledWith("c-1"));
   });
 
@@ -129,7 +129,7 @@ describe("ThreadScreen", () => {
     readySession();
     fetchConversationMock.mockRejectedValue(new ApiError(404, "not_found", "x"));
     fetchThreadMock.mockRejectedValue(new ApiError(404, "not_found", "x"));
-    render(<ThreadScreen conversationId="c-9" basePath="/dashboard/messages/" />);
+    render(<ThreadScreen conversationId="c-9" basePath="/dashboard/private-seller/messages/" />);
     await waitFor(() =>
       expect(
         screen.getByText("This conversation is not available."),
@@ -157,7 +157,7 @@ describe("ThreadScreen", () => {
       sender: { display_name: "Bo Reader", is_you: true },
     });
 
-    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/messages/" />);
+    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/private-seller/messages/" />);
     await waitFor(() => expect(screen.getByLabelText("Reply")).toBeEnabled());
     await userEvent.type(
       screen.getByLabelText("Reply"),
@@ -186,7 +186,7 @@ describe("ThreadScreen", () => {
       new ApiError(409, "conversation_closed", "Closed."),
     );
 
-    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/messages/" />);
+    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/private-seller/messages/" />);
     await waitFor(() => expect(screen.getByLabelText("Reply")).toBeEnabled());
     await userEvent.type(
       screen.getByLabelText("Reply"),
@@ -211,7 +211,7 @@ describe("ThreadScreen", () => {
     markReadMock.mockResolvedValue({ marked_read: 0 });
     setStatusMock.mockResolvedValue({ ...CONVERSATION, status: "ARCHIVED" });
 
-    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/messages/" />);
+    render(<ThreadScreen conversationId="c-1" basePath="/dashboard/private-seller/messages/" />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument(),
     );
