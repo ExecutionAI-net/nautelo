@@ -89,6 +89,18 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Phase 7 (contact privacy, blur and reveal) complete
+
+- Implemented `docs/superpowers/plans/2026-09-18-phase-7-contact-privacy.md` in full (12 tasks).
+- **Migrations:** `messaging/0004_seed_contact_unlock_flag` (flag seeded **disabled**; reverse is a no-op) and `messaging/0005_contactaccessgrant_first_revealed_at` (one nullable column, additive).
+- **New backend:** `messaging.masking`, `messaging.contact_access` (`resolve_contact_access`, `record_first_reveal`, `record_staff_reveal`, `revoke_contact_access`), `messaging.contact_payloads`, `messaging.contact_views`. Endpoints `GET /api/v1/contacts/<target-type>/<id>/` (spec 30.1) and `POST /api/v1/staff/contact-grants/<id>/revoke/` (an addition to 30.1). Throttles `contact_access` 120/min and `contact_grant_admin` 30/min.
+- **New frontend:** `lib/api/contacts.ts`, `lib/i18n/contact.ts`, `components/contact/ContactPanel.tsx`, mounted on the professional detail page; `InquiryForm` now dispatches `requestContactAccessRefresh` after a successful send.
+- **Audit:** `contact_access.revealed` (once per grant), `contact_access.staff_revealed` (every grant-less staff read), `contact_access.revoked`; none carries a contact value. Reveal responses carry `Cache-Control: private, no-store, max-age=0` and `Vary: Authorization, Cookie`.
+- **Tests:** messaging suite 410 passed (includes the 19-test leak sweep and the Scenario A/B acceptance suite); frontend 439 passed.
+- **Flag:** `contact_unlock` seeded disabled; while off, everyone sees LOCKED. Enable at spec 35.2 step 8.
+- **Deviations:** the brief's manual mutation checks and curl/browser screenshots were skipped in an unattended run; `ContactPanel`'s fetch effect uses a reload tick to satisfy `react-hooks/set-state-in-effect`.
+- **Known limitations:** see the plan (no broker page or listing mount until Phase 20; block-driven revocation has a service but no caller; no staff UI until Phase 17).
+
 ### 2026-09-19 — Phase 6 (shared inquiry form and messaging core) complete
 
 - Implemented `docs/superpowers/plans/2026-09-18-phase-6-inquiry-messaging.md` in full (15 tasks, PRs #141 to #193 range).
