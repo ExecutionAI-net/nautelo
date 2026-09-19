@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import PageBand from "@/components/layout/PageBand";
 import FinanceCalculator from "@/components/finance/FinanceCalculator";
 import { fetchFinanceDefaults } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
@@ -50,13 +51,13 @@ export default async function FinancingPage({
   const defaults = await fetchFinanceDefaults();
 
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
-      <h1 className="font-headline-md text-headline-md text-primary">
-        {tf(locale, "finance.page.title")}
-      </h1>
-      <p className="mt-space-sm font-body-md text-on-surface-variant">
-        {tf(locale, "finance.page.intro")}
-      </p>
+    <main className="w-full bg-surface">
+      <PageBand
+        eyebrow="Marine financing"
+        title={tf(locale, "finance.page.title")}
+        subtitle={tf(locale, "finance.page.intro")}
+      />
+      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
       <FinanceCalculator
         locale={locale}
         listingId={listingId}
@@ -64,6 +65,7 @@ export default async function FinancingPage({
         currency={currency}
         defaults={defaults}
       />
+      </div>
     </main>
   );
 }

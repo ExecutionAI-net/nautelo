@@ -1,5 +1,6 @@
 import RequirePermission from "@/components/auth/RequirePermission";
 import StaffBrokerDetailView from "@/components/staff/StaffBrokerDetailView";
+import AreaShell from "@/components/layout/AreaShell";
 
 /**
  * Spec §21 "Staff broker UI", at spec §4.2's staff `/brokers/` route under the
@@ -24,10 +25,10 @@ export default async function StaffBrokerPage({
 }) {
   const { brokerId } = await params;
   return (
-    <main className="mx-auto w-full max-w-4xl p-space-lg">
+    <AreaShell area="staff" active="/dashboard/staff/">
       <RequirePermission permission="approve_listings_and_revisions">
         <StaffBrokerDetailView brokerId={brokerId} />
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

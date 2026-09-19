@@ -14,6 +14,7 @@ import { resolveFilter } from "@/lib/api/conversations";
 import { useSession } from "@/lib/auth/session";
 import { tConversations } from "@/lib/i18n/conversations";
 import { resolveLocale } from "@/lib/i18n/directory";
+import AreaShell from "@/components/layout/AreaShell";
 
 // Next 16: searchParams is a Promise, including in a client component, where it
 // is unwrapped with React's `use()`.
@@ -34,7 +35,7 @@ export default function BrokerMessagesPage({
   const membership = primaryBrokerMembership(session);
 
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
+    <AreaShell area="broker" active="/dashboard/broker/messages/">
       <RequirePermission>
         {membership === null ? (
           <p className="font-body-md text-on-surface-variant">
@@ -48,6 +49,6 @@ export default function BrokerMessagesPage({
           />
         )}
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }

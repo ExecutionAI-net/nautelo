@@ -5,6 +5,7 @@ import MessagesScreen from "@/components/messages/MessagesScreen";
 import { resolveFilter } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
+import AreaShell from "@/components/layout/AreaShell";
 
 // The inbox is per-person and authenticated; there is nothing to cache or
 // prerender.
@@ -29,7 +30,7 @@ export default async function MessagesPage({
 }) {
   const params = await searchParams;
   return (
-    <main className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin-desktop">
+    <AreaShell area="seller" active="/dashboard/messages/">
       {/* Ruling 13: no permission argument. There is no PermissionKey for
           "has conversations", and the real authorization is server-side. This
           is the sign-in redirect every other private route in this project
@@ -40,6 +41,6 @@ export default async function MessagesPage({
           filter={resolveFilter(first(params.filter))}
         />
       </RequirePermission>
-    </main>
+    </AreaShell>
   );
 }
