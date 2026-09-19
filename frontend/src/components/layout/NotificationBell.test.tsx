@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   markAllNotificationsRead: vi.fn().mockResolvedValue({ marked_read: 1 }),
 }));
 vi.mock("@/lib/api/notifications", () => api);
+vi.mock("@/lib/realtime/notificationSocket", () => ({ connectNotifications: () => () => {} }));
 vi.mock("next/link", () => ({
   default: ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => (
     <a href={href} onClick={onClick}>{children}</a>
