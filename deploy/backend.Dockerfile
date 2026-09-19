@@ -2,7 +2,7 @@ FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 RUN pip install --no-cache-dir uv \
-    && apt-get update && apt-get install -y --no-install-recommends libpq5 \
+    && apt-get update && apt-get install -y --no-install-recommends libpq5 ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
