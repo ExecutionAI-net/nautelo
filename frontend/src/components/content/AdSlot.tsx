@@ -1,4 +1,5 @@
-import { fetchAds, type AdPlacement } from "@/lib/api/content";
+import type { AdPlacement } from "@/lib/api/content";
+import { fetchAds } from "@/lib/api/contentServer";
 
 /** One sponsored banner for a placement; renders nothing when there is no active ad. */
 export default async function AdSlot({ placement }: { placement: AdPlacement }) {

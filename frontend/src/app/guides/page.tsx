@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import AdSlot from "@/components/content/AdSlot";
 import PageBand from "@/components/layout/PageBand";
-import { fetchGuides } from "@/lib/api/content";
+import { fetchGuides } from "@/lib/api/contentServer";
 
 export const dynamic = "force-dynamic";
 
