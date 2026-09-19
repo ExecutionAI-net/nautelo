@@ -46,7 +46,7 @@ export default async function Home() {
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Boat type</label>
 <div className="relative bg-surface-container-low rounded-lg">
-<select className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
+<select aria-label="Boat type" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
 <option value="">All boat types</option>
 <option value="motor-yachts">Motor yachts</option>
 <option value="sailing-yachts">Sailing yachts</option>
@@ -61,7 +61,7 @@ export default async function Home() {
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Location</label>
 <div className="relative bg-surface-container-low rounded-lg">
-<select className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
+<select aria-label="Location" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
 <option value="">Spain &amp; Italy (All coastal zones)</option>
 <option value="balearics">Balearic Islands (Mallorca, Ibiza)</option>
 <option value="catalonia">Catalonia &amp; Costa Brava</option>
@@ -113,7 +113,7 @@ export default async function Home() {
 </div>
 </div>
 <div className="flex flex-col">
-<h3 className="font-headline-sm text-headline-sm text-primary mb-1">Comprehensive Yacht Protection</h3>
+<h2 className="font-headline-sm text-headline-sm text-primary mb-1">Comprehensive Yacht Protection</h2>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md">
                 Cross-border hull liability, salvage coverage, and charter guarantees across all Spanish and Italian territorial waters.
               </p>
