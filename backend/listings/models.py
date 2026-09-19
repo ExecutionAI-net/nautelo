@@ -256,6 +256,8 @@ class ListingMedia(UUIDTimeStampedModel):
     duration_seconds = models.PositiveIntegerField(null=True, blank=True)
     sort_order = models.PositiveIntegerField(default=0)
     checksum_sha256 = models.CharField(max_length=64)
+    # Spec 24.2 step 8: REJECTED with a user-safe reason.
+    rejection_reason = models.CharField(max_length=200, blank=True, default="")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

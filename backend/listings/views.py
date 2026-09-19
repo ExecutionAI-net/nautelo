@@ -21,11 +21,14 @@ from common.authentication import OptionalJWTAuthentication
 
 from .decisions import approve_revision, reject_revision, request_revision_changes
 from .media_upgrade import apply_media_upgrade
+from .media_uploads import complete_upload, create_upload_intent, remove_media
 from .drafts import create_listing_draft, update_listing_draft
 from .enums import ListingStatus
-from .models import BoatListing, ListingRevision
+from .models import BoatListing, ListingMedia, ListingRevision
 from .permissions import ListingWorkflowEnabled
 from .serializers import (
+    ListingMediaSerializer,
+    MediaIntentSerializer,
     ListingDraftCreateSerializer,
     ListingDraftUpdateSerializer,
     ListingVersionSerializer,
@@ -321,3 +324,82 @@ class ListingMediaUpgradeApplyView(ListingDraftUpdateView):
                 "state": entitlement.state,
             }
         )
+
+
+class _MediaBaseView(ListingDraftUpdateView):
+    """Media routes share the draft view permission stack (owner or editor)."""
+
+    throttle_scope = "media_upload"
+
+    def get_media(self, request, listing_id, media_id):
+        listing = self.get_listing(request, listing_id)
+        media = get_object_or_404(ListingMedia, pk=media_id, listing=listing)
+        return listing, media
+
+
+class ListingMediaListView(_MediaBaseView):
+    """GET /api/v1/listings/<id>/media/ - the owner uploads and their states."""
+
+    http_method_names = ["get", "options"]
+
+    def get(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        rows = ListingMedia.objects.filter(listing=listing).exclude(status="REJECTED")
+        return Response(ListingMediaSerializer(rows, many=True).data)
+
+
+class ListingMediaIntentView(_MediaBaseView):
+    """POST /api/v1/listings/<id>/media/intents/ (spec 24.2 steps 1-4)."""
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = MediaIntentSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        data = envelope.validated_data
+        intent = create_upload_intent(
+            actor=request.user,
+            listing=listing,
+            media_type=data["media_type"],
+            filename=data["filename"],
+            mime_type=data["mime_type"],
+            size=data["size"],
+            checksum_sha256=data["checksum_sha256"],
+        )
+        return Response(
+            {
+                "media": ListingMediaSerializer(intent.media).data,
+                "upload": {
+                    "url": intent.target.url,
+                    "method": intent.target.method,
+                    "headers": intent.target.headers,
+                    "expires_in": intent.target.expires_in,
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ListingMediaCompleteView(_MediaBaseView):
+    """POST /api/v1/listings/<id>/media/<media_id>/complete/ (spec 24.2 step 6)."""
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id, media_id):
+        _, media = self.get_media(request, listing_id, media_id)
+        media = complete_upload(actor=request.user, media=media)
+        return Response(
+            ListingMediaSerializer(media).data, status=status.HTTP_202_ACCEPTED
+        )
+
+
+class ListingMediaDetailView(_MediaBaseView):
+    """DELETE /api/v1/listings/<id>/media/<media_id>/."""
+
+    http_method_names = ["delete", "options"]
+
+    def delete(self, request, listing_id, media_id):
+        _, media = self.get_media(request, listing_id, media_id)
+        remove_media(actor=request.user, media=media)
+        return Response(status=status.HTTP_204_NO_CONTENT)

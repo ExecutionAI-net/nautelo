@@ -118,6 +118,7 @@ CELERY_TASK_ROUTES = {
     "accounts.tasks.*": {"queue": "notifications"},
     "notifications.tasks.*": {"queue": "notifications"},
     "analytics.tasks.*": {"queue": "maintenance"},
+    "listings.tasks.process_listing_media": {"queue": "media"},
     "listings.tasks.*": {"queue": "maintenance"},
     "entitlements.tasks.*": {"queue": "maintenance"},
 }
@@ -132,6 +133,10 @@ CELERY_BEAT_SCHEDULE = {
     "send-listing-expiry-reminders": {
         "task": "listings.tasks.send_listing_expiry_reminders",
         "schedule": crontab(hour=3, minute=15),
+    },
+    "cleanup-stale-media-uploads": {
+        "task": "listings.tasks.cleanup_stale_media_uploads",
+        "schedule": crontab(minute=10),
     },
     "sweep-entitlement-ledger": {
         "task": "entitlements.tasks.sweep_entitlement_ledger",

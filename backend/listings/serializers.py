@@ -223,3 +223,26 @@ class PublicListingSerializer(serializers.Serializer):
                 listing, policy=self.finance_policy()
             ),
         }
+
+
+class MediaIntentSerializer(serializers.Serializer):
+    media_type = serializers.CharField()
+    filename = serializers.CharField(max_length=255)
+    mime_type = serializers.CharField(max_length=100)
+    size = serializers.IntegerField(min_value=1)
+    checksum_sha256 = serializers.RegexField(r"^[0-9a-f]{64}$")
+
+
+class ListingMediaSerializer(serializers.Serializer):
+    """The owner view of one upload. storage_key is deliberately absent."""
+
+    id = serializers.UUIDField(read_only=True)
+    media_type = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    mime_type = serializers.CharField(read_only=True)
+    byte_size = serializers.IntegerField(read_only=True)
+    width = serializers.IntegerField(read_only=True)
+    height = serializers.IntegerField(read_only=True)
+    sort_order = serializers.IntegerField(read_only=True)
+    rejection_reason = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)

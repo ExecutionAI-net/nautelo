@@ -3,6 +3,10 @@ from django.urls import path
 from .views import (
     ListingDraftCreateView,
     ListingDraftUpdateView,
+    ListingMediaCompleteView,
+    ListingMediaDetailView,
+    ListingMediaIntentView,
+    ListingMediaListView,
     ListingMediaUpgradeApplyView,
     ListingSubmitView,
     ListingWithdrawView,
@@ -32,6 +36,26 @@ urlpatterns = [
         "listings/<uuid:listing_id>/media-upgrade/apply/",
         ListingMediaUpgradeApplyView.as_view(),
         name="listing-media-upgrade-apply",
+    ),
+    path(
+        "listings/<uuid:listing_id>/media/",
+        ListingMediaListView.as_view(),
+        name="listing-media-list",
+    ),
+    path(
+        "listings/<uuid:listing_id>/media/intents/",
+        ListingMediaIntentView.as_view(),
+        name="listing-media-intent",
+    ),
+    path(
+        "listings/<uuid:listing_id>/media/<uuid:media_id>/complete/",
+        ListingMediaCompleteView.as_view(),
+        name="listing-media-complete",
+    ),
+    path(
+        "listings/<uuid:listing_id>/media/<uuid:media_id>/",
+        ListingMediaDetailView.as_view(),
+        name="listing-media-detail",
     ),
     path(
         "staff/revisions/<uuid:revision_id>/decision/",

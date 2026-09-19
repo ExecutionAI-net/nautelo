@@ -11,6 +11,8 @@ from celery import shared_task
 
 from .expiry import expire_due_listings as _expire_due_listings
 from .expiry import send_expiry_reminders as _send_expiry_reminders
+from .media_uploads import cleanup_stale_uploads as _cleanup_stale_uploads
+from .media_uploads import process_media as _process_media
 
 logger = logging.getLogger(__name__)
 
@@ -29,3 +31,16 @@ def send_listing_expiry_reminders() -> dict:
     # Celery serialises the result as JSON, which would turn the int keys into
     # strings anyway; doing it here makes the stored result shape explicit.
     return {str(threshold): count for threshold, count in counts.items()}
+
+
+@shared_task(queue="media")
+def process_listing_media(media_id: str) -> str | None:
+    media = _process_media(media_id)
+    return media.status if media is not None else None
+
+
+@shared_task(queue="maintenance")
+def cleanup_stale_media_uploads() -> int:
+    count = _cleanup_stale_uploads()
+    logger.info("stale media upload sweep complete", extra={"count": count})
+    return count
