@@ -431,3 +431,28 @@ def restore_consumed_right(
         replacement.save(update_fields=["metadata", "updated_at"])
 
     return RestoreResult(revoked=revoked, replacement=replacement)
+
+
+def consume_media_upgrade(*, entitlement, actor, now: datetime | None = None):
+    """Spec §24.4: applying a media upgrade is `AVAILABLE -> CONSUMED`,
+    transactional and irreversible except by a staff remedy.
+
+    The row was bound to its listing at checkout (payments.checkout), so
+    consuming it is what makes the upgraded allowance real:
+    listings.policies.effective_media_allowance reads CONSUMED rows.
+    """
+    now = now or timezone.now()
+    consumed = _transition(
+        entitlement_id=entitlement.pk,
+        target_state=EntitlementState.CONSUMED,
+        actor=actor,
+        actor_type=AuditEvent.ActorType.USER,
+        source=AuditEvent.Source.API,
+        action="entitlement.media_upgrade_applied",
+        updates={"consumed_at": now},
+        extra_metadata={"listing_id": str(entitlement.listing_id)},
+    )
+    if consumed is None:
+        entitlement.refresh_from_db()
+        raise InvalidEntitlementState(current_state=entitlement.state)
+    return consumed

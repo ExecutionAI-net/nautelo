@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     ListingDraftCreateView,
     ListingDraftUpdateView,
+    ListingMediaUpgradeApplyView,
     ListingSubmitView,
     ListingWithdrawView,
     PublicListingDetailView,
@@ -26,6 +27,11 @@ urlpatterns = [
         "listings/<uuid:listing_id>/withdraw/",
         ListingWithdrawView.as_view(),
         name="listing-withdraw",
+    ),
+    path(
+        "listings/<uuid:listing_id>/media-upgrade/apply/",
+        ListingMediaUpgradeApplyView.as_view(),
+        name="listing-media-upgrade-apply",
     ),
     path(
         "staff/revisions/<uuid:revision_id>/decision/",
