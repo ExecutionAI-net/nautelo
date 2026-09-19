@@ -49,7 +49,7 @@ export default function ReplyComposer({ locale, disabled, onSend }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="mt-space-lg">
+    <form onSubmit={submit} className="mt-space-lg rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
       <label
         htmlFor="reply-body"
         className="block font-label-md text-label-md text-on-surface"
@@ -66,7 +66,7 @@ export default function ReplyComposer({ locale, disabled, onSend }: Props) {
         placeholder={tConversations(locale, "messages.reply.placeholder")}
         aria-invalid={error !== null}
         aria-describedby={error ? "reply-error" : undefined}
-        className="mt-space-xs w-full rounded-lg border border-outline-variant p-space-sm font-body-md"
+        className="mt-space-xs w-full rounded-lg bg-surface-container-low p-space-sm font-body-md focus:outline-none"
       />
       {error ? (
         <p id="reply-error" role="alert" className="mt-space-xs font-body-sm text-error">
@@ -76,7 +76,7 @@ export default function ReplyComposer({ locale, disabled, onSend }: Props) {
       <button
         type="submit"
         disabled={disabled || sending}
-        className="mt-space-sm rounded-full bg-primary px-space-lg py-space-sm font-label-md text-label-md text-on-primary disabled:opacity-50"
+        className="mt-space-sm rounded-lg bg-primary px-space-lg py-space-sm font-label-md text-label-md text-on-primary hover:bg-primary-container disabled:opacity-50"
       >
         {tConversations(
           locale,

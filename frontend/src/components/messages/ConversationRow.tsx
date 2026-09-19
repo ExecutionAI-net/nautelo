@@ -28,8 +28,12 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
   return (
     <Link
       href={href}
-      className="block rounded-xl border border-outline-variant p-space-md hover:border-primary"
+      className="flex gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm transition-shadow hover:shadow-md"
     >
+      <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary font-label-md text-on-primary">
+        {senderName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+      </span>
+      <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-baseline gap-space-sm">
         <span className="font-title-sm text-title-sm text-on-surface">
           {senderName}
@@ -88,9 +92,10 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
           </time>
         ) : null}
       </div>
-      <p className="mt-space-xs font-body-md text-on-surface-variant">
+      <p className="mt-space-xs truncate font-body-md text-on-surface-variant">
         {row.last_message_excerpt}
       </p>
+      </div>
     </Link>
   );
 }
