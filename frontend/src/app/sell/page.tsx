@@ -173,7 +173,7 @@ export default function SellLanding() {
             Insured logistical transport and skippered delivery across Palma, Barcelona, Genoa, and Naples.
           </p>
 </div>
-<Link href="/services/transport-delivery/" className="inline-flex items-center gap-space-xs font-title-md text-title-md text-secondary hover:text-primary transition-colors shrink-0" >
+<Link href="/services/professionals/transport-delivery/" className="inline-flex items-center gap-space-xs font-title-md text-title-md text-secondary hover:text-primary transition-colors shrink-0" >
 <span>Inquire logistics</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>

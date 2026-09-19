@@ -25,7 +25,7 @@ describe("next.config", () => {
   it("301-redirects both retired directory URLs and the retired broker services URL", async () => {
     const redirects = await nextConfig.redirects!();
 
-    expect(redirects).toHaveLength(9);
+    expect(redirects).toHaveLength(15);
     expect(redirects).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
