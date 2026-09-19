@@ -17,7 +17,7 @@ interface Props {
 }
 
 const BASE =
-  "rounded-full border px-space-md py-space-xs font-label-md text-label-md";
+  "rounded-full border px-space-md py-space-xs font-label-md text-label-md transition-colors";
 
 /** Spec 28's five inbox filters.
  *
