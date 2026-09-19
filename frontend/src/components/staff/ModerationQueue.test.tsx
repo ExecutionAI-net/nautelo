@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   fetchModerationQueue: vi.fn(),
   fetchRevisionDetail: vi.fn(),
   decideRevision: vi.fn().mockResolvedValue({}),
+  setSuspension: vi.fn().mockResolvedValue({}),
   QUEUE_TABS: ["initial", "revisions", "other_model", "suspended", "expiring"],
 }));
 vi.mock("@/lib/api/staffModeration", () => api);
@@ -78,5 +79,19 @@ describe("RevisionReview", () => {
         note: "",
       }),
     );
+  });
+});
+
+describe("suspension", () => {
+  it("suspends a listing row with a reason and reloads", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Policy breach");
+    api.fetchModerationQueue.mockResolvedValue({
+      tab: "expiring",
+      counts,
+      results: [{ ...row, kind: "listing", id: "l9", listing_id: "l9", listing_status: "PUBLISHED" }],
+    });
+    render(<ModerationQueue />);
+    fireEvent.click(await screen.findByRole("button", { name: "Suspend" }));
+    await waitFor(() => expect(api.setSuspension).toHaveBeenCalledWith("l9", "suspend", "Policy breach"));
   });
 });

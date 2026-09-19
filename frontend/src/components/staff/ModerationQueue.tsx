@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 import {
   QUEUE_TABS,
   fetchModerationQueue,
+  setSuspension,
   type QueueResponse,
+  type QueueRow,
   type QueueTab,
 } from "@/lib/api/staffModeration";
 
@@ -30,6 +32,8 @@ export default function ModerationQueue() {
   const [tab, setTab] = useState<QueueTab>("initial");
   const [data, setData] = useState<{ tab: QueueTab; body: QueueResponse } | null>(null);
   const [failed, setFailed] = useState<QueueTab | null>(null);
+  const [reload, setReload] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +47,20 @@ export default function ModerationQueue() {
     return () => {
       cancelled = true;
     };
-  }, [tab]);
+  }, [tab, reload]);
+
+  async function toggleSuspension(row: QueueRow) {
+    const suspend = row.listing_status !== "SUSPENDED";
+    const reason = window.prompt(suspend ? "Reason for suspension" : "Reason for reinstating");
+    if (!reason?.trim()) return;
+    setActionError(null);
+    try {
+      await setSuspension(row.listing_id, suspend ? "suspend" : "unsuspend", reason);
+      setReload((n) => n + 1);
+    } catch {
+      setActionError("The change could not be saved.");
+    }
+  }
 
   const current = data?.tab === tab ? data.body : null;
   const counts = data?.body.counts;
@@ -74,6 +91,11 @@ export default function ModerationQueue() {
         ))}
       </div>
 
+      {actionError ? (
+        <p role="alert" className="mt-space-sm">
+          {actionError}
+        </p>
+      ) : null}
       {failed === tab && !current ? (
         <p role="alert" className="mt-space-md font-body-md">
           The queue could not be loaded.
@@ -104,7 +126,15 @@ export default function ModerationQueue() {
                 >
                   Review
                 </Link>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void toggleSuspension(row)}
+                  className="font-body-md text-primary underline"
+                >
+                  {row.listing_status === "SUSPENDED" ? "Reinstate" : "Suspend"}
+                </button>
+              )}
             </li>
           ))}
         </ul>
