@@ -11,6 +11,7 @@ from .staff_taxonomy_views import (
 )
 from .views import (
     ListingDraftCreateView,
+    ListingFormOptionsView,
     ListingDraftUpdateView,
     ListingMediaCompleteView,
     ListingMediaDetailView,
@@ -33,6 +34,7 @@ from .owner_views import ListingWorkflowDetailView, MyListingsView
 
 urlpatterns = [
     path("listings/facets/", PublicListingFacetsView.as_view(), name="listing-facets"),
+    path("listing-form/options/", ListingFormOptionsView.as_view(), name="listing-form-options"),
     path("listings/mine/", MyListingsView.as_view(), name="my-listings"),
     path(
         "listings/<uuid:listing_id>/workflow/",
