@@ -1,7 +1,8 @@
 FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /app
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+# Include dependency build-script policy before installing (pnpm 12).
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 # NEXT_PUBLIC_* values are inlined at build time.
