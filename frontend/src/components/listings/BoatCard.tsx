@@ -64,7 +64,7 @@ export default function BoatCard({
   const href = listingPath(listing);
 
   return (
-    <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
+    <article className="flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
       {/* Spec §29.1: primary approved image or a defined placeholder. */}
       {primaryImage?.url ? (
         // eslint-disable-next-line @next/next/no-img-element -- CDN URL, size unknown
@@ -73,18 +73,19 @@ export default function BoatCard({
           alt={heading}
           loading="lazy"
           data-testid="boat-image"
-          className="mb-space-sm aspect-[4/3] w-full rounded-lg bg-surface-container-high object-cover"
+          className="aspect-[16/10] w-full bg-surface-container-high object-cover"
         />
       ) : (
         <div
           aria-hidden="true"
           data-testid={primaryImage ? "boat-image-slot" : "boat-image-placeholder"}
-          className="mb-space-sm aspect-[4/3] w-full rounded-lg bg-surface-container-high"
+          className="aspect-[16/10] w-full bg-surface-container-high"
         />
       )}
 
-      <div className="flex items-center justify-between font-body-sm text-on-surface-variant">
-        <span>{location}</span>
+      <div className="flex flex-1 flex-col p-space-md">
+      <div className="flex items-center justify-between font-label-sm uppercase tracking-wide text-secondary">
+        <span>{listing.brand_name}</span>
         {/* Spec §18.1: view count in the upper metadata row next to an eye icon.
             Spec §29.6: the icon is not the only means of conveying state, so the
             number carries an accessible label and the icon is hidden from it. */}
@@ -121,11 +122,15 @@ export default function BoatCard({
         )}
       </h3>
 
+      {location ? (
+        <p className="mt-space-xs font-body-sm text-on-surface-variant">{location}</p>
+      ) : null}
+
       {/* Spec §29.5: this row stacks cleanly below a breakpoint and neither
           value truncates ambiguously. */}
       <div className="mt-space-sm flex flex-col gap-space-xs sm:flex-row sm:items-end sm:justify-between">
         {price ? (
-          <p className="font-title-md text-title-md text-on-surface">{price}</p>
+          <p className="font-spec-num text-headline-sm font-semibold text-primary">{price}</p>
         ) : null}
         {monthly ? (
           // Spec §2.5: every estimate carries the disclaimer. The asterisk is
@@ -165,6 +170,7 @@ export default function BoatCard({
           <FinanceDetailsDisclosure locale={locale} listingId={listing.id} />
         </>
       ) : null}
+      </div>
     </article>
   );
 }

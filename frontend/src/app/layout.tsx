@@ -3,6 +3,7 @@ import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 import PrimaryNav from "@/components/layout/PrimaryNav";
+import SiteFooter from "@/components/layout/SiteFooter";
 import { SessionProvider } from "@/lib/auth/session";
 
 const playfairDisplay = Playfair_Display({
@@ -39,6 +40,7 @@ export default function RootLayout({
         <SessionProvider>
           <PrimaryNav />
           {children}
+          <SiteFooter />
         </SessionProvider>
       </body>
     </html>
