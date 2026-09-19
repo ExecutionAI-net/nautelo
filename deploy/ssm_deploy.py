@@ -47,10 +47,17 @@ def wait_for_command(region, instance_id, command_id, timeout=2400):
             if 'InvocationDoesNotExist' not in result.stderr:
                 raise RuntimeError(f'Unable to read SSM command {command_id}; inspect it in Systems Manager')
         else:
-            status = json.loads(result.stdout)['Status']
+            invocation = json.loads(result.stdout)
+            status = invocation['Status']
             if status == 'Success':
                 return
             if status not in ('Pending', 'InProgress', 'Delayed', 'Cancelling'):
+                # Surface the tail of the remote output so a failed deploy is diagnosable from the CI log.
+                for stream in ('StandardErrorContent', 'StandardOutputContent'):
+                    tail = (invocation.get(stream) or '')[-2500:]
+                    if tail.strip():
+                        print(f'--- {stream} (tail) ---', flush=True)
+                        print(tail, flush=True)
                 raise RuntimeError(f'SSM deployment {command_id} ended with {status}; inspect Systems Manager output')
         time.sleep(10)
     raise RuntimeError(f'Timed out waiting for SSM command {command_id}; it may still be running. Inspect before retrying')
