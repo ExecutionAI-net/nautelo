@@ -7,6 +7,7 @@ parameter should still render a list.
 """
 
 from decimal import Decimal, InvalidOperation
+from uuid import UUID
 
 from django.db.models import Q, QuerySet
 
@@ -41,6 +42,13 @@ def _int(value: str | None) -> int | None:
 
 
 def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
+    exclude = (params.get("exclude") or "").strip()
+    if exclude:
+        try:
+            queryset = queryset.exclude(pk=UUID(exclude))
+        except ValueError:
+            pass
+
     q = (params.get("q") or "").strip()
     if q:
         queryset = queryset.filter(

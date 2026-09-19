@@ -92,6 +92,7 @@ export interface ListingSearch {
   country?: string;
   region?: string;
   seller_type?: string;
+  exclude?: string;
   price_min?: string;
   price_max?: string;
   year_min?: string;

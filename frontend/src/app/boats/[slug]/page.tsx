@@ -51,9 +51,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
     ([, value]) => value !== null && value !== "",
   );
 
-  const others = ((await fetchPublishedListings({ page_size: "5" }).catch(() => null))?.results ?? [])
-    .filter((item) => item.id !== listing.id)
-    .slice(0, 4);
+  const others = (await fetchPublishedListings({ page_size: "4", exclude: listing.id }).catch(() => null))?.results ?? [];
   const mainImage = images[0];
   const sideImages = images.slice(1, 3);
   const monthly =

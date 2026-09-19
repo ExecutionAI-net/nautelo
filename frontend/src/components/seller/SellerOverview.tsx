@@ -4,23 +4,24 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { fetchConversations } from "@/lib/api/conversations";
-import { fetchMyListings, type MyListingRow } from "@/lib/api/sellerListings";
+import { fetchMyListings, fetchMyListingsSummary, type MyListingRow, type MyListingsSummary } from "@/lib/api/sellerListings";
 
 export default function SellerOverview() {
+  const [summary, setSummary] = useState<MyListingsSummary | null>(null);
   const [listings, setListings] = useState<MyListingRow[] | null>(null);
   const [conversations, setConversations] = useState<number | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    fetchMyListingsSummary().then(setSummary, () => setError(true));
     fetchMyListings().then(setListings, () => setError(true));
     fetchConversations("ALL").then((page) => setConversations(page.count), () => setConversations(null));
   }, []);
 
-  const count = (status: string) => listings?.filter((row) => row.status === status).length ?? 0;
   const cards = [
-    { label: "Published", value: listings ? String(count("PUBLISHED")) : "-", href: "/dashboard/private-seller/listings/" },
-    { label: "Drafts", value: listings ? String(count("DRAFT")) : "-", href: "/dashboard/private-seller/listings/" },
-    { label: "In review", value: listings ? String(count("PENDING_APPROVAL")) : "-", href: "/dashboard/private-seller/listings/" },
+    { label: "Published", value: summary ? String(summary.published) : "-", href: "/dashboard/private-seller/listings/" },
+    { label: "Drafts", value: summary ? String(summary.drafts) : "-", href: "/dashboard/private-seller/listings/" },
+    { label: "In review", value: summary ? String(summary.in_review) : "-", href: "/dashboard/private-seller/listings/" },
     { label: "Conversations", value: conversations === null ? "-" : String(conversations), href: "/dashboard/private-seller/messages/" },
   ];
 

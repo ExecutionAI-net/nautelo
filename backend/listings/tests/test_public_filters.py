@@ -91,3 +91,11 @@ def test_facets_list_distinct_choices(api, catalogue):
     assert body["brands"] == ["Bavaria", "Lagoon", "Sanlorenzo"]
     assert body["countries"] == ["ES", "IT"]
     assert "Liguria" in body["regions"]
+
+
+def test_exclude_drops_one_listing_and_ignores_garbage(api, catalogue):
+    everything = api.get(reverse("listing-list")).json()["results"]
+    dropped = everything[0]["id"]
+    left = [row["id"] for row in api.get(reverse("listing-list"), {"exclude": dropped}).json()["results"]]
+    assert dropped not in left and len(left) == len(everything) - 1
+    assert len(api.get(reverse("listing-list"), {"exclude": "not-a-uuid"}).json()["results"]) == len(everything)
