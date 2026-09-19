@@ -10,7 +10,7 @@ export default function ContactPage() {
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop pt-space-md pb-space-2xl">
 
 <nav aria-label="Breadcrumb" className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant mb-space-lg">
-<Link href="#" className="hover:text-primary transition-colors flex items-center gap-1" >
+<Link href="/" className="hover:text-primary transition-colors flex items-center gap-1" >
 <span className="material-symbols-outlined text-[16px] text-outline">sailing</span>
 <span>Home</span>
 </Link>
@@ -179,7 +179,7 @@ export default function ContactPage() {
 <input className="mt-1 h-4 w-4 rounded text-secondary focus:ring-secondary bg-surface-container-low border-outline-variant cursor-pointer" required type="checkbox"/>
 <span className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
                     I acknowledge that Nauta handles nautical transactional details according to European GDPR and Spanish/Italian maritime confidentiality frameworks. I agree to the
-                    <Link href="#" className="text-secondary hover:underline" >Privacy Policy</Link> and direct verification protocols.
+                    <Link href="/privacy/" className="text-secondary hover:underline" >Privacy Policy</Link> and direct verification protocols.
                   </span>
 </label>
 </div>
@@ -235,7 +235,7 @@ export default function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">Palma de Mallorca &amp; Barcelona Hubs</div>
 </div>
 </div>
-<Link href="#" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
+<Link href="/contact/" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
                       +34 971 000 840
                     </Link>
 </div>
@@ -247,7 +247,7 @@ export default function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">Genoa Liguria &amp; Naples Hubs</div>
 </div>
 </div>
-<Link href="#" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
+<Link href="/contact/" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
                       +39 010 890 3300
                     </Link>
 </div>
@@ -259,7 +259,7 @@ export default function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">Cross-Border Flag Transfers</div>
 </div>
 </div>
-<Link href="#" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
+<Link href="/contact/" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
                       +34 930 112 400
                     </Link>
 </div>
@@ -269,21 +269,21 @@ export default function ContactPage() {
 <div className="pt-2">
 <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-2">Dedicated Department Emails</div>
 <div className="grid grid-cols-1 gap-2">
-<Link href="#" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">mail</span>
 <span className="font-body-md text-body-md text-primary">General Support &amp; Listings</span>
 </div>
 <span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">contact@nauta-maritime.example.com</span>
 </Link>
-<Link href="#" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">domain</span>
 <span className="font-body-md text-body-md text-primary">Broker &amp; Yard Verification</span>
 </div>
 <span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">brokers@nauta-maritime.example.com</span>
 </Link>
-<Link href="#" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">gavel</span>
 <span className="font-body-md text-body-md text-primary">Legal, Tax &amp; Escrow Desk</span>
@@ -400,7 +400,7 @@ export default function ContactPage() {
 <div className="font-headline-sm text-headline-sm text-primary font-serif">Tirreno Marine Chronometers</div>
 <p className="font-body-sm text-body-sm text-on-surface-variant">Official timepieces calibrated for Mediterranean offshore navigation.</p>
 </div>
-<Link href="#" className="shrink-0 px-3 py-2 rounded bg-surface-container-lowest text-primary hover:bg-surface-container-high font-label-md text-label-md transition-colors shadow-sm" >
+<Link href="/contact/" className="shrink-0 px-3 py-2 rounded bg-surface-container-lowest text-primary hover:bg-surface-container-high font-label-md text-label-md transition-colors shadow-sm" >
               Explore Collection
             </Link>
 </div>
@@ -432,7 +432,7 @@ export default function ContactPage() {
               </p>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-surface-container">
-<Link href="#" className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-1" >
+<Link href="/contact/" className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-1" >
 <span>View Certified Broker Registry</span>
 <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
 </Link>
@@ -452,7 +452,7 @@ export default function ContactPage() {
               </p>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-surface-container">
-<Link href="#" className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-1" >
+<Link href="/contact/" className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-1" >
 <span>Flag Registration Guidelines</span>
 <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
 </Link>
@@ -472,7 +472,7 @@ export default function ContactPage() {
               </p>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-surface-container">
-<Link href="#" className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-1" >
+<Link href="/contact/" className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-1" >
 <span>Brokerage Commission Structure</span>
 <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
 </Link>

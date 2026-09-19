@@ -8,7 +8,7 @@ export default function YachtInsurance() {
 <section className="w-full bg-surface-container-low/60">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop py-space-sm flex flex-col sm:flex-row sm:items-center justify-between gap-space-xs text-on-surface-variant">
 <nav className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
-<Link href="#" className="hover:text-primary transition-colors" >Home</Link>
+<Link href="/" className="hover:text-primary transition-colors" >Home</Link>
 <span className="text-outline-variant font-label-sm">/</span>
 <Link href="/services/professionals/" className="hover:text-primary transition-colors" >Services</Link>
 <span className="text-outline-variant font-label-sm">/</span>
@@ -59,10 +59,10 @@ export default function YachtInsurance() {
 </div>
 
 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-space-md pt-space-sm">
-<Link href="#" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-lg py-3 rounded-lg font-body-md text-body-md font-medium transition-colors shadow-sm" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary text-on-primary hover:bg-primary-container px-space-lg py-3 rounded-lg font-body-md text-body-md font-medium transition-colors shadow-sm" >
               Request insurance quote
             </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-surface-container text-primary hover:bg-surface-container-high px-space-lg py-3 rounded-lg font-body-md text-body-md font-medium transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-surface-container text-primary hover:bg-surface-container-high px-space-lg py-3 rounded-lg font-body-md text-body-md font-medium transition-colors" >
               Explore policy tiers
               <span className="material-symbols-outlined text-[18px] ml-1">arrow_downward</span>
 </Link>
@@ -454,7 +454,7 @@ export default function YachtInsurance() {
             Independent rig inspections and ultrasonic hull thickness testing accepted by all premier Mediterranean marine underwriters.
           </p>
 </div>
-<Link href="#" className="inline-flex items-center gap-1 shrink-0 bg-surface-container-lowest hover:bg-surface text-primary px-space-md py-2 rounded-lg font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
+<Link href="/services/professionals/" className="inline-flex items-center gap-1 shrink-0 bg-surface-container-lowest hover:bg-surface text-primary px-space-md py-2 rounded-lg font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
 <span>Visit Partner Directory</span>
 <span className="material-symbols-outlined text-[16px]">arrow_outward</span>
 </Link>
@@ -557,7 +557,7 @@ export default function YachtInsurance() {
 <span className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider block font-semibold">Immediate Assistance</span>
 <p className="font-body-sm text-body-sm text-on-primary/90 mt-0.5">Need expedited mooring certification for port entry?</p>
 </div>
-<Link href="#" className="inline-flex items-center justify-center bg-secondary text-on-secondary hover:bg-secondary/90 px-space-md py-2 rounded-lg font-body-sm text-body-sm font-medium transition-colors shrink-0" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-secondary text-on-secondary hover:bg-secondary/90 px-space-md py-2 rounded-lg font-body-sm text-body-sm font-medium transition-colors shrink-0" >
               Submit Form
             </Link>
 </div>
@@ -661,9 +661,9 @@ export default function YachtInsurance() {
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-secondary text-[18px]">phone_in_talk</span>
 <span>Direct Underwriting Desk:</span>
-<Link href="#" className="hover:text-primary font-medium" >Palma: +34 971 00 24 10</Link>
+<Link href="/services/professionals/" className="hover:text-primary font-medium" >Palma: +34 971 00 24 10</Link>
 <span className="text-outline-variant">·</span>
-<Link href="#" className="hover:text-primary font-medium" >Genoa: +39 010 89 32 40</Link>
+<Link href="/services/professionals/" className="hover:text-primary font-medium" >Genoa: +39 010 89 32 40</Link>
 </div>
 <span className="font-label-sm text-label-sm text-on-surface-variant/70">Hours: Mon–Fri 08:30 – 19:30 CET</span>
 </div>
@@ -734,14 +734,14 @@ export default function YachtInsurance() {
             Related Maritime Advisory
           </h2>
 </div>
-<Link href="#" className="inline-flex items-center gap-1 font-body-md text-body-md text-secondary hover:text-primary font-medium transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center gap-1 font-body-md text-body-md text-secondary hover:text-primary font-medium transition-colors" >
 <span>View all maritime services</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
 
-<Link href="#" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" >
 <div>
 <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors mb-space-md">
 <span className="material-symbols-outlined text-[24px]">gavel</span>
@@ -757,7 +757,7 @@ export default function YachtInsurance() {
 </div>
 </Link>
 
-<Link href="#" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" >
 <div>
 <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors mb-space-md">
 <span className="material-symbols-outlined text-[24px]">engineering</span>
@@ -773,7 +773,7 @@ export default function YachtInsurance() {
 </div>
 </Link>
 
-<Link href="#" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" >
+<Link href="/services/professionals/" className="group bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between" >
 <div>
 <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors mb-space-md">
 <span className="material-symbols-outlined text-[24px]">real_estate_agent</span>
@@ -805,10 +805,10 @@ export default function YachtInsurance() {
           </p>
 </div>
 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-space-md shrink-0 w-full sm:w-auto">
-<Link href="#" className="inline-flex items-center justify-center bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim px-space-lg py-3.5 rounded-lg font-body-md text-body-md font-semibold transition-colors shadow-sm text-center" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim px-space-lg py-3.5 rounded-lg font-body-md text-body-md font-semibold transition-colors shadow-sm text-center" >
             Request insurance quote
           </Link>
-<Link href="#" className="inline-flex items-center justify-center bg-transparent border border-on-primary/30 text-on-primary hover:bg-on-primary/10 px-space-lg py-3.5 rounded-lg font-body-md text-body-md font-medium transition-colors text-center" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center bg-transparent border border-on-primary/30 text-on-primary hover:bg-on-primary/10 px-space-lg py-3.5 rounded-lg font-body-md text-body-md font-medium transition-colors text-center" >
             All nautical services
           </Link>
 </div>

@@ -56,10 +56,10 @@ export default function LegalServices() {
 </div>
 </div>
 <div className="pt-space-sm flex flex-wrap items-center gap-space-md">
-<Link href="#" className="inline-flex items-center justify-center px-space-lg py-3 rounded bg-primary-container text-on-primary font-title-md text-title-md hover:bg-primary transition-colors shadow-sm" >
+<Link href="/services/professionals/" className="inline-flex items-center justify-center px-space-lg py-3 rounded bg-primary-container text-on-primary font-title-md text-title-md hover:bg-primary transition-colors shadow-sm" >
               Request legal review
             </Link>
-<Link href="#" className="inline-flex items-center gap-2 text-primary font-body-md text-body-md hover:text-secondary transition-colors" >
+<Link href="/services/professionals/" className="inline-flex items-center gap-2 text-primary font-body-md text-body-md hover:text-secondary transition-colors" >
               Explore coverage scopes
               <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
 </Link>
@@ -382,7 +382,7 @@ export default function LegalServices() {
 <p className="font-body-sm text-body-sm text-on-surface-variant">Independent escrow deposit management and certified nautical notarisation services across the Western Mediterranean basin.</p>
 </div>
 <div className="shrink-0">
-<Link href="#" className="inline-flex items-center gap-2 px-space-md py-2.5 rounded bg-surface-container-lowest text-primary hover:bg-surface text-body-sm font-semibold transition-colors shadow-sm" >
+<Link href="/services/professionals/" className="inline-flex items-center gap-2 px-space-md py-2.5 rounded bg-surface-container-lowest text-primary hover:bg-surface text-body-sm font-semibold transition-colors shadow-sm" >
             Visit Partner Registry
             <span className="material-symbols-outlined text-[16px]">north_east</span>
 </Link>
@@ -715,7 +715,7 @@ export default function LegalServices() {
 </div>
 <div className="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
 
-<Link href="#" className="p-space-lg rounded-lg bg-surface hover:bg-surface-container-low transition-colors shadow-sm flex flex-col justify-between group" >
+<Link href="/services/professionals/" className="p-space-lg rounded-lg bg-surface hover:bg-surface-container-low transition-colors shadow-sm flex flex-col justify-between group" >
 <div>
 <div className="w-10 h-10 rounded bg-surface-container flex items-center justify-center text-primary mb-space-md">
 <span className="material-symbols-outlined text-[24px]">directions_boat</span>
@@ -731,7 +731,7 @@ export default function LegalServices() {
 </div>
 </Link>
 
-<Link href="#" className="p-space-lg rounded-lg bg-surface hover:bg-surface-container-low transition-colors shadow-sm flex flex-col justify-between group" >
+<Link href="/services/professionals/" className="p-space-lg rounded-lg bg-surface hover:bg-surface-container-low transition-colors shadow-sm flex flex-col justify-between group" >
 <div>
 <div className="w-10 h-10 rounded bg-surface-container flex items-center justify-center text-primary mb-space-md">
 <span className="material-symbols-outlined text-[24px]">security</span>
@@ -747,7 +747,7 @@ export default function LegalServices() {
 </div>
 </Link>
 
-<Link href="#" className="p-space-lg rounded-lg bg-surface hover:bg-surface-container-low transition-colors shadow-sm flex flex-col justify-between group" >
+<Link href="/services/professionals/" className="p-space-lg rounded-lg bg-surface hover:bg-surface-container-low transition-colors shadow-sm flex flex-col justify-between group" >
 <div>
 <div className="w-10 h-10 rounded bg-surface-container flex items-center justify-center text-primary mb-space-md">
 <span className="material-symbols-outlined text-[24px]">build</span>
@@ -779,10 +779,10 @@ export default function LegalServices() {
           </p>
 </div>
 <div className="flex flex-col sm:flex-row items-center gap-space-md shrink-0">
-<Link href="#" className="px-space-xl py-3.5 rounded bg-surface text-primary font-title-md text-title-md hover:bg-surface-container transition-colors shadow-lg" >
+<Link href="/services/professionals/" className="px-space-xl py-3.5 rounded bg-surface text-primary font-title-md text-title-md hover:bg-surface-container transition-colors shadow-lg" >
             Request legal review
           </Link>
-<Link href="#" className="px-space-lg py-3.5 rounded text-on-primary hover:text-secondary-fixed font-title-md text-title-md transition-colors flex items-center gap-2" >
+<Link href="/services/professionals/" className="px-space-lg py-3.5 rounded text-on-primary hover:text-secondary-fixed font-title-md text-title-md transition-colors flex items-center gap-2" >
 <span>All nautical services</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
