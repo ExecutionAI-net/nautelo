@@ -58,3 +58,15 @@ export function decideRevision(
     body: JSON.stringify(body),
   });
 }
+
+export function setSuspension(
+  listingId: string,
+  action: "suspend" | "unsuspend",
+  reason: string,
+): Promise<{ listing_id: string; status: string }> {
+  return apiFetch(`/api/v1/staff/listings/${encodeURIComponent(listingId)}/suspension/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, reason }),
+  });
+}

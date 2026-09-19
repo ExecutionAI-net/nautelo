@@ -80,3 +80,18 @@ describe("RevisionReview", () => {
     );
   });
 });
+
+describe("suspension", () => {
+  it("suspends a listing row with a reason and reloads", async () => {
+    api.setSuspension = vi.fn().mockResolvedValue({});
+    vi.spyOn(window, "prompt").mockReturnValue("Policy breach");
+    api.fetchModerationQueue.mockResolvedValue({
+      tab: "expiring",
+      counts,
+      results: [{ ...row, kind: "listing", id: "l9", listing_id: "l9", listing_status: "PUBLISHED" }],
+    });
+    render(<ModerationQueue />);
+    fireEvent.click(await screen.findByRole("button", { name: "Suspend" }));
+    await waitFor(() => expect(api.setSuspension).toHaveBeenCalledWith("l9", "suspend", "Policy breach"));
+  });
+});
