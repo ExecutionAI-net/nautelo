@@ -25,3 +25,22 @@ def test_flush_expired_tokens_is_scheduled_daily_on_maintenance_queue():
 
     assert entry["task"] == "common.tasks.flush_expired_tokens"
     assert entry["options"]["queue"] == "maintenance"
+
+
+def test_every_periodic_task_is_registered_and_none_was_overwritten():
+    """base.py once defined CELERY_BEAT_SCHEDULE twice; the second assignment
+    silently dropped listing expiry, reminders, media cleanup and the ledger
+    sweep. Pin every entry so that cannot recur."""
+    from config.celery import app
+
+    app.loader.import_default_modules()
+    schedule = settings.CELERY_BEAT_SCHEDULE
+    assert {
+        "expire-due-listings",
+        "send-listing-expiry-reminders",
+        "cleanup-stale-media-uploads",
+        "sweep-entitlement-ledger",
+        "flush-expired-jwt-tokens",
+    } <= set(schedule)
+    for name, entry in schedule.items():
+        assert entry["task"] in app.tasks, f"{name} points at an unregistered task"

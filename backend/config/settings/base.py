@@ -143,8 +143,6 @@ CELERY_BEAT_SCHEDULE = {
         "task": "entitlements.tasks.sweep_entitlement_ledger",
         "schedule": crontab(hour=3, minute=30),
     },
-}
-CELERY_BEAT_SCHEDULE = {
     "flush-expired-jwt-tokens": {
         "task": "common.tasks.flush_expired_tokens",
         "schedule": crontab(hour=3, minute=0),
