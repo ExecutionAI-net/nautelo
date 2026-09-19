@@ -90,6 +90,14 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-19 — Gap closing (phases 3, 15-24)
+
+- Found and fixed: `CELERY_BEAT_SCHEDULE` was assigned twice in `base.py`, silently dropping listing expiry, reminders, media cleanup and the entitlement sweep.
+- Added missing user-facing surfaces: `/register/`, `/account/`, `/settings/` (staff products), a real home page (it was the create-next-app scaffold), `/dashboard/listings/`, `/sell/<id>/`, `/fleet/`.
+- Media: Pillow metadata stripping and `MEDIA_PUBLIC_BASE_URL` so public images render.
+- Security/ops: throttle coverage test, fail-closed prod settings, report-only CSP, lifecycle acceptance test, axe sweep, `reconcile_listings`.
+- Still open: ffmpeg video processing and a malware scanner (hooks exist), enforcing CSP, browser E2E and UAT, staging rehearsal of `docs/DEPLOYMENT.md`, IT/ES copy for staff screens, password reset (no backend endpoint yet).
+
 ### 2026-09-19 — Phases 15-21 frontend increments
 
 - Phase 20: `BoatListing.slug` (assigned once at first publication, backfilled), `GET /api/v1/listings/by-slug/<slug>/`, broker identity block in the public payload, `/boats/<slug>/` page with share (WhatsApp + accessible copy-link, canonical URL only) and a LISTING InquiryForm; cards link to it; sitemap and robots.
