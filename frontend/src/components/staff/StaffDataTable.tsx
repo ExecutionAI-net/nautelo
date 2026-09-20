@@ -183,7 +183,7 @@ export default function StaffDataTable({ title, eyebrow, description, endpoint, 
                   <div key={group.param} role="group" aria-label={group.label} className="flex flex-wrap items-center gap-space-xs">
                     {index > 0 ? <div className="w-px h-4 bg-outline-variant mx-1 hidden sm:block" /> : null}
                     <span className="font-label-sm uppercase text-on-surface-variant mr-2">{group.label}:</span>
-                    {[{ value: "", label: `All ${group.label.toLowerCase()}s` }, ...group.options].map((option) => {
+                    {[{ value: "", label: `All ${group.label.toLowerCase()}${/s$/i.test(group.label) ? "es" : "s"}` }, ...group.options].map((option) => {
                       const active = (filters[group.param] ?? "") === option.value;
                       const count = group.facets ? (option.value ? facets[option.value] : facetTotal) : undefined;
                       return (
