@@ -123,11 +123,9 @@ export default function ContactPanel({
               <dt className="font-body-sm text-on-surface-variant">
                 {tContact(locale, "contact.email_label")}
               </dt>
-              {/* The blur is cosmetic over a value that is ALREADY masked
-                  server-side. The secret never reaches this browser, so this is
-                  not the "hide prohibited fields only with CSS" that spec 39
-                  forbids — remove the class and the mask is still a mask. */}
-              <dd className="select-none blur-[2px] font-body-md text-on-surface">
+              {/* The value is masked server-side (c****@domain); the secret never
+                  reaches this browser, so it is shown as-is with no CSS hiding. */}
+              <dd className="select-none font-body-md text-on-surface">
                 {access.email_mask}
               </dd>
             </div>
@@ -135,7 +133,7 @@ export default function ContactPanel({
               <dt className="font-body-sm text-on-surface-variant">
                 {tContact(locale, "contact.phone_label")}
               </dt>
-              <dd className="select-none blur-[2px] font-body-md text-on-surface">
+              <dd className="select-none font-body-md text-on-surface">
                 {access.phone_mask}
               </dd>
             </div>
