@@ -2,7 +2,9 @@ import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import Link from "next/link";
 
 import BoatCard from "@/components/listings/BoatCard";
-import { fetchPublishedListings, type PublicListing } from "@/lib/api/listings";
+import AdLink from "@/components/content/AdLink";
+import { fetchAds } from "@/lib/api/contentServer";
+import { fetchListingFacets, fetchPublishedListings, type PublicListing } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +21,7 @@ async function latest(): Promise<PublicListing[]> {
 
 export default async function Home() {
   const locale = await getRequestLocale();
-  const boats = await latest();
+  const [boats, facets, [ad]] = await Promise.all([latest(), fetchListingFacets(), fetchAds("HOME")]);
   return (
     <main className="w-full bg-surface">
 <div className="flex flex-col w-full">
@@ -47,14 +49,11 @@ export default async function Home() {
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Boat type</label>
 <div className="relative bg-surface-container-low rounded-lg">
-<select aria-label="Boat type" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
+<select aria-label="Boat type" name="boat_type" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
 <option value="">All boat types</option>
-<option value="motor-yachts">Motor yachts</option>
-<option value="sailing-yachts">Sailing yachts</option>
-<option value="catamarans">Catamarans</option>
-<option value="motorboats">Motorboats</option>
-<option value="ribs">RIBs</option>
-<option value="fishing-boats">Fishing boats</option>
+{(facets.boat_types ?? []).map((type) => (
+<option key={type} value={type}>{type}</option>
+))}
 </select>
 <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-outline text-[20px]">expand_more</span>
 </div>
@@ -62,15 +61,11 @@ export default async function Home() {
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Location</label>
 <div className="relative bg-surface-container-low rounded-lg">
-<select aria-label="Location" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
+<select aria-label="Location" name="region" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
 <option value="">Spain &amp; Italy (All coastal zones)</option>
-<option value="balearics">Balearic Islands (Mallorca, Ibiza)</option>
-<option value="catalonia">Catalonia &amp; Costa Brava</option>
-<option value="andalucia">Andalusia &amp; Costa del Sol</option>
-<option value="liguria">Liguria &amp; Italian Riviera</option>
-<option value="tuscany">Tuscan Archipelago</option>
-<option value="sardinia">Sardinia &amp; Costa Smeralda</option>
-<option value="campania">Naples &amp; Amalfi Coast</option>
+{facets.regions.map((region) => (
+<option key={region} value={region}>{region}</option>
+))}
 </select>
 <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-outline text-[20px]">expand_more</span>
 </div>
@@ -78,15 +73,15 @@ export default async function Home() {
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Price range (€)</label>
 <div className="grid grid-cols-2 gap-2">
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Min price" type="number"/>
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Max price" type="number"/>
+<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Min price" name="price_min" min="0" type="number"/>
+<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Max price" name="price_max" min="0" type="number"/>
 </div>
 </div>
 <div className="flex flex-col gap-1 md:col-span-2">
-<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Length (metres)</label>
+<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Year built</label>
 <div className="grid grid-cols-2 gap-2">
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Min length" step="0.5" type="number"/>
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Max length" step="0.5" type="number"/>
+<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="From year" name="year_min" min="1900" type="number"/>
+<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="To year" name="year_max" min="1900" type="number"/>
 </div>
 </div>
 <div className="flex items-end md:col-span-1">
@@ -101,29 +96,29 @@ export default async function Home() {
 </div>
 
 <div className="lg:col-span-4 w-full h-full flex flex-col justify-start">
+{ad ? (
 <div className="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col">
 <div className="flex items-center justify-between pb-space-xs mb-space-sm">
 <span className="font-label-sm text-label-sm text-outline tracking-widest uppercase">ADVERTISEMENT</span>
 <span className="material-symbols-outlined text-outline text-[16px]">info</span>
 </div>
-<div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden mb-space-md group">
-<img alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="/design/f3e0fb1ef5.jpg"/>
+<div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden mb-space-md group bg-surface-container-high">
+{ad.image_url ? (
+// eslint-disable-next-line @next/next/no-img-element -- sponsor image, size unknown
+<img alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src={ad.image_url}/>
+) : null}
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex flex-col justify-end p-space-md">
 <span className="font-label-sm text-label-sm text-tertiary-fixed tracking-wider uppercase">Verified Partner</span>
-<span className="font-title-lg text-title-lg text-on-primary font-serif">Mediterranean Marine Insurance</span>
+<span className="font-title-lg text-title-lg text-on-primary font-serif">{ad.sponsor}</span>
 </div>
 </div>
 <div className="flex flex-col">
-<h2 className="font-headline-sm text-headline-sm text-primary mb-1">Comprehensive Yacht Protection</h2>
-<p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md">
-                Cross-border hull liability, salvage coverage, and charter guarantees across all Spanish and Italian territorial waters.
-              </p>
-<Link className="inline-flex items-center justify-between py-2 px-space-md rounded-lg bg-surface-container text-primary hover:bg-surface-container-high transition-colors font-label-md text-label-md" href="/services/professionals/">
-<span>Request Underwriting Quote</span>
-<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</Link>
+<h2 className="font-headline-sm text-headline-sm text-primary mb-1">{ad.headline}</h2>
+{ad.body ? <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md">{ad.body}</p> : null}
+{ad.cta_url && ad.cta_label ? <AdLink ad={ad} /> : null}
 </div>
 </div>
+) : null}
 </div>
 </div>
 </div>

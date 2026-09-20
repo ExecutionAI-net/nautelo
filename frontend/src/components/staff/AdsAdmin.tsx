@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { staffAds, type AdPlacement, type StaffAd } from "@/lib/api/content";
+import { fetchAdTargets, staffAds, type AdPlacement, type AdTargets, type StaffAd } from "@/lib/api/content";
 
 const PLACEMENTS: { value: AdPlacement; label: string; blurb: string }[] = [
   { value: "HOME", label: "Homepage", blurb: "Above-the-fold sponsorship on the landing experience." },
@@ -29,7 +29,8 @@ export default function AdsAdmin() {
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ placement: "HOME" as AdPlacement, sponsor: "", headline: "", body: "", cta_label: "", cta_url: "" });
+  const [draft, setDraft] = useState({ placement: "HOME" as AdPlacement, sponsor: "", headline: "", body: "", cta_label: "", cta_url: "", target: "" });
+  const [targets, setTargets] = useState<AdTargets>({ brokers: [], professionals: [] });
 
   const reload = useCallback(async () => {
     try {
@@ -37,6 +38,10 @@ export default function AdsAdmin() {
     } catch {
       setMessage("The content could not be loaded.");
     }
+  }, []);
+
+  useEffect(() => {
+    void fetchAdTargets().then(setTargets).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -287,8 +292,13 @@ export default function AdsAdmin() {
           className="lg:col-span-5 bg-surface-container-lowest rounded shadow-sm p-space-lg grid gap-space-sm sm:grid-cols-2 content-start"
           onSubmit={(event) => {
             event.preventDefault();
-            void run(() => staffAds.create(draft), "Advertisement created.");
-            setDraft({ ...draft, sponsor: "", headline: "", body: "", cta_label: "", cta_url: "" });
+            const { target, ...rest } = draft;
+            const [kind, id] = target.split(":");
+            void run(
+              () => staffAds.create({ ...rest, broker: kind === "broker" ? id : null, professional: kind === "professional" ? id : null }),
+              "Advertisement created.",
+            );
+            setDraft({ ...draft, sponsor: "", headline: "", body: "", cta_label: "", cta_url: "", target: "" });
           }}
         >
           <h3 className="font-headline-sm text-headline-sm text-primary sm:col-span-2">New commercial campaign</h3>
@@ -317,6 +327,22 @@ export default function AdsAdmin() {
           <label className="font-label-sm uppercase text-on-surface-variant">
             Button label
             <input className={FIELD} value={draft.cta_label} onChange={(e) => setDraft({ ...draft, cta_label: e.target.value })} />
+          </label>
+          <label className="font-label-sm uppercase text-on-surface-variant sm:col-span-2">
+            Links to
+            <select className={FIELD} value={draft.target} onChange={(e) => setDraft({ ...draft, target: e.target.value })}>
+              <option value="">External URL (below)</option>
+              <optgroup label="Brokers">
+                {targets.brokers.map((b) => (
+                  <option key={b.id} value={`broker:${b.id}`}>{b.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Professionals">
+                {targets.professionals.map((p) => (
+                  <option key={p.id} value={`professional:${p.id}`}>{p.label}</option>
+                ))}
+              </optgroup>
+            </select>
           </label>
           <label className="font-label-sm uppercase text-on-surface-variant">
             Button URL

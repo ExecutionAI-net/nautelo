@@ -7,6 +7,7 @@ from .views import (
     StaffAdDetailView,
     StaffAdListView,
     StaffGuideDetailView,
+    StaffAdTargetListView,
     StaffGuideListView,
 )
 
@@ -17,5 +18,6 @@ urlpatterns = [
     path("staff/guides/", StaffGuideListView.as_view(), name="staff-guide-list"),
     path("staff/guides/<uuid:pk>/", StaffGuideDetailView.as_view(), name="staff-guide-detail"),
     path("staff/ads/", StaffAdListView.as_view(), name="staff-ad-list"),
+    path("staff/ad-targets/", StaffAdTargetListView.as_view(), name="staff-ad-targets"),
     path("staff/ads/<uuid:pk>/", StaffAdDetailView.as_view(), name="staff-ad-detail"),
 ]

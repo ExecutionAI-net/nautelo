@@ -1,3 +1,4 @@
+import AdLink from "@/components/content/AdLink";
 import type { AdPlacement } from "@/lib/api/content";
 import { fetchAds } from "@/lib/api/contentServer";
 
@@ -16,14 +17,10 @@ export default async function AdSlot({ placement }: { placement: AdPlacement }) 
         {ad.body ? <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{ad.body}</p> : null}
       </div>
       {ad.cta_url && ad.cta_label ? (
-        <a
-          href={ad.cta_url}
-          rel="sponsored noopener noreferrer"
-          target="_blank"
-          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container"
-        >
-          {ad.cta_label}
-        </a>
+        <AdLink
+          ad={ad}
+          className="inline-flex shrink-0 items-center justify-center gap-space-xs rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container"
+        />
       ) : null}
     </aside>
   );
