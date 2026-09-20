@@ -24,7 +24,7 @@ export default function BrokerOverviewPanel({
   return (
     <section
       aria-labelledby="broker-overview-heading"
-      className="rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md"
+      className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm"
     >
       <h2
         id="broker-overview-heading"

@@ -129,7 +129,10 @@ export default function StaffBrokerDetailView({
   return (
     <div className="flex flex-col gap-space-lg">
       <header>
-        <h1 className="font-headline-md text-headline-md text-primary">
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">
+          Staff Admin / Brokers
+        </span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">
           {broker.name}
         </h1>
         <p className="font-body-sm text-on-surface-variant">{broker.slug}</p>
