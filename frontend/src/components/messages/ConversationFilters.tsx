@@ -17,7 +17,7 @@ interface Props {
 }
 
 const BASE =
-  "rounded-full border px-space-md py-space-xs font-label-md text-label-md transition-colors";
+  "rounded-full px-3 py-1.5 font-label-md text-label-md whitespace-nowrap transition-colors";
 
 /** Spec 28's five inbox filters.
  *
@@ -37,8 +37,8 @@ export default function ConversationFilters({ locale, active, hrefFor }: Props) 
                 aria-current={isActive ? "true" : undefined}
                 className={`${BASE} ${
                   isActive
-                    ? "border-primary bg-primary text-on-primary"
-                    : "border-outline-variant text-on-surface-variant"
+                    ? "bg-primary text-on-primary shadow-sm"
+                    : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
                 }`}
               >
                 {tConversations(locale, FILTER_MESSAGE_KEYS[filter])}

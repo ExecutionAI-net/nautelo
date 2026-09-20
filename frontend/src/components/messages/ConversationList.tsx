@@ -18,7 +18,7 @@ export default function ConversationList({ locale, rows, hrefFor }: Props) {
     );
   }
   return (
-    <ul className="flex flex-col gap-space-sm">
+    <ul className="flex flex-col divide-y divide-surface-container overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
       {rows.map((row) => (
         <li key={row.id}>
           <ConversationRowCard locale={locale} row={row} href={hrefFor(row.id)} />

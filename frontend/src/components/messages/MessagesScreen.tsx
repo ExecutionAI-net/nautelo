@@ -94,7 +94,10 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId 
 
   return (
     <section aria-labelledby="messages-title">
-      <h1 id="messages-title" className="font-headline-md text-headline-md text-primary">
+      <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">
+        {brokerId ? "Brokerage CRM" : "Owner console"}
+      </span>
+      <h1 id="messages-title" className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">
         {tConversations(locale, "messages.title")}
       </h1>
       {selectedId ? null : (
@@ -102,8 +105,8 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId 
           {tConversations(locale, "messages.intro")}
         </p>
       )}
-      <div className={selectedId ? "mt-space-lg grid gap-space-lg lg:grid-cols-[minmax(320px,380px)_1fr]" : undefined}>
-        <div className={selectedId ? "hidden lg:block" : undefined}>
+      <div className={selectedId ? "mt-space-lg grid items-start gap-space-md lg:grid-cols-12" : undefined}>
+        <div className={selectedId ? "hidden lg:col-span-5 lg:block" : undefined}>
           <div className="mt-space-lg">
             <ConversationFilters
               locale={locale}
@@ -114,7 +117,7 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId 
           {list}
         </div>
         {selectedId ? (
-          <div>
+          <div className="lg:col-span-7">
             <ThreadScreen conversationId={selectedId} basePath={basePath} />
           </div>
         ) : null}
