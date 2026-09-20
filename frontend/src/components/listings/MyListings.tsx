@@ -99,7 +99,40 @@ export function ListingCard({ row }: { row: MyListingRow }) {
   );
 }
 
-export default function MyListings() {
+interface Props {
+  eyebrow?: string;
+  heading?: string;
+  createHref?: string;
+  createLabel?: string;
+  /** Broker fleet view: only broker-owned listings, with inventory KPIs. */
+  fleet?: boolean;
+}
+
+function KpiCard({ label, value, note, icon, accent }: { label: string; value: string; note: string; icon: string; accent: string }) {
+  return (
+    <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-1">
+          <span className="font-label-sm uppercase tracking-wider text-outline">{label}</span>
+          <span className="font-headline-lg text-headline-lg text-primary leading-none">{value}</span>
+        </div>
+        <div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+          <span className="material-symbols-outlined text-[22px]" aria-hidden="true">{icon}</span>
+        </div>
+      </div>
+      <div className="mt-4 pt-3 text-body-sm text-outline">{note}</div>
+      <div className={`absolute bottom-0 left-0 right-0 h-1 ${accent}`} />
+    </div>
+  );
+}
+
+export default function MyListings({
+  eyebrow = "Bespoke maritime portfolio",
+  heading = "My vessel listings",
+  createHref = "/sell/create/",
+  createLabel = "Create new listing",
+  fleet = false,
+}: Props = {}) {
   const [rows, setRows] = useState<MyListingRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -108,7 +141,7 @@ export default function MyListings() {
     let cancelled = false;
     fetchMyListings()
       .then((data) => {
-        if (!cancelled) setRows(data);
+        if (!cancelled) setRows(fleet ? data.filter((row) => row.seller_type === "BROKER") : data);
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
@@ -116,7 +149,7 @@ export default function MyListings() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fleet]);
 
   const counts = useMemo(() => {
     const result: Record<Filter, number> = { all: rows?.length ?? 0, active: 0, review: 0, drafts: 0 };
@@ -137,13 +170,30 @@ export default function MyListings() {
     <section>
       <div className="flex flex-wrap items-end justify-between gap-space-md">
         <div>
-          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">Bespoke maritime portfolio</span>
-          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">My vessel listings</h1>
+          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">{eyebrow}</span>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{heading}</h1>
         </div>
-        <Link href="/sell/create/" className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
-          Create new listing
+        <Link href={createHref} className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
+          {createLabel}
         </Link>
       </div>
+
+      {fleet && rows ? (
+        <div className="mt-space-lg grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <KpiCard label="Managed vessels" value={String(rows.length)} note={`${counts.active} published`} icon="directions_boat" accent="bg-secondary" />
+          <KpiCard
+            label="Published fleet value"
+            value={new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(
+              rows.filter((row) => row.status === "PUBLISHED").reduce((sum, row) => sum + (Number(row.price) || 0), 0),
+            )}
+            note="Asking prices, published vessels"
+            icon="euro"
+            accent="bg-secondary-fixed-dim"
+          />
+          <KpiCard label="In review" value={String(counts.review)} note="Awaiting staff approval" icon="assignment_turned_in" accent="bg-tertiary-fixed-dim" />
+          <KpiCard label="Drafts" value={String(counts.drafts)} note="Not yet submitted" icon="edit_note" accent="bg-outline-variant" />
+        </div>
+      ) : null}
 
       {failed ? (
         <p role="alert" className="mt-space-md">
@@ -153,7 +203,7 @@ export default function MyListings() {
         <p className="mt-space-md text-on-surface-variant">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="mt-space-md text-on-surface-variant">
-          You have no listings yet. <Link href="/sell/create/" className="text-primary underline">Create one</Link>.
+          You have no listings yet. <Link href={createHref} className="text-primary underline">Create one</Link>.
         </p>
       ) : (
         <>

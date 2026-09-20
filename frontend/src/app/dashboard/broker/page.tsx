@@ -81,7 +81,7 @@ export default function BrokerHomePage() {
                 <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{membership.broker_name}</h1>
               </div>
               <Link
-                href="/dashboard/broker/fleet/"
+                href="/dashboard/broker/fleet/new/"
                 className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container"
               >
                 Add vessel
@@ -107,7 +107,7 @@ export default function BrokerHomePage() {
                 ))}
                 {listings && listings.length === 0 ? (
                   <li className="rounded-xl bg-surface-container-lowest p-space-lg font-body-md text-on-surface-variant shadow-sm">
-                    No vessels yet. <Link href="/dashboard/broker/fleet/" className="text-primary underline">Add your first vessel</Link>.
+                    No vessels yet. <Link href="/dashboard/broker/fleet/new/" className="text-primary underline">Add your first vessel</Link>.
                   </li>
                 ) : null}
               </ul>

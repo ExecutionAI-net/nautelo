@@ -29,7 +29,7 @@ const AREAS = {
       { href: "/dashboard/broker/profile/", label: "Profile" },
       { href: "/dashboard/broker/subscription/", label: "Subscription" },
     ] as Tab[],
-    cta: { href: "/dashboard/broker/fleet/", label: "Add to fleet" },
+    cta: { href: "/dashboard/broker/fleet/new/", label: "Add to fleet" },
   },
   provider: {
     eyebrow: "Service provider area",
