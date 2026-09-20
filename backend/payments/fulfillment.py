@@ -316,6 +316,10 @@ def order_not_found(payload, *, kind: str = "checkout session") -> str:
 
 def handle_checkout_session_paid(event) -> str:
     session = _session(event)
+    if session.get("mode") == "subscription":
+        from professionals.billing import handle_membership_checkout
+
+        return handle_membership_checkout(session)
     order = _locked_order_for(session)
     if order is None:
         return order_not_found(session)
@@ -324,6 +328,8 @@ def handle_checkout_session_paid(event) -> str:
 
 def handle_checkout_session_failed(event) -> str:
     session = _session(event)
+    if session.get("mode") == "subscription":
+        return WebhookResult.IGNORED
     order = _locked_order_for(session)
     if order is None:
         return order_not_found(session)
@@ -340,6 +346,8 @@ def handle_checkout_session_failed(event) -> str:
 
 def handle_checkout_session_expired(event) -> str:
     session = _session(event)
+    if session.get("mode") == "subscription":
+        return WebhookResult.IGNORED
     order = _locked_order_for(session)
     if order is None:
         return order_not_found(session)
@@ -356,8 +364,20 @@ def handle_checkout_session_expired(event) -> str:
     return WebhookResult.EXPIRED
 
 
+def _membership(handler_name):
+    def handler(event):
+        from professionals import billing
+
+        return getattr(billing, handler_name)(event)
+
+    return handler
+
+
 HANDLERS.update(
     {
+        "invoice.paid": _membership("handle_invoice_paid"),
+        "invoice.payment_failed": _membership("handle_invoice_payment_failed"),
+        "customer.subscription.deleted": _membership("handle_subscription_deleted"),
         "checkout.session.completed": handle_checkout_session_paid,
         "checkout.session.async_payment_succeeded": handle_checkout_session_paid,
         "checkout.session.async_payment_failed": handle_checkout_session_failed,

@@ -22,7 +22,15 @@ export interface IndividualProduct {
   valid_days: number;
 }
 
+export interface ProfessionalPlanSummary {
+  name: string;
+  tagline: string;
+  monthly_price: string;
+  currency: string;
+}
+
 export interface Pricing {
+  professional_plan?: ProfessionalPlanSummary | null;
   broker_plans: PlanSummary[];
   individual_products: IndividualProduct[];
 }

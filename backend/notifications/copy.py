@@ -45,6 +45,18 @@ TEXT = {
         _t("Your listing has expired", "Il tuo annuncio e scaduto", "Tu anuncio ha caducado"),
         _t("It is no longer public on NAUTA.", "Non e piu pubblico su NAUTA.", "Ya no es publico en NAUTA."),
     ),
+    NotificationType.PROFESSIONAL_ACTIVATED: (
+        _t("Your professional profile is live", "Il tuo profilo professionale e attivo", "Tu perfil profesional esta activo"),
+        _t("Your payment was received. Your profile is now listed on NAUTA.", "Pagamento ricevuto. Il tuo profilo e ora pubblicato su NAUTA.", "Pago recibido. Tu perfil ya esta publicado en NAUTA."),
+    ),
+    NotificationType.PROFESSIONAL_PAYMENT_FAILED: (
+        _t("Payment not received", "Pagamento non ricevuto", "Pago no recibido"),
+        _t("We could not collect your monthly membership. Pay within 24 hours to keep your profile online.", "Non abbiamo potuto incassare il tuo abbonamento mensile. Paga entro 24 ore per mantenere il profilo online.", "No pudimos cobrar tu membresia mensual. Paga en 24 horas para mantener tu perfil en linea."),
+    ),
+    NotificationType.PROFESSIONAL_DEACTIVATED: (
+        _t("Your professional profile is offline", "Il tuo profilo professionale e offline", "Tu perfil profesional esta fuera de linea"),
+        _t("Your membership is not active, so your profile is no longer listed. Pay to bring it back.", "L abbonamento non e attivo, quindi il profilo non e piu pubblicato. Paga per riattivarlo.", "La membresia no esta activa, asi que tu perfil ya no se muestra. Paga para reactivarlo."),
+    ),
     NotificationType.PAYMENT_FULFILLED: (
         _t("Your purchase is ready", "Il tuo acquisto e pronto", "Tu compra esta lista"),
         _t("Your payment was received and applied.", "Il pagamento e stato ricevuto e applicato.", "Tu pago fue recibido y aplicado."),

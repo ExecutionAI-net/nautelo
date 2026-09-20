@@ -217,7 +217,7 @@ def test_an_async_payment_succeeded_event_fulfils(order):
         ({"amount_total": 100}, "amount"),
         ({"amount_total": None}, "amount"),
         ({"currency": "usd"}, "currency"),
-        ({"mode": "subscription"}, "mode"),
+        ({"mode": "setup"}, "mode"),
     ],
 )
 def test_a_mismatched_session_blocks_fulfilment_and_alerts_staff(

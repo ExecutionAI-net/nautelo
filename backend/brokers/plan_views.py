@@ -31,8 +31,21 @@ class PublicPricingView(APIView):
         from payments.models import MarketplaceProduct
 
         products = MarketplaceProduct.objects.active().filter(code=ProductCode.INDIVIDUAL_LISTING_RIGHT)
+        from professionals.billing import get_plan as professional_plan
+
+        pro = professional_plan()
         return Response(
             {
+                "professional_plan": (
+                    {
+                        "name": pro.name,
+                        "tagline": pro.tagline,
+                        "monthly_price": str(pro.monthly_price),
+                        "currency": pro.currency,
+                    }
+                    if pro
+                    else None
+                ),
                 "broker_plans": PublicPlanSerializer(BrokerPlan.objects.filter(is_active=True), many=True).data,
                 "individual_products": [
                     {

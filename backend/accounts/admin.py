@@ -1,4 +1,5 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.shortcuts import redirect, render
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 from accounts.forms import AdminUserChangeForm, AdminUserCreationForm
@@ -15,6 +16,7 @@ class UserAdmin(DjangoUserAdmin):
     list_filter = ("primary_role", "is_active", "is_staff", "is_superuser", "locale")
     search_fields = ("email", "full_name")
     readonly_fields = ("id", "created_at", "updated_at", "last_login")
+    actions = ("gift_paid_listing",)
     filter_horizontal = ("groups", "user_permissions")
     fieldsets = (
         (None, {"fields": ("id", "email", "password")}),
@@ -50,3 +52,44 @@ class UserAdmin(DjangoUserAdmin):
             },
         ),
     )
+
+    @admin.action(description="Gift one paid listing to selected users (reason required)")
+    def gift_paid_listing(self, request, queryset):
+        """Staff-admin gift: a paid listing right that never expires in practice."""
+        from accounts.services import is_staff_admin
+        from entitlements.admin import EntitlementReasonForm
+        from entitlements.services import EntitlementReasonRequired, grant_listing_right
+
+        if not is_staff_admin(request.user):
+            self.message_user(request, "Only staff admins can gift listings.", level=messages.ERROR)
+            return None
+        if "apply_reason" in request.POST:
+            form = EntitlementReasonForm(request.POST)
+            if form.is_valid():
+                done = 0
+                for user in queryset:
+                    try:
+                        grant_listing_right(
+                            user=user,
+                            actor=request.user,
+                            reason=form.cleaned_data["reason"],
+                            valid_days=3650,
+                        )
+                    except EntitlementReasonRequired as exc:
+                        self.message_user(request, str(exc), level=messages.ERROR)
+                    else:
+                        done += 1
+                self.message_user(request, f"{done} paid listing(s) gifted.")
+                return redirect(request.get_full_path())
+        else:
+            form = EntitlementReasonForm()
+        return render(
+            request,
+            "admin/entitlements/reason_action.html",
+            {
+                "title": "Gift a paid listing",
+                "form": form,
+                "queryset": queryset,
+                "action_checkbox_name": admin.helpers.ACTION_CHECKBOX_NAME,
+            },
+        )
