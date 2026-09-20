@@ -47,8 +47,8 @@ def test_summary_counts_only_my_listings_by_status():
     make_private_listing(owner=me)
     make_private_listing(owner=other)
     body = _client(me).get(reverse("my-listings-summary")).data
-    assert set(body) == {"published", "drafts", "in_review"}
-    assert sum(body.values()) <= 1
+    assert set(body) == {"published", "drafts", "in_review", "views"}
+    assert body["published"] + body["drafts"] + body["in_review"] <= 1 and body["views"] == 0
 
 
 def test_mine_rows_carry_everything_the_dashboard_card_shows():

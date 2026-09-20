@@ -40,7 +40,7 @@ function Spec({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ListingCard({ row }: { row: MyListingRow }) {
+export function ListingCard({ row }: { row: MyListingRow }) {
   const price = money(row);
   const location = [row.city, row.country].filter(Boolean).join(", ");
   const heading = [row.year, row.title].filter(Boolean).join(" ");
