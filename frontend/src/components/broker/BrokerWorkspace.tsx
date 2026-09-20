@@ -397,11 +397,11 @@ export function BrokerSubscription() {
 
       <section className="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg relative overflow-hidden">
         <div className="flex flex-wrap items-center gap-space-sm">
-          <span className="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm tracking-wide uppercase font-semibold">Current Plan</span>
+          <span className="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm tracking-wide uppercase font-semibold">Assigned plan</span>
           {profile ? (
             <span className="px-space-sm py-0.5 rounded-full bg-surface-container-low text-on-surface font-label-sm flex items-center gap-1">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-secondary" />
-              {profile.status}
+              Brokerage {profile.status.toLowerCase()}
               {profile.renews_at ? ` - Renews ${profile.renews_at}` : ""}
             </span>
           ) : null}
@@ -430,7 +430,7 @@ export function BrokerSubscription() {
         <div className="flex flex-col gap-space-xs">
           <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Commercial capacity selection</span>
           <h2 className="font-headline-md text-headline-md text-primary">Scalable Membership Tiers</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant">Plan changes are handled by the platform team; billing is not self-service yet.</p>
+          <p className="font-body-md text-body-md text-on-surface-variant">You subscribe to your assigned plan above with the free trial. To move to another tier, request it and our team will switch your plan.</p>
         </div>
         <PlanCards plans={plans} currentSlug={plan?.slug} ctaLabel="Request this tier" />
       </section>

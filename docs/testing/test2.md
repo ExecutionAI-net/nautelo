@@ -165,6 +165,14 @@ Live steps that worked after the fix of the profile: full profile fill (complete
 
 Role STAFF, verified; capabilities include reveal_any_contact, create_listing_on_behalf, approve_listings_and_revisions, configure_products_and_settings, manage_taxonomy. Staff lists all answer 200 (boats 96, users 56, brokers 11, providers 15, leads 38, service requests 10, subscriptions 31, entitlements 31), reports and settings load. R2-6 (staff can activate an organization without a live subscription) left as is on purpose: staff may need to comp an account; needs a product decision.
 
+### Fixes after the live passes (2026-09-21, later)
+
+| ID | Fix |
+| --- | --- |
+| R2-10 / R2-22 | Migration 0009 marks the earliest active ADMIN of every brokerage without an owner as owner. |
+| R2-17 | Broker subscription page wording: "Assigned plan" chip, "Brokerage active" (no longer reads as a paid subscription), the tier note now describes the trial and the tier-change request. |
+| R2-20 | The cover image is now used as the (faded) header background of the public broker page. |
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |
