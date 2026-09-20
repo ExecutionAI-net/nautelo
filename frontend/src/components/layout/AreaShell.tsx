@@ -64,7 +64,7 @@ const AREAS = {
 const GROUPS: Record<string, [string, string[]][]> = {
   seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account"]]],
   broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "Subscription"]]],
-  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]]],
+  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "Membership"]]],
   staff: [["Moderation", ["Moderation", "Boats"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content"]], ["System", ["Reports", "Settings"]]],
 };
 

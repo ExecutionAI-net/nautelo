@@ -141,6 +141,12 @@ class ProviderProfileView(APIView):
 class ProviderServiceSerializer(serializers.ModelSerializer):
     category_slug = serializers.SlugRelatedField(source="category", slug_field="slug", read_only=True)
 
+    def validate_title_en(self, value):
+        return plain_text(value)
+
+    def validate_description_en(self, value):
+        return plain_text(value)
+
     class Meta:
         model = ProfessionalService
         fields = ("id", "category", "category_slug", "title_en", "description_en", "service_area", "is_active")
