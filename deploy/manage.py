@@ -216,6 +216,9 @@ def main():
             run(proxy + ["exec", "-T", "nginx", "wget", "-q", "-O", "/dev/null",
                          "--header", f"Host: {proxy_env['DEV_HTTP_HOST']}",
                          "http://127.0.0.1/api/v1/health/"], env=proxy_env)
+        # Best effort: old unused images and build cache filled the disk once. Volumes are never touched.
+        subprocess.run(["docker", "image", "prune", "-af", "--filter", "until=72h"], check=False)
+        subprocess.run(["docker", "builder", "prune", "-af", "--filter", "until=72h"], check=False)
         print(f"Deployed {args.environment}: {args.tag}")
 
 
