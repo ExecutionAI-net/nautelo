@@ -9,11 +9,26 @@ export interface PublicBroker {
   url: string;
   website_url: string | null;
   listing_count: number;
+  tagline: string;
+  city: string;
+  country_code: string;
+  logo_url: string;
+  cover_image_url: string;
+  specialties: string[];
 }
 
-export async function fetchBrokers(page?: string): Promise<Paginated<PublicBroker> | null> {
-  const query = page ? `?page=${encodeURIComponent(page)}` : "";
-  return directoryFetch<Paginated<PublicBroker>>(`/api/v1/brokers/${query}`);
+export interface BrokerFacets {
+  countries: Record<string, number>;
+  specialties: Record<string, number>;
+}
+
+export async function fetchBrokers(
+  params: { page?: string; q?: string; country?: string; specialty?: string } = {},
+): Promise<(Paginated<PublicBroker> & { facets?: BrokerFacets }) | null> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+  const text = query.toString();
+  return directoryFetch<Paginated<PublicBroker> & { facets?: BrokerFacets }>(`/api/v1/brokers/${text ? `?${text}` : ""}`);
 }
 
 export async function fetchBroker(slug: string): Promise<PublicBroker | null> {

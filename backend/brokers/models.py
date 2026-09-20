@@ -20,6 +20,12 @@ class BrokerOrganization(UUIDTimeStampedModel):
     public_email = models.EmailField(max_length=254)
     public_phone = models.CharField(max_length=32)
     website_url = models.URLField(max_length=300, blank=True, null=True)
+    tagline = models.CharField(max_length=300, blank=True, default="")
+    city = models.CharField(max_length=120, blank=True, default="")
+    country_code = models.CharField(max_length=2, blank=True, default="")
+    logo_url = models.URLField(max_length=500, blank=True, default="")
+    cover_image_url = models.URLField(max_length=500, blank=True, default="")
+    specialties = models.JSONField(default=list, blank=True)
     auto_approve_listings = models.BooleanField(default=False)
     auto_approve_changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

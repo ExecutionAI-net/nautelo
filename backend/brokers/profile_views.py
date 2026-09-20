@@ -13,9 +13,20 @@ from brokers.views import BrokerTeamBaseView
 
 
 class BrokerProfileSerializer(serializers.ModelSerializer):
+    def validate_specialties(self, value):
+        if not isinstance(value, list) or len(value) > 8 or any(not isinstance(v, str) or not v.strip() or len(v) > 40 for v in value):
+            raise serializers.ValidationError("Up to 8 short specialties.")
+        return [v.strip() for v in value]
+
+    def validate_country_code(self, value):
+        return value.upper()
+
     class Meta:
         model = BrokerOrganization
-        fields = ("id", "name", "slug", "status", "public_email", "public_phone", "website_url", "auto_approve_listings")
+        fields = (
+            "id", "name", "slug", "status", "public_email", "public_phone", "website_url", "auto_approve_listings",
+            "tagline", "city", "country_code", "logo_url", "cover_image_url", "specialties",
+        )
         read_only_fields = ("id", "slug", "status", "auto_approve_listings")
 
 
