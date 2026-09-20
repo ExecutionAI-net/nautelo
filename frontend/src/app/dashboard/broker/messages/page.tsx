@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/lib/i18n/useLocale";
 import { use } from "react";
 
 import RequirePermission from "@/components/auth/RequirePermission";
@@ -31,7 +32,7 @@ export default function BrokerMessagesPage({
 }) {
   const params = use(searchParams);
   const { session } = useSession();
-  const locale = resolveLocale(session?.user?.locale);
+  const locale = useLocale();
   const membership = primaryBrokerMembership(session);
 
   return (

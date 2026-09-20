@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -28,7 +29,7 @@ export default async function BrokerPage({ params }: { params: Params }) {
   if (!broker) {
     notFound();
   }
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
   const [listings, inquiryConfig] = await Promise.all([
     fetchPublishedListings({ broker: slug }),
     fetchInquiryConfig(),

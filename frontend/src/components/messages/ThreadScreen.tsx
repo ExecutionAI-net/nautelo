@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/lib/i18n/useLocale";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -30,7 +31,7 @@ export default function ThreadScreen({ conversationId, basePath }: Props) {
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
 
-  const locale = resolveLocale(session?.user?.locale);
+  const locale = useLocale();
   const authenticated = session?.authenticated === true;
   const fetching = loadedId !== conversationId;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/lib/i18n/useLocale";
 import { useEffect, useState } from "react";
 
 import RequirePermission from "@/components/auth/RequirePermission";
@@ -20,7 +21,7 @@ export default function BrokerHomePage() {
   const [dashboard, setDashboard] = useState<BrokerDashboard | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
 
-  const locale = resolveLocale(session?.user?.locale);
+  const locale = useLocale();
   const membership = primaryBrokerMembership(session);
   const brokerId = membership?.broker_id ?? null;
 

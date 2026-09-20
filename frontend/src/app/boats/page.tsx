@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -84,7 +85,7 @@ const LABEL = "mb-1 block font-label-sm uppercase tracking-wider text-on-surface
 
 export default async function BoatsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
   const filters: ListingSearch = {};
   for (const key of FILTER_KEYS) {
     const value = first(params[key]);

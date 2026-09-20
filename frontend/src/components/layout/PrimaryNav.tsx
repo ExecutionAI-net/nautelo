@@ -1,5 +1,7 @@
 "use client";
 
+import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
+import { useLocale } from "@/lib/i18n/useLocale";
 import Link from "next/link";
 
 import NotificationBell from "@/components/layout/NotificationBell";
@@ -71,7 +73,7 @@ export default function PrimaryNav() {
   // (lib/i18n/directory.ts:15) — the session's LocaleCode is "EN"/"IT"/"ES"
   // and the dictionary's Locale is "en"/"it"/"es", and that lowercasing lives
   // in exactly one place.
-  const locale = resolveLocale(session?.user?.locale);
+  const locale = useLocale();
 
   const visible = LINKS.filter((link) => {
     if (link.permission !== undefined && !can(link.permission)) return false;
@@ -101,6 +103,7 @@ export default function PrimaryNav() {
         ))}
       </ul>
       <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-space-md gap-y-space-xs">
+        <LanguageSwitcher />
         {loading ? null : authenticated ? (
           <>
             <NotificationBell locale={locale} />
