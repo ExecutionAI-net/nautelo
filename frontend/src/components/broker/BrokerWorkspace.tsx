@@ -74,7 +74,7 @@ export function BrokerTeam() {
     try {
       setMembers(await apiFetch<Member[]>(`/api/v1/brokers/${brokerId}/members/`));
     } catch {
-      setMessage("The team could not be loaded. Team management needs an administrator role.");
+      setMessage("The team could not be loaded. Team management needs an administrator role and a verified email address.");
     }
   }, [brokerId]);
 
@@ -211,7 +211,7 @@ export function BrokerProfileForm() {
   const form = draft ?? profile;
 
   if (!brokerId) return <p className="font-body-md text-on-surface-variant">No brokerage is linked to this account.</p>;
-  if (error) return <p role="alert">The profile could not be loaded. Editing needs an administrator role.</p>;
+  if (error) return <p role="alert">The profile could not be loaded. Editing needs an administrator role and a verified email address.</p>;
   if (!form) return <p className="font-body-md text-on-surface-variant">Loading...</p>;
 
   const set = (key: keyof BrokerProfile) => (event: { target: { value: string } }) => setDraft({ ...form, [key]: event.target.value });
@@ -381,7 +381,7 @@ export function BrokerSubscription() {
   }, []);
 
   if (!brokerId) return <p className="font-body-md text-on-surface-variant">No brokerage is linked to this account.</p>;
-  if (error) return <p role="alert">The account details could not be loaded.</p>;
+  if (error) return <p role="alert">The account details could not be loaded. Check that your email address is verified.</p>;
 
   const plan = profile?.plan ?? null;
 
