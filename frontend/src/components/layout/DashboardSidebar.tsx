@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import NotificationBell from "@/components/layout/NotificationBell";
@@ -17,17 +17,47 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
   const activeGroup = groups.find((group) => group.items.some((item) => item.href === active))?.title;
   const [open, setOpen] = useState<Record<string, boolean>>(() => (activeGroup ? { [activeGroup]: true } : { [groups[0]?.title ?? ""]: true }));
   const [mobileOpen, setMobileOpen] = useState(false);
+  // A per-viewer convenience, so it lives in this browser only.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore on mount
+      setCollapsed(window.localStorage.getItem("nauta_sidebar_collapsed") === "1");
+    } catch {
+      // storage blocked: stay expanded
+    }
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed((value) => {
+      try {
+        window.localStorage.setItem("nauta_sidebar_collapsed", value ? "0" : "1");
+      } catch {
+        // ignore
+      }
+      return !value;
+    });
+  }
   const name = session?.user?.full_name || session?.user?.email || "";
 
   return (
-    <aside aria-label={`${eyebrow} menu`} className="w-full shrink-0 bg-surface-container-lowest shadow-sm lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:overflow-y-auto">
-      <div className="flex items-center justify-between gap-space-sm p-space-md">
+    <aside aria-label={`${eyebrow} menu`} className={`w-full shrink-0 bg-surface-container-lowest shadow-sm lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto ${collapsed ? "lg:w-14" : "lg:w-72"}`}>
+      <div className={`flex items-center justify-between gap-space-sm p-space-md ${collapsed ? "lg:flex-col lg:p-space-xs" : ""}`}>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+          aria-pressed={collapsed}
+          title={collapsed ? "Expand menu" : "Collapse menu"}
+          className="hidden rounded-lg p-1 text-primary hover:bg-surface-container lg:inline-flex"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">{collapsed ? "menu" : "menu_open"}</span>
+        </button>
         <Link
           href="/"
           className="inline-flex items-center gap-1 rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container"
         >
           <span className="material-symbols-outlined text-base" aria-hidden="true">home</span>
-          Home
+          <span className={collapsed ? "lg:sr-only" : ""}>Home</span>
         </Link>
         <div className="flex items-center gap-space-sm">
           <NotificationBell locale={locale} />
@@ -43,7 +73,7 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
         </div>
       </div>
 
-      <div id="dashboard-menu" className={`${mobileOpen ? "block" : "hidden"} lg:block`}>
+      <div id="dashboard-menu" className={`${mobileOpen ? "block" : "hidden"} ${collapsed ? "lg:hidden" : "lg:block"}`}>
         <p className="px-space-md font-label-sm text-label-sm uppercase tracking-widest text-secondary">{eyebrow}</p>
         <nav aria-label={`${eyebrow} sections`} className="mt-space-xs px-space-sm pb-space-md">
           {groups.map((group) => {

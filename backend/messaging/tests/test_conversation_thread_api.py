@@ -259,10 +259,17 @@ def test_an_over_long_account_name_is_truncated_not_a_database_error(
     assert reply.sender_name_snapshot == long_name[:expected_length]
 
 
-def test_a_short_reply_is_a_field_error(api, thread):
+def test_a_one_character_or_emoji_reply_is_accepted(api, thread):
+    api.force_authenticate(thread["owner"])
+    for body in ("k", "👍"):
+        response = api.post(_messages_url(thread["conversation"]), {"message": body}, format="json")
+        assert response.status_code == 201, response.data
+
+
+def test_an_empty_reply_is_a_field_error(api, thread):
     api.force_authenticate(thread["owner"])
     response = api.post(
-        _messages_url(thread["conversation"]), {"message": "ok"}, format="json"
+        _messages_url(thread["conversation"]), {"message": "   "}, format="json"
     )
     assert response.status_code == 400
     assert response.data["error"]["code"] == "validation_error"

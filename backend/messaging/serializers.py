@@ -287,11 +287,10 @@ class MessageSerializer(serializers.Serializer):
 
 
 class MessageCreateSerializer(serializers.Serializer):
-    """Spec 15.1's Message rule applies to a reply too: 20-4000 characters."""
+    """A reply may be a single character or an emoji; only an empty reply and the 4000 cap are refused.
+    (The first message of an inquiry keeps spec 15.1's 20-character minimum.)"""
 
-    message = serializers.CharField(
-        min_length=MESSAGE_MIN_LENGTH, max_length=MESSAGE_MAX_LENGTH
-    )
+    message = serializers.CharField(min_length=1, max_length=MESSAGE_MAX_LENGTH)
 
 
 class ConversationStatusSerializer(serializers.Serializer):

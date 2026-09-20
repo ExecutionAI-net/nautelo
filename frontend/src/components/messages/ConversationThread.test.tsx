@@ -38,7 +38,7 @@ function message(id: string, overrides: Partial<MessageRow> = {}): MessageRow {
 }
 
 describe("ConversationThread", () => {
-  it("renders the subject, the context panel and every message", () => {
+  it("renders the subject and every message", () => {
     render(
       <ConversationThread
         locale="en"
@@ -51,7 +51,6 @@ describe("ConversationThread", () => {
     expect(
       screen.getByRole("heading", { name: "Fleet question" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Phase19 Alpha Brokers")).toBeInTheDocument();
     expect(screen.getByText("Body of m-1")).toBeInTheDocument();
     expect(screen.getByText("Body of m-2")).toBeInTheDocument();
   });

@@ -5,11 +5,11 @@ import { useState } from "react";
 import { tConversations } from "@/lib/i18n/conversations";
 import type { Locale } from "@/lib/i18n/directory";
 
-// Spec 15.1's Message rule, which applies to a reply too. The SERVER is the
-// authority (Phase 6's MessageCreateSerializer enforces the identical numbers);
-// these exist only so a person is told before a round trip (spec 2.2).
-export const REPLY_MIN_LENGTH = 20;
+// A reply has no minimum length (one character or an emoji is fine); the server
+// is the authority for the 4000 cap and this only tells a person before a round trip.
 export const REPLY_MAX_LENGTH = 4000;
+
+const EMOJIS = ["👍", "🙏", "😊", "😀", "😂", "👏", "🎉", "⛵", "🚤", "⚓", "🌊", "✅", "❤️", "👋"];
 
 interface Props {
   locale: Locale;
@@ -21,11 +21,12 @@ export default function ReplyComposer({ locale, disabled, onSend }: Props) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = body.trim();
-    if (trimmed.length < REPLY_MIN_LENGTH) {
+    if (trimmed.length === 0) {
       setError(tConversations(locale, "messages.reply.too_short"));
       return;
     }
@@ -73,6 +74,31 @@ export default function ReplyComposer({ locale, disabled, onSend }: Props) {
           {error}
         </p>
       ) : null}
+      <div className="mt-space-xs flex flex-wrap items-center gap-space-xs">
+        <button
+          type="button"
+          aria-expanded={emojiOpen}
+          aria-label="Emoji"
+          title="Emoji"
+          onClick={() => setEmojiOpen((value) => !value)}
+          className="inline-flex items-center rounded-lg p-1 text-primary hover:bg-surface-container"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">mood</span>
+        </button>
+        {emojiOpen
+          ? EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                aria-label={`Insert ${emoji}`}
+                onClick={() => setBody((current) => current + emoji)}
+                className="rounded p-1 text-xl hover:bg-surface-container"
+              >
+                {emoji}
+              </button>
+            ))
+          : null}
+      </div>
       <button
         type="submit"
         disabled={disabled || sending}
