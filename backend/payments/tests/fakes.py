@@ -21,6 +21,13 @@ class FakeStripeGateway:
     created: list[dict] = field(default_factory=list)
     retrieved: list[str] = field(default_factory=list)
 
+    portal_url: str = "https://billing.stripe.test/portal"
+    portals: list = field(default_factory=list)
+
+    def create_portal_session(self, *, customer_id, return_url):
+        self.portals.append({"customer_id": customer_id, "return_url": return_url})
+        return self.portal_url
+
     def create_checkout_session(self, *, params, idempotency_key):
         self.created.append({"params": params, "idempotency_key": idempotency_key})
         if self.raise_on_create is not None:

@@ -59,3 +59,28 @@ class MembershipCheckoutView(APIView):
         if membership is None or not membership.can_manage_team:
             raise PermissionDenied("Only team managers can manage billing.")
         return Response({"checkout_url": create_membership_checkout(profile=_profile(request))}, status=201)
+
+
+class MembershipPortalView(APIView):
+    """POST -> a Stripe-hosted page with cards, tax details and invoices."""
+
+    permission_classes = [IsServiceProvider, IsEmailVerified]
+    throttle_scope = "checkout_create"
+
+    def post(self, request):
+        from django.conf import settings
+
+        from payments.portal import portal_url
+
+        from .billing import MEMBERSHIP_PATH
+        from .models import ProfessionalSubscription
+
+        membership = membership_for(request.user)
+        if membership is None or not membership.can_manage_team:
+            raise PermissionDenied("Only team managers can manage billing.")
+        subscription = ProfessionalSubscription.objects.filter(profile=membership.profile).first()
+        url = portal_url(
+            customer_id=subscription.stripe_customer_id if subscription else "",
+            return_url=f"{settings.PUBLIC_BASE_URL.rstrip('/')}{MEMBERSHIP_PATH}",
+        )
+        return Response({"portal_url": url})

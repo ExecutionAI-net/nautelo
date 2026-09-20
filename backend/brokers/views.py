@@ -282,3 +282,23 @@ class BrokerSubscriptionView(BrokerTeamBaseView):
             {"checkout_url": create_subscription_checkout(broker=self.get_broker())},
             status=status.HTTP_201_CREATED,
         )
+
+
+class BrokerBillingPortalView(BrokerTeamBaseView):
+    """POST -> a Stripe-hosted page with cards, tax details and invoices."""
+
+    permission_classes = [IsActiveUser, IsEmailVerified, IsBrokerBilling]
+
+    def post(self, request, broker_id):
+        from brokers.billing import SUBSCRIPTION_PATH
+        from brokers.models import BrokerSubscription
+        from django.conf import settings
+
+        from payments.portal import portal_url
+
+        subscription = BrokerSubscription.objects.filter(broker=self.get_broker()).first()
+        url = portal_url(
+            customer_id=subscription.stripe_customer_id if subscription else "",
+            return_url=f"{settings.PUBLIC_BASE_URL.rstrip('/')}{SUBSCRIPTION_PATH}",
+        )
+        return Response({"portal_url": url})
