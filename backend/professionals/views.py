@@ -4,6 +4,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.permissions import IsEmailVerified
 from services_catalog.provider_views import IsServiceProvider
 
 from .billing import create_membership_checkout, get_plan
@@ -49,7 +50,8 @@ class MembershipView(APIView):
 
 
 class MembershipCheckoutView(APIView):
-    permission_classes = [IsServiceProvider]
+    # Verified email first: a card is only collected for a mailbox we know is real.
+    permission_classes = [IsServiceProvider, IsEmailVerified]
     throttle_scope = "checkout_create"
 
     def post(self, request):

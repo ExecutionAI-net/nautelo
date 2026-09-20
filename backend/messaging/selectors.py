@@ -12,6 +12,7 @@ from django.db.models.functions import Coalesce
 from brokers.enums import BrokerOrganizationStatus
 from brokers.models import BrokerMembership
 from messaging.models import ContactAccessGrant, Conversation, Message
+from professionals.models import ProfessionalMembership
 
 
 def active_contact_grant(viewer, *, broker=None, professional=None):
@@ -80,6 +81,27 @@ def _readable_broker_ids(user):
     ).values("broker_id")
 
 
+def professional_message_readers(profile):
+    """Team members of a professional organization who may read its messages."""
+    return (
+        get_user_model()
+        .objects.filter(
+            is_active=True,
+            professional_memberships__profile=profile,
+            professional_memberships__is_active=True,
+            professional_memberships__can_read_messages=True,
+        )
+        .order_by("pk")
+        .distinct()
+    )
+
+
+def _readable_professional_ids(user):
+    return ProfessionalMembership.objects.filter(
+        user=user, is_active=True, can_read_messages=True
+    ).values("profile_id")
+
+
 def conversations_visible_to(user):
     """Every thread this user may see, from either side.
 
@@ -92,6 +114,7 @@ def conversations_visible_to(user):
         Conversation.objects.filter(
             Q(initiator=user)
             | Q(professional__owner_user=user)
+            | Q(professional_id__in=_readable_professional_ids(user))
             | Q(listing__owner_user=user)
             | Q(broker_id__in=_readable_broker_ids(user))
         )
@@ -105,11 +128,15 @@ def can_view_conversation(user, conversation) -> bool:
         return False
     if conversation.initiator_id == user.pk:
         return True
-    if (
-        conversation.professional_id is not None
-        and conversation.professional.owner_user_id == user.pk
-    ):
-        return True
+    if conversation.professional_id is not None:
+        if conversation.professional.owner_user_id == user.pk:
+            return True
+        if (
+            _readable_professional_ids(user)
+            .filter(profile_id=conversation.professional_id)
+            .exists()
+        ):
+            return True
     if (
         conversation.listing_id is not None
         and conversation.listing.owner_user_id == user.pk
@@ -186,8 +213,11 @@ def conversation_recipients(conversation) -> tuple[list, str]:
             conversation.broker.public_email,
         )
     if conversation.professional_id is not None:
+        readers = list(professional_message_readers(conversation.professional))
         owner = conversation.professional.owner_user
-        return ([owner] if owner is not None else []), conversation.professional.public_email
+        if owner is not None and owner not in readers:
+            readers.append(owner)
+        return readers, conversation.professional.public_email
     if conversation.listing_id is not None:
         owner = conversation.listing.owner_user
         return ([owner], owner.email) if owner is not None else ([], "")

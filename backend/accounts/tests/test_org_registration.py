@@ -84,3 +84,20 @@ def test_the_broker_owner_cannot_be_demoted_or_removed():
     url = rev("broker-member-detail", args=[broker.pk, owner_seat.pk])
     assert api.patch(url, {"role": "VIEWER"}, format="json").status_code == 400
     assert api.delete(url).status_code == 400
+
+
+def test_markup_in_the_name_and_junk_phone_are_refused():
+    assert _post(org_type="PROFESSIONAL", organization_name="<b>x</b>").status_code == 400
+    assert _post(org_type="PROFESSIONAL", phone="abc").status_code == 400
+    assert _post(org_type="PROFESSIONAL", phone="+34 600 111 222").status_code == 201
+
+
+def test_an_unverified_owner_cannot_open_the_membership_checkout():
+    from accounts.tests.factories import make_user
+    from professionals.tests.factories import make_professional
+
+    owner = make_user("unv@pro.example", role=UserRole.PROFESSIONAL, verified=False)
+    make_professional(owner)
+    api = APIClient()
+    api.force_authenticate(owner)
+    assert api.post(reverse("provider-membership-checkout")).status_code == 403

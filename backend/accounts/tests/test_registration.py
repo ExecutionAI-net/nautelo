@@ -127,10 +127,14 @@ def test_concurrent_registration_for_the_same_email_yields_one_conflict_not_a_50
     for thread in threads:
         thread.join()
 
-    assert sorted(r.status_code for r in responses) == [201, 409]
-    loser = next(r for r in responses if r.status_code == 409)
-    assert loser.data["error"]["code"] == "conflict"
-    assert loser.data["error"]["fields"] == {}
+    # 409 when both pass validation and race on the unique index; 400 when the
+    # second request validates after the first has already committed. Never a 500.
+    codes = sorted(r.status_code for r in responses)
+    assert codes[0] == 201 and codes[1] in (400, 409)
+    loser = next(r for r in responses if r.status_code != 201)
+    if loser.status_code == 409:
+        assert loser.data["error"]["code"] == "conflict"
+        assert loser.data["error"]["fields"] == {}
     assert User.objects.filter(email="racer@example.com").count() == 1
 
 
