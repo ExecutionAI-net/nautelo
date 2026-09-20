@@ -24,7 +24,7 @@ def test_admin_list_shows_the_recipient_and_filters_by_it():
     broker = BrokerOrganization.objects.create(
         name="Acme Yachts", slug="acme", status="ACTIVE", public_email="a@example.com", public_phone="+34600000000"
     )
-    professional = make_professional(make_user("pro@example.com", role="SERVICE_PROVIDER"))
+    professional = make_professional(make_user("pro@example.com", role="PROFESSIONAL"))
     to_broker = make_conversation(initiator=buyer, broker=broker)
     make_message(conversation=to_broker, sender=buyer)
     make_conversation(

@@ -870,7 +870,7 @@ def test_a_member_of_another_broker_is_denied(api, workflow_enabled):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("role", [UserRole.BUYER, UserRole.PRIVATE_SELLER])
+@pytest.mark.parametrize("role", [UserRole.PRIVATE_SELLER, UserRole.PRIVATE_SELLER])
 def test_a_buyer_or_private_seller_is_denied(api, workflow_enabled, role):
     broker, _, rows = _broker_with_backlog(
         f"bulk-{role.lower()}", f"bulk-{role.lower()}-owner@example.com", pending=1

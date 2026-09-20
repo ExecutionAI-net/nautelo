@@ -29,7 +29,7 @@ def test_registration_creates_an_unverified_active_buyer(api):
     user = User.objects.get(email="new.user@example.com")
     assert user.is_active is True
     assert user.is_email_verified is False
-    assert user.primary_role == UserRole.BUYER
+    assert user.primary_role == UserRole.PRIVATE_SELLER
     assert user.locale == Locale.EN
     assert response.data["email"] == "new.user@example.com"
     assert "password" not in response.data
@@ -68,7 +68,7 @@ def test_registration_accepts_only_self_service_roles(api):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("forbidden_role", ["STAFF", "BROKER"])
+@pytest.mark.parametrize("forbidden_role", ["STAFF", "BROKER", "PROFESSIONAL"])
 def test_registration_rejects_privileged_roles(api, forbidden_role):
     response = api.post(
         REGISTER_URL,

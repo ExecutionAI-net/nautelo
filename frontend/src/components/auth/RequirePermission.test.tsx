@@ -111,7 +111,7 @@ describe("RequirePermission", () => {
           id: "1",
           email: "buyer@example.com",
           full_name: "",
-          primary_role: "BUYER",
+          primary_role: "PRIVATE_SELLER",
           locale: "EN",
           email_verified: true,
           is_active: true,

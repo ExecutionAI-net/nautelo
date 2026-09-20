@@ -45,7 +45,7 @@ def test_a_cached_count_that_is_too_low_is_raised_to_the_row_count(owner):
     listing = _listing(owner, cached=0)
     make_anonymous_view(listing, viewer_hash=fake_hash("a"))
     make_anonymous_view(listing, viewer_hash=fake_hash("b"))
-    make_user_view(listing, user=make_user("buyer@example.com", role=UserRole.BUYER))
+    make_user_view(listing, user=make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER))
 
     report = reconcile_listing_view_counts()
 

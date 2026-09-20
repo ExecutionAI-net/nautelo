@@ -103,8 +103,8 @@ def test_acceptance_2_repeat_views_from_the_same_identity_remain_one(
 def test_acceptance_3_two_authenticated_users_count_as_two(
     listing, view_counting_enabled
 ):
-    first = make_user("buyer-one@example.com", role=UserRole.BUYER)
-    second = make_user("buyer-two@example.com", role=UserRole.BUYER)
+    first = make_user("buyer-one@example.com", role=UserRole.PRIVATE_SELLER)
+    second = make_user("buyer-two@example.com", role=UserRole.PRIVATE_SELLER)
 
     _signed_in(first).get(_url(listing))
     _signed_in(second).get(_url(listing))
@@ -281,7 +281,7 @@ def test_the_public_payload_carries_the_aggregate_and_nothing_else_about_viewers
 
     The list and detail endpoints must agree, because spec §29.1 also says
     "Every boat card uses one component and one API representation.\""""
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     _signed_in(buyer).get(_url(listing))
     _client().get(_url(listing))
 

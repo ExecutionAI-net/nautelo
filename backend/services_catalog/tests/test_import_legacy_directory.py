@@ -22,7 +22,7 @@ def write_source(tmp_path, payload):
 
 def build_professional(email, *, slug, display_name, **extra):
     return make_professional(
-        make_user(email, role=UserRole.SERVICE_PROVIDER),
+        make_user(email, role=UserRole.PROFESSIONAL),
         slug=slug,
         display_name=display_name,
         status=ProfessionalProfileStatus.ACTIVE,

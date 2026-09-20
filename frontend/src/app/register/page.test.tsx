@@ -17,14 +17,13 @@ function fill() {
 }
 
 describe("RegisterPage", () => {
-  it("offers only self-service roles and posts them", async () => {
+  it("has no role picker and posts no role", async () => {
     apiFetch.mockResolvedValue({});
     render(<RegisterPage />);
-    const roles = screen.getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
-    expect(roles).toEqual(["BUYER", "PRIVATE_SELLER", "SERVICE_PROVIDER"]);
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
     fill();
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
-    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toMatchObject({ email: "a@b.co", primary_role: "BUYER" });
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({ email: "a@b.co", password: "S3cret-pass!", full_name: "" });
   });
 
   it("shows the server's field error", async () => {

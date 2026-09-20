@@ -112,7 +112,7 @@ def test_an_ad_linked_to_a_broker_or_professional_points_at_their_page(api):
     broker = BrokerOrganization.objects.create(
         name="Acme", slug="acme", status="ACTIVE", public_email="a@example.com", public_phone="+34600000000"
     )
-    professional = make_professional(make_user("pro@example.com", role="SERVICE_PROVIDER"))
+    professional = make_professional(make_user("pro@example.com", role="PROFESSIONAL"))
     Advertisement.objects.create(
         placement="HOME", sponsor="A", headline="Broker", cta_label="Visit", cta_url="https://x.example", broker=broker
     )

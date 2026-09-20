@@ -28,10 +28,9 @@ export default function StaffUsersPage() {
               label: "Role",
               facets: true,
               options: [
-                { value: "BUYER", label: "Buyers" },
                 { value: "PRIVATE_SELLER", label: "Private sellers" },
                 { value: "BROKER", label: "Yacht brokers" },
-                { value: "SERVICE_PROVIDER", label: "Service providers" },
+                { value: "PROFESSIONAL", label: "Professionals" },
                 { value: "STAFF", label: "Admin / Staff" },
               ],
             },

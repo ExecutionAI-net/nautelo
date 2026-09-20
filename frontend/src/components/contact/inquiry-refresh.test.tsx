@@ -70,7 +70,7 @@ function signedIn() {
         id: "u1",
         email: "ada@phase6.example",
         full_name: "Ada Rossi",
-        primary_role: "BUYER",
+        primary_role: "PRIVATE_SELLER",
         locale: "EN",
         email_verified: true,
         is_active: true,

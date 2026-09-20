@@ -60,7 +60,7 @@ def test_staff_admin_activates_and_suspends_a_provider_and_it_is_audited(staff_a
     from audit.models import AuditEvent
     from professionals.models import ProfessionalProfile
 
-    owner = make_user(email="prov-owner@example.com", role=UserRole.SERVICE_PROVIDER, verified=True)
+    owner = make_user(email="prov-owner@example.com", role=UserRole.PROFESSIONAL, verified=True)
     profile = ProfessionalProfile.objects.create(
         owner_user=owner, display_name="P", slug="p", public_email="p@example.com", public_phone="+34600", country_code="ES", status="PENDING"
     )

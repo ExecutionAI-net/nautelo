@@ -49,7 +49,7 @@ def viewer():
 
 @pytest.fixture
 def professional():
-    owner = make_user(email="adriatic-owner@example.com", role=UserRole.SERVICE_PROVIDER)
+    owner = make_user(email="adriatic-owner@example.com", role=UserRole.PROFESSIONAL)
     return make_professional(
         owner,
         display_name="Adriatic Surveyors",

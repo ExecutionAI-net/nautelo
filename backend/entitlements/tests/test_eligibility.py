@@ -530,7 +530,7 @@ def test_a_naive_now_is_rejected():
 
 @pytest.mark.django_db
 def test_a_buyer_account_cannot_start_a_private_listing(entitlements_enforced):
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER, verified=True)
+    buyer = make_user("buyer@example.com", role=UserRole.PROFESSIONAL, verified=True)
 
     result = ListingEligibilityService.for_user(buyer)
 
@@ -543,7 +543,7 @@ def test_a_buyer_account_cannot_start_a_private_listing(entitlements_enforced):
 @pytest.mark.parametrize("flag_on", [True, False])
 @pytest.mark.parametrize(
     "role",
-    [UserRole.BUYER, UserRole.BROKER, UserRole.SERVICE_PROVIDER],
+    [UserRole.BROKER, UserRole.PROFESSIONAL],
 )
 def test_non_seller_roles_are_refused_whatever_the_flag(role, flag_on):
     if flag_on:
@@ -566,7 +566,7 @@ def test_non_seller_roles_are_refused_whatever_the_flag(role, flag_on):
 def test_a_non_seller_still_reports_its_paid_right_count_but_cannot_start(
     entitlements_enforced,
 ):
-    buyer = make_user("buyer-paid@example.com", role=UserRole.BUYER, verified=True)
+    buyer = make_user("buyer-paid@example.com", role=UserRole.PROFESSIONAL, verified=True)
     _paid(buyer, valid_until=NOW + timedelta(days=30))
 
     result = ListingEligibilityService.for_user(buyer, now=NOW)
@@ -693,7 +693,7 @@ def test_with_the_flag_off_a_fresh_seller_gets_the_free_recommendation():
 def test_a_buyer_is_still_refused_with_the_flag_off():
     """The role rule is not part of the entitlement rollout — it is Phase 3's
     ownership rule, which resolve_seller_context enforces regardless."""
-    buyer = make_user("buyer2@example.com", role=UserRole.BUYER, verified=True)
+    buyer = make_user("buyer2@example.com", role=UserRole.PROFESSIONAL, verified=True)
 
     result = ListingEligibilityService.for_user(buyer)
 

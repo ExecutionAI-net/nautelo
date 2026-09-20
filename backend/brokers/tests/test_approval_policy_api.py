@@ -267,7 +267,7 @@ def _try_toggle(api, user, broker):
 @pytest.mark.django_db
 def test_an_authenticated_buyer_is_denied(api, workflow_enabled):
     broker = make_broker(name="Buyer Guard", slug="buyer-guard")
-    user = make_user("policy-api-buyer@example.com", role=UserRole.BUYER, verified=True)
+    user = make_user("policy-api-buyer@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
     _assert_denied_and_untouched(_try_toggle(api, user, broker), broker)
 
 

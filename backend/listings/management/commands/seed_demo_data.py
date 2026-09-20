@@ -267,7 +267,7 @@ class Command(BaseCommand):
         self.admin = self.make_user("admin", UserRole.STAFF, "Demo Staff Admin", [StaffGroup.ADMIN])
         self.moderator = self.make_user("moderator", UserRole.STAFF, "Demo Moderator", [StaffGroup.MODERATOR])
         self.buyers = [
-            self.make_user(f"buyer{i}", UserRole.BUYER, name)
+            self.make_user(f"buyer{i}", UserRole.PRIVATE_SELLER, name)
             for i, name in enumerate(
                 ["Laura Bianchi", "Carlos Ortega", "Sophie Martin", "Marco Rossi", "Elena Garcia", "Thomas Weber", "Giulia Conti", "Pablo Ruiz"], 1
             )
@@ -480,7 +480,7 @@ class Command(BaseCommand):
                 categories[slug] = ServiceCategory.objects.create(slug=slug, name_en=slug.replace("-", " ").title(), is_active=True)
         self.professionals = []
         for i, (name, cat, city, country, region, area, blurb) in enumerate(PROVIDERS, 1):
-            owner = self.make_user(f"provider{i}", UserRole.SERVICE_PROVIDER, f"{name.split()[0]} Owner")
+            owner = self.make_user(f"provider{i}", UserRole.PROFESSIONAL, f"{name.split()[0]} Owner")
             profile = ProfessionalProfile.objects.filter(owner_user=owner).first() or ProfessionalProfile(owner_user=owner)
             profile.display_name = name
             profile.slug = f"demo-{i}-" + "".join(c if c.isalnum() else "-" for c in name.lower()).strip("-")[:60]

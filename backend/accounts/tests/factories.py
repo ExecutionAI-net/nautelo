@@ -13,7 +13,7 @@ def make_user(
     *,
     password=DEFAULT_TEST_PASSWORD,
     verified=True,
-    role=UserRole.BUYER,
+    role=UserRole.PRIVATE_SELLER,
     locale=Locale.EN,
     is_active=True,
     full_name="",

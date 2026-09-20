@@ -35,7 +35,7 @@ def test_defaults_are_buyer_english_unverified_and_active():
     user = User.objects.create_user(
         email="defaults@example.com", password=DEFAULT_TEST_PASSWORD
     )
-    assert user.primary_role == UserRole.BUYER
+    assert user.primary_role == UserRole.PRIVATE_SELLER
     assert user.locale == Locale.EN
     assert user.email_verified_at is None
     assert user.is_email_verified is False

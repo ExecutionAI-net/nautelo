@@ -14,7 +14,7 @@ from services_catalog.tests.factories import make_professional_service, make_ser
 
 @pytest.fixture
 def professional(db):
-    return make_professional(make_user("svc@example.com", role=UserRole.SERVICE_PROVIDER))
+    return make_professional(make_user("svc@example.com", role=UserRole.PROFESSIONAL))
 
 
 @pytest.fixture
