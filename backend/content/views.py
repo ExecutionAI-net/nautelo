@@ -3,6 +3,8 @@ from django.utils import timezone
 from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser, IsStaffAdmin
 
@@ -68,7 +70,7 @@ class PublicAdListView(PublicContentView, ListAPIView):
 
     def get_queryset(self):
         now = timezone.now()
-        queryset = Advertisement.objects.filter(is_active=True).filter(
+        queryset = Advertisement.objects.select_related("broker", "professional").filter(is_active=True).filter(
             Q(starts_at__isnull=True) | Q(starts_at__lte=now),
             Q(ends_at__isnull=True) | Q(ends_at__gt=now),
         )
@@ -101,3 +103,24 @@ class StaffAdListView(StaffContentView, ListCreateAPIView):
 class StaffAdDetailView(StaffContentView, RetrieveUpdateDestroyAPIView):
     serializer_class = StaffAdSerializer
     queryset = Advertisement.objects.all()
+
+
+class StaffAdTargetListView(StaffContentView, APIView):
+    """Active brokers and professionals an ad can point at, filtered by name."""
+
+    def get(self, request):
+        from brokers.models import BrokerOrganization
+        from professionals.models import ProfessionalProfile
+
+        needle = request.query_params.get("q", "").strip()
+        brokers = BrokerOrganization.objects.filter(status="ACTIVE")
+        professionals = ProfessionalProfile.objects.filter(status="ACTIVE")
+        if needle:
+            brokers = brokers.filter(name__icontains=needle)
+            professionals = professionals.filter(display_name__icontains=needle)
+        return Response(
+            {
+                "brokers": [{"id": str(b.pk), "label": b.name} for b in brokers.order_by("name")[:50]],
+                "professionals": [{"id": str(p.pk), "label": p.display_name} for p in professionals.order_by("display_name")[:50]],
+            }
+        )

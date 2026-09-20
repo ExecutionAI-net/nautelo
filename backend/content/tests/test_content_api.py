@@ -102,3 +102,44 @@ def test_guide_list_reports_the_published_categories(api):
     GuideArticle.objects.create(slug="b", title="B", category="Legal", status=GuideStatus.PUBLISHED)
     GuideArticle.objects.create(slug="c", title="C", category="Secret", status=GuideStatus.DRAFT)
     assert api.get(reverse("guide-list")).json()["categories"] == ["Legal", "Maintenance"]
+
+
+@pytest.mark.django_db
+def test_an_ad_linked_to_a_broker_or_professional_points_at_their_page(api):
+    from brokers.models import BrokerOrganization
+    from professionals.tests.factories import make_professional
+
+    broker = BrokerOrganization.objects.create(
+        name="Acme", slug="acme", status="ACTIVE", public_email="a@example.com", public_phone="+34600000000"
+    )
+    professional = make_professional(make_user("pro@example.com", role="SERVICE_PROVIDER"))
+    Advertisement.objects.create(
+        placement="HOME", sponsor="A", headline="Broker", cta_label="Visit", cta_url="https://x.example", broker=broker
+    )
+    Advertisement.objects.create(placement="GUIDES", sponsor="P", headline="Pro", professional=professional)
+    Advertisement.objects.create(placement="DIRECTORY", sponsor="E", headline="Ext", cta_url="https://x.example")
+    urls = {
+        row["headline"]: row["cta_url"]
+        for placement in ("HOME", "GUIDES", "DIRECTORY")
+        for row in api.get(reverse("ad-list"), {"placement": placement}).json()
+    }
+    assert urls["Broker"] == "/brokers/acme/"
+    assert urls["Pro"] == professional.get_absolute_url()
+    assert urls["Ext"] == "https://x.example"
+
+
+@pytest.mark.django_db
+def test_staff_can_list_ad_targets_and_link_an_ad(staff_api):
+    from brokers.models import BrokerOrganization
+
+    broker = BrokerOrganization.objects.create(
+        name="Acme Yachts", slug="acme", status="ACTIVE", public_email="a@example.com", public_phone="+34600000000"
+    )
+    body = staff_api.get(reverse("staff-ad-targets"), {"q": "acme"}).json()
+    assert body["brokers"] == [{"id": str(broker.pk), "label": "Acme Yachts"}]
+    created = staff_api.post(
+        reverse("staff-ad-list"),
+        {"placement": "HOME", "sponsor": "Acme", "headline": "Hi", "cta_label": "Visit", "broker": str(broker.pk)},
+        format="json",
+    )
+    assert created.status_code == 201

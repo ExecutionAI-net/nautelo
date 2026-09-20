@@ -50,6 +50,13 @@ class Advertisement(UUIDTimeStampedModel):
     cta_label = models.CharField(max_length=60, blank=True, default="")
     cta_url = models.URLField(max_length=500, blank=True, default="")
     image_url = models.URLField(max_length=500, blank=True, default="")
+    # When set, the call to action points at this directory page instead of cta_url.
+    broker = models.ForeignKey(
+        "brokers.BrokerOrganization", null=True, blank=True, on_delete=models.SET_NULL, related_name="advertisements"
+    )
+    professional = models.ForeignKey(
+        "professionals.ProfessionalProfile", null=True, blank=True, on_delete=models.SET_NULL, related_name="advertisements"
+    )
     is_active = models.BooleanField(default=True)
     starts_at = models.DateTimeField(null=True, blank=True)
     ends_at = models.DateTimeField(null=True, blank=True)

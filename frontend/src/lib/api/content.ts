@@ -35,13 +35,23 @@ export interface StaffGuide extends GuideDetail {
   status: "DRAFT" | "PUBLISHED";
 }
 
+export interface AdTargets {
+  brokers: { id: string; label: string }[];
+  professionals: { id: string; label: string }[];
+}
+
 export interface StaffAd extends PublicAd {
+  broker: string | null;
+  professional: string | null;
   is_active: boolean;
   starts_at: string | null;
   ends_at: string | null;
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+export const fetchAdTargets = (q = "") =>
+  apiFetch<AdTargets>(`/api/v1/staff/ad-targets/${q ? `?q=${encodeURIComponent(q)}` : ""}`);
 
 export const staffGuides = {
   list: () => apiFetch<Paginated<StaffGuide> | StaffGuide[]>("/api/v1/staff/guides/"),
