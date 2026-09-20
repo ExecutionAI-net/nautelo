@@ -109,3 +109,10 @@ def test_staff_admin_freezes_a_user_and_it_is_audited_but_not_staff(staff_api):
     assert AuditEvent.objects.filter(action="accounts.User.status_changed", target_id=str(seller.pk)).exists()
     other_staff = make_user(email="other-staff@example.com", role=UserRole.STAFF, verified=True)
     assert staff_api.post(reverse("staff-user-status", args=[other_staff.pk]), {"status": "SUSPENDED"}, format="json").status_code == 400
+
+
+def test_reports_carry_a_six_month_series_and_country_split(staff_api):
+    body = staff_api.get(reverse("staff-reports")).json()
+    assert len(body["monthly"]) == 6
+    assert body["monthly"][-1]["users"] >= 1
+    assert isinstance(body["listings_by_seller_type"], dict)
