@@ -129,3 +129,18 @@ def test_staff_reads_and_changes_a_platform_setting_and_bad_values_are_refused(s
     bad = staff_api.patch(reverse("staff-settings"), {"key": "media.upgraded_image_limit", "value": 500}, format="json")
     assert bad.status_code == 400
     assert staff_api.patch(reverse("staff-settings"), {"key": "nope", "value": 1}, format="json").status_code == 400
+
+
+def test_boat_rows_carry_the_submitted_revision_a_moderator_can_decide(staff_api):
+    from django.utils import timezone
+
+    from listings.enums import ListingStatus, RevisionStatus
+    from listings.tests.factories import make_private_listing, make_revision
+
+    owner = make_user(email="boat-owner@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
+    pending = make_private_listing(owner=owner, status=ListingStatus.PENDING_APPROVAL)
+    revision = make_revision(pending, state=RevisionStatus.SUBMITTED, submitted_at=timezone.now(), submitted_by=owner)
+    draft = make_private_listing(owner=owner, brand=pending.brand, model=pending.model)
+    rows = {row["id"]: row for row in staff_api.get(reverse("staff-boat-list")).json()["results"]}
+    assert rows[str(pending.pk)]["pending_revision_id"] == str(revision.pk)
+    assert rows[str(draft.pk)]["pending_revision_id"] is None

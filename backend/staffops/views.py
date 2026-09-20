@@ -4,7 +4,7 @@ Every endpoint is staff-admin only and returns plain rows; mutations stay in
 the Django admin and the dedicated moderation endpoints.
 """
 
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -16,7 +16,8 @@ from accounts.models import User
 from accounts.permissions import IsActiveUser, IsStaffAdmin
 from brokers.models import BrokerOrganization
 from entitlements.models import UserEntitlement
-from listings.models import BoatListing
+from listings.enums import RevisionStatus
+from listings.models import BoatListing, ListingRevision
 from messaging.models import Conversation
 from professionals.models import ProfessionalProfile
 
@@ -229,13 +230,19 @@ class BoatRowSerializer(serializers.ModelSerializer):
     brand_name = serializers.CharField(source="brand.name", read_only=True)
     owner_email = serializers.EmailField(source="owner_user.email", read_only=True, default=None)
     broker_name = serializers.CharField(source="broker.name", read_only=True, default=None)
+    pending_revision_id = serializers.SerializerMethodField()
 
     class Meta:
         model = BoatListing
         fields = (
             "id", "slug", "status", "seller_type", "brand_name", "manufacture_year", "price", "currency",
-            "owner_email", "broker_name", "published_at", "created_at",
+            "owner_email", "broker_name", "published_at", "created_at", "pending_revision_id",
         )
+
+    def get_pending_revision_id(self, listing):
+        """The submitted revision a moderator can approve, or None (prefetched by the list view)."""
+        submitted = getattr(listing, "submitted_revisions", [])
+        return str(submitted[0].pk) if submitted else None
 
 
 class StaffBoatListView(StaffListView):
@@ -243,7 +250,17 @@ class StaffBoatListView(StaffListView):
     serializer_class = BoatRowSerializer
     search_fields = ("brand__name", "owner_user__email", "broker__name", "slug")
     status_field = "status"
-    queryset = BoatListing.objects.select_related("brand", "owner_user", "broker").order_by("-created_at")
+    queryset = (
+        BoatListing.objects.select_related("brand", "owner_user", "broker")
+        .prefetch_related(
+            Prefetch(
+                "revisions",
+                queryset=ListingRevision.objects.filter(state=RevisionStatus.SUBMITTED),
+                to_attr="submitted_revisions",
+            )
+        )
+        .order_by("-created_at")
+    )
 
 
 class StatusChangeSerializer(serializers.Serializer):
