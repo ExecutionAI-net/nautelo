@@ -38,6 +38,10 @@ export default async function BrokerPage({ params }: { params: Params }) {
   return (
     <main className="w-full bg-surface">
       <div className="relative w-full bg-surface-container-low py-space-xl overflow-hidden">
+        {broker.cover_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="" src={broker.cover_image_url} className="absolute inset-0 h-full w-full object-cover opacity-25" />
+        ) : null}
         <div className="absolute -right-24 -top-24 w-96 h-96 rounded-full bg-secondary-fixed opacity-20 blur-3xl pointer-events-none" />
         <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop relative z-10 flex flex-col gap-space-lg lg:flex-row lg:items-end lg:justify-between">
           <div className="flex items-start gap-space-lg">
