@@ -14,7 +14,9 @@ from .enums import ListingStatus, RevisionOrigin, RevisionStatus
 from .locking import bump_version
 from .models import BoatListing, ListingRevision
 from .payloads import (
+    FROZEN_SPECIFICATION_KEYS,
     TAXONOMY_FIELDS,
+    is_frozen_after_submission,
     allowed_payload_fields,
     validate_revision_payload,
 )
@@ -293,6 +295,8 @@ def update_listing_draft(
     # taxonomy field from a published listing's payload by sending it as null —
     # spec §11.4's "locked field manipulation fails server-side". This guard is
     # the only thing standing in front of that path; do not move or skip it.
+    if is_frozen_after_submission(listing):
+        payload = _without_unchanged_frozen_fields(payload, revision.payload)
     removals = {key for key, value in payload.items() if value is None}
     allowed = allowed_payload_fields(listing=listing, origin=RevisionOrigin.OWNER)
     illegal = sorted(removals - allowed)
@@ -341,3 +345,30 @@ def update_listing_draft(
     listing.save()
     listing.open_revision = revision
     return revision
+
+
+def _without_unchanged_frozen_fields(payload: dict, current: dict) -> dict:
+    """The form re-sends the whole payload on every save. Frozen fields may be repeated unchanged;
+    a different value is refused (private seller, listing already submitted for review)."""
+    errors = {}
+    for field in TAXONOMY_FIELDS:
+        if field in payload and str(payload[field] or "") != str(current.get(field) or ""):
+            errors[field] = [
+                ErrorDetail(
+                    "This field cannot be changed after the listing was submitted for review.",
+                    code="immutable_after_submission",
+                )
+            ]
+    if isinstance(payload.get("specifications"), dict):
+        old = current.get("specifications") or {}
+        for key in FROZEN_SPECIFICATION_KEYS:
+            if payload["specifications"].get(key) != old.get(key):
+                errors["specifications"] = [
+                    ErrorDetail(
+                        f"{key} cannot be changed after the listing was submitted for review.",
+                        code="immutable_after_submission",
+                    )
+                ]
+    if errors:
+        raise ValidationError(errors)
+    return {key: value for key, value in payload.items() if key not in TAXONOMY_FIELDS}
