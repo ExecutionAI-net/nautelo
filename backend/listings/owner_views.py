@@ -4,7 +4,7 @@ The public endpoints only ever serve published snapshots, so a seller needs
 their own read path to find a draft, see its state and reopen it.
 """
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -102,18 +102,16 @@ class MyListingsSummaryView(APIView):
         broker_ids = BrokerMembership.objects.filter(
             user=request.user, is_active=True, can_edit_listings=True
         ).values_list("broker_id", flat=True)
-        counts = dict(
-            BoatListing.objects.filter(
-                Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
-            )
-            .values_list("status")
-            .annotate(total=Count("pk"))
+        mine = BoatListing.objects.filter(
+            Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
         )
+        counts = dict(mine.values_list("status").annotate(total=Count("pk")))
         return Response(
             {
                 "published": counts.get(ListingStatus.PUBLISHED, 0),
                 "drafts": counts.get(ListingStatus.DRAFT, 0),
                 "in_review": counts.get(ListingStatus.PENDING_APPROVAL, 0),
+                "views": mine.aggregate(total=Sum("view_count_cached"))["total"] or 0,
             }
         )
 

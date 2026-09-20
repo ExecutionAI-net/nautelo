@@ -213,6 +213,7 @@ export interface MyListingsSummary {
   published: number;
   drafts: number;
   in_review: number;
+  views: number;
 }
 
 export function fetchMyListingsSummary() {
