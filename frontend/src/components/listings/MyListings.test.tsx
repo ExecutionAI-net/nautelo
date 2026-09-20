@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import MyListings from "@/components/listings/MyListings";
@@ -9,16 +9,50 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+const base = {
+  seller_type: "PRIVATE",
+  updated_at: "",
+  expires_at: null,
+  price: null,
+  currency: "EUR",
+  year: null,
+  city: "",
+  country: "",
+  boat_type: "",
+  condition: "",
+  loa_m: "",
+  beam_m: "",
+  engine: "",
+  views: 0,
+  image_url: null,
+};
+
 describe("MyListings", () => {
   it("links each listing to its editor and only published ones to the public page", async () => {
     api.fetchMyListings.mockResolvedValue([
-      { id: "a", title: "Draft boat", status: "DRAFT", seller_type: "PRIVATE", slug: null, updated_at: "", expires_at: null },
-      { id: "b", title: "Live boat", status: "PUBLISHED", seller_type: "PRIVATE", slug: "live-1", updated_at: "", expires_at: null },
+      { ...base, id: "a", title: "Draft boat", status: "DRAFT", slug: null },
+      { ...base, id: "b", title: "Live boat", status: "PUBLISHED", slug: "live-1", price: "125000", loa_m: "12.5", views: 1420 },
     ]);
     render(<MyListings />);
     expect(await screen.findByText("Live boat")).toBeTruthy();
-    const edits = screen.getAllByRole("link", { name: "Edit" });
-    expect(edits.map((l) => l.getAttribute("href"))).toEqual(["/sell/a/", "/sell/b/"]);
-    expect(screen.getAllByRole("link", { name: "View" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Continue editing" }).getAttribute("href")).toBe("/sell/a/");
+    expect(screen.getByRole("link", { name: "Edit listing" }).getAttribute("href")).toBe("/sell/b/");
+    expect(screen.getAllByRole("link", { name: "View public page" })).toHaveLength(1);
+    expect(screen.getByText("€125,000")).toBeTruthy();
+    expect(screen.getByText("12.5 m")).toBeTruthy();
+    expect(screen.getByText(/1,420 views/)).toBeTruthy();
+  });
+
+  it("filters by status with counts on the tabs", async () => {
+    api.fetchMyListings.mockResolvedValue([
+      { ...base, id: "a", title: "Draft boat", status: "DRAFT", slug: null },
+      { ...base, id: "b", title: "Live boat", status: "PUBLISHED", slug: "live-1" },
+    ]);
+    render(<MyListings />);
+    await screen.findByText("Live boat");
+    expect(screen.getByRole("tab", { name: "All (2)" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Drafts (1)" }));
+    expect(screen.queryByText("Live boat")).toBeNull();
+    expect(screen.getByText("Draft boat")).toBeTruthy();
   });
 });

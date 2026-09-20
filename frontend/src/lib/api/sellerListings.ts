@@ -191,6 +191,18 @@ export interface MyListingRow {
   slug: string | null;
   updated_at: string;
   expires_at: string | null;
+  price: string | null;
+  currency: string;
+  year: number | null;
+  city: string;
+  country: string;
+  boat_type: string;
+  condition: string;
+  loa_m: string;
+  beam_m: string;
+  engine: string;
+  views: number;
+  image_url: string | null;
 }
 
 export function fetchMyListings() {

@@ -49,3 +49,12 @@ def test_summary_counts_only_my_listings_by_status():
     body = _client(me).get(reverse("my-listings-summary")).data
     assert set(body) == {"published", "drafts", "in_review"}
     assert sum(body.values()) <= 1
+
+
+def test_mine_rows_carry_everything_the_dashboard_card_shows():
+    me = make_user(role=UserRole.PRIVATE_SELLER)
+    make_private_listing(owner=me)
+    row = _client(me).get(reverse("my-listings")).data[0]
+    for key in ("price", "currency", "year", "city", "country", "boat_type", "loa_m", "engine", "views", "image_url"):
+        assert key in row
+    assert row["views"] == 0 and row["image_url"] is None
