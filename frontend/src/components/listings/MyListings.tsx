@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
-import { ApiError } from "@/lib/api/client";
-import { fetchMyListings, renewListing, type MyListingRow } from "@/lib/api/sellerListings";
+import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
@@ -32,27 +31,56 @@ function renewable(row: MyListingRow): boolean {
 }
 
 function RenewPanel({ row }: { row: MyListingRow }) {
-  const [state, setState] = useState<"idle" | "busy" | "need_right" | "done" | "error">("idle");
+  const [owned, setOwned] = useState<OwnedPackage[] | null>(null);
+  const [choice, setChoice] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "error">("idle");
+
+  useEffect(() => {
+    fetchMyPaidListings().then(
+      ({ results }) => {
+        setOwned(results);
+        setChoice((current) => current || results[0]?.package || "");
+      },
+      () => setOwned([]),
+    );
+  }, []);
+
   async function renew() {
     setState("busy");
     try {
-      await renewListing(row.id);
-      setState("done");
+      await renewListing(row.id, choice);
       window.location.reload();
-    } catch (caught) {
-      setState(caught instanceof ApiError && caught.status === 403 ? "need_right" : "error");
+    } catch {
+      setState("error");
     }
   }
   const expiry = row.expires_at ? new Date(row.expires_at).toLocaleDateString("en") : "";
   return (
     <div className="mt-space-xs flex flex-col gap-space-xs rounded-lg bg-secondary-container p-space-sm text-on-secondary-container">
       <p className="font-body-sm">
-        {row.status === "EXPIRED" ? `Expired on ${expiry}.` : `Goes offline on ${expiry}.`} Use a paid listing to keep it online for another period, with up to 20 photos and 1 video.
+        {row.status === "EXPIRED" ? `Expired on ${expiry}.` : `Goes offline on ${expiry}.`} Use a paid listing to keep it online for another period.
       </p>
-      <button type="button" disabled={state === "busy"} onClick={() => void renew()} className="rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary disabled:opacity-50">
-        {row.status === "EXPIRED" ? "Re-activate with a paid listing" : "Extend with a paid listing"}
-      </button>
-      {state === "need_right" ? <PaidListingBuy /> : null}
+      {owned && owned.length > 0 ? (
+        <>
+          <select
+            aria-label="Paid listing to use"
+            value={choice}
+            onChange={(event) => setChoice(event.target.value)}
+            className="rounded-lg bg-surface-container-lowest px-space-sm py-1 font-body-sm text-on-surface"
+          >
+            {owned.map((item) => (
+              <option key={item.package} value={item.package}>
+                {item.publication_days ?? 30} days, {item.image_limit ?? 20} photos{item.video_limit ? ` + ${item.video_limit} video` : ""} ({item.count} left)
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={state === "busy"} onClick={() => void renew()} className="rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary disabled:opacity-50">
+            {row.status === "EXPIRED" ? "Re-activate" : "Extend"}
+          </button>
+        </>
+      ) : owned ? (
+        <PaidListingBuy />
+      ) : null}
       {state === "error" ? <p role="alert" className="font-body-sm text-error">This listing could not be renewed.</p> : null}
     </div>
   );

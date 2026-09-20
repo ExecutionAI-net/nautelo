@@ -429,7 +429,11 @@ class ListingRenewView(ListingDraftUpdateView):
 
     def post(self, request, listing_id):
         listing = self.get_listing(request, listing_id)
-        renewed = renew_listing(listing_id=listing.pk, actor=request.user)
+        renewed = renew_listing(
+            listing_id=listing.pk,
+            actor=request.user,
+            package=(request.data.get("package") or None),
+        )
         return Response(
             {
                 "listing_id": str(renewed.pk),

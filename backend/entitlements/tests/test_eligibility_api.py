@@ -403,3 +403,24 @@ def test_the_view_declares_only_the_scope_and_no_throttle_classes():
 
     assert ListingEligibilityView.throttle_scope == "listing_eligibility"
     assert "throttle_classes" not in vars(ListingEligibilityView)
+
+
+@pytest.mark.django_db
+def test_my_paid_listings_groups_unused_rights_by_package():
+    from django.urls import reverse
+    from rest_framework.test import APIClient
+
+    from entitlements.enums import EntitlementType
+    from entitlements.tests.factories import make_entitlement, make_private_seller
+
+    seller = make_private_seller()
+    meta = {"package": "1-month", "publication_days": 30, "image_limit": 20, "video_limit": 1}
+    make_entitlement(user=seller, entitlement_type=EntitlementType.PAID_LISTING, metadata=meta)
+    make_entitlement(user=seller, entitlement_type=EntitlementType.PAID_LISTING, metadata=meta)
+    api = APIClient()
+    api.force_authenticate(seller)
+
+    response = api.get(reverse("my-paid-listings"))
+
+    assert response.status_code == 200
+    assert response.data["results"] == [{**meta, "count": 2}]

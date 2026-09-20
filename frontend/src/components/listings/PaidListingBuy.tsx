@@ -1,20 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { fetchPricingClient, formatPrice, type ListingPackage } from "@/lib/api/plans";
 import { startListingRightCheckout } from "@/lib/api/sellerListings";
 
-/** Quantity picker + checkout button for paid listings (one-off, no expiry). */
+/** Package picker + quantity + checkout for paid listings (one-off). */
 export default function PaidListingBuy({ label = "Buy paid listings" }: { label?: string }) {
+  const [packages, setPackages] = useState<ListingPackage[]>([]);
+  const [selected, setSelected] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPricingClient().then(
+      (pricing) => {
+        const list = pricing.listing_packages ?? [];
+        setPackages(list);
+        setSelected((current) => current || list[0]?.slug || "");
+      },
+      () => setPackages([]),
+    );
+  }, []);
 
   async function buy() {
     setBusy(true);
     setError(null);
     try {
-      const { checkout_url } = await startListingRightCheckout(undefined, quantity);
+      const { checkout_url } = await startListingRightCheckout(undefined, quantity, selected);
       window.location.assign(checkout_url);
     } catch {
       setError("Checkout is not available right now.");
@@ -22,8 +36,29 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
     }
   }
 
+  if (packages.length === 0) {
+    return <p className="font-body-sm text-on-surface-variant">Paid listings are not on sale yet.</p>;
+  }
+
   return (
-    <div className="flex flex-col gap-space-xs">
+    <div className="flex flex-col gap-space-sm">
+      <fieldset className="flex flex-col gap-space-xs">
+        <legend className="sr-only">Package</legend>
+        {packages.map((pkg) => (
+          <label
+            key={pkg.slug}
+            className={`flex cursor-pointer items-center justify-between gap-space-sm rounded-lg px-space-sm py-space-xs ${selected === pkg.slug ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-lowest text-on-surface"}`}
+          >
+            <span className="flex items-center gap-space-xs">
+              <input type="radio" name="listing-package" value={pkg.slug} checked={selected === pkg.slug} onChange={() => setSelected(pkg.slug)} />
+              <span className="font-body-md">
+                {pkg.name} · {pkg.publication_days} days · {pkg.image_limit} photos{pkg.video_limit ? ` + ${pkg.video_limit} video` : ""}
+              </span>
+            </span>
+            <span className="font-label-md font-semibold">{formatPrice(pkg.amount, pkg.currency)}</span>
+          </label>
+        ))}
+      </fieldset>
       <div className="flex items-center gap-space-sm">
         <label className="font-label-sm text-on-surface-variant" htmlFor="paid-listing-quantity">
           Quantity
@@ -39,7 +74,7 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
         />
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !selected}
           onClick={() => void buy()}
           className="rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container disabled:opacity-50"
         >

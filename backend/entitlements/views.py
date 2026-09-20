@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsActiveUser, IsEmailVerified
 
 from .eligibility import ListingEligibilityService
+from .policy import available_paid_rights
 
 
 class ListingEligibilityView(APIView):
@@ -28,3 +29,29 @@ class ListingEligibilityView(APIView):
 
     def get(self, request):
         return Response(ListingEligibilityService.for_user(request.user).as_dict())
+
+
+class MyPaidListingsView(APIView):
+    """GET /api/v1/paid-listings/ - the caller's unused paid listings, by package."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser]
+    throttle_scope = "listing_eligibility"
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        groups: dict[str, dict] = {}
+        for right in available_paid_rights(request.user):
+            meta = right.metadata or {}
+            key = meta.get("package", "")
+            group = groups.setdefault(
+                key,
+                {
+                    "package": key,
+                    "publication_days": meta.get("publication_days"),
+                    "image_limit": meta.get("image_limit"),
+                    "video_limit": meta.get("video_limit"),
+                    "count": 0,
+                },
+            )
+            group["count"] += 1
+        return Response({"results": list(groups.values())})

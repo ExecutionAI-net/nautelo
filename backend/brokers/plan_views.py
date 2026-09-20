@@ -34,6 +34,9 @@ class PublicPricingView(APIView):
         from professionals.billing import get_plan as professional_plan
 
         pro = professional_plan()
+        from payments.models import ListingPackage
+
+        packages = ListingPackage.objects.filter(is_active=True)
         return Response(
             {
                 "professional_plan": (
@@ -46,6 +49,19 @@ class PublicPricingView(APIView):
                     if pro
                     else None
                 ),
+                "listing_packages": [
+                    {
+                        "slug": package.slug,
+                        "name": package.name_en,
+                        "description": package.description_en,
+                        "amount": str(package.display_amount),
+                        "currency": package.currency,
+                        "publication_days": package.publication_days,
+                        "image_limit": package.image_limit,
+                        "video_limit": package.video_limit,
+                    }
+                    for package in packages
+                ],
                 "broker_plans": PublicPlanSerializer(BrokerPlan.objects.filter(is_active=True), many=True).data,
                 "individual_products": [
                     {

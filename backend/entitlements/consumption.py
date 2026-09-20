@@ -232,7 +232,10 @@ def _consume_paid(*, entitlement, listing, actor, now, enforced):
     entitlement.listing = listing
     entitlement.metadata = {
         **entitlement.metadata,
-        "publication_days": paid_publication_days(),
+        # A package right carries the length it was bought with; staff gifts and
+        # legacy rights fall back to the platform setting.
+        "publication_days": entitlement.metadata.get("publication_days")
+        or paid_publication_days(),
         "enforced": enforced,
         "over_allowance": False,
     }

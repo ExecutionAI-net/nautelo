@@ -31,7 +31,7 @@ RENEWABLE_STATES = frozenset({ListingStatus.PUBLISHED, ListingStatus.EXPIRED})
 
 
 @transaction.atomic
-def renew_listing(*, listing_id, actor) -> BoatListing:
+def renew_listing(*, listing_id, actor, package: str | None = None) -> BoatListing:
     listing = BoatListing.objects.select_for_update().get(pk=listing_id)
     if listing.seller_type != SellerType.PRIVATE or listing.owner_user_id != actor.pk:
         raise PermissionDenied("Only the private seller can renew this listing.")
@@ -40,11 +40,14 @@ def renew_listing(*, listing_id, actor) -> BoatListing:
 
     now = timezone.now()
     lock_user_quota(actor)
-    right = available_paid_rights(actor, now=now).select_for_update().first()
+    rights = available_paid_rights(actor, now=now)
+    if package:
+        rights = rights.filter(metadata__package=package)
+    right = rights.select_for_update().first()
     if right is None:
         raise ListingEntitlementRequired(blocking_reason="FREE_ALLOWANCE_USED")
 
-    days = paid_publication_days()
+    days = right.metadata.get("publication_days") or paid_publication_days()
     right.state = EntitlementState.CONSUMED
     right.consumed_at = now
     right.listing = listing

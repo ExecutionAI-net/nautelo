@@ -169,19 +169,31 @@ function randomId(): string {
 }
 
 /** Starts Stripe Checkout for `quantity` paid listings (one-off, no expiry). */
-export function startListingRightCheckout(returnUrl = "/dashboard/private-seller/listings/", quantity = 1) {
+export function startListingRightCheckout(returnUrl = "/dashboard/private-seller/listings/", quantity = 1, pkg = "") {
   return apiFetch<{ checkout_url: string }>("/api/v1/checkout-sessions/", {
     method: "POST",
     headers: { ...JSON_HEADERS, "Idempotency-Key": randomId() },
-    body: JSON.stringify({ product_code: "INDIVIDUAL_LISTING_RIGHT", return_url: returnUrl, quantity }),
+    body: JSON.stringify({ product_code: "INDIVIDUAL_LISTING_RIGHT", return_url: returnUrl, quantity, package: pkg }),
   });
 }
 
 /** Spends one paid listing to extend or re-activate a private listing. */
-export function renewListing(listingId: string) {
+export interface OwnedPackage {
+  package: string;
+  publication_days: number | null;
+  image_limit: number | null;
+  video_limit: number | null;
+  count: number;
+}
+
+export function fetchMyPaidListings() {
+  return apiFetch<{ results: OwnedPackage[] }>("/api/v1/paid-listings/");
+}
+
+export function renewListing(listingId: string, pkg = "") {
   return apiFetch<{ listing_id: string; status: string; expires_at: string }>(
     `/api/v1/listings/${encodeURIComponent(listingId)}/renew/`,
-    { method: "POST" },
+    { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ package: pkg }) },
   );
 }
 

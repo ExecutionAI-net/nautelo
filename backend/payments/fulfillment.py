@@ -105,12 +105,31 @@ def verify_session_against_order(*, order, session) -> str:
 
     if (metadata.get("quantity") or "1") != str(order.quantity):
         return "quantity_mismatch"
+    expected_package = "" if order.package_id is None else order.package.slug
+    if (metadata.get("package") or "") != expected_package:
+        return "package_mismatch"
 
     expected_listing = "" if order.listing_id is None else str(order.listing_id)
     if (metadata.get("listing_id") or "") != expected_listing:
         return "listing_mismatch"
 
     return ""
+
+
+def _grant_metadata(order) -> dict:
+    metadata = {"order_id": str(order.pk), "product_code": order.product.code}
+    package = order.package
+    if package is not None:
+        # Frozen at purchase: later edits to the package do not touch this right.
+        metadata.update(
+            {
+                "package": package.slug,
+                "publication_days": package.publication_days,
+                "image_limit": package.image_limit,
+                "video_limit": package.video_limit,
+            }
+        )
+    return metadata
 
 
 def grant_purchased_entitlements(*, order, now) -> list[UserEntitlement]:
@@ -151,7 +170,7 @@ def grant_purchased_entitlement(*, order, now, grant_index=0) -> UserEntitlement
         state=EntitlementState.AVAILABLE,
         valid_from=now,
         valid_until=now + timedelta(days=product.entitlement_valid_days),
-        metadata={"order_id": str(order.pk), "product_code": product.code},
+        metadata=_grant_metadata(order),
         grant_index=grant_index,
     )
 
@@ -284,7 +303,7 @@ def _locked_order_for(session):
     """
     return (
         PaymentOrder.objects.select_for_update(of=("self",))
-        .select_related("product", "listing")
+        .select_related("product", "listing", "package")
         .filter(stripe_checkout_session_id=session.get("id", ""))
         .first()
     )

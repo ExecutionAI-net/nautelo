@@ -80,3 +80,24 @@ def test_a_live_listing_can_be_extended_and_keeps_its_remaining_time():
     assert api.post(reverse("listing-renew", kwargs={"listing_id": listing.pk})).status_code == 200
     listing.refresh_from_db()
     assert listing.expires_at > now + timedelta(days=30)
+
+
+@pytest.mark.django_db
+def test_a_package_right_sets_the_renewal_length_and_media_limits():
+    seller = make_private_seller()
+    listing = _expired_listing(seller)
+    make_entitlement(
+        user=seller,
+        entitlement_type=EntitlementType.PAID_LISTING,
+        metadata={"package": "3-months", "publication_days": 90, "image_limit": 12, "video_limit": 0},
+    )
+    api = APIClient()
+    api.force_authenticate(seller)
+
+    response = api.post(reverse("listing-renew", kwargs={"listing_id": listing.pk}), {"package": "3-months"}, format="json")
+
+    assert response.status_code == 200, response.data
+    listing.refresh_from_db()
+    assert listing.expires_at > timezone.now() + timedelta(days=85)
+    allowance = effective_media_allowance(listing)
+    assert (allowance.images, allowance.videos) == (12, 0)

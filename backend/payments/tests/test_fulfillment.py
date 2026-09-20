@@ -636,3 +636,37 @@ def test_a_quantity_mismatch_blocks_fulfilment(seller):
         stripe_checkout_session_id="cs_live_q",
     )
     assert verify_session_against_order(order=order, session=session_for(order, amount_total=9800)) == "quantity_mismatch"
+
+
+@pytest.mark.django_db
+def test_a_package_purchase_freezes_days_and_limits_on_the_right(seller):
+    from payments.models import ListingPackage
+
+    package = ListingPackage.objects.get(slug="3-months")
+    ListingPackage.objects.filter(pk=package.pk).update(
+        display_amount=Decimal("99.00"), stripe_product_id="prod_p", stripe_price_id="price_p",
+        image_limit=12, video_limit=0, is_active=True,
+    )
+    package.refresh_from_db()
+    order = make_order(
+        user=seller,
+        product=listing_right_product(),
+        status=PaymentOrderStatus.CHECKOUT_OPEN,
+        amount=Decimal("99.00"),
+        currency="EUR",
+        stripe_checkout_session_id="cs_pkg",
+    )
+    order.package = package
+    order.save()
+    event = event_for(order, amount_total=9900)
+    event["data"]["object"]["metadata"]["package"] = "3-months"
+
+    assert handle_checkout_session_paid(event) == WebhookResult.FULFILLED
+
+    right = UserEntitlement.objects.get(source_payment=order)
+    assert right.metadata["publication_days"] == 90
+    assert (right.metadata["image_limit"], right.metadata["video_limit"]) == (12, 0)
+    # Editing the package afterwards leaves the bought right untouched.
+    ListingPackage.objects.filter(pk=package.pk).update(image_limit=50)
+    right.refresh_from_db()
+    assert right.metadata["image_limit"] == 12

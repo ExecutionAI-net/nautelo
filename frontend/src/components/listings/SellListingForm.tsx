@@ -7,6 +7,7 @@ import type { Locale } from "@/lib/i18n/directory";
 import { tSell } from "@/lib/i18n/sell";
 import { ApiError } from "@/lib/api/client";
 import { fetchEligibility, fetchFormOptions, type Eligibility, type FormOptions } from "@/lib/api/listingForm";
+import PaidListingBuy from "@/components/listings/PaidListingBuy";
 import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
@@ -15,7 +16,6 @@ import {
   removeMedia,
   reorderMedia,
   searchBrands,
-  startListingRightCheckout,
   submitListing,
   updateDraft,
   uploadMedia,
@@ -364,15 +364,6 @@ export default function SellListingForm({
     }
   }
 
-  async function buyRight() {
-    try {
-      const { checkout_url } = await startListingRightCheckout();
-      window.location.assign(checkout_url);
-    } catch (caught) {
-      setError(describe(caught, locale));
-    }
-  }
-
   // Limits shown before the draft exists follow who is selling and which right will be used.
   const mediaLimits = (() => {
     if (listing) return { images: listing.policy.image_limit, videos: listing.policy.video_limit };
@@ -539,13 +530,9 @@ export default function SellListingForm({
         <section role="alert" className={`${CARD} border-l-4 border-secondary`}>
           <h2 className="font-headline-sm text-headline-sm text-primary">{t("sell.allowance_title")}</h2>
           {date ? <p className="mt-space-xs font-body-md text-on-surface-variant">{t("sell.allowance_next", { date })}</p> : null}
-          <button
-            type="button"
-            onClick={() => void buyRight()}
-            className="mt-space-md rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container"
-          >
-            {t("sell.allowance_buy")}
-          </button>
+          <div className="mt-space-md">
+            <PaidListingBuy label={t("sell.allowance_buy")} />
+          </div>
           {error ? <p role="alert" className="mt-space-sm text-error">{error}</p> : null}
         </section>
       </div>
@@ -845,13 +832,9 @@ export default function SellListingForm({
                 <p className="font-body-sm text-on-surface-variant">
                   {t("sell.media_free_note", { images: mediaLimits.images, paid_images: options?.media_limits.paid_images ?? 20, paid_videos: options?.media_limits.paid_videos ?? 1 })}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => void buyRight()}
-                  className="mt-space-xs rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container"
-                >
-                  {t("sell.allowance_buy")}
-                </button>
+                <div className="mt-space-xs">
+                  <PaidListingBuy label={t("sell.allowance_buy")} />
+                </div>
               </div>
             ) : null}
             <ul className="mt-space-sm grid grid-cols-2 gap-space-sm sm:grid-cols-3">

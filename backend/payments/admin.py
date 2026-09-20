@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MarketplaceProduct, PaymentOrder, ProcessedWebhookEvent
+from .models import ListingPackage, MarketplaceProduct, PaymentOrder, ProcessedWebhookEvent
 
 
 @admin.register(MarketplaceProduct)
@@ -35,6 +35,26 @@ class MarketplaceProductAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(ListingPackage)
+class ListingPackageAdmin(admin.ModelAdmin):
+    """The private-seller packages: days, photos, videos and price, all editable.
+    A package can only be activated once it has a price and Stripe ids."""
+
+    list_display = (
+        "name_en", "publication_days", "image_limit", "video_limit",
+        "display_amount", "currency", "is_active", "display_order",
+    )
+    list_editable = ("is_active", "display_order")
+    search_fields = ("slug", "name_en")
+    fieldsets = (
+        (None, {"fields": ("slug", "is_active", "display_order")}),
+        ("What the buyer gets", {"fields": ("publication_days", "image_limit", "video_limit")}),
+        ("Price and Stripe", {"fields": ("display_amount", "currency", "stripe_product_id", "stripe_price_id")}),
+        ("Names", {"fields": ("name_en", "name_it", "name_es")}),
+        ("Descriptions", {"fields": ("description_en", "description_it", "description_es")}),
+    )
 
 
 @admin.register(PaymentOrder)

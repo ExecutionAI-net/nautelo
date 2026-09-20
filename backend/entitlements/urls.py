@@ -6,7 +6,7 @@ from .staff_views import (
     StaffEntitlementRestoreView,
     StaffEntitlementRevokeView,
 )
-from .views import ListingEligibilityView
+from .views import ListingEligibilityView, MyPaidListingsView
 
 urlpatterns = [
     path(
@@ -14,6 +14,7 @@ urlpatterns = [
         ListingEligibilityView.as_view(),
         name="listing-eligibility",
     ),
+    path("paid-listings/", MyPaidListingsView.as_view(), name="my-paid-listings"),
     path("staff/entitlements/", StaffEntitlementListView.as_view(), name="staff-entitlement-list"),
     path("staff/entitlements/grants/", StaffEntitlementGrantView.as_view(), name="staff-entitlement-grant"),
     path(
