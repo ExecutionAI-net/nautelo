@@ -74,7 +74,7 @@ class UserAdmin(DjangoUserAdmin):
                 label="Reason (recorded on the entitlement and in the audit trail)",
             )
 
-        if not is_staff_admin(request.user):
+        if not (is_staff_admin(request.user) or request.user.is_superuser):
             self.message_user(request, "Only staff admins can gift listings.", level=messages.ERROR)
             return None
         if "apply_reason" in request.POST:
