@@ -7,8 +7,7 @@ interface Props {
   dashboard: BrokerDashboard;
 }
 
-const TILE =
-  "rounded-xl border border-outline-variant p-space-md";
+const TILE = "rounded-xl bg-surface-container-lowest p-space-lg shadow-sm";
 
 /** Spec 28 "Dashboard metrics": "only backend-derived useful metrics such as
  * published listings, pending approvals, unread messages and new inquiries.
@@ -32,7 +31,7 @@ export default function BrokerMetrics({ locale, dashboard }: Props) {
           <dt className="font-label-md text-label-md text-on-surface-variant">
             {tConversations(locale, "broker.dashboard.metric.published_listings")}
           </dt>
-          <dd className="font-headline-sm text-headline-sm text-primary">
+          <dd className="font-headline-md text-headline-md text-primary">
             {dashboard.published_listings}
           </dd>
         </div>
@@ -40,7 +39,7 @@ export default function BrokerMetrics({ locale, dashboard }: Props) {
           <dt className="font-label-md text-label-md text-on-surface-variant">
             {tConversations(locale, "broker.dashboard.metric.pending_approvals")}
           </dt>
-          <dd className="font-headline-sm text-headline-sm text-primary">
+          <dd className="font-headline-md text-headline-md text-primary">
             {dashboard.pending_approvals}
           </dd>
         </div>
@@ -53,7 +52,7 @@ export default function BrokerMetrics({ locale, dashboard }: Props) {
                   "broker.dashboard.metric.unread_messages",
                 )}
               </dt>
-              <dd className="font-headline-sm text-headline-sm text-primary">
+              <dd className="font-headline-md text-headline-md text-primary">
                 {messages.unread_messages}
               </dd>
             </div>
@@ -61,7 +60,7 @@ export default function BrokerMetrics({ locale, dashboard }: Props) {
               <dt className="font-label-md text-label-md text-on-surface-variant">
                 {tConversations(locale, "broker.dashboard.metric.new_inquiries")}
               </dt>
-              <dd className="font-headline-sm text-headline-sm text-primary">
+              <dd className="font-headline-md text-headline-md text-primary">
                 {messages.new_inquiries_7d}
               </dd>
               <p className="font-body-sm text-on-surface-variant">

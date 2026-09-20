@@ -1,7 +1,11 @@
 "use client";
 
-import { useLocale } from "@/lib/i18n/useLocale";
+import Link from "next/link";
 import { useEffect, useState } from "react";
+
+import { ListingCard } from "@/components/listings/MyListings";
+import { fetchMyListings, type MyListingRow } from "@/lib/api/sellerListings";
+import { useLocale } from "@/lib/i18n/useLocale";
 
 import RequirePermission from "@/components/auth/RequirePermission";
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
@@ -20,6 +24,7 @@ export default function BrokerHomePage() {
   const { session, loading } = useSession();
   const [dashboard, setDashboard] = useState<BrokerDashboard | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  const [listings, setListings] = useState<MyListingRow[] | null>(null);
 
   const locale = useLocale();
   const membership = primaryBrokerMembership(session);
@@ -47,6 +52,20 @@ export default function BrokerHomePage() {
     };
   }, [loading, brokerId]);
 
+  useEffect(() => {
+    if (loading || brokerId === null) return;
+    let cancelled = false;
+    fetchMyListings().then(
+      (rows) => {
+        if (!cancelled) setListings(rows.filter((row) => row.seller_type === "BROKER"));
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, brokerId]);
+
   return (
     <AreaShell area="broker" active="/dashboard/broker/">
       <RequirePermission>
@@ -56,9 +75,18 @@ export default function BrokerHomePage() {
           </p>
         ) : (
           <>
-            <h1 className="font-headline-md text-headline-md text-primary">
-              {membership.broker_name}
-            </h1>
+            <div className="flex flex-wrap items-end justify-between gap-space-md">
+              <div>
+                <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">Yacht brokerage desk</span>
+                <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{membership.broker_name}</h1>
+              </div>
+              <Link
+                href="/dashboard/broker/fleet/"
+                className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container"
+              >
+                Add vessel
+              </Link>
+            </div>
             {errorKey ? (
               <p role="alert" className="mt-space-lg font-body-md text-error">
                 {tConversations(locale, errorKey)}
@@ -69,6 +97,21 @@ export default function BrokerHomePage() {
                 <BrokerMetrics locale={locale} dashboard={dashboard} />
               </div>
             ) : null}
+            <section aria-labelledby="inventory-heading" className="mt-space-xl">
+              <h2 id="inventory-heading" className="font-headline-sm text-headline-sm text-primary">
+                Mandate inventory
+              </h2>
+              <ul className="mt-space-md flex flex-col gap-space-md">
+                {(listings ?? []).slice(0, 5).map((row) => (
+                  <ListingCard key={row.id} row={row} />
+                ))}
+                {listings && listings.length === 0 ? (
+                  <li className="rounded-xl bg-surface-container-lowest p-space-lg font-body-md text-on-surface-variant shadow-sm">
+                    No vessels yet. <Link href="/dashboard/broker/fleet/" className="text-primary underline">Add your first vessel</Link>.
+                  </li>
+                ) : null}
+              </ul>
+            </section>
           </>
         )}
       </RequirePermission>
