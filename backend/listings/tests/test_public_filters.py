@@ -114,3 +114,14 @@ def test_spec_filters_match_boat_type_condition_fuel_and_minimum_cabins(api):
 def test_facets_offer_the_closed_type_and_fuel_lists(api):
     body = api.get(reverse("listing-facets")).json()
     assert "Catamaran" in body["boat_types"] and "Diesel" in body["fuel_types"]
+
+
+def test_length_range_reads_the_numeric_loa_and_ignores_free_text(api):
+    _published(title_en="Twelve", brand_name_snapshot="A", specifications={"loa_m": "12"})
+    _published(title_en="Twenty", brand_name_snapshot="B", specifications={"loa_m": "20.5"})
+    _published(title_en="Vague", brand_name_snapshot="C", specifications={"loa_m": "about 30"})
+    _published(title_en="Unknown", brand_name_snapshot="D", specifications={})
+
+    assert _titles(api, length_min="15") == ["Twenty"]
+    assert _titles(api, length_max="15") == ["Twelve"]
+    assert set(_titles(api, length_min="10", length_max="25")) == {"Twelve", "Twenty"}

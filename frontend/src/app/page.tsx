@@ -78,10 +78,10 @@ export default async function Home() {
 </div>
 </div>
 <div className="flex flex-col gap-1 md:col-span-2">
-<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Year built</label>
+<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Length (metres)</label>
 <div className="grid grid-cols-2 gap-2">
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="From year" name="year_min" min="1900" type="number"/>
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="To year" name="year_max" min="1900" type="number"/>
+<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Min length" name="length_min" min="0" step="0.5" type="number"/>
+<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Max length" name="length_max" min="0" step="0.5" type="number"/>
 </div>
 </div>
 <div className="flex items-end md:col-span-1">

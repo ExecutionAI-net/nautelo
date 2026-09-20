@@ -9,7 +9,9 @@ parameter should still render a list.
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from django.db.models import Q, QuerySet
+from django.db.models import Case, DecimalField, Q, QuerySet, When
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast
 
 SORTS = {
     "newest": ("-published_at", "-created_at"),
@@ -93,6 +95,23 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
         queryset = queryset.filter(**{f"{SNAP}manufacture_year_snapshot__gte": year_min})
     if year_max is not None:
         queryset = queryset.filter(**{f"{SNAP}manufacture_year_snapshot__lte": year_max})
+
+    length_min, length_max = _decimal(params.get("length_min")), _decimal(params.get("length_max"))
+    if length_min is not None or length_max is not None:
+        # The overall length lives in the snapshot's free-form specifications ("loa_m", text). Only values that
+        # read as a plain number take part, so a stray "about 14" can never break the query.
+        raw = KeyTextTransform("loa_m", f"{SNAP}specifications")
+        queryset = queryset.annotate(
+            _loa_m=Case(
+                When(**{f"{SNAP}specifications__loa_m__regex": r"^[0-9]+(\.[0-9]+)?$"}, then=Cast(raw, DecimalField(max_digits=8, decimal_places=2))),
+                default=None,
+                output_field=DecimalField(max_digits=8, decimal_places=2),
+            )
+        )
+        if length_min is not None:
+            queryset = queryset.filter(_loa_m__gte=length_min)
+        if length_max is not None:
+            queryset = queryset.filter(_loa_m__lte=length_max)
 
     for key in ("boat_type", "condition", "fuel_type"):
         value = (params.get(key) or "").strip()

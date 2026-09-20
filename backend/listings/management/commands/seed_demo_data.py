@@ -315,6 +315,7 @@ class Command(BaseCommand):
         spec = {
             "boat_type": {"sail": "Sailing yacht", "motor": "Motor yacht", "catamaran": "Catamaran", "rib": "RIB"}[kind],
             "length_m": length,
+            "loa_m": str(length),
             "beam_m": beam,
             "draft_m": round(length * (0.13 if kind != "motor" else 0.08), 2),
             "cabins": max(1, int(length // 4.2)) if kind != "rib" else 0,

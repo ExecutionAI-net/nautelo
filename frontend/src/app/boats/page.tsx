@@ -41,6 +41,8 @@ const FILTER_KEYS = [
   "price_max",
   "year_min",
   "year_max",
+  "length_min",
+  "length_max",
   "sort",
 ] as const;
 
@@ -120,6 +122,8 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
     if (key === "price_max") return `Up to €${value}`;
     if (key === "year_min") return `From ${value}`;
     if (key === "year_max") return `Until ${value}`;
+    if (key === "length_min") return `From ${value} m`;
+    if (key === "length_max") return `Up to ${value} m`;
     if (key === "cabins_min") return `${value}+ cabins`;
     if (key === "q") return `“${value}”`;
     return value;
@@ -246,6 +250,13 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               <div className="grid grid-cols-2 gap-space-xs">
                 <input aria-label="Earliest year" name="year_min" type="number" min={1900} placeholder="From" defaultValue={filters.year_min ?? ""} className={FIELD} />
                 <input aria-label="Latest year" name="year_max" type="number" min={1900} placeholder="To" defaultValue={filters.year_max ?? ""} className={FIELD} />
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className={LABEL}>Length (metres)</legend>
+              <div className="grid grid-cols-2 gap-space-xs">
+                <input aria-label="Minimum length" name="length_min" type="number" min={0} step="0.5" placeholder="Min" defaultValue={filters.length_min ?? ""} className={FIELD} />
+                <input aria-label="Maximum length" name="length_max" type="number" min={0} step="0.5" placeholder="Max" defaultValue={filters.length_max ?? ""} className={FIELD} />
               </div>
             </fieldset>
             <div>
