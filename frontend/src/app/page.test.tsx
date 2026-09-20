@@ -28,7 +28,7 @@ describe("Home", () => {
     const { container } = render(await Home());
     const form = container.querySelector("form#search-standard") as HTMLFormElement;
     const names = Array.from(form.elements).map((el) => (el as HTMLInputElement).name).filter(Boolean);
-    expect(names).toEqual(["boat_type", "region", "price_min", "price_max", "year_min", "year_max"]);
+    expect(names).toEqual(["boat_type", "region", "price_min", "price_max", "length_min", "length_max"]);
     expect(screen.getByRole("option", { name: "Balearic Islands" })).toBeTruthy();
   });
 

@@ -102,6 +102,8 @@ export interface ListingSearch {
   price_max?: string;
   year_min?: string;
   year_max?: string;
+  length_min?: string;
+  length_max?: string;
   sort?: string;
 }
 
