@@ -3,6 +3,7 @@
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/useLocale";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import NotificationBell from "@/components/layout/NotificationBell";
 import { useSession } from "@/lib/auth/session";
@@ -65,6 +66,7 @@ const LINKS: NavLink[] = [
 
 export default function PrimaryNav() {
   const { session, loading, can, logout } = useSession();
+  const pathname = usePathname();
   const authenticated = session?.authenticated === true;
 
   const isBrokerMember = (session?.broker_memberships?.length ?? 0) > 0;
@@ -81,6 +83,9 @@ export default function PrimaryNav() {
     if (link.requiresListingRight && !(can("create_private_listing") || can("create_broker_listing"))) return false;
     return true;
   });
+
+  // Dashboards have their own left menu with a Home button; no site header there.
+  if (pathname?.startsWith("/dashboard")) return null;
 
   return (
     <nav
