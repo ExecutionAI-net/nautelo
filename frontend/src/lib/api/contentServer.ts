@@ -2,13 +2,13 @@
 import type { AdPlacement, GuideDetail, GuideSummary, PublicAd } from "@/lib/api/content";
 import { directoryFetch, type Paginated } from "@/lib/api/directory";
 
-export async function fetchGuides(params: { page?: string; category?: string } = {}): Promise<Paginated<GuideSummary>> {
+export async function fetchGuides(params: { page?: string; category?: string } = {}): Promise<Paginated<GuideSummary> & { categories?: string[] }> {
   const search = new URLSearchParams();
   if (params.page) search.set("page", params.page);
   if (params.category) search.set("category", params.category);
   const query = search.toString();
   try {
-    const body = await directoryFetch<Paginated<GuideSummary>>(`/api/v1/guides/${query ? `?${query}` : ""}`);
+    const body = await directoryFetch<Paginated<GuideSummary> & { categories?: string[] }>(`/api/v1/guides/${query ? `?${query}` : ""}`);
     return body ?? { count: 0, next: null, previous: null, results: [] };
   } catch {
     return { count: 0, next: null, previous: null, results: [] };

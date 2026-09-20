@@ -43,6 +43,14 @@ class PublicGuideListView(PublicContentView, ListAPIView):
             queryset = queryset.filter(category__iexact=category)
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        categories = (
+            _published_guides().exclude(category="").order_by("category").values_list("category", flat=True).distinct()
+        )
+        response.data["categories"] = list(categories)
+        return response
+
 
 class PublicGuideDetailView(PublicContentView, RetrieveAPIView):
     serializer_class = PublicGuideDetailSerializer

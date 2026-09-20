@@ -95,3 +95,10 @@ def test_non_staff_cannot_use_the_staff_endpoints(seller_api, api):
     assert seller_api.get(reverse("staff-guide-list")).status_code == 403
     assert seller_api.get(reverse("staff-ad-list")).status_code == 403
     assert api.get(reverse("staff-ad-list")).status_code in (401, 403)
+
+
+def test_guide_list_reports_the_published_categories(api):
+    GuideArticle.objects.create(slug="a", title="A", category="Maintenance", status=GuideStatus.PUBLISHED)
+    GuideArticle.objects.create(slug="b", title="B", category="Legal", status=GuideStatus.PUBLISHED)
+    GuideArticle.objects.create(slug="c", title="C", category="Secret", status=GuideStatus.DRAFT)
+    assert api.get(reverse("guide-list")).json()["categories"] == ["Legal", "Maintenance"]
