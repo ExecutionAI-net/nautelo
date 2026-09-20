@@ -4,6 +4,7 @@ import type { Locale } from "@/lib/i18n/directory";
 type Entry = Record<Locale, string>;
 
 const SELL: Record<string, Entry> = {
+  "sell.title_broker": { en: "Add a vessel", it: "Aggiungi un'imbarcazione", es: "Añadir una embarcación" },
   "sell.title": { en: "Sell your boat", it: "Vendi la tua barca", es: "Vende tu barco" },
   "sell.brand_search": { en: "Search brand", it: "Cerca marca", es: "Buscar marca" },
   "sell.brand": { en: "Brand", it: "Marca", es: "Marca" },

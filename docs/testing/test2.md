@@ -90,6 +90,34 @@ Blocked until the broker account is verified: profile completion, logo upload, t
 trial checkout, adding a vessel, receiving and answering a message. The backend scenario in section 3 covers
 those steps; the live UI still needs a pass.
 
+## 3c. Live broker session after email verification (2026-09-21)
+
+| Step | Result |
+| --- | --- |
+| Session | verified; permissions now include `create_broker_listing` |
+| Profile page | loads; completeness 33% (tagline, about, city, specialties missing) |
+| Fill city, tagline, about, specialties in the form and **Save** | works; completeness 100% |
+| **Logo upload** (1280 px JPEG) to the real S3 bucket | works (presigned PUT + CORS OK); preview shown; "Image saved." |
+| **Cover upload** | works |
+| Public page `/brokers/hakan-broker/` | shows logo, city, tagline, about and specialties, all from the real signed S3 URL |
+| Subscription page | loads; button "Start your 30-day free trial" (trial available, plan Boutique Broker EUR 290) |
+| Trial checkout | "Checkout is not available yet" (API 503 `subscription_unavailable`): expected, Stripe prices are not configured |
+| Team API | list works; inviting the account's own address -> `already_member`; bad email and bad role -> field errors. No invitation was sent to any outside address. |
+| Add vessel form | loads (6 sections, 20 photos / 1 video for brokers) |
+| Messages / leads | empty; a visitor message round trip needs a second account |
+
+New findings:
+
+| ID | Sev | Finding |
+| --- | --- | --- |
+| R2-17 | S2 | The subscription page is contradictory: a "NOT SUBSCRIBED" chip next to "CURRENT PLAN - ACTIVE", the plan card says "Currently Enrolled" although nothing is paid, the text says "billing is not self-service yet" right below a self-service trial button, and the other tiers say "Request this tier" (no way to do that). |
+| R2-18 | S2 | This brokerage is **ACTIVE with no subscription and a 33% profile**: staff activation does not check billing or completeness (R2-6 confirmed live). |
+| R2-19 | S3 | Fixed here: the broker "Add vessel" form was titled "Sell your boat" (the private-seller wording). It now says "Add a vessel". The lead paragraph and some labels still use seller wording. |
+| R2-20 | S3 | The uploaded **cover image is not shown** anywhere on the public broker page (the header is a plain gradient). Either use it as the header or drop the field. |
+| R2-21 | S3 | The site navigation for a broker still shows private-seller items ("List my boat", "My listings") next to "Fleet" and "Broker dashboard". |
+| R2-22 | S3 | Confirmed live: the staff-created brokerage admin is not flagged as owner (R2-10). |
+| R2-23 | S3 | Clicking a button by reference in the automation did not fire; a real click did. Not a product bug, noted for future test runs. |
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |
