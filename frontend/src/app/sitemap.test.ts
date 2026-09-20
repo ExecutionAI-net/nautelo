@@ -25,11 +25,11 @@ describe("sitemap", () => {
     expect(urls.some((u) => u.endsWith("/boats/"))).toBe(true);
     expect(urls.some((u) => u.endsWith("/boats/a-1/"))).toBe(true);
     expect(urls.some((u) => u.endsWith("/brokers/acme/"))).toBe(true);
-    for (const page of ["financing", "guides", "sell", "contact", "privacy", "terms", "cookies"]) {
+    for (const page of ["financing", "guides", "pricing", "sell", "contact", "privacy", "terms", "cookies"]) {
       expect(urls.some((u) => u.endsWith(`/${page}/`))).toBe(true);
     }
-    // 4 dynamic entries + 7 static public pages; no service directory URLs.
-    expect(urls).toHaveLength(11);
+    // 4 dynamic entries + 8 static public pages; no service directory URLs.
+    expect(urls).toHaveLength(12);
     expect(urls.some((u) => u.includes("/services/"))).toBe(false);
   });
 });

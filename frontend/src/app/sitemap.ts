@@ -84,6 +84,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const boats: MetadataRoute.Sitemap = [
     { url: `${PUBLIC_BASE_URL}/boats/`, changeFrequency: "daily", priority: 1 },
     { url: `${PUBLIC_BASE_URL}/brokers/`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${PUBLIC_BASE_URL}/pricing/`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${PUBLIC_BASE_URL}/financing/`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${PUBLIC_BASE_URL}/guides/`, changeFrequency: "weekly", priority: 0.6 },
     { url: `${PUBLIC_BASE_URL}/sell/`, changeFrequency: "monthly", priority: 0.6 },

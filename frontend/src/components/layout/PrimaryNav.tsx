@@ -41,6 +41,7 @@ const LINKS: NavLink[] = [
   { href: "/brokers/", label: "Brokers" },
   { href: "/financing/", label: "Financing" },
   { href: "/guides/", label: "Guides" },
+  { href: "/pricing/", label: "Pricing" },
   { href: "/sell/", label: "Sell", permission: "create_private_listing" },
   { href: "/dashboard/private-seller/listings/", label: "My listings", requiresListingRight: true },
   { href: "/dashboard/broker/fleet/", label: "Fleet", permission: "create_broker_listing" },

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
+import PlanCards from "@/components/pricing/PlanCards";
 import { apiFetch } from "@/lib/api/client";
+import { fetchPricingClient, formatPrice, type PlanSummary } from "@/lib/api/plans";
 import { useSession } from "@/lib/auth/session";
 
 interface Member {
@@ -33,6 +35,10 @@ interface BrokerProfile {
   logo_url: string;
   cover_image_url: string;
   specialties: string[];
+  plan?: PlanSummary | null;
+  renews_at?: string | null;
+  listings_used?: number;
+  seats_used?: number;
 }
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
@@ -328,49 +334,94 @@ export function BrokerProfileForm() {
   );
 }
 
+function UsageGauge({ icon, label, used, limit, unit, bar }: { icon: string; label: string; used: number; limit: number | null; unit: string; bar: string }) {
+  const percent = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  return (
+    <div className="bg-surface-container-low p-space-md rounded-lg flex flex-col gap-space-sm">
+      <div className="flex justify-between items-center font-body-sm">
+        <span className="font-title-md text-title-md text-primary flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">{icon}</span>
+          {label}
+        </span>
+        <span className="font-spec-num text-spec-num text-primary font-semibold">
+          {used} <span className="text-on-surface-variant font-normal">{limit === null ? "used - no limit" : `/ ${limit} used`}</span>
+        </span>
+      </div>
+      {limit !== null ? (
+        <>
+          <div className="w-full bg-surface-container-highest rounded-full h-2.5 overflow-hidden">
+            <div className={`${bar} h-full rounded-full transition-all duration-500`} style={{ width: `${percent}%` }} />
+          </div>
+          <div className="flex justify-between items-center font-label-sm text-on-surface-variant">
+            <span>{percent}% {unit === "seats" ? "allocation" : "capacity utilized"}</span>
+            <span className="text-primary font-medium">{Math.max(limit - used, 0)} {unit} remaining</span>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export function BrokerSubscription() {
   const { brokerId, profile, error } = useBrokerProfile();
+  const [plans, setPlans] = useState<PlanSummary[]>([]);
+
+  useEffect(() => {
+    fetchPricingClient().then((pricing) => setPlans(pricing.broker_plans), () => setPlans([]));
+  }, []);
 
   if (!brokerId) return <p className="font-body-md text-on-surface-variant">No brokerage is linked to this account.</p>;
   if (error) return <p role="alert">The account details could not be loaded.</p>;
 
-  const cards = [
-    { label: "Account status", value: profile?.status ?? "-", icon: "verified_user", note: "Set by the platform team" },
-    {
-      label: "Listing approval",
-      value: profile ? (profile.auto_approve_listings ? "Automatic" : "Reviewed by staff") : "-",
-      icon: "rule",
-      note: "How new listings reach the public site",
-    },
-    { label: "Public page", value: profile?.slug ? `/brokers/${profile.slug}/` : "-", icon: "public", note: "Your marketplace profile address" },
-  ];
+  const plan = profile?.plan ?? null;
 
   return (
-    <div className="flex flex-col gap-space-lg">
+    <div className="flex flex-col gap-space-xl">
       <div>
         <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Subscription</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Subscription</h1>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Membership plan</h1>
+        <p className="mt-space-xs font-body-md text-on-surface-variant">Your tier sets how many active listings and team seats your brokerage has and how its profile is placed in the directory.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
-        {cards.map((card) => (
-          <div key={card.label} className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-on-surface-variant">
-              <span className="font-label-md text-label-md uppercase tracking-wider">{card.label}</span>
-              <div className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{card.icon}</span>
-              </div>
+
+      <section className="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg relative overflow-hidden">
+        <div className="flex flex-wrap items-center gap-space-sm">
+          <span className="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm tracking-wide uppercase font-semibold">Current Plan</span>
+          {profile ? (
+            <span className="px-space-sm py-0.5 rounded-full bg-surface-container-low text-on-surface font-label-sm flex items-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-secondary" />
+              {profile.status}
+              {profile.renews_at ? ` - Renews ${profile.renews_at}` : ""}
+            </span>
+          ) : null}
+        </div>
+        {plan ? (
+          <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-space-sm">
+            <div>
+              <h2 className="font-headline-md text-headline-md text-primary">{plan.name}</h2>
+              <p className="font-body-md text-body-md text-on-surface-variant">{plan.tagline}</p>
             </div>
-            <p className="mt-space-md font-headline-sm text-headline-sm text-primary break-words">{card.value}</p>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">{card.note}</p>
+            <div className="flex items-baseline gap-1">
+              <span className="font-headline-lg text-headline-lg text-primary">{formatPrice(plan.monthly_price, plan.currency)}</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">/ month</span>
+            </div>
           </div>
-        ))}
-      </div>
-      <div className="bg-surface-container-low rounded-xl p-space-lg flex items-start gap-space-md">
-        <span className="material-symbols-outlined text-secondary" aria-hidden="true">info</span>
-        <p className="font-body-md text-on-surface-variant">
-          Billing for brokerage plans is not self-service yet. Contact the platform team to change your plan.
-        </p>
-      </div>
+        ) : (
+          <p className="font-body-md text-on-surface-variant">No plan is assigned to your brokerage yet, so no limits apply. Choose a tier below and contact the platform team.</p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+          <UsageGauge icon="sailing" label="Active Vessel Listings" used={profile?.listings_used ?? 0} limit={plan ? plan.listing_limit : null} unit="slots" bar="bg-secondary" />
+          <UsageGauge icon="group" label="Team Seats" used={profile?.seats_used ?? 0} limit={plan ? plan.seat_limit : null} unit="seats" bar="bg-primary" />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-space-lg">
+        <div className="flex flex-col gap-space-xs">
+          <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Commercial capacity selection</span>
+          <h2 className="font-headline-md text-headline-md text-primary">Scalable Membership Tiers</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant">Plan changes are handled by the platform team; billing is not self-service yet.</p>
+        </div>
+        <PlanCards plans={plans} currentSlug={plan?.slug} ctaLabel="Request this tier" />
+      </section>
     </div>
   );
 }
