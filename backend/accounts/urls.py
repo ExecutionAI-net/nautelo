@@ -1,5 +1,12 @@
 from django.urls import path
 
+from accounts.invitation_views import (
+    BrokerInvitationView,
+    InvitationAcceptView,
+    InvitationPreviewView,
+    ProfessionalInvitationView,
+)
+
 from accounts.views import (
     PasswordResetConfirmView,
     PasswordResetRequestView,
@@ -14,6 +21,20 @@ from accounts.views import (
 )
 
 urlpatterns = [
+    path("auth/invitations/preview/", InvitationPreviewView.as_view(), name="invitation-preview"),
+    path("auth/invitations/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),
+    path("provider/team/invitations/", ProfessionalInvitationView.as_view(), name="provider-invitations"),
+    path(
+        "provider/team/invitations/<uuid:invitation_id>/",
+        ProfessionalInvitationView.as_view(),
+        name="provider-invitation-detail",
+    ),
+    path("brokers/<uuid:broker_id>/invitations/", BrokerInvitationView.as_view(), name="broker-invitations"),
+    path(
+        "brokers/<uuid:broker_id>/invitations/<uuid:invitation_id>/",
+        BrokerInvitationView.as_view(),
+        name="broker-invitation-detail",
+    ),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/verify-email/", VerifyEmailView.as_view(), name="auth-verify-email"),
     path(

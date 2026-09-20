@@ -63,3 +63,44 @@ def send_password_reset_email(user_id: str, raw_token: str) -> None:
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
     )
+
+
+INVITE_SUBJECTS = {
+    "EN": "You have been invited to join {org} on NAUTA",
+    "IT": "Sei stato invitato a unirti a {org} su NAUTA",
+    "ES": "Has sido invitado a unirte a {org} en NAUTA",
+}
+INVITE_BODIES = {
+    "EN": "Hello,\n\n{inviter} invited you to join {org} on NAUTA as {role}.\nAccept the invitation:\n{url}\n\nThe link expires in 7 days.",
+    "IT": "Ciao,\n\n{inviter} ti ha invitato a unirti a {org} su NAUTA come {role}.\nAccetta l'invito:\n{url}\n\nIl link scade tra 7 giorni.",
+    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en NAUTA como {role}.\nAcepta la invitacion:\n{url}\n\nEl enlace caduca en 7 dias.",
+}
+
+
+@shared_task(queue="notifications")
+def send_invitation_email(invitation_id: str, raw_token: str) -> None:
+    from accounts.invitations import organization_name
+    from accounts.models import OrganizationInvitation
+
+    invitation = (
+        OrganizationInvitation.objects.select_related("broker", "professional", "invited_by")
+        .filter(pk=invitation_id, accepted_at__isnull=True, revoked_at__isnull=True)
+        .first()
+    )
+    if invitation is None:
+        return
+    inviter = invitation.invited_by
+    locale = inviter.locale if inviter and inviter.locale in INVITE_SUBJECTS else "EN"
+    org = organization_name(invitation)
+    url = f"{settings.PUBLIC_BASE_URL}/accept-invite?token={raw_token}"
+    send_mail(
+        subject=INVITE_SUBJECTS[locale].format(org=org),
+        message=INVITE_BODIES[locale].format(
+            inviter=(inviter.full_name or inviter.email) if inviter else "A colleague",
+            org=org,
+            role=invitation.role.title(),
+            url=url,
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[invitation.email],
+    )
