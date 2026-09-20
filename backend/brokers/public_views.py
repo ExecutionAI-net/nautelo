@@ -23,7 +23,10 @@ class PublicBrokerSerializer(ModelSerializer):
 
     class Meta:
         model = BrokerOrganization
-        fields = ["id", "name", "slug", "url", "website_url", "listing_count"]
+        fields = [
+            "id", "name", "slug", "url", "website_url", "listing_count",
+            "tagline", "city", "country_code", "logo_url", "cover_image_url", "specialties",
+        ]
 
     def get_website_url(self, obj):
         return obj.website_url or None
@@ -60,6 +63,19 @@ class _PublicBrokerBase:
     def get_queryset(self):
         return active_brokers()
 
+    def filter_queryset(self, queryset):
+        params = self.request.query_params
+        term = params.get("q", "").strip()
+        if term:
+            queryset = queryset.filter(Q(name__icontains=term) | Q(city__icontains=term))
+        country = params.get("country", "").strip().upper()
+        if country:
+            queryset = queryset.filter(country_code=country)
+        specialty = params.get("specialty", "").strip()
+        if specialty:
+            queryset = queryset.filter(specialties__contains=[specialty])
+        return queryset
+
 
 class PublicBrokerPagination(PageNumberPagination):
     page_size = 24
@@ -69,6 +85,19 @@ class PublicBrokerPagination(PageNumberPagination):
 
 class PublicBrokerListView(_PublicBrokerBase, ListAPIView):
     pagination_class = PublicBrokerPagination
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        everyone = active_brokers()
+        countries = {}
+        specialties = {}
+        for code, tags in everyone.values_list("country_code", "specialties"):
+            if code:
+                countries[code] = countries.get(code, 0) + 1
+            for tag in tags or []:
+                specialties[tag] = specialties.get(tag, 0) + 1
+        response.data["facets"] = {"countries": countries, "specialties": specialties}
+        return response
 
 
 class PublicBrokerDetailView(_PublicBrokerBase, RetrieveAPIView):

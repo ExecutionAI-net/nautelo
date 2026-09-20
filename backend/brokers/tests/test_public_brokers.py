@@ -49,3 +49,19 @@ def test_listings_can_be_filtered_to_one_broker():
     rows = APIClient().get(reverse("listing-list"), {"broker": "alpha-yachts"}).data["results"]
     assert [r["id"] for r in rows] == [str(la.pk)]
     assert str(lb.pk) not in [r["id"] for r in rows]
+
+
+def test_directory_searches_filters_and_reports_facets():
+    palma = make_broker("Palma Yachts", "palma-yachts")
+    palma.city, palma.country_code, palma.specialties = "Palma", "ES", ["Motor yachts", "Superyachts"]
+    palma.save()
+    genoa = make_broker("Genoa Marine", "genoa-marine")
+    genoa.city, genoa.country_code, genoa.specialties = "Genoa", "IT", ["Sailing yachts"]
+    genoa.save()
+    client = APIClient()
+    url = reverse("public-broker-list")
+    assert [r["slug"] for r in client.get(url, {"country": "it"}).data["results"]] == ["genoa-marine"]
+    assert [r["slug"] for r in client.get(url, {"q": "palm"}).data["results"]] == ["palma-yachts"]
+    assert [r["slug"] for r in client.get(url, {"specialty": "Superyachts"}).data["results"]] == ["palma-yachts"]
+    facets = client.get(url).data["facets"]
+    assert facets["countries"] == {"ES": 1, "IT": 1} and facets["specialties"]["Sailing yachts"] == 1

@@ -26,6 +26,12 @@ interface BrokerProfile {
   public_phone: string;
   website_url: string | null;
   auto_approve_listings: boolean;
+  tagline: string;
+  city: string;
+  country_code: string;
+  logo_url: string;
+  cover_image_url: string;
+  specialties: string[];
 }
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
@@ -214,6 +220,7 @@ export function BrokerProfileForm() {
   const { brokerId, profile, setProfile, error } = useBrokerProfile();
   const [draft, setDraft] = useState<Partial<BrokerProfile> | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [tags, setTags] = useState<string | null>(null);
   const form = draft ?? profile;
 
   if (!brokerId) return <p className="font-body-md text-on-surface-variant">No brokerage is linked to this account.</p>;
@@ -237,10 +244,17 @@ export function BrokerProfileForm() {
               public_email: form.public_email,
               public_phone: form.public_phone,
               website_url: form.website_url || null,
+              tagline: form.tagline ?? "",
+              city: form.city ?? "",
+              country_code: form.country_code ?? "",
+              logo_url: form.logo_url ?? "",
+              cover_image_url: form.cover_image_url ?? "",
+              specialties: tags === null ? (form.specialties ?? []) : tags.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 8),
             }),
           });
           setProfile(saved);
           setDraft(null);
+          setTags(null);
           setMessage("Profile saved.");
         } catch {
           setMessage("The profile could not be saved.");
@@ -272,6 +286,34 @@ export function BrokerProfileForm() {
       <label className={LABEL}>
         Public phone
         <input className={FIELD} required value={form.public_phone ?? ""} onChange={set("public_phone")} />
+      </label>
+      <label className={LABEL}>
+        City
+        <input className={FIELD} value={form.city ?? ""} onChange={set("city")} />
+      </label>
+      <label className={LABEL}>
+        Country code (2 letters)
+        <input className={FIELD} maxLength={2} value={form.country_code ?? ""} onChange={set("country_code")} />
+      </label>
+      <label className={`${LABEL} sm:col-span-2`}>
+        Tagline
+        <input className={FIELD} maxLength={300} value={form.tagline ?? ""} onChange={set("tagline")} />
+      </label>
+      <label className={LABEL}>
+        Logo image URL
+        <input className={FIELD} type="url" value={form.logo_url ?? ""} onChange={set("logo_url")} />
+      </label>
+      <label className={LABEL}>
+        Cover image URL
+        <input className={FIELD} type="url" value={form.cover_image_url ?? ""} onChange={set("cover_image_url")} />
+      </label>
+      <label className={`${LABEL} sm:col-span-2`}>
+        Specialties (comma separated, up to 8)
+        <input
+          className={FIELD}
+          value={tags ?? (form.specialties ?? []).join(", ")}
+          onChange={(event) => setTags(event.target.value)}
+        />
       </label>
       <button type="submit" className="self-start rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary">
         Save profile

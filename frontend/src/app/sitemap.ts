@@ -59,7 +59,7 @@ async function allBrokerPaths(): Promise<string[]> {
   const paths: string[] = [];
   let page = 1;
   for (;;) {
-    const batch = await fetchBrokers(String(page));
+    const batch = await fetchBrokers({ page: String(page) });
     if (batch === null) {
       return paths;
     }
