@@ -28,6 +28,16 @@ interface Props {
 
 const FIELD = "rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md focus:outline-none";
 
+const PILL: Record<string, string> = {
+  YES: "bg-secondary-container text-on-secondary-container",
+  ACTIVE: "bg-secondary-container text-on-secondary-container",
+  APPROVED: "bg-secondary-container text-on-secondary-container",
+  NO: "bg-error-container text-on-error-container",
+  SUSPENDED: "bg-error-container text-on-error-container",
+  REJECTED: "bg-error-container text-on-error-container",
+  PENDING: "bg-tertiary-fixed text-on-surface",
+};
+
 function cell(value: unknown): string {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -77,7 +87,12 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
       <div>
         <span className="font-label-sm uppercase tracking-widest text-secondary">{eyebrow}</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{title}</h1>
-        <p className="font-body-md text-on-surface-variant">{data ? `${data.count} records` : " "}</p>
+      </div>
+      <div className="grid gap-space-md sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
+          <p className="font-label-sm uppercase text-on-surface-variant">{status ? `${status} records` : "Total records"}</p>
+          <p className="mt-1 font-headline-md text-headline-md text-primary">{data ? data.count.toLocaleString("en") : "-"}</p>
+        </div>
       </div>
       <div className="flex flex-wrap gap-space-sm">
         <input
@@ -91,22 +106,24 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
           }}
         />
         {statusOptions ? (
-          <select
-            className={FIELD}
-            aria-label="Status"
-            value={status}
-            onChange={(event) => {
-              setPage(1);
-              setStatus(event.target.value);
-            }}
-          >
-            <option value="">All statuses</option>
-            {statusOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
+          <div role="group" aria-label="Status" className="flex flex-wrap items-center gap-space-xs">
+            {["", ...statusOptions].map((option) => (
+              <button
+                key={option || "all"}
+                type="button"
+                aria-pressed={status === option}
+                onClick={() => {
+                  setPage(1);
+                  setStatus(option);
+                }}
+                className={`rounded-full px-space-md py-1 font-label-md ${
+                  status === option ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                }`}
+              >
+                {option || "All statuses"}
+              </button>
             ))}
-          </select>
+          </div>
         ) : null}
       </div>
       {error ? <p role="alert">The list could not be loaded.</p> : null}
@@ -125,9 +142,22 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
           <tbody className="divide-y divide-outline-variant">
             {data?.results.map((row, index) => (
               <tr key={String(row.id ?? index)}>
-                {columns.map((column) => (
+                {columns.map((column, position) => (
                   <td key={column.key} className="px-space-md py-space-sm">
-                    {cell(row[column.key])}
+                    {position === 0 ? (
+                      <span className="flex items-center gap-space-sm">
+                        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary font-label-sm text-on-primary">
+                          {cell(row[column.key]).slice(0, 2).toUpperCase()}
+                        </span>
+                        {cell(row[column.key])}
+                      </span>
+                    ) : column.key === "status" || typeof row[column.key] === "boolean" ? (
+                      <span className={`rounded-full px-2 py-0.5 font-label-sm ${PILL[cell(row[column.key]).toUpperCase()] ?? "bg-surface-container text-on-surface-variant"}`}>
+                        {cell(row[column.key])}
+                      </span>
+                    ) : (
+                      cell(row[column.key])
+                    )}
                   </td>
                 ))}
                 {statusActionsBase ? (
@@ -156,11 +186,12 @@ export default function StaffDataTable({ title, eyebrow, endpoint, columns, stat
           </tbody>
         </table>
       </div>
-      <div className="flex gap-space-md">
-        <button type="button" disabled={!data?.previous} className="font-body-md text-primary underline disabled:opacity-40" onClick={() => setPage(page - 1)}>
+      <div className="flex items-center gap-space-md font-body-md">
+        <button type="button" disabled={!data?.previous} className="rounded-lg bg-surface-container px-space-md py-1 text-primary disabled:opacity-40" onClick={() => setPage(page - 1)}>
           Previous
         </button>
-        <button type="button" disabled={!data?.next} className="font-body-md text-primary underline disabled:opacity-40" onClick={() => setPage(page + 1)}>
+        <span className="text-on-surface-variant">Page {page}</span>
+        <button type="button" disabled={!data?.next} className="rounded-lg bg-surface-container px-space-md py-1 text-primary disabled:opacity-40" onClick={() => setPage(page + 1)}>
           Next
         </button>
       </div>
