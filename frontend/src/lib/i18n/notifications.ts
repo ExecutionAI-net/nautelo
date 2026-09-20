@@ -80,6 +80,36 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "IT": "Non e piu pubblico su NAUTA.",
     "ES": "Ya no es publico en NAUTA."
   },
+  "notification.professional_activated.title": {
+    "EN": "Your professional profile is live",
+    "IT": "Il tuo profilo professionale e attivo",
+    "ES": "Tu perfil profesional esta activo"
+  },
+  "notification.professional_activated.body": {
+    "EN": "Your payment was received. Your profile is now listed on NAUTA.",
+    "IT": "Pagamento ricevuto. Il tuo profilo e ora pubblicato su NAUTA.",
+    "ES": "Pago recibido. Tu perfil ya esta publicado en NAUTA."
+  },
+  "notification.professional_payment_failed.title": {
+    "EN": "Payment not received",
+    "IT": "Pagamento non ricevuto",
+    "ES": "Pago no recibido"
+  },
+  "notification.professional_payment_failed.body": {
+    "EN": "We could not collect your monthly membership. Pay within 24 hours to keep your profile online.",
+    "IT": "Non abbiamo potuto incassare il tuo abbonamento mensile. Paga entro 24 ore per mantenere il profilo online.",
+    "ES": "No pudimos cobrar tu membresia mensual. Paga en 24 horas para mantener tu perfil en linea."
+  },
+  "notification.professional_deactivated.title": {
+    "EN": "Your professional profile is offline",
+    "IT": "Il tuo profilo professionale e offline",
+    "ES": "Tu perfil profesional esta fuera de linea"
+  },
+  "notification.professional_deactivated.body": {
+    "EN": "Your membership is not active, so your profile is no longer listed. Pay to bring it back.",
+    "IT": "L abbonamento non e attivo, quindi il profilo non e piu pubblicato. Paga per riattivarlo.",
+    "ES": "La membresia no esta activa, asi que tu perfil ya no se muestra. Paga para reactivarlo."
+  },
   "notification.payment_fulfilled.title": {
     "EN": "Your purchase is ready",
     "IT": "Il tuo acquisto e pronto",

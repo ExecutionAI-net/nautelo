@@ -25,6 +25,9 @@ class NotificationType(models.TextChoices):
     LISTING_EXPIRING = "listing.expiring", "Listing expiring"
     LISTING_EXPIRED = "listing.expired", "Listing expired"
     PAYMENT_FULFILLED = "payment.fulfilled", "Payment fulfilled"
+    PROFESSIONAL_ACTIVATED = "professional.activated", "Professional membership active"
+    PROFESSIONAL_PAYMENT_FAILED = "professional.payment_failed", "Professional payment failed"
+    PROFESSIONAL_DEACTIVATED = "professional.deactivated", "Professional profile offline"
     PAYMENT_FULFILLMENT_FAILED = (
         "payment.fulfillment_failed",
         "Payment fulfillment failed",

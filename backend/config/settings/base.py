@@ -150,6 +150,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "listings.tasks.send_staff_moderation_digest",
         "schedule": crontab(hour=7, minute=0),
     },
+    "lapse-unpaid-professional-memberships": {
+        "task": "professionals.tasks.lapse_unpaid_memberships",
+        "schedule": crontab(minute=5),
+    },
     "sweep-entitlement-ledger": {
         "task": "entitlements.tasks.sweep_entitlement_ledger",
         "schedule": crontab(hour=3, minute=30),

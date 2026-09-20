@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from professionals.models import ProfessionalProfile
+from professionals.models import ProfessionalPlan, ProfessionalProfile, ProfessionalSubscription
 
 
 @admin.register(ProfessionalProfile)
@@ -11,3 +11,17 @@ class ProfessionalProfileAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("display_name",)}
     autocomplete_fields = ("owner_user",)
     readonly_fields = ("id", "created_at", "updated_at")
+
+
+@admin.register(ProfessionalPlan)
+class ProfessionalPlanAdmin(admin.ModelAdmin):
+    list_display = ("name", "monthly_price", "currency", "is_active")
+    fields = ("slug", "name", "tagline", "monthly_price", "currency", "stripe_product_id", "stripe_price_id", "is_active")
+
+
+@admin.register(ProfessionalSubscription)
+class ProfessionalSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("profile", "status", "current_period_end", "past_due_since", "last_paid_at")
+    list_filter = ("status",)
+    search_fields = ("profile__display_name", "profile__owner_user__email", "stripe_subscription_id")
+    raw_id_fields = ("profile",)

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingPage() {
-  const { broker_plans: plans, individual_products: products } = await fetchPricing();
+  const { broker_plans: plans, individual_products: products, professional_plan: professional } = await fetchPricing();
   return (
     <main className="w-full bg-surface">
       <section className="w-full bg-surface-container-low py-space-xl">
@@ -39,6 +39,31 @@ export default async function PricingPage() {
             <PlanCards plans={plans} />
           ) : (
             <p className="font-body-md text-on-surface-variant">Membership tiers will be published soon.</p>
+          )}
+        </section>
+
+        <section aria-labelledby="professionals-heading" className="flex flex-col gap-space-lg">
+          <div className="flex flex-col gap-space-xs">
+            <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">For service professionals</span>
+            <h2 id="professionals-heading" className="font-headline-md text-headline-md text-primary">Get listed in the directory</h2>
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              Surveyors, insurers, transport, legal and other marine services pay a monthly membership. Your profile goes live automatically as soon as the payment is confirmed.
+            </p>
+          </div>
+          {professional ? (
+            <div className="max-w-md bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-md">
+              <h3 className="font-headline-sm text-headline-sm text-primary">{professional.name}</h3>
+              {professional.tagline ? <p className="font-body-sm text-body-sm text-on-surface-variant">{professional.tagline}</p> : null}
+              <div className="flex items-baseline gap-1">
+                <span className="font-headline-lg text-headline-lg text-primary">{formatPrice(professional.monthly_price, professional.currency)}</span>
+                <span className="font-body-sm text-body-sm text-on-surface-variant">/ month</span>
+              </div>
+              <Link href="/dashboard/service-provider/membership/" className="w-full bg-primary text-on-primary hover:bg-primary-container font-body-md py-space-sm px-space-md rounded text-center transition-colors">
+                Get listed
+              </Link>
+            </div>
+          ) : (
+            <p className="font-body-md text-on-surface-variant">Professional membership will open soon.</p>
           )}
         </section>
 
