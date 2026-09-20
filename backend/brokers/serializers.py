@@ -96,6 +96,9 @@ class BrokerMembershipCreateSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
+        from brokers.plans import ensure_seat_capacity
+
+        ensure_seat_capacity(self.context["broker"])
         validated_data.pop("user_email")
         return BrokerMembership.objects.create(
             user=self.context["target_user"],

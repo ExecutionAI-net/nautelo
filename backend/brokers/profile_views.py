@@ -9,6 +9,7 @@ from rest_framework import serializers
 from rest_framework.response import Response
 
 from brokers.models import BrokerOrganization
+from brokers.plans import plan_usage
 from brokers.views import BrokerTeamBaseView
 
 
@@ -32,7 +33,8 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
 
 class BrokerProfileView(BrokerTeamBaseView):
     def get(self, request, broker_id):
-        return Response(BrokerProfileSerializer(self.get_broker()).data)
+        broker = self.get_broker()
+        return Response({**BrokerProfileSerializer(broker).data, **plan_usage(broker)})
 
     def patch(self, request, broker_id):
         serializer = BrokerProfileSerializer(self.get_broker(), data=request.data, partial=True)

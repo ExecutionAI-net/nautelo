@@ -143,10 +143,14 @@ def create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing
     context = resolve_seller_context(actor, broker_id=broker_id)
 
     # Spec §22.4: an individual seller with no listing right cannot even open a
-    # draft. Broker quota is unlimited (spec §1). Advisory only: consumption
+    # draft. A broker's plan (brokers.plans) may cap its active listings. Advisory only: consumption
     # happens at submission, under a lock (spec §6.3).
     if context.seller_type == SellerType.PRIVATE:
         ensure_can_start_listing(context.owner_user)
+    else:
+        from brokers.plans import ensure_listing_capacity
+
+        ensure_listing_capacity(context.broker)
 
     listing = BoatListing(
         owner_user=context.owner_user,

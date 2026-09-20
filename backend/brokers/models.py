@@ -9,6 +9,38 @@ from brokers.enums import (
 from common.models import UUIDTimeStampedModel
 
 
+class ProfileVisibility(models.IntegerChoices):
+    """Where a plan places the broker's public profile in the directory (higher sorts first)."""
+
+    STANDARD = 0, "Standard"
+    PRIORITY = 1, "Priority placement"
+    FEATURED = 2, "Featured placement"
+
+
+class BrokerPlan(UUIDTimeStampedModel):
+    """A brokerage membership tier. Plans differ only by listing limit, team seats and profile
+    visibility. A null limit means unlimited. Limits are enforced server-side (brokers.plans)."""
+
+    slug = models.SlugField(max_length=60, unique=True)
+    name = models.CharField(max_length=80)
+    tagline = models.CharField(max_length=200, blank=True, default="")
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default="EUR")
+    listing_limit = models.PositiveIntegerField(null=True, blank=True)
+    seat_limit = models.PositiveIntegerField(null=True, blank=True)
+    profile_visibility = models.PositiveSmallIntegerField(
+        choices=ProfileVisibility.choices, default=ProfileVisibility.STANDARD
+    )
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("display_order", "monthly_price")
+
+    def __str__(self):
+        return self.name
+
+
 class BrokerOrganization(UUIDTimeStampedModel):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True)
@@ -27,6 +59,10 @@ class BrokerOrganization(UUIDTimeStampedModel):
     logo_url = models.URLField(max_length=500, blank=True, default="")
     cover_image_url = models.URLField(max_length=500, blank=True, default="")
     specialties = models.JSONField(default=list, blank=True)
+    plan = models.ForeignKey(
+        BrokerPlan, null=True, blank=True, on_delete=models.PROTECT, related_name="brokers"
+    )
+    plan_renews_at = models.DateField(null=True, blank=True)
     auto_approve_listings = models.BooleanField(default=False)
     auto_approve_changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

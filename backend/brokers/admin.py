@@ -3,7 +3,7 @@ from django.db import transaction
 
 from audit.models import AuditEvent
 from brokers.forms import BrokerOrganizationAdminForm
-from brokers.models import BrokerMembership, BrokerOrganization
+from brokers.models import BrokerMembership, BrokerOrganization, BrokerPlan
 from brokers.services import set_broker_auto_approval
 
 POLICY_READONLY = ("auto_approve_changed_by", "auto_approve_changed_at")
@@ -24,6 +24,13 @@ class BrokerMembershipInline(admin.TabularInline):
     autocomplete_fields = ("user",)
 
 
+@admin.register(BrokerPlan)
+class BrokerPlanAdmin(admin.ModelAdmin):
+    list_display = ("name", "monthly_price", "listing_limit", "seat_limit", "profile_visibility", "is_active", "display_order")
+    list_editable = ("is_active", "display_order")
+    prepopulated_fields = {"slug": ("name",)}
+
+
 @admin.register(BrokerOrganization)
 class BrokerOrganizationAdmin(admin.ModelAdmin):
     form = BrokerOrganizationAdminForm
@@ -31,10 +38,12 @@ class BrokerOrganizationAdmin(admin.ModelAdmin):
         "name",
         "slug",
         "status",
+        "plan",
+        "plan_renews_at",
         "auto_approve_listings",
         "auto_approve_changed_at",
     )
-    list_filter = ("status", "auto_approve_listings")
+    list_filter = ("status", "plan", "auto_approve_listings")
     search_fields = ("name", "slug", "public_email")
     prepopulated_fields = {"slug": ("name",)}
     inlines = [BrokerMembershipInline]
