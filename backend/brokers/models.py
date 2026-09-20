@@ -63,6 +63,9 @@ class BrokerOrganization(UUIDTimeStampedModel):
     country_code = models.CharField(max_length=2, blank=True, default="")
     logo_url = models.URLField(max_length=500, blank=True, default="")
     cover_image_url = models.URLField(max_length=500, blank=True, default="")
+    # Uploaded images (storage keys); they win over the legacy URL fields above.
+    logo_key = models.CharField(max_length=300, blank=True, default="")
+    cover_key = models.CharField(max_length=300, blank=True, default="")
     specialties = models.JSONField(default=list, blank=True)
     plan = models.ForeignKey(
         BrokerPlan, null=True, blank=True, on_delete=models.PROTECT, related_name="brokers"
@@ -113,6 +116,7 @@ class BrokerMembership(UUIDTimeStampedModel):
     can_edit_listings = models.BooleanField(default=False)
     can_manage_team = models.BooleanField(default=False)
     can_read_messages = models.BooleanField(default=False)
+    is_owner = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     class Meta:

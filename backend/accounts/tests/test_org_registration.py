@@ -63,3 +63,24 @@ def test_same_name_gets_a_distinct_slug():
     _post(org_type="PROFESSIONAL", email="other@blue.example")
     slugs = set(ProfessionalProfile.objects.values_list("slug", flat=True))
     assert slugs == {"blue-rigging", "blue-rigging-2"}
+
+
+def test_the_broker_owner_cannot_be_demoted_or_removed():
+    from django.urls import reverse as rev
+
+    from accounts.tests.factories import make_user
+    from brokers.tests.factories import make_membership
+
+    plan = BrokerPlan.objects.filter(is_active=True).first() or BrokerPlan.objects.create(slug="s-x", name="S", monthly_price=9)
+    _post(org_type="BROKER", plan=plan.slug)
+    owner = User.objects.get(email="mia@blue-rigging.example")
+    broker = BrokerOrganization.objects.get(name="Blue Rigging")
+    owner_seat = BrokerMembership.objects.get(user=owner)
+    assert owner_seat.is_owner
+    other = make_user("admin2@x.example", role=UserRole.BROKER, verified=True)
+    make_membership(other, broker, role="ADMIN", can_edit_listings=True, can_manage_team=True, can_read_messages=True)
+    api = APIClient()
+    api.force_authenticate(other)
+    url = rev("broker-member-detail", args=[broker.pk, owner_seat.pk])
+    assert api.patch(url, {"role": "VIEWER"}, format="json").status_code == 400
+    assert api.delete(url).status_code == 400

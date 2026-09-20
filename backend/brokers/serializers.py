@@ -27,6 +27,7 @@ class BrokerMembershipSerializer(serializers.ModelSerializer):
             "can_edit_listings",
             "can_manage_team",
             "can_read_messages",
+            "is_owner",
             "is_active",
             "created_at",
             "updated_at",
@@ -123,6 +124,10 @@ class BrokerMembershipUpdateSerializer(serializers.ModelSerializer):
         actor = self.context["actor"]
         touching_elevated = any(field in attrs for field in ELEVATED_FIELDS)
         editing_own_row = membership.user_id == getattr(actor, "pk", None)
+
+        # The owner (who registered the brokerage) cannot be demoted or removed here.
+        if membership.is_owner and (touching_elevated or attrs.get("is_active") is False):
+            raise serializers.ValidationError({"role": ["cannot_change_owner"]})
 
         # (b) NOBODY edits their own role or capability flags through this endpoint,
         #     whatever their rank. Self-service privilege changes are not a thing.

@@ -91,6 +91,7 @@ def register_organization(data: dict) -> User:
             user=user,
             broker=broker,
             role=BrokerMembershipRole.ADMIN,
+            is_owner=True,
             **ROLE_DEFAULT_CAPABILITIES[BrokerMembershipRole.ADMIN],
         )
     else:

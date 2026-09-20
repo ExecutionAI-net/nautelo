@@ -31,6 +31,14 @@ class PublicBrokerSerializer(ModelSerializer):
     def get_website_url(self, obj):
         return obj.website_url or None
 
+    def to_representation(self, obj):
+        from common.org_images import resolve_url
+
+        data = super().to_representation(obj)
+        data["logo_url"] = resolve_url(obj.logo_key) or data["logo_url"]
+        data["cover_image_url"] = resolve_url(obj.cover_key) or data["cover_image_url"]
+        return data
+
     def get_listing_count(self, obj):
         return obj.published_count
 
