@@ -332,3 +332,46 @@ class StaffUserStatusView(APIView):
                 metadata={},
             )
         return Response({"id": str(user.pk), "is_active": user.is_active})
+
+
+class StaffPlatformSettingsView(APIView):
+    """GET lists every registry setting; PATCH {key, value} changes one through update_setting (audited)."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
+
+    def get(self, request):
+        from platform_settings.models import PlatformSetting, PlatformSettingsVersion
+        from platform_settings.registry import SETTINGS_REGISTRY
+
+        rows = {row.key: row for row in PlatformSetting.objects.all()}
+        return Response(
+            {
+                "settings_version": PlatformSettingsVersion.load().version,
+                "settings": [
+                    {
+                        "key": key,
+                        "type": definition.value_type.value,
+                        "default": definition.default,
+                        "value": rows[key].value if key in rows else definition.default,
+                        "updated_at": rows[key].updated_at if key in rows else None,
+                    }
+                    for key, definition in SETTINGS_REGISTRY.items()
+                ],
+            }
+        )
+
+    def patch(self, request):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError
+
+        from platform_settings.services import update_setting
+
+        key = request.data.get("key")
+        if not isinstance(key, str) or "value" not in request.data:
+            raise ValidationError({"key": "key and value are required."})
+        try:
+            row = update_setting(key=key, value=request.data["value"], actor=request.user, source="API")
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.message_dict if hasattr(exc, "error_dict") else {"value": exc.messages}) from exc
+        return Response({"key": row.key, "value": row.value})

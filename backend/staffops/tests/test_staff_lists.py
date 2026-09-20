@@ -116,3 +116,16 @@ def test_reports_carry_a_six_month_series_and_country_split(staff_api):
     assert len(body["monthly"]) == 6
     assert body["monthly"][-1]["users"] >= 1
     assert isinstance(body["listings_by_seller_type"], dict)
+
+
+def test_staff_reads_and_changes_a_platform_setting_and_bad_values_are_refused(staff_api):
+    from platform_settings.models import PlatformSetting
+
+    body = staff_api.get(reverse("staff-settings")).json()
+    keys = {row["key"] for row in body["settings"]}
+    assert "media.upgraded_image_limit" in keys
+    ok = staff_api.patch(reverse("staff-settings"), {"key": "media.upgraded_image_limit", "value": 25}, format="json")
+    assert ok.status_code == 200 and ok.json()["value"] == 25
+    bad = staff_api.patch(reverse("staff-settings"), {"key": "media.upgraded_image_limit", "value": 500}, format="json")
+    assert bad.status_code == 400
+    assert staff_api.patch(reverse("staff-settings"), {"key": "nope", "value": 1}, format="json").status_code == 400
