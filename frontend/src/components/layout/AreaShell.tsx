@@ -1,4 +1,5 @@
 
+import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import DashboardSidebar, { type MenuGroup } from "@/components/layout/DashboardSidebar";
 
 type Tab = { href: string; label: string };
@@ -90,7 +91,10 @@ export default function AreaShell({
     <div className="flex w-full flex-col bg-surface lg:min-h-screen lg:flex-row">
       <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-[1200px] px-margin-mobile py-space-xl md:px-margin">{children}</div>
+        <div className="mx-auto max-w-[1200px] px-margin-mobile py-space-xl md:px-margin">
+          <VerifyEmailBanner />
+          {children}
+        </div>
       </main>
     </div>
   );
