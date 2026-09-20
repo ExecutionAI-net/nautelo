@@ -165,6 +165,48 @@ export default function SellListingForm({
   }, [brandId, modelQuery]);
 
   const isOther = other !== null && modelId === other.id;
+  // Before the first save nothing exists on the server, so the typed fields survive a refresh in this browser only.
+  const DRAFT_KEY = "nauta_sell_draft";
+  const [draftRestored, setDraftRestored] = useState(false);
+  useEffect(() => {
+    if (initial) return;
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+        /* eslint-disable react-hooks/set-state-in-effect -- one-time restore on mount */
+        if (typeof d.brandId === "string") setBrandId(d.brandId);
+        if (typeof d.modelId === "string") setModelId(d.modelId);
+        if (typeof d.customModel === "string") setCustomModel(d.customModel);
+        if (typeof d.year === "string") setYear(d.year);
+        if (d.titles) setTitles((c) => ({ ...c, ...d.titles }));
+        if (d.descriptions) setDescriptions((c) => ({ ...c, ...d.descriptions }));
+        if (d.specs) setSpecs((c) => ({ ...c, ...d.specs }));
+        if (typeof d.country === "string") setCountry(d.country);
+        if (typeof d.region === "string") setRegion(d.region);
+        if (typeof d.city === "string") setCity(d.city);
+        if (typeof d.price === "string") setPrice(d.price);
+        /* eslint-enable react-hooks/set-state-in-effect */
+      }
+    } catch {
+      // storage unavailable or corrupt: start with an empty form
+    }
+     
+    setDraftRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (initial || listing || !draftRestored) return;
+    try {
+      window.localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ brandId, modelId, customModel, year, titles, descriptions, specs, country, region, city, price }),
+      );
+    } catch {
+      // storage full or blocked: nothing to do
+    }
+  }, [initial, listing, draftRestored, brandId, modelId, customModel, year, titles, descriptions, specs, country, region, city, price]);
+
   const initialId = initial?.id;
   useEffect(() => {
     if (!initialId) return;
@@ -292,6 +334,15 @@ export default function SellListingForm({
         ? await updateDraft(listing.id, listing.revision?.version ?? listing.version, payload())
         : await createDraft(payload(), brokerId);
       setListing(saved);
+      if (!listing) {
+        try {
+          window.localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // ignore
+        }
+        // The draft now lives on the server: a refresh reopens it instead of a blank form.
+        window.history.replaceState(null, "", `/sell/${saved.id}/`);
+      }
       // Files picked before the draft existed upload now; one that fails stays queued so the next save retries it.
       for (const item of pending) {
         const row = await uploadMedia(saved.id, item.file);

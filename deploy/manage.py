@@ -203,6 +203,9 @@ def main():
             run(["docker", "network", "create", network])
         run(compose + ["pull"], env=process_env)
         run(compose + ["up", "-d", "--wait", "postgres", "redis"], env=process_env)
+        # The malware scanner backs every media upload (CLAMAV_HOST=clamav). Not awaited: it needs minutes to load
+        # its signatures, and the worker retries the scan until it answers.
+        run(compose + ["up", "-d", "--no-recreate", "clamav"], env=process_env)
         # Run migrations for EVERY deployment; completed one-shot containers must not be reused.
         run(compose + ["run", "--rm", "--no-deps", "migrate"], env=process_env)
         if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
