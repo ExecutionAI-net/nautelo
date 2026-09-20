@@ -1,6 +1,5 @@
 "use client";
 
-import ConversationContextPanel from "@/components/messages/ConversationContextPanel";
 import ReplyComposer from "@/components/messages/ReplyComposer";
 import type { ConversationRow, MessageRow } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
@@ -37,7 +36,7 @@ export default function ConversationThread({
     conversation.status !== "BLOCKED" && !conversation.viewer_is_initiator;
 
   return (
-    <div className="grid gap-space-lg lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div>
       <section aria-labelledby="thread-subject">
         <div className="flex flex-wrap items-center gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
           <h1
@@ -120,7 +119,6 @@ export default function ConversationThread({
         <ReplyComposer locale={locale} disabled={!isOpen} onSend={onSend} />
       </section>
 
-      <ConversationContextPanel locale={locale} context={conversation.context} />
     </div>
   );
 }

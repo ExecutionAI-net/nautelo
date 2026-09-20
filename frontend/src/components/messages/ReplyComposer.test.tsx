@@ -7,14 +7,19 @@ import ReplyComposer from "@/components/messages/ReplyComposer";
 const LONG = "Thank you for getting in touch, next Tuesday morning works well.";
 
 describe("ReplyComposer", () => {
-  it("refuses a reply below spec 15.1's 20-character floor without calling the API", async () => {
+  it("sends a one-character or emoji reply (no minimum length)", async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    render(<ReplyComposer locale="en" disabled={false} onSend={onSend} />);
+    await userEvent.click(screen.getByRole("button", { name: "Emoji" }));
+    await userEvent.click(screen.getByRole("button", { name: "Insert 👍" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("👍"));
+  });
+
+  it("refuses an empty reply without calling the API", async () => {
     const onSend = vi.fn();
     render(<ReplyComposer locale="en" disabled={false} onSend={onSend} />);
-    await userEvent.type(screen.getByLabelText("Reply"), "too short");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(
-      screen.getByText("A reply must be at least 20 characters."),
-    ).toBeInTheDocument();
     expect(onSend).not.toHaveBeenCalled();
   });
 

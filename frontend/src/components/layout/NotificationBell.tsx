@@ -111,11 +111,12 @@ export default function NotificationBell({ locale }: { locale: Locale }) {
         aria-haspopup="true"
         aria-label={`${ui.label}${unread ? `, ${unread} ${ui.unread}` : ""}`}
         onClick={() => setOpen((value) => !value)}
-        className="font-label-md text-label-md text-primary"
+        title={ui.label}
+        className="relative inline-flex items-center rounded-lg p-1 text-primary hover:bg-surface-container"
       >
-        {ui.label}
+        <span className="material-symbols-outlined" aria-hidden="true">notifications</span>
         {unread > 0 ? (
-          <span className="ml-space-xs rounded-full bg-primary px-space-xs text-on-primary">
+          <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-error px-1 text-center font-label-sm text-[10px] leading-4 text-on-error">
             {unread > 99 ? "99+" : unread}
           </span>
         ) : null}
