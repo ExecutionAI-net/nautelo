@@ -37,7 +37,7 @@ export default function ProviderTeam() {
     try {
       setMembers(await apiFetch<Member[]>("/api/v1/provider/team/"));
     } catch {
-      setMessage("The team could not be loaded.");
+      setMessage("The team could not be loaded. If your email address is not verified yet, verify it first.");
     }
   }, []);
 

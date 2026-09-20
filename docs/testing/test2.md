@@ -118,6 +118,28 @@ New findings:
 | R2-22 | S3 | Confirmed live: the staff-created brokerage admin is not flagged as owner (R2-10). |
 | R2-23 | S3 | Clicking a button by reference in the automation did not fire; a real click did. Not a product bug, noted for future test runs. |
 
+## 3d. Live professional session (2026-09-21, signed in by the owner in Chrome)
+
+Account: owner of "Professional Hakan Org" (role PROFESSIONAL, profile DRAFT), **email not verified**.
+
+| Check | Result |
+| --- | --- |
+| Session | role PROFESSIONAL, permissions only `browse_public_content`, no broker seats |
+| Profile API | loads; completeness 29% (short description, description, city, service area, services missing); logo and cover empty |
+| Membership API | loads; status INACTIVE, no plan, `trial_available: false`, `trial_days: 0` (no professional plan configured) |
+| Team and invitations API | `403 email_not_verified` (the banner from PR 365 explains it; the team screen text now names the cause too) |
+| Services, conversations | empty lists |
+| Membership checkout | `503 membership_unavailable` ("not open for sign-up yet"): expected, no Stripe plan |
+| Public page | 404 while DRAFT: correct |
+
+New findings:
+
+| ID | Sev | Finding |
+| --- | --- | --- |
+| R2-24 | S2 | Self-registered professional accounts also stay unverified until the mail link is opened, so the whole organization area is locked (same as R2-4). A verified pass (profile save, logo, services, team) is still needed: verify the email and ask again. |
+| R2-25 | S3 | The professional team screen said only "The team could not be loaded." Fixed: it now names the unverified email as a likely cause. |
+| R2-26 | S3 | The membership state reports `trial_available: false` and `trial_days: 0` when no plan exists, while checkout answers 503; the page should say "membership not open yet" rather than showing a dead state. |
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |
