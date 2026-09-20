@@ -21,6 +21,7 @@ class BrokerOrganization(UUIDTimeStampedModel):
     public_phone = models.CharField(max_length=32)
     website_url = models.URLField(max_length=300, blank=True, null=True)
     tagline = models.CharField(max_length=300, blank=True, default="")
+    about = models.TextField(max_length=4000, blank=True, default="")
     city = models.CharField(max_length=120, blank=True, default="")
     country_code = models.CharField(max_length=2, blank=True, default="")
     logo_url = models.URLField(max_length=500, blank=True, default="")
