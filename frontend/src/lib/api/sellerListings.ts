@@ -168,13 +168,21 @@ function randomId(): string {
   });
 }
 
-/** Starts Stripe Checkout for one extra individual listing right. */
-export function startListingRightCheckout(returnUrl: string) {
+/** Starts Stripe Checkout for `quantity` paid listings (one-off, no expiry). */
+export function startListingRightCheckout(returnUrl = "/dashboard/private-seller/listings/", quantity = 1) {
   return apiFetch<{ checkout_url: string }>("/api/v1/checkout-sessions/", {
     method: "POST",
     headers: { ...JSON_HEADERS, "Idempotency-Key": randomId() },
-    body: JSON.stringify({ product_code: "INDIVIDUAL_LISTING_RIGHT", return_url: returnUrl }),
+    body: JSON.stringify({ product_code: "INDIVIDUAL_LISTING_RIGHT", return_url: returnUrl, quantity }),
   });
+}
+
+/** Spends one paid listing to extend or re-activate a private listing. */
+export function renewListing(listingId: string) {
+  return apiFetch<{ listing_id: string; status: string; expires_at: string }>(
+    `/api/v1/listings/${encodeURIComponent(listingId)}/renew/`,
+    { method: "POST" },
+  );
 }
 
 /** Starts Stripe Checkout for the media upgrade; the caller redirects to

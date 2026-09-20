@@ -451,3 +451,25 @@ def test_draft_creation_is_not_gated_while_the_flag_is_off(api, workflow_enabled
     created = _draft(api, brand=make_brand("Sirius"))
 
     assert created["status"] == ListingStatus.DRAFT
+
+
+@pytest.mark.django_db
+def test_a_rejected_first_submission_returns_its_right(api, workflow_enabled, entitlements_on):
+    from listings.decisions import reject_revision
+    from entitlements.eligibility import ListingEligibilityService
+
+    seller = make_private_seller()
+    api.force_authenticate(seller)
+    response = _fill_and_submit(api, _draft(api, brand=make_brand("Jeanneau")))
+    assert response.status_code == 200, response.data
+    listing = BoatListing.objects.get(pk=response.data["id"])
+    used = listing.consumed_entitlement
+    revision = listing.revisions.get(state="SUBMITTED")
+
+    reject_revision(revision_id=revision.pk, actor=seller, expected_version=revision.version, note="No.")
+
+    listing.refresh_from_db()
+    used.refresh_from_db()
+    assert listing.consumed_entitlement_id is None
+    assert used.state == EntitlementState.REVOKED
+    assert ListingEligibilityService.for_user(seller).can_start_listing

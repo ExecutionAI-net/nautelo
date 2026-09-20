@@ -366,7 +366,7 @@ export default function SellListingForm({
 
   async function buyRight() {
     try {
-      const { checkout_url } = await startListingRightCheckout(window.location.href);
+      const { checkout_url } = await startListingRightCheckout();
       window.location.assign(checkout_url);
     } catch (caught) {
       setError(describe(caught, locale));

@@ -20,9 +20,9 @@ export default async function PricingPage() {
       <section className="w-full bg-surface-container-low py-space-xl">
         <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
           <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Pricing</span>
-          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Plans for every seller</h1>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Plans for brokerages, professionals and private sellers</h1>
           <p className="mt-space-xs max-w-3xl font-body-lg text-body-lg text-on-surface-variant">
-            Brokerages choose a membership tier. Individual owners pay once for a listing right.
+            Brokerages choose a membership tier, service professionals pay a monthly fee to be listed, and private sellers buy paid listings as they need them.
           </p>
         </div>
       </section>
@@ -56,19 +56,25 @@ export default async function PricingPage() {
                     {product.description ? <p className="font-body-sm text-body-sm text-on-surface-variant">{product.description}</p> : null}
                     <div className="flex items-baseline gap-1 py-space-xs">
                       <span className="font-headline-lg text-headline-lg text-primary">{formatPrice(product.amount, product.currency)}</span>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant">one-off</span>
+                      <span className="font-body-sm text-body-sm text-on-surface-variant">per listing, one-off</span>
                     </div>
                     <ul className="flex flex-col gap-space-sm text-body-md text-on-surface">
                       <li className="flex items-center gap-space-sm">
                         <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
                         <span>One listing published on NAUTA</span>
                       </li>
-                      {product.publication_days ? (
-                        <li className="flex items-center gap-space-sm">
-                          <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
-                          <span>Live for {product.publication_days} days</span>
-                        </li>
-                      ) : null}
+                      <li className="flex items-center gap-space-sm">
+                        <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
+                        <span>Up to 20 photos and 1 video</span>
+                      </li>
+                      <li className="flex items-center gap-space-sm">
+                        <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
+                        <span>No expiry: buy several and use one per submission</span>
+                      </li>
+                      <li className="flex items-center gap-space-sm">
+                        <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
+                        <span>Extend or re-activate a listing any time</span>
+                      </li>
                     </ul>
                   </div>
                   <Link href="/sell/create/" className="w-full bg-primary text-on-primary hover:bg-primary-container font-body-md py-space-sm px-space-md rounded text-center transition-colors">

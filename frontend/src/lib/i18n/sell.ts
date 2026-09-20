@@ -125,7 +125,7 @@ const SELL: Record<string, Entry> = {
     it: "Potrai pubblicare di nuovo gratuitamente il {date}.",
     es: "Podrás publicar gratis de nuevo el {date}.",
   },
-  "sell.allowance_buy": { en: "Buy a listing right", it: "Acquista un diritto di pubblicazione", es: "Comprar un derecho de publicación" },
+  "sell.allowance_buy": { en: "Buy a paid listing", it: "Acquista un annuncio a pagamento", es: "Comprar un anuncio de pago" },
   "sell.allowance_paid": {
     en: "You have {count} purchased listing right(s) available.",
     it: "Hai {count} diritti di pubblicazione acquistati disponibili.",

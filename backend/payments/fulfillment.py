@@ -103,6 +103,9 @@ def verify_session_against_order(*, order, session) -> str:
     if amount_total != minor_units(order.amount, order.currency):
         return "amount_mismatch"
 
+    if (metadata.get("quantity") or "1") != str(order.quantity):
+        return "quantity_mismatch"
+
     expected_listing = "" if order.listing_id is None else str(order.listing_id)
     if (metadata.get("listing_id") or "") != expected_listing:
         return "listing_mismatch"
@@ -110,7 +113,15 @@ def verify_session_against_order(*, order, session) -> str:
     return ""
 
 
-def grant_purchased_entitlement(*, order, now) -> UserEntitlement:
+def grant_purchased_entitlements(*, order, now) -> list[UserEntitlement]:
+    """One ledger row per unit the order paid for (quantity may exceed 1)."""
+    return [
+        grant_purchased_entitlement(order=order, now=now, grant_index=index)
+        for index in range(order.quantity)
+    ]
+
+
+def grant_purchased_entitlement(*, order, now, grant_index=0) -> UserEntitlement:
     """Create the one right this order paid for.
 
     Creating a brand-new AVAILABLE row is NOT a state transition, which is why
@@ -141,6 +152,7 @@ def grant_purchased_entitlement(*, order, now) -> UserEntitlement:
         valid_from=now,
         valid_until=now + timedelta(days=product.entitlement_valid_days),
         metadata={"order_id": str(order.pk), "product_code": product.code},
+        grant_index=grant_index,
     )
 
 
@@ -224,7 +236,7 @@ def fulfil_paid_session(*, order, session, now=None) -> str:
     # the collision go away.
     try:
         with transaction.atomic():
-            entitlement = grant_purchased_entitlement(order=order, now=now)
+            entitlement = grant_purchased_entitlements(order=order, now=now)[0]
     except IntegrityError:
         flag_for_staff(
             order,

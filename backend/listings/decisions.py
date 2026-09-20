@@ -193,7 +193,7 @@ def request_revision_changes(
 def reject_revision(
     *, revision_id, actor, expected_version: int, note: str
 ) -> ListingRevision:
-    return _refuse(
+    revision = _refuse(
         revision_id=revision_id,
         actor=actor,
         expected_version=expected_version,
@@ -203,6 +203,27 @@ def reject_revision(
         action="listing.revision_rejected",
         signal=listing_revision_rejected,
     )
+    _refund_listing_right(BoatListing.objects.get(pk=revision.listing_id), actor)
+    return revision
+
+
+def _refund_listing_right(listing, actor) -> None:
+    """A rejected first submission gives its listing right back.
+
+    Resubmitting the listing burns a right again. Changes-requested keeps the
+    right attached (the correction loop), and a listing that already has a
+    public snapshot was paid for at its first approval, so neither is refunded.
+    """
+    if listing.current_public_snapshot_id is not None or listing.consumed_entitlement_id is None:
+        return
+    from entitlements.services import restore_consumed_right
+
+    restore_consumed_right(
+        entitlement=listing.consumed_entitlement,
+        actor=actor,
+        reason="Listing rejected: right returned to the seller.",
+    )
+    BoatListing.objects.filter(pk=listing.pk).update(consumed_entitlement=None)
 
 
 @transaction.atomic
