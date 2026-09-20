@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import SellListingForm from "@/components/listings/SellListingForm";
@@ -12,6 +12,7 @@ vi.mock("@/lib/api/sellerListings", () => ({
   listMedia: vi.fn(),
   removeMedia: vi.fn(),
   uploadMedia: vi.fn(),
+  reorderMedia: vi.fn(),
 }));
 
 describe("SellListingForm", () => {
@@ -21,5 +22,15 @@ describe("SellListingForm", () => {
     unmount();
     render(<SellListingForm />);
     expect(screen.queryByText("Financing estimate")).toBeNull();
+  });
+
+  it("lets photos be picked before the first save and counts them", () => {
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    render(<SellListingForm />);
+    expect(screen.getByText("Photos 0 / 1")).toBeTruthy();
+    const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Add media"), { target: { files: [file] } });
+    expect(screen.getByText("Photos 1 / 1")).toBeTruthy();
   });
 });
