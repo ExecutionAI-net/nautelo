@@ -127,10 +127,17 @@ def _resolve_professional(actor, target_id) -> InquiryContext:
         broker=None,
         professional=professional,
         contact_target_type=ContactTargetType.PROFESSIONAL,
-        recipient_users=(owner,),
+        recipient_users=tuple(_professional_recipients(professional, owner)),
         recipient_email=professional.public_email,
         context_label=professional.display_name,
     )
+
+
+def _professional_recipients(professional, owner):
+    from messaging.selectors import professional_message_readers
+
+    readers = list(professional_message_readers(professional))
+    return readers if owner in readers else [owner, *readers]
 
 
 def _listing_label(listing) -> str:

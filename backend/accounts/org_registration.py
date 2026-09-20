@@ -41,6 +41,19 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError(list(exc.messages)) from exc
         return value
 
+    def validate_organization_name(self, value):
+        value = value.strip()
+        if "<" in value or ">" in value:
+            raise serializers.ValidationError("The name cannot contain < or >.")
+        return value
+
+    def validate_phone(self, value):
+        value = value.strip()
+        digits = [c for c in value if c.isdigit()]
+        if len(digits) < 6 or any(not (c.isdigit() or c in "+-() .") for c in value):
+            raise serializers.ValidationError("Enter a valid phone number.")
+        return value
+
     def validate_country_code(self, value):
         if not value.isalpha():
             raise serializers.ValidationError("Use a two-letter country code.")
