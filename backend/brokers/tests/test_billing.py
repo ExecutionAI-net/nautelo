@@ -128,3 +128,36 @@ def test_subscription_endpoint_permissions(broker):
     assert api.post(url).status_code == 403
     api.force_authenticate(admin)
     assert api.get(url).status_code == 200
+
+
+def test_a_brokerage_submits_for_review_only_when_complete_and_subscribed(broker):
+    from brokers.models import BrokerSubscription
+
+    admin = make_user("sub@b.example", role=UserRole.BROKER, verified=True)
+    make_membership(admin, broker, role="ADMIN", can_edit_listings=True, can_manage_team=True, can_read_messages=True)
+    broker.status = "DRAFT"
+    broker.save()
+    api = APIClient()
+    api.force_authenticate(admin)
+    url = reverse("broker-profile-submit", args=[broker.pk])
+    profile_url = reverse("broker-profile", args=[broker.pk])
+
+    res = api.post(url)
+    assert res.status_code == 400 and "profile_incomplete" in str(res.json())
+    assert set(api.get(profile_url).json()["completeness"]["missing"]) == {"tagline", "about", "city", "specialties", "country_code"}
+
+    api.patch(
+        profile_url,
+        {
+            "tagline": "Boats we love",
+            "about": "A family brokerage selling motor and sailing yachts along the Spanish coast since 1998.",
+            "city": "Palma",
+            "country_code": "es",
+            "specialties": ["Motor yachts"],
+        },
+        format="json",
+    )
+    assert "subscription_required" in str(api.post(url).json())
+    BrokerSubscription.objects.create(broker=broker, status="TRIALING")
+    res = api.post(url)
+    assert res.status_code == 200 and res.json()["status"] == "PENDING"

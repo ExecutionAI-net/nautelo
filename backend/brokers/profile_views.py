@@ -14,6 +14,13 @@ from brokers.views import BrokerTeamBaseView
 
 
 class BrokerProfileSerializer(serializers.ModelSerializer):
+    completeness = serializers.SerializerMethodField()
+
+    def get_completeness(self, obj):
+        from brokers.completeness import completeness
+
+        return completeness(obj)
+
     def validate_specialties(self, value):
         if not isinstance(value, list) or len(value) > 8 or any(not isinstance(v, str) or not v.strip() or len(v) > 40 for v in value):
             raise serializers.ValidationError("Up to 8 short specialties.")
@@ -26,9 +33,9 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
         model = BrokerOrganization
         fields = (
             "id", "name", "slug", "status", "public_email", "public_phone", "website_url", "auto_approve_listings",
-            "tagline", "about", "city", "country_code", "logo_url", "cover_image_url", "specialties",
+            "tagline", "about", "city", "country_code", "logo_url", "cover_image_url", "specialties", "completeness",
         )
-        read_only_fields = ("id", "slug", "status", "auto_approve_listings")
+        read_only_fields = ("id", "slug", "status", "auto_approve_listings", "completeness")
 
 
 class BrokerProfileView(BrokerTeamBaseView):
@@ -40,3 +47,22 @@ class BrokerProfileView(BrokerTeamBaseView):
         serializer = BrokerProfileSerializer(self.get_broker(), data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         return Response(BrokerProfileSerializer(serializer.save()).data)
+
+
+class BrokerProfileSubmitView(BrokerTeamBaseView):
+    """Send a finished DRAFT brokerage to staff for approval."""
+
+    def post(self, request, broker_id):
+        from brokers.completeness import missing_items, subscription_is_live
+        from brokers.enums import BrokerOrganizationStatus
+
+        broker = self.get_broker()
+        if broker.status != BrokerOrganizationStatus.DRAFT:
+            return Response(BrokerProfileSerializer(broker).data)
+        if missing_items(broker):
+            raise serializers.ValidationError({"submit": ["profile_incomplete"]})
+        if not subscription_is_live(broker):
+            raise serializers.ValidationError({"submit": ["subscription_required"]})
+        broker.status = BrokerOrganizationStatus.PENDING
+        broker.save(update_fields=["status", "updated_at"])
+        return Response(BrokerProfileSerializer(broker).data)

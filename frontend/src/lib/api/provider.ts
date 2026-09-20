@@ -16,6 +16,7 @@ export interface ProviderProfile {
   country_code: string;
   service_area: string[];
   status: "DRAFT" | "PENDING" | "ACTIVE" | "SUSPENDED";
+  completeness?: { percent: number; missing: string[] };
 }
 
 export type ProviderProfileInput = Partial<Omit<ProviderProfile, "id" | "slug" | "status">> & { submit?: boolean };

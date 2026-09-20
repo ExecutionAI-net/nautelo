@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from "react";
 
+import CompletenessChecklist from "@/components/team/CompletenessChecklist";
+import { ApiError } from "@/lib/api/client";
 import {
   createProviderProfile,
   fetchProviderProfile,
   updateProviderProfile,
   type ProviderProfile,
 } from "@/lib/api/provider";
+
+const SUBMIT_REASONS: Record<string, string> = {
+  profile_incomplete: "Finish the items in the checklist before submitting.",
+  subscription_required: "Start your free trial on the Membership page first, then submit for review.",
+};
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
 const LABEL = "font-label-sm uppercase text-on-surface-variant";
@@ -80,8 +87,17 @@ export default function ProviderProfileForm() {
       setProfile(saved);
       setDraft(toDraft(saved));
       setMessage(submit ? "Submitted for review." : "Profile saved.");
-    } catch {
-      setMessage("The profile could not be saved. Check the highlighted fields and try again.");
+    } catch (caught) {
+      const code = caught instanceof ApiError ? caught.fields.submit?.[0]?.message : undefined;
+      setMessage((code && SUBMIT_REASONS[code]) || "The profile could not be saved. Check the highlighted fields and try again.");
+      if (code && profile) {
+        try {
+          const fresh = await fetchProviderProfile();
+          if (fresh) setProfile(fresh);
+        } catch {
+          /* keep the current view */
+        }
+      }
     }
   }
 
@@ -103,6 +119,7 @@ export default function ProviderProfileForm() {
           Status: <strong>{profile?.status ?? "Not created yet"}</strong>
           {profile?.status === "DRAFT" ? " - submit it for review to appear in the directory." : ""}
         </p>
+        {profile?.status === "DRAFT" ? <CompletenessChecklist completeness={profile.completeness} servicesHref="/dashboard/service-provider/services/" /> : null}
         {message ? (
           <p role="status" className="mt-space-sm font-body-md">
             {message}
