@@ -89,6 +89,14 @@ export function removeMedia(id: string, mediaId: string) {
   return apiFetch<void>(`/api/v1/listings/${id}/media/${mediaId}/`, { method: "DELETE" });
 }
 
+export function reorderMedia(id: string, mediaType: "IMAGE" | "VIDEO", ids: string[]) {
+  return apiFetch<MediaRow[]>(`/api/v1/listings/${id}/media/reorder/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ media_type: mediaType, ids }),
+  });
+}
+
 export async function sha256Hex(file: Blob): Promise<string> {
   const bytes = await file.arrayBuffer();
   // crypto.subtle only exists on https/localhost; plain-http dev servers fall back.

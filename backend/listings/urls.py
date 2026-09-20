@@ -17,6 +17,7 @@ from .views import (
     ListingMediaDetailView,
     ListingMediaIntentView,
     ListingMediaListView,
+    ListingMediaReorderView,
     ListingMediaUpgradeApplyView,
     ListingSubmitView,
     StaffListingSuspensionView,
@@ -67,6 +68,11 @@ urlpatterns = [
         "listings/<uuid:listing_id>/media/",
         ListingMediaListView.as_view(),
         name="listing-media-list",
+    ),
+    path(
+        "listings/<uuid:listing_id>/media/reorder/",
+        ListingMediaReorderView.as_view(),
+        name="listing-media-reorder",
     ),
     path(
         "listings/<uuid:listing_id>/media/intents/",

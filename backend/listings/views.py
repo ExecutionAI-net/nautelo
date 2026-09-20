@@ -502,6 +502,29 @@ class ListingMediaDetailView(_MediaBaseView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class ListingMediaReorderView(_MediaBaseView):
+    """POST /api/v1/listings/<id>/media/reorder/ {media_type, ids: [...]} - first id becomes the cover."""
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        from rest_framework.exceptions import ValidationError
+
+        from .media_uploads import reorder_media
+
+        listing = self.get_listing(request, listing_id)
+        media_type = request.data.get("media_type")
+        ids = request.data.get("ids")
+        if media_type not in ("IMAGE", "VIDEO") or not isinstance(ids, list):
+            raise ValidationError({"ids": "media_type and ids are required."})
+        try:
+            reorder_media(listing=listing, media_type=media_type, ordered_ids=ids)
+        except ValueError as exc:
+            raise ValidationError({"ids": str(exc)}) from exc
+        rows = ListingMedia.objects.filter(listing=listing).exclude(status="REJECTED")
+        return Response(ListingMediaSerializer(rows, many=True).data)
+
+
 class ListingFormOptionsView(APIView):
     """GET /api/v1/listing-form/options/ - closed choice lists for the sell form."""
 

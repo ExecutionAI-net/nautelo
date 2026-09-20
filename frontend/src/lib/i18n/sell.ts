@@ -32,6 +32,27 @@ const SELL: Record<string, Entry> = {
     es: "Hasta {images} imágenes y {videos} vídeos.",
   },
   "sell.add_media": { en: "Add media", it: "Aggiungi media", es: "Añadir archivos" },
+  "sell.photos_counter": { en: "Photos {count} / {limit}", it: "Foto {count} / {limit}", es: "Fotos {count} / {limit}" },
+  "sell.videos_counter": { en: "Videos {count} / {limit}", it: "Video {count} / {limit}", es: "Vídeos {count} / {limit}" },
+  "sell.media_drop": {
+    en: "Add photos and videos - click to choose files",
+    it: "Aggiungi foto e video - clicca per scegliere i file",
+    es: "Añade fotos y vídeos - haz clic para elegir archivos",
+  },
+  "sell.media_hint": {
+    en: "The first photo is the cover. Use the arrows to change the order.",
+    it: "La prima foto è la copertina. Usa le frecce per cambiare l'ordine.",
+    es: "La primera foto es la portada. Usa las flechas para cambiar el orden.",
+  },
+  "sell.media_pending": {
+    en: "Files are uploaded when you save the draft.",
+    it: "I file vengono caricati quando salvi la bozza.",
+    es: "Los archivos se suben al guardar el borrador.",
+  },
+  "sell.media_full": { en: "Limit reached: {limit} of this type.", it: "Limite raggiunto: {limit} di questo tipo.", es: "Límite alcanzado: {limit} de este tipo." },
+  "sell.cover": { en: "Cover", it: "Copertina", es: "Portada" },
+  "sell.move_earlier": { en: "Move earlier", it: "Sposta prima", es: "Mover antes" },
+  "sell.move_later": { en: "Move later", it: "Sposta dopo", es: "Mover después" },
   "sell.remove": { en: "Remove", it: "Rimuovi", es: "Quitar" },
   "sell.finance_title": {
     en: "Financing estimate",
