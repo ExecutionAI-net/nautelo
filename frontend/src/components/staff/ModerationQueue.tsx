@@ -28,7 +28,7 @@ export function waitLabel(seconds: number | null): string {
   return `${Math.floor(hours / 24)} d`;
 }
 
-export default function ModerationQueue() {
+export default function ModerationQueue({ onCounts }: { onCounts?: (pending: number) => void } = {}) {
   const [tab, setTab] = useState<QueueTab>("initial");
   const [data, setData] = useState<{ tab: QueueTab; body: QueueResponse } | null>(null);
   const [failed, setFailed] = useState<QueueTab | null>(null);
@@ -39,7 +39,10 @@ export default function ModerationQueue() {
     let cancelled = false;
     fetchModerationQueue(tab)
       .then((body) => {
-        if (!cancelled) setData({ tab, body });
+        if (!cancelled) {
+          setData({ tab, body });
+          onCounts?.(body.counts.initial + body.counts.revisions);
+        }
       })
       .catch(() => {
         if (!cancelled) setFailed(tab);
@@ -47,6 +50,7 @@ export default function ModerationQueue() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onCounts is a stable setter
   }, [tab, reload]);
 
   async function toggleSuspension(row: QueueRow) {
