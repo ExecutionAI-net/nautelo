@@ -112,6 +112,54 @@ class MarketplaceProduct(UUIDTimeStampedModel):
         return f"{self.code} ({'active' if self.is_active else 'inactive'})"
 
 
+class ListingPackage(UUIDTimeStampedModel):
+    """A purchasable private-seller listing: price, publication length and media
+    limits are all editable in Django admin. The values are copied onto the right a
+    buyer receives, so later edits never change rights that were already bought."""
+
+    slug = models.SlugField(max_length=40, unique=True)
+    name_en = models.CharField(max_length=120)
+    name_it = models.CharField(max_length=120, blank=True, default="")
+    name_es = models.CharField(max_length=120, blank=True, default="")
+    description_en = models.TextField(blank=True, default="")
+    description_it = models.TextField(blank=True, default="")
+    description_es = models.TextField(blank=True, default="")
+    publication_days = models.PositiveIntegerField()
+    image_limit = models.PositiveSmallIntegerField(default=20)
+    video_limit = models.PositiveSmallIntegerField(default=1)
+    display_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, default="EUR")
+    stripe_product_id = models.CharField(max_length=64, blank=True, default="")
+    stripe_price_id = models.CharField(max_length=64, blank=True, default="")
+    is_active = models.BooleanField(default=False)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["display_order", "publication_days"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(publication_days__gt=0), name="payments_package_days_positive"
+            ),
+            models.CheckConstraint(
+                condition=~Q(is_active=True)
+                | (
+                    Q(display_amount__gt=0)
+                    & ~Q(stripe_product_id="")
+                    & ~Q(stripe_price_id="")
+                ),
+                name="payments_package_active_is_fully_configured",
+            ),
+        ]
+
+    @property
+    def code(self) -> str:
+        """Duck-types MarketplaceProduct for price reconciliation."""
+        return f"PACKAGE:{self.slug}"
+
+    def __str__(self) -> str:
+        return f"{self.name_en} ({self.publication_days} days)"
+
+
 class PaymentOrderQuerySet(models.QuerySet):
     def for_user(self, user):
         return self.filter(user=user)
@@ -150,6 +198,13 @@ class PaymentOrder(UUIDTimeStampedModel):
         blank=True,
         on_delete=models.PROTECT,
         related_name="payment_orders",
+    )
+    package = models.ForeignKey(
+        ListingPackage,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="orders",
     )
     # Units bought in one checkout. `amount` is the total for all of them.
     quantity = models.PositiveSmallIntegerField(default=1)

@@ -30,9 +30,10 @@ from listings.enums import ListingStatus
 from listings.models import BoatListing
 from accounts.enums import SellerType
 
-from .enums import LISTING_BOUND_PRODUCTS, PaymentOrderStatus
+from .enums import LISTING_BOUND_PRODUCTS, PaymentOrderStatus, ProductCode
 from .errors import (
     IdempotencyKeyRequired,
+    ProductNotAvailable,
     IdempotencyKeyReused,
     InvalidReturnUrl,
     ListingNotUpgradable,
@@ -40,7 +41,7 @@ from .errors import (
     PaymentGatewayUnavailable,
 )
 from .gateway import StripeUnavailable, default_gateway
-from .models import PaymentOrder
+from .models import ListingPackage, MarketplaceProduct, PaymentOrder
 from .products import get_purchasable_product, require_reconciled_price
 
 # Spec §23.2: "Success/cancel URLs are allowlisted local routes."
@@ -131,9 +132,9 @@ def _resolve_listing(*, user, product_code, listing_id):
     return listing
 
 
-def _request_fingerprint(product_code, listing, return_url, quantity=1) -> str:
+def _request_fingerprint(product_code, listing, return_url, quantity=1, package_slug="") -> str:
     listing_part = "" if listing is None else str(listing.pk)
-    return f"{product_code}|{listing_part}|{return_url or DEFAULT_RETURN_URL}|{quantity}"
+    return f"{product_code}|{listing_part}|{return_url or DEFAULT_RETURN_URL}|{quantity}|{package_slug}"
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,7 @@ def create_checkout_session(
     listing_id=None,
     return_url: str | None = None,
     quantity: int = 1,
+    package_slug: str | None = None,
     client_idempotency_key: str,
     request_id: str | None = None,
     gateway=None,
@@ -159,15 +161,25 @@ def create_checkout_session(
     client_idempotency_key = client_idempotency_key.strip()
     gateway = gateway or default_gateway()
 
-    product = get_purchasable_product(product_code)
-    require_reconciled_price(product, gateway=gateway)
+    package = None
+    if package_slug:
+        # A package carries its own price and Stripe ids; the product row only
+        # names the kind of right that is granted.
+        package = ListingPackage.objects.filter(slug=package_slug, is_active=True).first()
+        product = MarketplaceProduct.objects.filter(code=product_code).first()
+        if package is None or product is None or product_code != ProductCode.INDIVIDUAL_LISTING_RIGHT:
+            raise ProductNotAvailable(product_code=product_code)
+        require_reconciled_price(package, gateway=gateway)
+    else:
+        product = get_purchasable_product(product_code)
+        require_reconciled_price(product, gateway=gateway)
     listing = _resolve_listing(
         user=user, product_code=product.code, listing_id=listing_id
     )
     if product.code in LISTING_BOUND_PRODUCTS:
         quantity = 1
     quantity = max(1, min(int(quantity or 1), MAX_LISTING_RIGHT_QUANTITY))
-    fingerprint = _request_fingerprint(product.code, listing, return_url, quantity)
+    fingerprint = _request_fingerprint(product.code, listing, return_url, quantity, package_slug or "")
     # Validate the return URL before writing anything, so a hostile one leaves
     # no order behind.
     build_return_urls("probe", return_url)
@@ -185,9 +197,10 @@ def create_checkout_session(
                 product=product,
                 listing=listing,
                 status=PaymentOrderStatus.CREATED,
-                amount=product.display_amount * quantity,
+                amount=(package or product).display_amount * quantity,
+                package=package,
                 quantity=quantity,
-                currency=product.currency.upper(),
+                currency=(package or product).currency.upper(),
                 client_idempotency_key=client_idempotency_key,
                 metadata={
                     "request_fingerprint": fingerprint,
@@ -246,7 +259,12 @@ def _open_stripe_session(order, return_url, gateway, request_id) -> str:
         "mode": "payment",
         # Spec §23.2: "Server loads Stripe Price; client cannot submit
         # amount/currency." The price id IS the amount; no number is sent.
-        "line_items": [{"price": order.product.stripe_price_id, "quantity": order.quantity}],
+        "line_items": [
+            {
+                "price": (order.package or order.product).stripe_price_id,
+                "quantity": order.quantity,
+            }
+        ],
         "success_url": success_url,
         "cancel_url": cancel_url,
         "client_reference_id": str(order.pk),
@@ -261,6 +279,7 @@ def _open_stripe_session(order, return_url, gateway, request_id) -> str:
             "product_code": order.product.code,
             "listing_id": "" if order.listing_id is None else str(order.listing_id),
             "quantity": str(order.quantity),
+            "package": "" if order.package_id is None else order.package.slug,
         },
     }
     try:

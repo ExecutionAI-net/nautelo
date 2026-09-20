@@ -214,6 +214,7 @@ def test_stripe_metadata_carries_internal_ids_and_no_personal_data(seller, gatew
         "product_code": ProductCode.INDIVIDUAL_LISTING_RIGHT,
         "listing_id": "",
         "quantity": "1",
+        "package": "",
     }
     flattened = str(gateway.created[0]["params"])
     assert seller.email not in flattened
@@ -569,3 +570,64 @@ def test_several_listing_rights_can_be_bought_in_one_checkout(seller, gateway):
     params = gateway.created[0]["params"]
     assert params["line_items"][0]["quantity"] == 3
     assert params["metadata"]["quantity"] == "3"
+
+
+def _package(**overrides):
+    from payments.models import ListingPackage
+
+    package = ListingPackage.objects.get(slug="2-months")
+    values = {
+        "display_amount": Decimal("79.00"),
+        "stripe_product_id": "prod_pkg",
+        "stripe_price_id": "price_pkg",
+        "image_limit": 15,
+        "video_limit": 2,
+        "is_active": True,
+    }
+    values.update(overrides)
+    for key, value in values.items():
+        setattr(package, key, value)
+    package.save()
+    return package
+
+
+def _package_gateway():
+    return FakeStripeGateway(
+        price=PriceSnapshot(
+            price_id="price_pkg", product_id="prod_pkg", unit_amount=7900,
+            currency="eur", active=True, recurring=False,
+        )
+    )
+
+
+@pytest.mark.django_db
+def test_a_package_checkout_uses_the_package_price_and_ids(seller):
+    _package()
+    gateway = _package_gateway()
+
+    result = create_checkout_session(
+        user=seller,
+        product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        package_slug="2-months",
+        quantity=2,
+        client_idempotency_key="idem-pkg",
+        gateway=gateway,
+    )
+
+    assert result.order.package.slug == "2-months"
+    assert result.order.amount == Decimal("158.00")
+    params = gateway.created[0]["params"]
+    assert params["line_items"] == [{"price": "price_pkg", "quantity": 2}]
+    assert params["metadata"]["package"] == "2-months"
+
+
+@pytest.mark.django_db
+def test_an_inactive_package_cannot_be_bought(seller):
+    with pytest.raises(ProductNotAvailable):
+        create_checkout_session(
+            user=seller,
+            product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+            package_slug="1-month",
+            client_idempotency_key="idem-x",
+            gateway=_package_gateway(),
+        )

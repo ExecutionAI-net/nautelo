@@ -72,6 +72,7 @@ class CheckoutSessionCreateView(APIView):
             listing_id=envelope.validated_data.get("listing_id"),
             return_url=envelope.validated_data.get("return_url"),
             quantity=envelope.validated_data.get("quantity", 1),
+            package_slug=envelope.validated_data.get("package") or None,
             client_idempotency_key=key,
             request_id=getattr(request, "request_id", None),
         )

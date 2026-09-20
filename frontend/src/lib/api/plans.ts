@@ -29,7 +29,19 @@ export interface ProfessionalPlanSummary {
   currency: string;
 }
 
+export interface ListingPackage {
+  slug: string;
+  name: string;
+  description: string;
+  amount: string;
+  currency: string;
+  publication_days: number;
+  image_limit: number;
+  video_limit: number;
+}
+
 export interface Pricing {
+  listing_packages?: ListingPackage[];
   professional_plan?: ProfessionalPlanSummary | null;
   broker_plans: PlanSummary[];
   individual_products: IndividualProduct[];

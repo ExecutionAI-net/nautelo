@@ -18,6 +18,7 @@ class CheckoutSessionRequestSerializer(serializers.Serializer):
     product_code = serializers.ChoiceField(choices=ProductCode.choices)
     listing_id = serializers.UUIDField(required=False, allow_null=True)
     quantity = serializers.IntegerField(required=False, min_value=1, max_value=20, default=1)
+    package = serializers.SlugField(required=False, allow_blank=True, default="")
     return_url = serializers.CharField(
         required=False, allow_null=True, allow_blank=True, max_length=200
     )
