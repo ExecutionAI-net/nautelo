@@ -233,7 +233,7 @@ def effective_media_allowance(listing: BoatListing) -> MediaAllowance:
             images=int(get_setting_value("media.broker_image_limit")),
             videos=int(get_setting_value("media.broker_video_limit")),
         )
-    if is_media_upgraded(listing):
+    if is_media_upgraded(listing) or uses_paid_listing_right(listing):
         return MediaAllowance(
             images=int(get_setting_value("media.upgraded_image_limit")),
             videos=int(get_setting_value("media.upgraded_video_limit")),
@@ -242,6 +242,28 @@ def effective_media_allowance(listing: BoatListing) -> MediaAllowance:
         images=int(get_setting_value("media.private_base_image_limit")),
         videos=int(get_setting_value("media.private_base_video_limit")),
     )
+
+
+def uses_paid_listing_right(listing: BoatListing) -> bool:
+    """True when this private listing is (or will be) published on a purchased right.
+
+    A submitted listing answers from the right it consumed; a draft answers from
+    the right its owner would burn next (free first, then a purchased one), so the
+    seller sees the paid limits while editing.
+    """
+    if listing.consumed_entitlement_id is not None:
+        return (
+            UserEntitlement.objects.filter(
+                pk=listing.consumed_entitlement_id,
+                entitlement_type=EntitlementType.PAID_LISTING,
+            ).exists()
+        )
+    if listing.owner_user_id is None:
+        return False
+    from entitlements.eligibility import ListingEligibilityService
+
+    recommended = ListingEligibilityService.for_user(listing.owner_user).recommended_entitlement
+    return recommended is not None and recommended.entitlement_type == EntitlementType.PAID_LISTING
 
 
 def is_media_upgraded(listing: BoatListing) -> bool:
