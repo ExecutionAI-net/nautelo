@@ -161,6 +161,11 @@ def test_a_service_provider_session_includes_their_profile(api):
     payload = api.get(SESSION_URL).data
 
     assert payload["professional_profile"] == {
+        "role": "ADMIN",
+        "is_owner": True,
+        "can_edit_profile": True,
+        "can_manage_team": True,
+        "can_read_messages": True,
         "id": str(profile.pk),
         "slug": "ocean-legal",
         "display_name": "Ocean Legal",

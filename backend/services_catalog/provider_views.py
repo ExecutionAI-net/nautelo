@@ -6,7 +6,7 @@ Activation stays a staff decision: the owner can only move DRAFT -> PENDING.
 
 from django.utils.text import slugify
 from rest_framework import serializers
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 from accounts.enums import UserRole
 from accounts.permissions import IsActiveUser
 from professionals.enums import ProfessionalProfileStatus
+from professionals.access import add_owner_membership, membership_for, profile_for
 from professionals.models import ProfessionalProfile
 
 from .models import ProfessionalService
@@ -51,7 +52,10 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         slug, n = base, 2
         while ProfessionalProfile.objects.filter(slug=slug).exists():
             slug, n = f"{base}-{n}", n + 1
-        return ProfessionalProfile.objects.create(slug=slug, owner_user=self.context["request"].user, **validated_data)
+        user = self.context["request"].user
+        profile = ProfessionalProfile.objects.create(slug=slug, owner_user=user, **validated_data)
+        add_owner_membership(profile, user)
+        return profile
 
     def update(self, instance, validated_data):
         submit = validated_data.pop("submit", False)
@@ -67,7 +71,7 @@ class ProviderProfileView(APIView):
     throttle_scope = "staff_moderation"
 
     def _profile(self, request):
-        profile = ProfessionalProfile.objects.filter(owner_user=request.user).first()
+        profile = profile_for(request.user)
         if profile is None:
             raise NotFound("No provider profile yet.")
         return profile
@@ -76,13 +80,16 @@ class ProviderProfileView(APIView):
         return Response(ProviderProfileSerializer(self._profile(request)).data)
 
     def post(self, request):
-        if ProfessionalProfile.objects.filter(owner_user=request.user).exists():
+        if membership_for(request.user) is not None:
             return Response({"detail": "A profile already exists."}, status=409)
         serializer = ProviderProfileSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         return Response(ProviderProfileSerializer(serializer.save()).data, status=201)
 
     def patch(self, request):
+        membership = membership_for(request.user)
+        if membership is not None and not membership.can_edit_profile:
+            raise PermissionDenied("Your role cannot edit the profile.")
         serializer = ProviderProfileSerializer(
             self._profile(request), data=request.data, partial=True, context={"request": request}
         )
@@ -104,16 +111,20 @@ class ProviderServiceMixin:
     serializer_class = ProviderServiceSerializer
 
     def get_queryset(self):
-        return ProfessionalService.objects.filter(professional__owner_user=self.request.user).select_related("category")
+        profile = profile_for(self.request.user)
+        return ProfessionalService.objects.filter(professional=profile).select_related("category")
 
 
 class ProviderServiceListView(ProviderServiceMixin, ListCreateAPIView):
     pagination_class = None
 
     def perform_create(self, serializer):
-        profile = ProfessionalProfile.objects.filter(owner_user=self.request.user).first()
-        if profile is None:
+        membership = membership_for(self.request.user)
+        if membership is None:
             raise NotFound("Create your provider profile first.")
+        if not membership.can_edit_profile:
+            raise PermissionDenied("Your role cannot edit services.")
+        profile = membership.profile
         serializer.save(professional=profile)
 
 

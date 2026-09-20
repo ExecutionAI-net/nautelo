@@ -86,10 +86,18 @@ def get_professional_profile_summary(user):
 
     if not _is_usable(user):
         return None
-    profile = ProfessionalProfile.objects.filter(owner_user=user).first()
-    if profile is None:
+    from professionals.access import membership_for
+
+    membership = membership_for(user)
+    if membership is None:
         return None
+    profile = membership.profile
     return {
+        "role": membership.role,
+        "is_owner": membership.is_owner,
+        "can_edit_profile": membership.can_edit_profile,
+        "can_manage_team": membership.can_manage_team,
+        "can_read_messages": membership.can_read_messages,
         "id": str(profile.pk),
         "slug": profile.slug,
         "display_name": profile.display_name,

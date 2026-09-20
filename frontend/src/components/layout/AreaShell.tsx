@@ -33,6 +33,7 @@ const AREAS = {
       { href: "/dashboard/service-provider/requests/", label: "Requests" },
       { href: "/dashboard/service-provider/services/", label: "Services" },
       { href: "/dashboard/service-provider/profile/", label: "Profile" },
+      { href: "/dashboard/service-provider/team/", label: "Team" },
       { href: "/dashboard/service-provider/membership/", label: "Membership" },
     ] as Tab[],
   },

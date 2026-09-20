@@ -1,17 +1,17 @@
 """Owner-side membership status and checkout for service professionals."""
 
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from services_catalog.provider_views import IsServiceProvider
 
 from .billing import create_membership_checkout, get_plan
-from .models import ProfessionalProfile
+from .access import membership_for, profile_for
 
 
 def _profile(request):
-    profile = ProfessionalProfile.objects.filter(owner_user=request.user).first()
+    profile = profile_for(request.user)
     if profile is None:
         raise NotFound("Create your professional profile first.")
     return profile
@@ -50,4 +50,7 @@ class MembershipCheckoutView(APIView):
     throttle_scope = "checkout_create"
 
     def post(self, request):
+        membership = membership_for(request.user)
+        if membership is None or not membership.can_manage_team:
+            raise PermissionDenied("Only team managers can manage billing.")
         return Response({"checkout_url": create_membership_checkout(profile=_profile(request))}, status=201)
