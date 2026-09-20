@@ -291,13 +291,17 @@ export default function SellListingForm({
       const saved = listing
         ? await updateDraft(listing.id, listing.revision?.version ?? listing.version, payload())
         : await createDraft(payload(), brokerId);
-      const firstSave = !listing;
       setListing(saved);
-      if (firstSave && pending.length > 0) {
-        await uploadAll(saved.id, pending.map((item) => item.file));
-        pending.forEach((item) => URL.revokeObjectURL(item.url));
-        setPending([]);
+      // Files picked before the draft existed upload now; one that fails stays queued so the next save retries it.
+      for (const item of pending) {
+        const row = await uploadMedia(saved.id, item.file);
+        if (row.status === "REJECTED") {
+          setError(t("sell.media_rejected", { reason: row.rejection_reason || item.file.name }));
+        }
+        URL.revokeObjectURL(item.url);
+        setPending((current) => current.filter((entry) => entry !== item));
       }
+      if (pending.length > 0) setMedia(await listMedia(saved.id));
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 3000);
     } catch (caught) {
