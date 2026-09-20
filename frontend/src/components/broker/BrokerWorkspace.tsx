@@ -27,6 +27,7 @@ interface BrokerProfile {
   website_url: string | null;
   auto_approve_listings: boolean;
   tagline: string;
+  about: string;
   city: string;
   country_code: string;
   logo_url: string;
@@ -245,6 +246,7 @@ export function BrokerProfileForm() {
               public_phone: form.public_phone,
               website_url: form.website_url || null,
               tagline: form.tagline ?? "",
+              about: form.about ?? "",
               city: form.city ?? "",
               country_code: form.country_code ?? "",
               logo_url: form.logo_url ?? "",
@@ -298,6 +300,10 @@ export function BrokerProfileForm() {
       <label className={`${LABEL} sm:col-span-2`}>
         Tagline
         <input className={FIELD} maxLength={300} value={form.tagline ?? ""} onChange={set("tagline")} />
+      </label>
+      <label className={`${LABEL} sm:col-span-2`}>
+        About your company
+        <textarea className={FIELD} rows={5} maxLength={4000} value={form.about ?? ""} onChange={set("about")} />
       </label>
       <label className={LABEL}>
         Logo image URL

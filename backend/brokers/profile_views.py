@@ -25,7 +25,7 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
         model = BrokerOrganization
         fields = (
             "id", "name", "slug", "status", "public_email", "public_phone", "website_url", "auto_approve_listings",
-            "tagline", "city", "country_code", "logo_url", "cover_image_url", "specialties",
+            "tagline", "about", "city", "country_code", "logo_url", "cover_image_url", "specialties",
         )
         read_only_fields = ("id", "slug", "status", "auto_approve_listings")
 

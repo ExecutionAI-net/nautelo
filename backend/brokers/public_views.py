@@ -25,7 +25,7 @@ class PublicBrokerSerializer(ModelSerializer):
         model = BrokerOrganization
         fields = [
             "id", "name", "slug", "url", "website_url", "listing_count",
-            "tagline", "city", "country_code", "logo_url", "cover_image_url", "specialties",
+            "tagline", "about", "city", "country_code", "logo_url", "cover_image_url", "specialties",
         ]
 
     def get_website_url(self, obj):

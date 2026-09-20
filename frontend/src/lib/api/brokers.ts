@@ -10,6 +10,7 @@ export interface PublicBroker {
   website_url: string | null;
   listing_count: number;
   tagline: string;
+  about: string;
   city: string;
   country_code: string;
   logo_url: string;
