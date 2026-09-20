@@ -1,11 +1,18 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from common.models import UUIDTimeStampedModel
 from django.db.models import Q
 
-from professionals.enums import ProfessionalProfileStatus, SubscriptionStatus
+from professionals.enums import (
+    ROLE_DEFAULT_CAPABILITIES,
+    ProfessionalMembershipRole,
+    ProfessionalProfileStatus,
+    SubscriptionStatus,
+)
 
 
 def validate_service_area(value):
@@ -108,3 +115,86 @@ class ProfessionalSubscription(UUIDTimeStampedModel):
 
     def __str__(self):
         return f"{self.profile_id} {self.status}"
+
+
+class ProfessionalMembership(UUIDTimeStampedModel):
+    """A user's seat in a professional organization (the profile is the org).
+
+    The owner holds an ADMIN seat flagged `is_owner`. A user has at most one
+    live seat, so the account keeps a single role.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name="professional_memberships", on_delete=models.CASCADE
+    )
+    profile = models.ForeignKey(ProfessionalProfile, related_name="memberships", on_delete=models.CASCADE)
+    role = models.CharField(
+        max_length=10, choices=ProfessionalMembershipRole.choices, default=ProfessionalMembershipRole.VIEWER
+    )
+    can_edit_profile = models.BooleanField(default=False)
+    can_manage_team = models.BooleanField(default=False)
+    can_read_messages = models.BooleanField(default=False)
+    is_owner = models.BooleanField(default=False)
+    show_on_profile = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("-is_owner", "user__full_name", "user__email")
+        constraints = [
+            models.UniqueConstraint(fields=["user", "profile"], name="professionals_membership_unique_user_profile"),
+            models.UniqueConstraint(
+                fields=["user"], condition=Q(is_active=True), name="professionals_one_live_membership_per_user"
+            ),
+            models.CheckConstraint(
+                condition=~Q(role=ProfessionalMembershipRole.ADMIN)
+                | Q(can_edit_profile=True, can_manage_team=True, can_read_messages=True),
+                name="professionals_admin_membership_has_all_permissions",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} @ {self.profile_id} ({self.role})"
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        instance._loaded_role = instance.role
+        return instance
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        self._loaded_role = self.role
+
+    def save(self, *args, **kwargs):
+        previous_role = getattr(self, "_loaded_role", None)
+        forced = None
+        if self.role == ProfessionalMembershipRole.ADMIN:
+            forced = ROLE_DEFAULT_CAPABILITIES[ProfessionalMembershipRole.ADMIN]
+        elif previous_role is not None and previous_role != self.role:
+            forced = ROLE_DEFAULT_CAPABILITIES[self.role]
+        if forced is not None:
+            for field, value in forced.items():
+                setattr(self, field, value)
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | set(forced) | {"role"}
+        result = super().save(*args, **kwargs)
+        self._loaded_role = self.role
+        return result
+
+
+@receiver(post_save, sender=ProfessionalProfile)
+def ensure_owner_membership(sender, instance, created, **kwargs):
+    """Every organization has its owner seated as ADMIN (created here so seeds,
+    admin and API creation all agree)."""
+    if created and instance.owner_user_id:
+        ProfessionalMembership.objects.get_or_create(
+            profile=instance,
+            user_id=instance.owner_user_id,
+            defaults={
+                "role": ProfessionalMembershipRole.ADMIN,
+                "is_owner": True,
+                "can_edit_profile": True,
+                "can_manage_team": True,
+                "can_read_messages": True,
+            },
+        )

@@ -141,12 +141,20 @@ class ProfessionalDetailSerializer(ProfessionalCardSerializer):
 
     services = serializers.SerializerMethodField()
     related = serializers.SerializerMethodField()
+    team = serializers.SerializerMethodField()
 
     class Meta(ProfessionalCardSerializer.Meta):
         fields = ProfessionalCardSerializer.Meta.fields + [
             "description",
+            "team",
             "services",
             "related",
+        ]
+
+    def get_team(self, obj):
+        return [
+            {"name": m.user.full_name or m.user.email, "email": m.user.email, "role": m.role}
+            for m in obj.memberships.select_related("user").filter(is_active=True, show_on_profile=True)
         ]
 
     def get_services(self, obj):

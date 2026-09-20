@@ -90,6 +90,7 @@ export const DIRECTORY_MESSAGES: Record<string, Translations> = {
     it: "Precedenti",
     es: "Anteriores",
   },
+  "professional.team.heading": { en: "Team", it: "Team", es: "Equipo" },
   "professional.about.heading": { en: "About", it: "Chi siamo", es: "Acerca de" },
   "professional.services.heading": {
     en: "Services offered",

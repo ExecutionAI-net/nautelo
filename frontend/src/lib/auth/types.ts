@@ -50,6 +50,11 @@ export interface BrokerMembershipSummary {
 }
 
 export interface ProfessionalProfileSummary {
+  role?: string;
+  is_owner?: boolean;
+  can_edit_profile?: boolean;
+  can_manage_team?: boolean;
+  can_read_messages?: boolean;
   id: string;
   slug: string;
   display_name: string;

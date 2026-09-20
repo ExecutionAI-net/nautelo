@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from professionals.models import ProfessionalPlan, ProfessionalProfile, ProfessionalSubscription
+from professionals.models import ProfessionalMembership, ProfessionalPlan, ProfessionalProfile, ProfessionalSubscription
+
+
+class ProfessionalMembershipInline(admin.TabularInline):
+    model = ProfessionalMembership
+    extra = 0
+    raw_id_fields = ("user",)
 
 
 @admin.register(ProfessionalProfile)
@@ -11,6 +17,7 @@ class ProfessionalProfileAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("display_name",)}
     autocomplete_fields = ("owner_user",)
     readonly_fields = ("id", "created_at", "updated_at")
+    inlines = [ProfessionalMembershipInline]
 
 
 @admin.register(ProfessionalPlan)

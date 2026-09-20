@@ -99,6 +99,25 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
             </section>
           ) : null}
 
+          {professional.team?.length > 0 ? (
+            <section aria-labelledby="team-heading" className="mt-space-xl">
+              <h2 id="team-heading" className="font-title-lg text-title-lg text-primary">
+                {t(locale, "professional.team.heading")}
+              </h2>
+              <ul className="mt-space-sm grid gap-space-sm sm:grid-cols-2">
+                {professional.team.map((member) => (
+                  <li key={member.email} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+                    <p className="font-title-md text-primary">{member.name}</p>
+                    <p className="font-label-md text-on-surface-variant">{member.role}</p>
+                    <a className="font-body-sm text-secondary underline" href={`mailto:${member.email}`}>
+                      {member.email}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           {professional.services.length > 0 ? (
             <section aria-labelledby="services-heading" className="mt-space-xl">
               <h2 id="services-heading" className="font-title-lg text-title-lg text-primary">

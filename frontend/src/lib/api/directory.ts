@@ -70,8 +70,15 @@ export interface RelatedProfessional {
   url: string;
 }
 
+export interface TeamMember {
+  name: string;
+  email: string;
+  role: string;
+}
+
 export interface ProfessionalDetail extends ProfessionalCard {
   description: string;
+  team: TeamMember[];
   services: ProfessionalService[];
   related: RelatedProfessional[];
 }
