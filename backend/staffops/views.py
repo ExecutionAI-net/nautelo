@@ -26,12 +26,19 @@ class StaffPagination(PageNumberPagination):
     page_size_query_param = "page_size"
     max_page_size = 100
 
+    def get_paginated_response(self, data):
+        """`facets`: value -> count over the whole set, ignoring the status filter."""
+        response = super().get_paginated_response(data)
+        response.data["facets"] = getattr(self, "facets", {})
+        return response
+
 
 class StaffListView(ListAPIView):
     permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
     throttle_scope = "staff_moderation"
     pagination_class = StaffPagination
     search_fields: tuple[str, ...] = ()
+    facet_field: str | None = None
 
     def filter_queryset(self, queryset):
         term = self.request.query_params.get("q", "").strip()
@@ -40,6 +47,9 @@ class StaffListView(ListAPIView):
             for field in self.search_fields:
                 query |= Q(**{f"{field}__icontains": term})
             queryset = queryset.filter(query)
+        if self.facet_field:
+            counts = queryset.order_by().values(self.facet_field).annotate(n=Count("pk")).values_list(self.facet_field, "n")
+            self.paginator.facets = {str(key): n for key, n in counts}
         status = self.request.query_params.get("status", "").strip()
         if status and hasattr(self, "status_field"):
             queryset = queryset.filter(**{self.status_field: status})
@@ -55,12 +65,22 @@ class UserRowSerializer(serializers.ModelSerializer):
 
 
 class StaffUserListView(StaffListView):
+    """`status` here means the account state: active, suspended or unverified; `role` filters primary_role."""
+
     serializer_class = UserRowSerializer
     search_fields = ("email", "full_name")
+    facet_field = "primary_role"
     queryset = User.objects.order_by("-created_at")
 
     def filter_queryset(self, queryset):
+        state = self.request.query_params.get("state", "").strip()
         queryset = super().filter_queryset(queryset)
+        if state == "active":
+            queryset = queryset.filter(is_active=True)
+        elif state == "suspended":
+            queryset = queryset.filter(is_active=False)
+        elif state == "unverified":
+            queryset = queryset.filter(email_verified_at__isnull=True)
         role = self.request.query_params.get("role", "").strip()
         return queryset.filter(primary_role=role) if role else queryset
 
@@ -75,6 +95,7 @@ class BrokerRowSerializer(serializers.ModelSerializer):
 
 
 class StaffBrokerListView(StaffListView):
+    facet_field = "status"
     serializer_class = BrokerRowSerializer
     search_fields = ("name", "public_email")
     status_field = "status"
@@ -95,6 +116,7 @@ class ProviderRowSerializer(serializers.ModelSerializer):
 
 
 class StaffProviderListView(StaffListView):
+    facet_field = "status"
     serializer_class = ProviderRowSerializer
     search_fields = ("display_name", "owner_user__email", "city")
     status_field = "status"
@@ -112,6 +134,7 @@ class LeadRowSerializer(serializers.ModelSerializer):
 
 
 class StaffLeadListView(StaffListView):
+    facet_field = "status"
     serializer_class = LeadRowSerializer
     search_fields = ("subject", "initiator__email")
     status_field = "status"
@@ -132,6 +155,7 @@ class SubscriptionRowSerializer(serializers.ModelSerializer):
 
 
 class StaffSubscriptionListView(StaffListView):
+    facet_field = "state"
     serializer_class = SubscriptionRowSerializer
     search_fields = ("user__email",)
     status_field = "state"
@@ -143,6 +167,18 @@ class StaffReportsView(APIView):
     throttle_scope = "staff_moderation"
 
     def get(self, request):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        last, before = now - timedelta(days=30), now - timedelta(days=60)
+
+        def by(model, field):
+            return {str(k): n for k, n in model.objects.order_by().values_list(field).annotate(n=Count("pk"))}
+
+        new_users = User.objects.filter(created_at__gte=last).count()
+        prior_users = User.objects.filter(created_at__gte=before, created_at__lt=last).count()
         return Response(
             {
                 "users": User.objects.count(),
@@ -151,6 +187,17 @@ class StaffReportsView(APIView):
                 "listings": BoatListing.objects.count(),
                 "conversations": Conversation.objects.count(),
                 "entitlements": UserEntitlement.objects.count(),
+                "users_by_role": by(User, "primary_role"),
+                "listings_by_status": by(BoatListing, "status"),
+                "brokers_by_status": by(BrokerOrganization, "status"),
+                "providers_by_status": by(ProfessionalProfile, "status"),
+                "entitlements_by_state": by(UserEntitlement, "state"),
+                "new_users_30d": new_users,
+                "new_users_prev_30d": prior_users,
+                "new_listings_30d": BoatListing.objects.filter(created_at__gte=last).count(),
+                "new_conversations_30d": Conversation.objects.filter(created_at__gte=last).count(),
+                "suspended_users": User.objects.filter(is_active=False).count(),
+                "unverified_users": User.objects.filter(email_verified_at__isnull=True).count(),
             }
         )
 
@@ -169,6 +216,7 @@ class BoatRowSerializer(serializers.ModelSerializer):
 
 
 class StaffBoatListView(StaffListView):
+    facet_field = "status"
     serializer_class = BoatRowSerializer
     search_fields = ("brand__name", "owner_user__email", "broker__name", "slug")
     status_field = "status"
@@ -223,3 +271,41 @@ class StaffBrokerStatusView(StaffStatusChangeView):
 class StaffProviderStatusView(StaffStatusChangeView):
     model = ProfessionalProfile
     target_type = "professionals.ProfessionalProfile"
+
+
+class StaffUserStatusView(APIView):
+    """Staff admin freezes (is_active=False) or re-activates a user; audited, never on staff or yourself."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
+
+    def post(self, request, pk):
+        from django.db import transaction
+        from django.shortcuts import get_object_or_404
+        from rest_framework.exceptions import ValidationError
+
+        from audit.models import AuditEvent
+        from audit.services import record_audit_event
+
+        payload = StatusChangeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        active = payload.validated_data["status"] == "ACTIVE"
+        with transaction.atomic():
+            user = get_object_or_404(User.objects.select_for_update(), pk=pk)
+            if user.pk == request.user.pk or user.primary_role == "STAFF":
+                raise ValidationError({"status": "Staff accounts and your own account cannot be changed here."})
+            before = user.is_active
+            user.is_active = active
+            user.save(update_fields=["is_active", "updated_at"])
+            record_audit_event(
+                actor_user=request.user,
+                actor_type=AuditEvent.ActorType.USER,
+                action="accounts.User.status_changed",
+                target_type="accounts.User",
+                target_id=str(user.pk),
+                source=AuditEvent.Source.API,
+                before={"is_active": before},
+                after={"is_active": active},
+                metadata={},
+            )
+        return Response({"id": str(user.pk), "is_active": user.is_active})
