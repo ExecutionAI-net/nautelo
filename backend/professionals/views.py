@@ -31,6 +31,9 @@ class MembershipView(APIView):
                 "status": subscription.status if subscription else "INACTIVE",
                 "current_period_end": subscription.current_period_end if subscription else None,
                 "past_due_since": subscription.past_due_since if subscription else None,
+                "trial_ends_at": subscription.trial_ends_at if subscription else None,
+                "trial_available": bool(plan and plan.trial_days > 0 and not (subscription and subscription.trial_used_at)),
+                "trial_days": plan.trial_days if plan else 0,
                 "plan": (
                     {
                         "name": plan.name,

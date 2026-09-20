@@ -336,3 +336,23 @@ def resolve_seller_context(user, *, broker_id=None) -> SellerContext:
         detail="This account cannot create listings for that broker.",
         code="broker_listing_not_allowed",
     )
+
+
+def broker_membership_in(user, broker_id, statuses=None):
+    """The user's live membership of this broker whatever its status (or one of `statuses`).
+
+    Onboarding needs this: a brokerage that is still DRAFT/PENDING (or was
+    suspended for non-payment) must still let its own members finish the
+    profile, invite the team and pay. Public capabilities keep using
+    `active_broker_membership`, which requires an ACTIVE brokerage.
+    """
+    from brokers.models import BrokerMembership
+
+    if not _usable(user) or broker_id is None:
+        return None
+    query = BrokerMembership.objects.select_related("broker").filter(
+        user=user, broker_id=broker_id, is_active=True
+    )
+    if statuses is not None:
+        query = query.filter(broker__status__in=statuses)
+    return query.first()

@@ -246,7 +246,7 @@ def test_this_phase_added_no_second_message_store(api, two_brokerages):
     broker_models = sorted(
         model.__name__ for model in apps.get_app_config("brokers").get_models()
     )
-    assert broker_models == ["BrokerMembership", "BrokerOrganization", "BrokerPlan"]
+    assert broker_models == ["BrokerMembership", "BrokerOrganization", "BrokerPlan", "BrokerSubscription"]
 
 
 def test_the_broker_inbox_query_count_is_constant_in_the_number_of_rows(

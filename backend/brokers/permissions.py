@@ -30,3 +30,18 @@ class IsBrokerMember(BasePermission):
     def has_permission(self, request, view):
         broker_id = getattr(view, "kwargs", {}).get("broker_id")
         return active_broker_membership(request.user, broker_id) is not None
+
+
+class IsBrokerBilling(BasePermission):
+    """Members read the subscription; team managers change it. Any brokerage status."""
+
+    message = "You cannot manage this brokerage's subscription."
+    code = "not_broker_billing"
+
+    def has_permission(self, request, view):
+        from accounts.services import broker_membership_in
+
+        membership = broker_membership_in(request.user, getattr(view, "kwargs", {}).get("broker_id"))
+        if membership is None:
+            return False
+        return request.method in ("GET", "HEAD", "OPTIONS") or membership.can_manage_team

@@ -66,6 +66,9 @@ class IsOwnerOrBrokerEditor(BasePermission):
         )
 
 
+ONBOARDING_STATUSES = ("DRAFT", "PENDING", "ACTIVE")
+
+
 class IsBrokerTeamManager(BasePermission):
     """View-level: the caller may manage the team of view.kwargs['broker_id']."""
 
@@ -73,8 +76,14 @@ class IsBrokerTeamManager(BasePermission):
     code = "not_broker_team_manager"
 
     def has_permission(self, request, view):
+        from accounts.services import broker_membership_in, is_staff_admin
+
         broker_id = getattr(view, "kwargs", {}).get("broker_id")
-        return can_manage_broker_team(request.user, broker_id)
+        if is_staff_admin(request.user):
+            return True
+        # A brokerage that is still being set up (DRAFT/PENDING) may run its own team.
+        membership = broker_membership_in(request.user, broker_id, ONBOARDING_STATUSES)
+        return membership is not None and membership.can_manage_team
 
 
 class CanReadBrokerMessages(BasePermission):

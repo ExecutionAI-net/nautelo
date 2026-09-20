@@ -10,6 +10,7 @@ class ProfessionalProfileStatus(models.TextChoices):
 
 class SubscriptionStatus(models.TextChoices):
     INACTIVE = "INACTIVE", "Inactive"
+    TRIALING = "TRIALING", "Free trial"
     ACTIVE = "ACTIVE", "Active"
     PAST_DUE = "PAST_DUE", "Past due"
     LAPSED = "LAPSED", "Lapsed"

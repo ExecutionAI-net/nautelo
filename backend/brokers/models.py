@@ -32,6 +32,11 @@ class BrokerPlan(UUIDTimeStampedModel):
         choices=ProfileVisibility.choices, default=ProfileVisibility.STANDARD
     )
     display_order = models.PositiveIntegerField(default=0)
+    stripe_product_id = models.CharField(max_length=64, blank=True, default="")
+    stripe_price_id = models.CharField(max_length=64, blank=True, default="")
+    trial_days = models.PositiveSmallIntegerField(
+        default=30, help_text="Free days before the first charge; a card is still collected up front. 0 = no trial."
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -172,3 +177,29 @@ class BrokerMembership(UUIDTimeStampedModel):
         result = super().save(*args, **kwargs)
         self._loaded_role = self.role
         return result
+
+
+class BrokerSubscription(UUIDTimeStampedModel):
+    """Billing state of one brokerage's subscription (trial, paid, lapsed)."""
+
+    broker = models.OneToOneField(BrokerOrganization, related_name="subscription", on_delete=models.CASCADE)
+    status = models.CharField(max_length=10, default="INACTIVE")
+    stripe_customer_id = models.CharField(max_length=64, blank=True, default="")
+    stripe_subscription_id = models.CharField(max_length=64, blank=True, default="")
+    current_period_end = models.DateTimeField(null=True, blank=True)
+    last_paid_at = models.DateTimeField(null=True, blank=True)
+    trial_used_at = models.DateTimeField(null=True, blank=True)
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
+    past_due_since = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["stripe_subscription_id"],
+                condition=~models.Q(stripe_subscription_id=""),
+                name="broker_subscription_one_row_per_stripe_subscription",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.broker_id} {self.status}"

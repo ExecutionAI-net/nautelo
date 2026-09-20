@@ -52,18 +52,29 @@ def create_membership_checkout(*, profile, gateway=None) -> str:
     if plan is None:
         raise MembershipUnavailable()
     gateway = gateway or default_gateway()
-    metadata = {"kind": KIND, "professional_id": str(profile.pk)}
+    trial = plan.trial_days > 0 and not ProfessionalSubscription.objects.filter(
+        profile=profile, trial_used_at__isnull=False
+    ).exists()
+    metadata = {"kind": KIND, "professional_id": str(profile.pk), "trial": "1" if trial else "0"}
+    subscription_data = {"metadata": metadata}
+    params = {
+        "mode": "subscription",
+        "line_items": [{"price": plan.stripe_price_id, "quantity": 1}],
+        "success_url": _url("success"),
+        "cancel_url": _url("cancelled"),
+        "client_reference_id": str(profile.pk),
+        "metadata": metadata,
+        "subscription_data": subscription_data,
+    }
+    if trial:
+        # The card is collected now; the first charge happens when the trial
+        # ends. No card on file at that point cancels the subscription.
+        params["payment_method_collection"] = "always"
+        subscription_data["trial_period_days"] = plan.trial_days
+        subscription_data["trial_settings"] = {"end_behavior": {"missing_payment_method": "cancel"}}
     try:
         result = gateway.create_checkout_session(
-            params={
-                "mode": "subscription",
-                "line_items": [{"price": plan.stripe_price_id, "quantity": 1}],
-                "success_url": _url("success"),
-                "cancel_url": _url("cancelled"),
-                "client_reference_id": str(profile.pk),
-                "metadata": metadata,
-                "subscription_data": {"metadata": metadata},
-            },
+            params=params,
             idempotency_key=f"professional-membership:{profile.pk}:{uuid.uuid4()}",
         )
     except StripeUnavailable as exc:
@@ -102,14 +113,24 @@ def _activate(subscription, *, period_end=None, now=None):
     subscription.save()
 
     profile = subscription.profile
-    comes_online = profile.status in (
-        ProfessionalProfileStatus.DRAFT,
-        ProfessionalProfileStatus.PENDING,
-    ) or (was_offline and profile.status == ProfessionalProfileStatus.SUSPENDED)
+    # A new profile stays DRAFT/PENDING until staff approve it; payment only
+    # brings back a profile that a lapse took offline.
+    comes_online = was_offline and profile.status == ProfessionalProfileStatus.SUSPENDED
     if profile.status != ProfessionalProfileStatus.ACTIVE and comes_online:
         profile.status = ProfessionalProfileStatus.ACTIVE
         profile.save(update_fields=["status", "updated_at"])
         _notify(profile, NotificationType.PROFESSIONAL_ACTIVATED, f"{subscription.pk}:active:{now.date()}")
+
+
+def _start_trial(subscription, *, now=None):
+    now = now or timezone.now()
+    plan = get_plan()
+    days = plan.trial_days if plan else 0
+    subscription.status = SubscriptionStatus.TRIALING
+    subscription.trial_used_at = subscription.trial_used_at or now
+    subscription.trial_ends_at = now + timedelta(days=days)
+    subscription.current_period_end = subscription.trial_ends_at
+    subscription.save()
 
 
 def _deactivate(subscription, *, status, now=None):
@@ -158,7 +179,8 @@ def handle_membership_checkout(session: dict) -> str:
     from payments.enums import WebhookResult
 
     metadata = session.get("metadata") or {}
-    if metadata.get("kind") != KIND or session.get("payment_status") != "paid":
+    # A trial checkout completes with no payment due; a paid one with "paid".
+    if metadata.get("kind") != KIND or session.get("payment_status") not in ("paid", "no_payment_required"):
         return WebhookResult.IGNORED
     subscription = _subscription_for(professional_id=metadata.get("professional_id", ""))
     if subscription is None:
@@ -166,7 +188,12 @@ def handle_membership_checkout(session: dict) -> str:
     subscription.stripe_customer_id = session.get("customer") or subscription.stripe_customer_id
     sub_id = session.get("subscription") or ""
     subscription.stripe_subscription_id = sub_id if isinstance(sub_id, str) else sub_id.get("id", "")
-    _activate(subscription)
+    if metadata.get("trial") == "1" and session.get("payment_status") == "no_payment_required":
+        _start_trial(subscription)
+    elif session.get("payment_status") == "paid":
+        _activate(subscription)
+    else:
+        return WebhookResult.IGNORED
     return WebhookResult.FULFILLED
 
 
@@ -180,6 +207,9 @@ def handle_invoice_paid(event) -> str:
         return WebhookResult.IGNORED
     if not subscription.stripe_subscription_id:
         subscription.stripe_subscription_id = refs["subscription_id"]
+    if subscription.status == SubscriptionStatus.TRIALING and not invoice.get("amount_paid"):
+        # The zero-amount invoice Stripe issues when a trial starts is not a payment.
+        return WebhookResult.FULFILLED
     lines = (invoice.get("lines") or {}).get("data") or []
     period_end = _from_unix(((lines[0] if lines else {}).get("period") or {}).get("end"))
     _activate(subscription, period_end=period_end)
@@ -195,7 +225,7 @@ def handle_invoice_payment_failed(event) -> str:
         return WebhookResult.IGNORED
     if subscription.past_due_since is None:
         subscription.past_due_since = timezone.now()
-    if subscription.status == SubscriptionStatus.ACTIVE:
+    if subscription.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING):
         subscription.status = SubscriptionStatus.PAST_DUE
     subscription.save()
     _notify(
