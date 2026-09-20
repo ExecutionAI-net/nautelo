@@ -82,7 +82,7 @@ Findings:
 | ID | Sev | Finding | Status |
 | --- | --- | --- | --- |
 | R2-13 | **S1** | A brokerage created by staff has an admin who is not email-verified, and **every organization screen is dead** with misleading messages. A real user would conclude the product is broken or that they lack rights. | Fixed for the UI in PR 365: every dashboard now shows a "Verify your email" banner with a resend button. Still open: staff-created accounts should be created verified (or get the verification mail automatically). |
-| R2-14 | S2 | "Access denied" for a missing capability never says what to do. Same for the team/profile error texts. | Map `email_not_verified` (and other known codes) to specific messages on every screen. |
+| R2-14 | S2 | "Access denied" for a missing capability never says what to do. Same for the team/profile error texts. | Fixed with this PR: the denied screen and the broker error texts now name the unverified email. |
 | R2-15 | S3 | Empty states give no next step: Leads and Messages say only "No conversations match this filter"; dashboard "Mandate inventory" fine. | Add guidance (e.g. "Share your public page", "Add your first vessel"). |
 | R2-16 | S3 | The browser viewport in this session was small (about 1045x450 usable) and the dashboard sidebar consumed a large share; not judged. | Needs a desktop-size pass. |
 

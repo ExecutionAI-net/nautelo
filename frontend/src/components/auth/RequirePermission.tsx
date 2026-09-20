@@ -37,6 +37,9 @@ export default function RequirePermission({ permission, children }: Props) {
     );
   }
   if (!authenticated) return null;
-  if (!allowed) return <ForbiddenScreen />;
+  if (!allowed) {
+    const unverified = session?.user && !session.user.email_verified;
+    return <ForbiddenScreen reason={unverified ? "Verify your email address first. Until then most features are locked. Use the notice at the top of the dashboard to get a new verification email." : undefined} />;
+  }
   return <>{children}</>;
 }
