@@ -206,12 +206,22 @@ export default function SellListingForm({
     };
   }, []);
 
-  async function runTranslate() {
+  async function runTranslate(only?: Lang | "missing") {
     setTranslating(true);
     setTranslateError(false);
     setTranslatedLangs([]);
     try {
-      const targets = LANGS.map((item) => item.code as Lang).filter((code) => code !== lang);
+      const others = LANGS.map((item) => item.code as Lang).filter((code) => code !== lang);
+      const targets =
+        only === "missing"
+          ? others.filter((code) => !titles[code].trim() || !descriptions[code].trim())
+          : only
+            ? [only]
+            : others;
+      if (targets.length === 0) {
+        setTranslating(false);
+        return;
+      }
       const result = await translateListingText({ title: titles[lang], description: descriptions[lang], source: lang, targets });
       setTitles((current) => ({ ...current, ...Object.fromEntries(targets.map((code) => [code, result[code]?.title ?? current[code]])) }));
       setDescriptions((current) => ({ ...current, ...Object.fromEntries(targets.map((code) => [code, result[code]?.description ?? current[code]])) }));
@@ -541,14 +551,30 @@ export default function SellListingForm({
 
               {translateEnabled ? (
                 <div className="mt-space-md">
-                  <button
-                    type="button"
-                    onClick={runTranslate}
-                    disabled={translating || locked || !(titles[lang] || descriptions[lang])}
-                    className="rounded-lg bg-secondary-container px-space-md py-space-xs font-label-md text-on-secondary-container disabled:opacity-50"
-                  >
-                    {translating ? t("sell.translate_ai_busy") : t("sell.translate_ai")}
-                  </button>
+                  <div role="group" aria-label={t("sell.translate_ai")} className="flex flex-wrap items-center gap-space-xs">
+                    <span className="font-label-md text-on-surface-variant">
+                      {translating ? t("sell.translate_ai_busy") : t("sell.translate_ai")}
+                    </span>
+                    {LANGS.filter((item) => item.code !== lang).map((item) => (
+                      <button
+                        key={item.code}
+                        type="button"
+                        onClick={() => void runTranslate(item.code)}
+                        disabled={translating || locked || !(titles[lang] || descriptions[lang])}
+                        className="rounded-lg bg-secondary-container px-space-md py-space-xs font-label-md text-on-secondary-container disabled:opacity-50"
+                      >
+                        {t("sell.translate_to", { lang: item.label.replace(" (Original)", "") })}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => void runTranslate("missing")}
+                      disabled={translating || locked || !(titles[lang] || descriptions[lang])}
+                      className="rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary disabled:opacity-50"
+                    >
+                      {t("sell.translate_missing")}
+                    </button>
+                  </div>
                   <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("sell.translate_ai_help")}</p>
                   {translatedLangs.length > 0 ? (
                     <p role="status" className="mt-space-xs rounded-lg bg-secondary-container px-space-sm py-space-xs font-body-sm text-on-secondary-container">
