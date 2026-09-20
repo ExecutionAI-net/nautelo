@@ -44,3 +44,29 @@ def test_a_failing_poster_never_rejects_the_video(monkeypatch):
     storage = FakeStorage()
     media_video.probe_video(storage, "k", Media())
     assert storage.written == {}
+
+
+def test_non_web_codecs_are_transcoded_to_h264_mp4(monkeypatch, tmp_path):
+    def run(cmd, **kwargs):
+        if cmd[0] == "ffprobe":
+            payload = {"streams": [{"codec_type": "video", "codec_name": "hevc", "width": 1920, "height": 1080}], "format": {"duration": "9"}}
+            return subprocess.CompletedProcess(cmd, 0, json.dumps(payload).encode(), b"")
+        if "libx264" in cmd:
+            with open(cmd[-1], "wb") as out:
+                out.write(b"MP4DATA")
+            return subprocess.CompletedProcess(cmd, 0, b"", b"")
+        return subprocess.CompletedProcess(cmd, 0, b"JPEGDATA", b"")
+
+    monkeypatch.setattr(media_video.subprocess, "run", run)
+    storage, media = FakeStorage(), Media()
+    media.mime_type = "video/quicktime"
+    media_video.probe_video(storage, "k", media)
+    assert storage.written["k"] == (b"MP4DATA", "video/mp4")
+    assert (media.mime_type, media.byte_size) == ("video/mp4", 7)
+    assert len(media.checksum_sha256) == 64
+
+
+def test_h264_mp4_is_left_untouched():
+    info = {"streams": [{"codec_type": "video", "codec_name": "h264"}]}
+    assert media_video.needs_transcode(info, "video/mp4") is False
+    assert media_video.needs_transcode(info, "video/quicktime") is True
