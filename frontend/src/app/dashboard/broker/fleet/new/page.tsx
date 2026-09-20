@@ -1,18 +1,12 @@
 import RequirePermission from "@/components/auth/RequirePermission";
+import FleetListingPage from "@/components/listings/FleetListingPage";
 import AreaShell from "@/components/layout/AreaShell";
-import MyListings from "@/components/listings/MyListings";
 
-export default function FleetPage() {
+export default function NewFleetVesselPage() {
   return (
     <AreaShell area="broker" active="/dashboard/broker/fleet/">
       <RequirePermission permission="create_broker_listing">
-        <MyListings
-          fleet
-          eyebrow="Fleet management"
-          heading="Active vessel inventory"
-          createHref="/dashboard/broker/fleet/new/"
-          createLabel="Add vessel"
-        />
+        <FleetListingPage />
       </RequirePermission>
     </AreaShell>
   );
