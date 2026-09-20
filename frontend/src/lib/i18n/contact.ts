@@ -22,6 +22,11 @@ export const CONTACT_MESSAGES: Record<string, Translations> = {
     it: "Invia un messaggio tramite NAUTA per sbloccare i dati di contatto aziendali.",
     es: "Envía un mensaje a través de NAUTA para desbloquear los datos de contacto profesionales.",
   },
+  "contact.blur_reason": {
+    en: "These details are blurred on purpose: they protect businesses from spam and keep conversations on NAUTA. They become visible as soon as you send a message.",
+    it: "Questi dati sono sfocati di proposito: proteggono le aziende dallo spam e mantengono le conversazioni su NAUTA. Diventano visibili non appena invii un messaggio.",
+    es: "Estos datos están difuminados a propósito: protegen a las empresas del spam y mantienen las conversaciones en NAUTA. Se muestran en cuanto envías un mensaje.",
+  },
   "contact.unlocked": {
     en: "Contact details unlocked",
     it: "Dati di contatto sbloccati",

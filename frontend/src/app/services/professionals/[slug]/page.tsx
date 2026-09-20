@@ -145,6 +145,19 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
             </section>
           ) : null}
 
+        </div>
+
+        <aside className="flex flex-col gap-space-lg">
+          {/* Spec 14.2's contact panel. A client component that fetches
+              GET /api/v1/contacts/professional/<id>/ after mount, so this
+              server-rendered HTML contains no contact value at all, masked or
+              otherwise (spec 16). */}
+          <ContactPanel
+            targetType="professional"
+            targetId={professional.id}
+            locale={locale}
+          />
+
           {inquiryConfig?.enabled ? (
             <InquiryForm
               context={{
@@ -156,18 +169,6 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
               locale={locale}
             />
           ) : null}
-        </div>
-
-        <aside>
-          {/* Spec 14.2's contact panel. A client component that fetches
-              GET /api/v1/contacts/professional/<id>/ after mount, so this
-              server-rendered HTML contains no contact value at all, masked or
-              otherwise (spec 16). */}
-          <ContactPanel
-            targetType="professional"
-            targetId={professional.id}
-            locale={locale}
-          />
 
           {/* Portfolio/gallery is absent: spec 14.2 permits it "only when real
               backend records exist" and no media model exists yet (Phase 15). */}

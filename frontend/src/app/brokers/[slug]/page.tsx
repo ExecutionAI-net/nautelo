@@ -2,6 +2,7 @@ import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import ContactPanel from "@/components/contact/ContactPanel";
 import InquiryForm from "@/components/inquiry/InquiryForm";
 import BoatCard from "@/components/listings/BoatCard";
 import { fetchBroker } from "@/lib/api/brokers";
@@ -102,15 +103,16 @@ export default async function BrokerPage({ params }: { params: Params }) {
             </li>
           ))}
         </ul>
-        {inquiryConfig?.enabled ? (
-          <aside>
+        <aside className="flex flex-col gap-space-lg">
+          <ContactPanel targetType="broker" targetId={broker.id} locale={locale} />
+          {inquiryConfig?.enabled ? (
             <InquiryForm
               context={{ type: "BROKER", id: broker.id, label: broker.name }}
               config={inquiryConfig}
               locale={locale}
             />
-          </aside>
-        ) : null}
+          ) : null}
+        </aside>
       </div>
       </div>
     </main>
