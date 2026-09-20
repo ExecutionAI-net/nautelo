@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import DashboardSidebar, { type MenuGroup } from "@/components/layout/DashboardSidebar";
+
 type Tab = { href: string; label: string };
 
 const AREAS = {
@@ -63,6 +65,22 @@ const AREAS = {
   },
 };
 
+
+// Menu sections per area; each entry names a tab above by its label.
+const GROUPS: Record<string, [string, string[]][]> = {
+  seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account"]]],
+  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "Subscription"]]],
+  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]]],
+  staff: [["Moderation", ["Moderation", "Boats"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content"]], ["System", ["Reports", "Settings"]]],
+};
+
+function menuGroups(area: string, tabs: Tab[]): MenuGroup[] {
+  return (GROUPS[area] ?? []).map(([title, labels]) => ({
+    title,
+    items: labels.flatMap((label) => tabs.filter((tab) => tab.label === label)),
+  }));
+}
+
 export type AreaKey = keyof typeof AREAS;
 
 export default function AreaShell({
@@ -76,10 +94,11 @@ export default function AreaShell({
 }) {
   const config = AREAS[area];
   return (
-    <main className="w-full bg-surface">
-      <div className="bg-surface-container-low pt-space-xl">
-        <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
-          <div className="flex flex-wrap items-end justify-between gap-space-md">
+    <div className="flex w-full flex-col bg-surface lg:min-h-screen lg:flex-row">
+      <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} />
+      <main className="min-w-0 flex-1">
+        <div className="bg-surface-container-low py-space-lg">
+          <div className="mx-auto flex max-w-[1200px] flex-wrap items-end justify-between gap-space-md px-margin-mobile md:px-margin">
             <div>
               <span className="font-label-sm uppercase tracking-widest text-secondary">{config.eyebrow}</span>
               <p className="mt-1 font-headline-lg text-headline-lg text-primary">{config.title}</p>
@@ -93,27 +112,9 @@ export default function AreaShell({
               </Link>
             ) : null}
           </div>
-          <nav aria-label={`${config.eyebrow} sections`} className="mt-space-lg flex flex-wrap gap-space-xs">
-            {config.tabs.map((tab) => (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                aria-current={tab.href === active ? "page" : undefined}
-                className={`rounded-t-lg px-space-md py-space-sm font-label-md ${
-                  tab.href === active
-                    ? "bg-surface text-primary"
-                    : "text-on-surface-variant hover:text-on-surface"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </nav>
         </div>
-      </div>
-      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
-        {children}
-      </div>
-    </main>
+        <div className="mx-auto max-w-[1200px] px-margin-mobile py-space-xl md:px-margin">{children}</div>
+      </main>
+    </div>
   );
 }

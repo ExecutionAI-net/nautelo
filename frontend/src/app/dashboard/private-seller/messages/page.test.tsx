@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import MessagesPage from "@/app/dashboard/private-seller/messages/page";
 
+vi.mock("@/components/layout/DashboardSidebar", () => ({ default: () => null }));
 vi.mock("@/components/messages/MessagesScreen", () => ({
   default: ({ basePath, filter, brokerId }: Record<string, unknown>) => (
     <div
