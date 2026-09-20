@@ -125,6 +125,8 @@ const SELL: Record<string, Entry> = {
   },
   "sell.media_rejected": { en: "Photo not accepted: {reason}", it: "Foto non accettata: {reason}", es: "Foto no aceptada: {reason}" },
   "sell.media_added": { en: "Photo added", it: "Foto aggiunta", es: "Foto anadida" },
+  "sell.translate_to": { en: "Translate to {lang}", it: "Traduci in {lang}", es: "Traducir a {lang}" },
+  "sell.translate_missing": { en: "Translate missing languages", it: "Traduci le lingue mancanti", es: "Traducir los idiomas que faltan" },
   "sell.condition": { en: "Boat condition", it: "Condizione", es: "Estado" },
   "sell.condition.new": { en: "New vessel", it: "Nuova", es: "Nueva" },
   "sell.condition.used": { en: "Used / pre-owned", it: "Usata", es: "De segunda mano" },
