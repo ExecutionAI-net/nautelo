@@ -140,6 +140,23 @@ New findings:
 | R2-25 | S3 | The professional team screen said only "The team could not be loaded." Fixed: it now names the unverified email as a likely cause. |
 | R2-26 | S3 | The membership state reports `trial_available: false` and `trial_days: 0` when no plan exists, while checkout answers 503; the page should say "membership not open yet" rather than showing a dead state. |
 
+### 3e. Professional after email verification (2026-09-21)
+
+| Check | Result |
+| --- | --- |
+| Session | verified; owner seat ADMIN with all three capabilities; permissions add `submit_inquiry`, `reveal_contact_after_inquiry` |
+| Team API | works; lists the owner (owner flag set) |
+| Invite validation | bad email, own address (`already_member`), bad role: all refused with field errors. No invitation was sent. |
+| Direct `status` write (`PENDING`/`ACTIVE`) via PATCH | ignored, status stays DRAFT: correct |
+| Submit (`submit: true`) on an incomplete profile | 400 `profile_incomplete`: correct |
+| Membership checkout | 503 `membership_unavailable` (no plan yet) |
+| Website `javascript:alert(1)` | refused: correct |
+
+| ID | Sev | Finding |
+| --- | --- | --- |
+| R2-27 | S2 | **Fixed here.** The profile API accepted `<script>...</script>` as display name, markup in city, and `abc` as phone (the R2-3 fix covered registration only). The live test profile was changed and restored by hand. Both the professional and broker profile serializers now share `common/field_rules.py` (no `<`/`>`, phone with 6+ digits). React escapes output so no script ran, but the value would reach emails and third-party consumers. |
+| R2-7 | S3 | Confirmed live: country `ZZ` is accepted on the professional profile too. |
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |
