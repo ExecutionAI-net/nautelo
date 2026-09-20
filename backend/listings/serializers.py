@@ -276,6 +276,14 @@ class ListingMediaSerializer(serializers.Serializer):
 
     def get_preview_url(self, obj):
         """A viewable URL for the owner's own ready images (form preview card)."""
-        if obj.media_type != "IMAGE" or obj.status != "READY":
+        if obj.status != "READY":
             return None
+        if obj.media_type == "VIDEO":
+            from django.core.files.storage import default_storage
+
+            from .media_video import poster_key
+
+            if not default_storage.exists(poster_key(obj.storage_key)):
+                return None
+            return _with_url({"storage_key": poster_key(obj.storage_key)})["url"]
         return _with_url({"storage_key": obj.storage_key})["url"]

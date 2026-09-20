@@ -802,7 +802,7 @@ export default function SellListingForm({
                 return (
                   <li key={row.id} className="overflow-hidden rounded-lg bg-surface-container-low">
                     <div className="relative aspect-[4/3] bg-primary-container">
-                      {row.preview_url && row.media_type === "IMAGE" ? (
+                      {row.preview_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" src={row.preview_url} className="h-full w-full object-cover" />
                       ) : (

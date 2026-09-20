@@ -45,7 +45,28 @@ def probe_video(storage, key: str, media) -> None:
             raise RuntimeError("ffprobe is not installed") from exc
         except subprocess.TimeoutExpired:
             raise RejectedMedia("The video could not be processed.") from None
-    if result.returncode != 0:
-        raise RejectedMedia("The video could not be processed.")
-    _, width, height = parse_probe(json.loads(result.stdout or b"{}"))
-    media.width, media.height = width, height
+        if result.returncode != 0:
+            raise RejectedMedia("The video could not be processed.")
+        duration, width, height = parse_probe(json.loads(result.stdout or b"{}"))
+        media.width, media.height = width, height
+        _write_poster(storage, key, handle.name, duration)
+
+
+def poster_key(key: str) -> str:
+    return f"{key}.poster.jpg"
+
+
+def _write_poster(storage, key: str, path: str, duration: float) -> None:
+    """Best effort: one JPEG frame for the owner preview; a failure never rejects the video."""
+    try:
+        frame = subprocess.run(
+            ["ffmpeg", "-v", "error", "-ss", f"{min(1.0, duration / 2):.2f}", "-i", path,
+             "-frames:v", "1", "-vf", "scale=640:-2", "-f", "image2", "-vcodec", "mjpeg", "pipe:1"],
+            capture_output=True,
+            timeout=PROBE_TIMEOUT,
+            check=False,
+        )
+        if frame.returncode == 0 and frame.stdout:
+            storage.write(poster_key(key), frame.stdout, "image/jpeg")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
