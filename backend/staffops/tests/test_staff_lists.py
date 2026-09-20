@@ -79,3 +79,33 @@ def test_status_change_needs_staff_admin():
     seller = APIClient()
     seller.force_authenticate(make_user(email="not-staff@example.com", role=UserRole.PRIVATE_SELLER, verified=True))
     assert seller.post(reverse("staff-broker-status", args=[broker.id]), {"status": "ACTIVE"}, format="json").status_code == 403
+
+
+def test_user_list_carries_role_facets_and_an_account_state_filter(staff_api):
+    make_user(email="a-seller@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
+    make_user(email="b-seller@example.com", role=UserRole.PRIVATE_SELLER, verified=False)
+    body = staff_api.get(reverse("staff-user-list"), {"role": UserRole.PRIVATE_SELLER}).json()
+    assert body["facets"][UserRole.PRIVATE_SELLER] == 2
+    unverified = staff_api.get(reverse("staff-user-list"), {"state": "unverified"}).json()
+    assert "b-seller@example.com" in [row["email"] for row in unverified["results"]]
+    assert "a-seller@example.com" not in [row["email"] for row in unverified["results"]]
+
+
+def test_reports_carry_breakdowns_and_thirty_day_growth(staff_api):
+    body = staff_api.get(reverse("staff-reports")).json()
+    assert body["new_users_30d"] >= 1
+    assert sum(body["users_by_role"].values()) == body["users"]
+    assert set(body) >= {"listings_by_status", "new_users_prev_30d", "suspended_users", "unverified_users"}
+
+
+def test_staff_admin_freezes_a_user_and_it_is_audited_but_not_staff(staff_api):
+    from audit.models import AuditEvent
+
+    seller = make_user(email="freeze-me@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
+    url = reverse("staff-user-status", args=[seller.pk])
+    assert staff_api.post(url, {"status": "SUSPENDED"}, format="json").status_code == 200
+    seller.refresh_from_db()
+    assert seller.is_active is False
+    assert AuditEvent.objects.filter(action="accounts.User.status_changed", target_id=str(seller.pk)).exists()
+    other_staff = make_user(email="other-staff@example.com", role=UserRole.STAFF, verified=True)
+    assert staff_api.post(reverse("staff-user-status", args=[other_staff.pk]), {"status": "SUSPENDED"}, format="json").status_code == 400
