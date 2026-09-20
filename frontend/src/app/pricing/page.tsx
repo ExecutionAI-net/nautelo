@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import PlanCards from "@/components/pricing/PlanCards";
-import { fetchPricing, formatPrice } from "@/lib/api/plans";
+import { formatPrice } from "@/lib/api/plans";
+import { fetchPricing } from "@/lib/api/plansServer";
 
 export const dynamic = "force-dynamic";
 
