@@ -9,6 +9,7 @@ from .staff_taxonomy_views import (
     StaffModelMergeView,
     StaffOtherQueueView,
 )
+from .valuation import ValuationView
 from .views import (
     ListingDraftCreateView,
     ListingFormOptionsView,
@@ -35,6 +36,7 @@ from .views import (
 from .owner_views import ListingWorkflowDetailView, MyListingsSummaryView, MyListingsView
 
 urlpatterns = [
+    path("valuation/", ValuationView.as_view(), name="valuation"),
     path("listings/facets/", PublicListingFacetsView.as_view(), name="listing-facets"),
     path("listing-form/options/", ListingFormOptionsView.as_view(), name="listing-form-options"),
     path("listings/mine/", MyListingsView.as_view(), name="my-listings"),

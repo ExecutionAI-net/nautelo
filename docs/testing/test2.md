@@ -161,6 +161,10 @@ New findings:
 
 Live steps that worked after the fix of the profile: full profile fill (completeness 100%), service created, **logo (400x400) and cover (1200x400) uploaded to the real S3 bucket**, a 60x60 logo refused (`image_too_small`), submit on a complete profile answered `subscription_required` (correct: no plan/trial yet), public page stays 404 while DRAFT.
 
+### 3f. Live staff session (2026-09-21)
+
+Role STAFF, verified; capabilities include reveal_any_contact, create_listing_on_behalf, approve_listings_and_revisions, configure_products_and_settings, manage_taxonomy. Staff lists all answer 200 (boats 96, users 56, brokers 11, providers 15, leads 38, service requests 10, subscriptions 31, entitlements 31), reports and settings load. R2-6 (staff can activate an organization without a live subscription) left as is on purpose: staff may need to comp an account; needs a product decision.
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |
