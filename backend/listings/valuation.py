@@ -37,18 +37,32 @@ def confidence_for(count: int) -> str:
     return "low"
 
 
+def _length_of(specs) -> Decimal | None:
+    for key in ("loa_m", "length_m"):
+        try:
+            return Decimal(str((specs or {})[key]))
+        except (KeyError, ArithmeticError, ValueError):
+            continue
+    return None
+
+
 def estimate(*, boat_type: str, length_m: Decimal, year: int, country: str = "") -> dict:
     from .views import published_listings_queryset
 
     params = {
         "boat_type": boat_type,
-        "length_min": str(length_m * (1 - LENGTH_WINDOW)),
-        "length_max": str(length_m * (1 + LENGTH_WINDOW)),
         "year_min": str(year - YEAR_WINDOW),
         "year_max": str(year + YEAR_WINDOW),
     }
     rows = apply_public_filters(published_listings_queryset(), params).filter(**{f"{SNAP}currency": "EUR"})
-    prices = sorted(Decimal(p) for p in rows.values_list(f"{SNAP}price", flat=True) if p)
+    low_len, high_len = length_m * (1 - LENGTH_WINDOW), length_m * (1 + LENGTH_WINDOW)
+    prices = []
+    # Length is read in Python because listings carry it as `loa_m` (text) or `length_m` (number).
+    for price, specs in rows.values_list(f"{SNAP}price", f"{SNAP}specifications")[:2000]:
+        length = _length_of(specs)
+        if price and length is not None and low_len <= length <= high_len:
+            prices.append(Decimal(price))
+    prices.sort()
     if len(prices) < MIN_COMPARABLES:
         return {"available": False, "comparables": len(prices)}
     low = prices[len(prices) // 4]

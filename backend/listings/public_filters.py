@@ -104,6 +104,10 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
         queryset = queryset.annotate(
             _loa_m=Case(
                 When(**{f"{SNAP}specifications__loa_m__regex": r"^[0-9]+(\.[0-9]+)?$"}, then=Cast(raw, DecimalField(max_digits=8, decimal_places=2))),
+                When(
+                    **{f"{SNAP}specifications__length_m__regex": r"^[0-9]+(\.[0-9]+)?$"},
+                    then=Cast(KeyTextTransform("length_m", f"{SNAP}specifications"), DecimalField(max_digits=8, decimal_places=2)),
+                ),
                 default=None,
                 output_field=DecimalField(max_digits=8, decimal_places=2),
             )

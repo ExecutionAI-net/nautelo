@@ -17,7 +17,7 @@ def _publish(n, price, **spec):
     listing = make_private_listing(owner=owner, status=ListingStatus.PUBLISHED)
     snap = make_snapshot(
         listing, approved_by=staff, price=price,
-        specifications={"boat_type": "Motor yacht", "loa_m": "12.0", **spec},
+        specifications={"boat_type": "Motor yacht", "length_m": 12.0, **spec},
     )
     listing.current_public_snapshot = snap
     listing.published_at = timezone.now()
@@ -47,3 +47,13 @@ def test_estimate_is_the_spread_of_comparable_asking_prices():
 def test_invalid_input_is_refused():
     response = APIClient().post(reverse("valuation"), {"boat_type": "Rocket", "length_m": "1", "year": 1800}, format="json")
     assert response.status_code == 400
+
+
+def test_length_filter_reads_either_spec_key():
+    from listings.public_filters import apply_public_filters
+    from listings.views import published_listings_queryset
+
+    _publish(1, 100000)
+    _publish(2, 100000, loa_m="30")
+    hits = apply_public_filters(published_listings_queryset(), {"length_min": "11", "length_max": "13"})
+    assert hits.count() == 1
