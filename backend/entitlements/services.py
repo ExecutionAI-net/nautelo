@@ -268,6 +268,7 @@ def grant_listing_right(
     entitlement_type: str = EntitlementType.PAID_LISTING,
     valid_days: int | None = None,
     now: datetime | None = None,
+    extra_metadata: dict | None = None,
 ) -> UserEntitlement:
     """Spec §26.3 item 2: "Grant a compensatory listing/media right with
     mandatory reason."
@@ -288,7 +289,7 @@ def grant_listing_right(
         valid_from=now,
         valid_until=now + timedelta(days=valid_days),
         granted_by=actor if getattr(actor, "is_authenticated", False) else None,
-        metadata={"reason": cleaned},
+        metadata={**(extra_metadata or {}), "reason": cleaned},
     )
     _audit(
         entitlement=entitlement,
