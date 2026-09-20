@@ -89,10 +89,15 @@ class StaffUserListView(StaffListView):
 class BrokerRowSerializer(serializers.ModelSerializer):
     member_count = serializers.IntegerField(read_only=True)
     listing_count = serializers.IntegerField(read_only=True)
+    plan_name = serializers.CharField(source="plan.name", read_only=True, default=None)
+    plan_slug = serializers.CharField(source="plan.slug", read_only=True, default=None)
 
     class Meta:
         model = BrokerOrganization
-        fields = ("id", "name", "slug", "status", "public_email", "auto_approve_listings", "member_count", "listing_count", "created_at")
+        fields = (
+            "id", "name", "slug", "status", "public_email", "auto_approve_listings", "member_count", "listing_count",
+            "plan_name", "plan_slug", "plan_renews_at", "created_at",
+        )
 
 
 class StaffBrokerListView(StaffListView):
@@ -102,7 +107,7 @@ class StaffBrokerListView(StaffListView):
     status_field = "status"
 
     def get_queryset(self):
-        return BrokerOrganization.objects.annotate(
+        return BrokerOrganization.objects.select_related("plan").annotate(
             member_count=Count("memberships", filter=Q(memberships__is_active=True), distinct=True),
             listing_count=Count("listings", distinct=True),
         ).order_by("name")

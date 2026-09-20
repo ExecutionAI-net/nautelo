@@ -4,7 +4,7 @@ Only ACTIVE organizations are visible; every other status is a 404. Contact
 details are deliberately absent: they go through the contact-access flow.
 """
 
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
@@ -50,7 +50,7 @@ def active_brokers():
                 ),
             )
         )
-        .order_by("name")
+        .order_by(F("plan__profile_visibility").desc(nulls_last=True), "name")
     )
 
 
