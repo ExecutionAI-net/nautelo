@@ -1,6 +1,7 @@
 "use client";
 
 import BrokerBilling from "@/components/broker/BrokerBilling";
+import OrgImageUpload from "@/components/team/OrgImageUpload";
 import CompletenessChecklist, { type Completeness } from "@/components/team/CompletenessChecklist";
 import InvitePanel from "@/components/team/InvitePanel";
 import { useCallback, useEffect, useState } from "react";
@@ -19,6 +20,7 @@ interface Member {
   can_edit_listings: boolean;
   can_manage_team: boolean;
   can_read_messages: boolean;
+  is_owner?: boolean;
   is_active: boolean;
 }
 
@@ -39,6 +41,8 @@ interface BrokerProfile {
   cover_image_url: string;
   specialties: string[];
   completeness?: Completeness;
+  logo_upload_url?: string | null;
+  cover_upload_url?: string | null;
   plan?: PlanSummary | null;
   renews_at?: string | null;
   listings_used?: number;
@@ -132,7 +136,7 @@ export function BrokerTeam() {
                         {(member.user_full_name || member.user_email).split(/[\s@]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="font-title-md text-primary font-semibold truncate">{member.user_full_name || member.user_email}</span>
+                        <span className="font-title-md text-primary font-semibold truncate">{member.user_full_name || member.user_email}{member.is_owner ? " (owner)" : ""}</span>
                         <span className="text-body-sm text-on-surface-variant truncate">{member.user_email}</span>
                       </div>
                     </div>
@@ -150,6 +154,7 @@ export function BrokerTeam() {
                     </span>
                   </td>
                   <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                    {member.is_owner ? null : (
                     <button
                       type="button"
                       className="text-secondary hover:text-primary font-title-md text-body-sm px-2 py-1"
@@ -167,6 +172,7 @@ export function BrokerTeam() {
                     >
                       {member.is_active ? "Deactivate" : "Reactivate"}
                     </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -229,8 +235,6 @@ export function BrokerProfileForm() {
               about: form.about ?? "",
               city: form.city ?? "",
               country_code: form.country_code ?? "",
-              logo_url: form.logo_url ?? "",
-              cover_image_url: form.cover_image_url ?? "",
               specialties: tags === null ? (form.specialties ?? []) : tags.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 8),
             }),
           });
@@ -286,14 +290,20 @@ export function BrokerProfileForm() {
         About your company
         <textarea className={FIELD} rows={5} maxLength={4000} value={form.about ?? ""} onChange={set("about")} />
       </label>
-      <label className={LABEL}>
-        Logo image URL
-        <input className={FIELD} type="url" value={form.logo_url ?? ""} onChange={set("logo_url")} />
-      </label>
-      <label className={LABEL}>
-        Cover image URL
-        <input className={FIELD} type="url" value={form.cover_image_url ?? ""} onChange={set("cover_image_url")} />
-      </label>
+      <OrgImageUpload
+        kind="logo"
+        label="Logo"
+        intentUrl={`/api/v1/brokers/${brokerId}/images/intent/`}
+        completeUrl={`/api/v1/brokers/${brokerId}/images/complete/`}
+        currentUrl={form.logo_upload_url ?? form.logo_url}
+      />
+      <OrgImageUpload
+        kind="cover"
+        label="Cover image"
+        intentUrl={`/api/v1/brokers/${brokerId}/images/intent/`}
+        completeUrl={`/api/v1/brokers/${brokerId}/images/complete/`}
+        currentUrl={form.cover_upload_url ?? form.cover_image_url}
+      />
       <label className={`${LABEL} sm:col-span-2`}>
         Specialties (comma separated, up to 8)
         <input

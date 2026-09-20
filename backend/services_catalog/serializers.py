@@ -66,7 +66,19 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
 
     categories = serializers.SerializerMethodField()
     url = serializers.SerializerMethodField()
+    logo_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
     active_service_count = serializers.IntegerField(read_only=True)
+
+    def get_logo_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.logo_key)
+
+    def get_cover_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.cover_key)
 
     class Meta:
         model = ProfessionalProfile
@@ -81,6 +93,8 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
             "service_area",
             "categories",
             "active_service_count",
+            "logo_url",
+            "cover_url",
             "url",
         ]
 

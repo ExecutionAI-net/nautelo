@@ -44,6 +44,8 @@ class ProfessionalProfile(UUIDTimeStampedModel):
     region = models.CharField(max_length=120, blank=True)
     country_code = models.CharField(max_length=2)
     service_area = models.JSONField(default=list, blank=True, validators=[validate_service_area])
+    logo_key = models.CharField(max_length=300, blank=True, default="")
+    cover_key = models.CharField(max_length=300, blank=True, default="")
     status = models.CharField(
         max_length=10,
         choices=ProfessionalProfileStatus.choices,

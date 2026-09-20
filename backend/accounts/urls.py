@@ -1,5 +1,11 @@
 from django.urls import path
 
+from common.org_image_views import (
+    BrokerImageCompleteView,
+    BrokerImageIntentView,
+    ProfessionalImageCompleteView,
+    ProfessionalImageIntentView,
+)
 from accounts.invitation_views import (
     BrokerInvitationView,
     InvitationAcceptView,
@@ -36,6 +42,10 @@ urlpatterns = [
         BrokerInvitationView.as_view(),
         name="broker-invitation-detail",
     ),
+    path("brokers/<uuid:broker_id>/images/intent/", BrokerImageIntentView.as_view(), name="broker-image-intent"),
+    path("brokers/<uuid:broker_id>/images/complete/", BrokerImageCompleteView.as_view(), name="broker-image-complete"),
+    path("provider/images/intent/", ProfessionalImageIntentView.as_view(), name="provider-image-intent"),
+    path("provider/images/complete/", ProfessionalImageCompleteView.as_view(), name="provider-image-complete"),
     path("auth/register/organization/", OrganizationRegisterView.as_view(), name="auth-register-organization"),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/verify-email/", VerifyEmailView.as_view(), name="auth-verify-email"),

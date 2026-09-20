@@ -88,6 +88,11 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
             </div>
           </header>
 
+          {professional.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
+            <img alt="" src={professional.logo_url} className="mt-space-md h-20 w-20 rounded-lg object-cover" />
+          ) : null}
+
           {professional.description ? (
             <section aria-labelledby="about-heading" className="mt-space-xl">
               <h2 id="about-heading" className="font-title-lg text-title-lg text-primary">

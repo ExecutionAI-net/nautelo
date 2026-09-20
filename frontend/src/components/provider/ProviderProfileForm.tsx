@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import CompletenessChecklist from "@/components/team/CompletenessChecklist";
+import OrgImageUpload from "@/components/team/OrgImageUpload";
 import { ApiError } from "@/lib/api/client";
 import {
   createProviderProfile,
@@ -166,6 +167,12 @@ export default function ProviderProfileForm() {
         Short description
         <input className={FIELD} maxLength={300} value={draft.short_description} onChange={set("short_description")} />
       </label>
+      {profile ? (
+        <>
+          <OrgImageUpload kind="logo" label="Logo" intentUrl="/api/v1/provider/images/intent/" completeUrl="/api/v1/provider/images/complete/" currentUrl={profile.logo_url} />
+          <OrgImageUpload kind="cover" label="Cover image" intentUrl="/api/v1/provider/images/intent/" completeUrl="/api/v1/provider/images/complete/" currentUrl={profile.cover_url} />
+        </>
+      ) : null}
       <label className={`${LABEL} sm:col-span-2`}>
         Description
         <textarea className={FIELD} rows={6} value={draft.description} onChange={set("description")} />

@@ -33,6 +33,18 @@ class IsServiceProvider(BasePermission):
 class ProviderProfileSerializer(serializers.ModelSerializer):
     submit = serializers.BooleanField(write_only=True, required=False)
     completeness = serializers.SerializerMethodField()
+    logo_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
+
+    def get_logo_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.logo_key)
+
+    def get_cover_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.cover_key)
 
     def get_completeness(self, obj):
         from professionals.completeness import completeness
@@ -43,9 +55,9 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         model = ProfessionalProfile
         fields = (
             "id", "display_name", "slug", "short_description", "description", "public_email", "public_phone",
-            "website_url", "city", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness",
+            "website_url", "city", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness", "logo_url", "cover_url",
         )
-        read_only_fields = ("id", "slug", "status")
+        read_only_fields = ("id", "slug", "status", "logo_url", "cover_url")
 
     def validate_country_code(self, value):
         if len(value) != 2 or not value.isalpha():

@@ -77,6 +77,8 @@ export interface TeamMember {
 }
 
 export interface ProfessionalDetail extends ProfessionalCard {
+  logo_url?: string | null;
+  cover_url?: string | null;
   description: string;
   team: TeamMember[];
   services: ProfessionalService[];

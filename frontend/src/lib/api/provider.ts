@@ -17,6 +17,8 @@ export interface ProviderProfile {
   service_area: string[];
   status: "DRAFT" | "PENDING" | "ACTIVE" | "SUSPENDED";
   completeness?: { percent: number; missing: string[] };
+  logo_url?: string | null;
+  cover_url?: string | null;
 }
 
 export type ProviderProfileInput = Partial<Omit<ProviderProfile, "id" | "slug" | "status">> & { submit?: boolean };

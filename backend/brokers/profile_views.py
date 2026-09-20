@@ -15,6 +15,18 @@ from brokers.views import BrokerTeamBaseView
 
 class BrokerProfileSerializer(serializers.ModelSerializer):
     completeness = serializers.SerializerMethodField()
+    logo_upload_url = serializers.SerializerMethodField()
+    cover_upload_url = serializers.SerializerMethodField()
+
+    def get_logo_upload_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.logo_key)
+
+    def get_cover_upload_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.cover_key)
 
     def get_completeness(self, obj):
         from brokers.completeness import completeness
@@ -34,8 +46,9 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
         fields = (
             "id", "name", "slug", "status", "public_email", "public_phone", "website_url", "auto_approve_listings",
             "tagline", "about", "city", "country_code", "logo_url", "cover_image_url", "specialties", "completeness",
+            "logo_upload_url", "cover_upload_url",
         )
-        read_only_fields = ("id", "slug", "status", "auto_approve_listings", "completeness")
+        read_only_fields = ("id", "slug", "status", "auto_approve_listings", "completeness", "logo_upload_url", "cover_upload_url")
 
 
 class BrokerProfileView(BrokerTeamBaseView):
