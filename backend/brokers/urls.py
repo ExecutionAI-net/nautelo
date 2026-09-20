@@ -12,6 +12,7 @@ from brokers.views import (
 
 from brokers.plan_views import (
     PublicPricingView,
+    StaffBrokerSubscriptionListView,
     StaffBrokerPlanAssignView,
     StaffPlanDetailView,
     StaffPlanListView,
@@ -19,6 +20,7 @@ from brokers.plan_views import (
 from brokers.profile_views import BrokerProfileView
 
 urlpatterns = [
+    path("staff/broker-subscriptions/", StaffBrokerSubscriptionListView.as_view(), name="staff-broker-subscriptions"),
     path("pricing/", PublicPricingView.as_view(), name="public-pricing"),
     path("staff/broker-plans/", StaffPlanListView.as_view(), name="staff-broker-plan-list"),
     path("staff/broker-plans/<uuid:pk>/", StaffPlanDetailView.as_view(), name="staff-broker-plan-detail"),
