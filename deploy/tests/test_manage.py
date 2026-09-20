@@ -13,6 +13,10 @@ SPEC.loader.exec_module(manage)
 class DeploymentConfigurationTests(unittest.TestCase):
     def setUp(self):
         self.secret = json.loads((Path(__file__).parents[1] / 'secret.example.json').read_text())
+        # The runner's real disk is irrelevant to these flow tests; the check has its own tests below.
+        patcher = patch.object(manage, 'ensure_free_space')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_secrets_access_error_identifies_operation_without_leaking_output(self):
         error = manage.subprocess.CalledProcessError(254, ['aws', 'secretsmanager', 'get-secret-value'],
@@ -181,3 +185,23 @@ class DeploymentConfigurationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DiskHygieneTests(unittest.TestCase):
+    def test_reclaim_prunes_images_and_build_cache_but_never_volumes(self):
+        with patch.object(manage.subprocess, 'run') as run:
+            manage.reclaim_disk_space()
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands, [['docker', 'image', 'prune', '-af'], ['docker', 'builder', 'prune', '-af']])
+        self.assertFalse(any('volume' in part or '--volumes' in part for command in commands for part in command))
+
+    def test_a_nearly_full_disk_stops_the_deploy_with_a_clear_message(self):
+        usage = manage.shutil._ntuple_diskusage(100, 99, 1024**2)
+        with patch.object(manage.shutil, 'disk_usage', return_value=usage):
+            with self.assertRaisesRegex(ValueError, 'free on /'):
+                manage.ensure_free_space()
+
+    def test_enough_free_space_passes(self):
+        usage = manage.shutil._ntuple_diskusage(100 * 1024**3, 10 * 1024**3, 90 * 1024**3)
+        with patch.object(manage.shutil, 'disk_usage', return_value=usage):
+            manage.ensure_free_space()
