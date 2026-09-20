@@ -7,6 +7,7 @@ import ipaddress
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 from urllib.parse import quote, urlsplit
@@ -22,6 +23,28 @@ REQUIRED = (
 
 def run(args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
+
+
+MIN_FREE_BYTES = 8 * 1024**3
+
+
+def reclaim_disk_space():
+    """Drop images no container uses and the build cache. Volumes (database, media, clamav) are never touched.
+
+    Runs BEFORE the pull as well as after a deploy: a full disk fails the pull, and the old
+    cleanup at the end of a deploy is then never reached.
+    """
+    subprocess.run(["docker", "image", "prune", "-af"], check=False)
+    subprocess.run(["docker", "builder", "prune", "-af"], check=False)
+
+
+def ensure_free_space(path="/", minimum=MIN_FREE_BYTES):
+    free = shutil.disk_usage(path).free
+    if free < minimum:
+        raise ValueError(
+            f"Only {free // 1024**2} MiB free on {path} after cleanup (need {minimum // 1024**2} MiB); "
+            "grow the disk or remove data before deploying"
+        )
 
 
 def command_failure(exc):
@@ -201,6 +224,8 @@ def main():
         network = f"nautelo-{args.environment}-edge"
         if subprocess.run(["docker", "network", "inspect", network], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
             run(["docker", "network", "create", network])
+        reclaim_disk_space()
+        ensure_free_space()
         run(compose + ["pull"], env=process_env)
         run(compose + ["up", "-d", "--wait", "postgres", "redis"], env=process_env)
         # The malware scanner backs every media upload (CLAMAV_HOST=clamav). Not awaited: it needs minutes to load
@@ -219,9 +244,8 @@ def main():
             run(proxy + ["exec", "-T", "nginx", "wget", "-q", "-O", "/dev/null",
                          "--header", f"Host: {proxy_env['DEV_HTTP_HOST']}",
                          "http://127.0.0.1/api/v1/health/"], env=proxy_env)
-        # Best effort: old unused images and build cache filled the disk once. Volumes are never touched.
-        subprocess.run(["docker", "image", "prune", "-af", "--filter", "until=72h"], check=False)
-        subprocess.run(["docker", "builder", "prune", "-af", "--filter", "until=72h"], check=False)
+        # Best effort: unused images and build cache filled the disk twice. Volumes are never touched.
+        reclaim_disk_space()
         print(f"Deployed {args.environment}: {args.tag}")
 
 
