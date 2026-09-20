@@ -39,3 +39,13 @@ def test_profile_accepts_normal_values(api):
         format="json",
     )
     assert response.status_code == 200, response.content
+
+
+def test_service_title_refuses_markup(api):
+    from services_catalog.models import ServiceCategory
+
+    category = ServiceCategory.objects.create(slug="survey", name_en="Survey")
+    body = {"category": str(category.pk), "title_en": "<img src=x onerror=alert(1)>", "description_en": "ok", "service_area": []}
+    assert api.post(reverse("provider-service-list"), body, format="json").status_code == 400
+    body["title_en"] = "Pre-purchase survey"
+    assert api.post(reverse("provider-service-list"), body, format="json").status_code == 201

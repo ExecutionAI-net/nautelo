@@ -156,6 +156,10 @@ New findings:
 | --- | --- | --- |
 | R2-27 | S2 | **Fixed here.** The profile API accepted `<script>...</script>` as display name, markup in city, and `abc` as phone (the R2-3 fix covered registration only). The live test profile was changed and restored by hand. Both the professional and broker profile serializers now share `common/field_rules.py` (no `<`/`>`, phone with 6+ digits). React escapes output so no script ran, but the value would reach emails and third-party consumers. |
 | R2-7 | S3 | Confirmed live: country `ZZ` is accepted on the professional profile too. |
+| R2-28 | **S1** | **Fixed here.** The professional dashboard menu had **no Team and no Membership entry** (only Dashboard, Requests, Services, Profile): the team page and the trial button were unreachable from the UI. Menu now has an "Organisation" group with both. |
+| R2-29 | S2 | **Fixed here.** A service title `<img src=x onerror=alert(1)>` was accepted (test row deleted). Service title and description now refuse `<`/`>`. |
+
+Live steps that worked after the fix of the profile: full profile fill (completeness 100%), service created, **logo (400x400) and cover (1200x400) uploaded to the real S3 bucket**, a 60x60 logo refused (`image_too_small`), submit on a complete profile answered `subscription_required` (correct: no plan/trial yet), public page stays 404 while DRAFT.
 
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
