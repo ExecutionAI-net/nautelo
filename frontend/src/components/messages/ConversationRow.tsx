@@ -28,8 +28,9 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
   return (
     <Link
       href={href}
-      className="flex gap-space-sm rounded-xl bg-surface-container-lowest p-space-md shadow-sm transition-shadow hover:shadow-md"
+      className={`relative flex gap-space-sm bg-surface-container-lowest p-space-md transition-colors hover:bg-surface-container-low/60 ${row.unread_count > 0 ? "bg-surface-container-low" : ""}`}
     >
+      {row.unread_count > 0 ? <span aria-hidden="true" className="absolute bottom-0 left-0 top-0 w-1.5 bg-secondary" /> : null}
       <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary font-label-md text-on-primary">
         {senderName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
       </span>
