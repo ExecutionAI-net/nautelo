@@ -74,7 +74,7 @@ class UserEntitlementAdmin(admin.ModelAdmin):
         staff-ADMIN operations. A staff moderator sees the ledger and no
         actions."""
         actions = super().get_actions(request)
-        if not is_staff_admin(request.user):
+        if not (is_staff_admin(request.user) or request.user.is_superuser):
             for name in ("revoke_selected", "restore_selected"):
                 actions.pop(name, None)
         return actions
