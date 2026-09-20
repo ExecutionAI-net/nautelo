@@ -336,9 +336,13 @@ def order_not_found(payload, *, kind: str = "checkout session") -> str:
 def handle_checkout_session_paid(event) -> str:
     session = _session(event)
     if session.get("mode") == "subscription":
+        from brokers.billing import handle_checkout as handle_broker_checkout
         from professionals.billing import handle_membership_checkout
 
-        return handle_membership_checkout(session)
+        result = handle_membership_checkout(session)
+        if result == WebhookResult.IGNORED:
+            result = handle_broker_checkout(session)
+        return result
     order = _locked_order_for(session)
     if order is None:
         return order_not_found(session)
@@ -385,9 +389,13 @@ def handle_checkout_session_expired(event) -> str:
 
 def _membership(handler_name):
     def handler(event):
+        from brokers import billing as broker_billing
         from professionals import billing
 
-        return getattr(billing, handler_name)(event)
+        result = getattr(billing, handler_name)(event)
+        if result == WebhookResult.IGNORED:
+            result = getattr(broker_billing, handler_name)(event)
+        return result
 
     return handler
 

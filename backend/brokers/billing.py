@@ -1,0 +1,236 @@
+"""Brokerage subscription: Stripe Checkout (subscription mode) with a free trial.
+
+The card is collected up front; the first charge happens when the trial ends.
+Paying does not publish the brokerage - staff approve DRAFT/PENDING brokerages.
+A failed invoice starts a 24-hour clock; unpaid after that, or cancelled, an
+ACTIVE brokerage goes SUSPENDED until a later payment succeeds.
+
+Webhook handlers return `payments.enums.WebhookResult` values; the shared
+dispatcher in `payments.fulfillment` tries the professional handlers first and
+falls through to these when the event is not theirs.
+"""
+
+import uuid
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.exceptions import APIException
+
+from professionals.enums import SubscriptionStatus
+
+from .enums import BrokerOrganizationStatus
+from .models import BrokerOrganization, BrokerSubscription
+
+GRACE_PERIOD = timedelta(hours=24)
+SUBSCRIPTION_PATH = "/dashboard/broker/subscription/"
+KIND = "broker_subscription"
+
+
+class SubscriptionUnavailable(APIException):
+    status_code = 503
+    default_code = "subscription_unavailable"
+    default_detail = "This plan is not open for sign-up yet."
+
+
+def trial_available(broker) -> bool:
+    plan = broker.plan
+    used = BrokerSubscription.objects.filter(broker=broker, trial_used_at__isnull=False).exists()
+    return bool(plan and plan.trial_days > 0 and not used)
+
+
+def _url(outcome: str) -> str:
+    return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{SUBSCRIPTION_PATH}?{urlencode({'checkout': outcome})}"
+
+
+def create_subscription_checkout(*, broker, gateway=None) -> str:
+    from payments.gateway import StripeUnavailable, default_gateway
+
+    plan = broker.plan
+    if plan is None or not plan.stripe_price_id:
+        raise SubscriptionUnavailable()
+    trial = trial_available(broker)
+    metadata = {"kind": KIND, "broker_id": str(broker.pk), "trial": "1" if trial else "0"}
+    subscription_data = {"metadata": metadata}
+    params = {
+        "mode": "subscription",
+        "line_items": [{"price": plan.stripe_price_id, "quantity": 1}],
+        "success_url": _url("success"),
+        "cancel_url": _url("cancelled"),
+        "client_reference_id": str(broker.pk),
+        "metadata": metadata,
+        "subscription_data": subscription_data,
+    }
+    if trial:
+        params["payment_method_collection"] = "always"
+        subscription_data["trial_period_days"] = plan.trial_days
+        subscription_data["trial_settings"] = {"end_behavior": {"missing_payment_method": "cancel"}}
+    gateway = gateway or default_gateway()
+    try:
+        result = gateway.create_checkout_session(
+            params=params, idempotency_key=f"broker-subscription:{broker.pk}:{uuid.uuid4()}"
+        )
+    except StripeUnavailable as exc:
+        raise SubscriptionUnavailable() from exc
+    return result.url
+
+
+def _from_unix(value):
+    return datetime.fromtimestamp(int(value), tz=dt_timezone.utc) if value else None
+
+
+def _refs(invoice: dict) -> dict:
+    details = (invoice.get("parent") or {}).get("subscription_details") or {}
+    subscription = invoice.get("subscription") or details.get("subscription") or ""
+    if not isinstance(subscription, str):
+        subscription = (subscription or {}).get("id", "")
+    metadata = details.get("metadata") or (invoice.get("subscription_details") or {}).get("metadata") or {}
+    customer = invoice.get("customer")
+    return {
+        "subscription_id": subscription,
+        "customer_id": customer if isinstance(customer, str) else "",
+        "broker_id": metadata.get("broker_id", ""),
+    }
+
+
+def _subscription_for(*, subscription_id="", customer_id="", broker_id=""):
+    locked = BrokerSubscription.objects.select_for_update(of=("self",)).select_related("broker")
+    found = locked.filter(stripe_subscription_id=subscription_id).first() if subscription_id else None
+    if found is None and broker_id:
+        broker = BrokerOrganization.objects.filter(pk=broker_id).first()
+        if broker is not None:
+            BrokerSubscription.objects.get_or_create(broker=broker)
+            found = locked.filter(broker=broker).first()
+    if found is None and customer_id:
+        found = locked.filter(stripe_customer_id=customer_id).first()
+    return found
+
+
+def _sync_plan_renewal(subscription):
+    if subscription.current_period_end:
+        broker = subscription.broker
+        broker.plan_renews_at = subscription.current_period_end.date()
+        broker.save(update_fields=["plan_renews_at", "updated_at"])
+
+
+def _activate(subscription, *, period_end=None, now=None):
+    now = now or timezone.now()
+    was_offline = subscription.status in (
+        SubscriptionStatus.LAPSED,
+        SubscriptionStatus.CANCELED,
+        SubscriptionStatus.INACTIVE,
+    )
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.past_due_since = None
+    subscription.last_paid_at = now
+    if period_end:
+        subscription.current_period_end = period_end
+    subscription.save()
+    _sync_plan_renewal(subscription)
+    broker = subscription.broker
+    if was_offline and broker.status == BrokerOrganizationStatus.SUSPENDED:
+        broker.status = BrokerOrganizationStatus.ACTIVE
+        broker.save(update_fields=["status", "updated_at"])
+
+
+def _start_trial(subscription, *, now=None):
+    now = now or timezone.now()
+    days = subscription.broker.plan.trial_days if subscription.broker.plan else 0
+    subscription.status = SubscriptionStatus.TRIALING
+    subscription.trial_used_at = subscription.trial_used_at or now
+    subscription.trial_ends_at = now + timedelta(days=days)
+    subscription.current_period_end = subscription.trial_ends_at
+    subscription.save()
+    _sync_plan_renewal(subscription)
+
+
+def _deactivate(subscription, *, status):
+    subscription.status = status
+    subscription.save(update_fields=["status", "updated_at"])
+    broker = subscription.broker
+    if broker.status == BrokerOrganizationStatus.ACTIVE:
+        broker.status = BrokerOrganizationStatus.SUSPENDED
+        broker.save(update_fields=["status", "updated_at"])
+
+
+def handle_checkout(session: dict) -> str:
+    from payments.enums import WebhookResult
+
+    metadata = session.get("metadata") or {}
+    status = session.get("payment_status")
+    if metadata.get("kind") != KIND or status not in ("paid", "no_payment_required"):
+        return WebhookResult.IGNORED
+    subscription = _subscription_for(broker_id=metadata.get("broker_id", ""))
+    if subscription is None:
+        return WebhookResult.ORDER_NOT_FOUND
+    subscription.stripe_customer_id = session.get("customer") or subscription.stripe_customer_id
+    sub_id = session.get("subscription") or ""
+    subscription.stripe_subscription_id = sub_id if isinstance(sub_id, str) else sub_id.get("id", "")
+    if metadata.get("trial") == "1" and status == "no_payment_required":
+        _start_trial(subscription)
+    elif status == "paid":
+        _activate(subscription)
+    else:
+        return WebhookResult.IGNORED
+    return WebhookResult.FULFILLED
+
+
+def handle_invoice_paid(event) -> str:
+    from payments.enums import WebhookResult
+
+    invoice = event["data"]["object"]
+    refs = _refs(invoice)
+    subscription = _subscription_for(**refs)
+    if subscription is None:
+        return WebhookResult.IGNORED
+    if not subscription.stripe_subscription_id:
+        subscription.stripe_subscription_id = refs["subscription_id"]
+    if subscription.status == SubscriptionStatus.TRIALING and not invoice.get("amount_paid"):
+        return WebhookResult.FULFILLED
+    lines = (invoice.get("lines") or {}).get("data") or []
+    _activate(subscription, period_end=_from_unix(((lines[0] if lines else {}).get("period") or {}).get("end")))
+    return WebhookResult.FULFILLED
+
+
+def handle_invoice_payment_failed(event) -> str:
+    from payments.enums import WebhookResult
+
+    subscription = _subscription_for(**_refs(event["data"]["object"]))
+    if subscription is None:
+        return WebhookResult.IGNORED
+    if subscription.past_due_since is None:
+        subscription.past_due_since = timezone.now()
+    if subscription.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING):
+        subscription.status = SubscriptionStatus.PAST_DUE
+    subscription.save()
+    return WebhookResult.FULFILLED
+
+
+def handle_subscription_deleted(event) -> str:
+    from payments.enums import WebhookResult
+
+    stripe_sub = event["data"]["object"]
+    subscription = _subscription_for(
+        subscription_id=stripe_sub.get("id", ""),
+        broker_id=(stripe_sub.get("metadata") or {}).get("broker_id", ""),
+    )
+    if subscription is None:
+        return WebhookResult.IGNORED
+    _deactivate(subscription, status=SubscriptionStatus.CANCELED)
+    return WebhookResult.FULFILLED
+
+
+@transaction.atomic
+def lapse_unpaid_brokers(*, now=None) -> int:
+    now = now or timezone.now()
+    due = list(
+        BrokerSubscription.objects.select_for_update(of=("self",))
+        .filter(status=SubscriptionStatus.PAST_DUE, past_due_since__lte=now - GRACE_PERIOD)
+        .select_related("broker")
+    )
+    for subscription in due:
+        _deactivate(subscription, status=SubscriptionStatus.LAPSED)
+    return len(due)

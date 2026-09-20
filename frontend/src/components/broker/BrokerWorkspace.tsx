@@ -1,5 +1,6 @@
 "use client";
 
+import BrokerBilling from "@/components/broker/BrokerBilling";
 import InvitePanel from "@/components/team/InvitePanel";
 import { useCallback, useEffect, useState } from "react";
 
@@ -348,6 +349,8 @@ export function BrokerSubscription() {
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Membership plan</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">Your tier sets how many active listings and team seats your brokerage has and how its profile is placed in the directory.</p>
       </div>
+
+      <BrokerBilling brokerId={brokerId} />
 
       <section className="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg relative overflow-hidden">
         <div className="flex flex-wrap items-center gap-space-sm">

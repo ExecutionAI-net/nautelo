@@ -23,6 +23,11 @@ def profile(db):
     return make_professional(owner, status=ProfessionalProfileStatus.PENDING)
 
 
+def _approve(profile):
+    profile.status = ProfessionalProfileStatus.ACTIVE
+    profile.save()
+
+
 def _session(profile, **overrides):
     payload = {
         "id": "cs_sub_1",
@@ -57,15 +62,77 @@ def _invoice_event(event_type, profile, invoice_id="in_1"):
 
 
 @pytest.mark.django_db
-def test_first_payment_activates_the_profile_automatically(profile):
+def test_first_payment_starts_the_subscription_but_staff_still_approve_the_profile(profile):
     assert handle_checkout_session_paid(_session(profile)) == WebhookResult.FULFILLED
 
     profile.refresh_from_db()
     subscription = ProfessionalSubscription.objects.get(profile=profile)
-    assert profile.status == ProfessionalProfileStatus.ACTIVE
+    assert profile.status == ProfessionalProfileStatus.PENDING
     assert subscription.status == SubscriptionStatus.ACTIVE
     assert subscription.stripe_subscription_id == "sub_1"
-    assert Notification.objects.filter(recipient=profile.owner_user, notification_type="professional.activated").exists()
+
+
+@pytest.mark.django_db
+def test_a_trial_checkout_starts_a_free_trial_without_a_charge(profile):
+    ProfessionalPlan.objects.create(slug="t", name="T", monthly_price=49, trial_days=30, is_active=True, stripe_product_id="prod_1", stripe_price_id="price_1")
+    result = handle_checkout_session_paid(
+        _session(profile, payment_status="no_payment_required", metadata={
+            "kind": "professional_membership", "professional_id": str(profile.pk), "trial": "1",
+        })
+    )
+    assert result == WebhookResult.FULFILLED
+    subscription = ProfessionalSubscription.objects.get(profile=profile)
+    assert subscription.status == SubscriptionStatus.TRIALING
+    assert subscription.trial_used_at is not None
+    assert 29 <= (subscription.trial_ends_at - timezone.now()).days <= 30
+
+    # The zero-amount invoice that opens a trial is not a payment.
+    event = _invoice_event("invoice.paid", profile, invoice_id="in_trial")
+    event["data"]["object"]["amount_paid"] = 0
+    HANDLERS["invoice.paid"](event)
+    subscription.refresh_from_db()
+    assert subscription.status == SubscriptionStatus.TRIALING
+
+    # The first real charge after the trial makes it a paying subscription.
+    paid = _invoice_event("invoice.paid", profile, invoice_id="in_real")
+    paid["data"]["object"]["amount_paid"] = 4900
+    HANDLERS["invoice.paid"](paid)
+    subscription.refresh_from_db()
+    assert subscription.status == SubscriptionStatus.ACTIVE
+
+
+@pytest.mark.django_db
+def test_a_second_trial_is_never_offered(profile):
+    ProfessionalPlan.objects.create(slug="t", name="T", monthly_price=49, trial_days=30, is_active=True, stripe_price_id="price_1")
+    ProfessionalSubscription.objects.create(profile=profile, trial_used_at=timezone.now())
+    captured = {}
+
+    class Gateway:
+        def create_checkout_session(self, *, params, idempotency_key):
+            captured.update(params)
+            from types import SimpleNamespace
+            return SimpleNamespace(url="https://stripe.example/x")
+
+    billing.create_membership_checkout(profile=profile, gateway=Gateway())
+    assert "trial_period_days" not in captured["subscription_data"]
+    assert captured["metadata"]["trial"] == "0"
+
+
+@pytest.mark.django_db
+def test_the_first_checkout_collects_a_card_and_asks_for_the_trial(profile):
+    ProfessionalPlan.objects.create(slug="t", name="T", monthly_price=49, trial_days=30, is_active=True, stripe_price_id="price_1")
+    captured = {}
+
+    class Gateway:
+        def create_checkout_session(self, *, params, idempotency_key):
+            captured.update(params)
+            from types import SimpleNamespace
+            return SimpleNamespace(url="https://stripe.example/x")
+
+    billing.create_membership_checkout(profile=profile, gateway=Gateway())
+    assert captured["payment_method_collection"] == "always"
+    assert captured["subscription_data"]["trial_period_days"] == 30
+    assert captured["subscription_data"]["trial_settings"] == {"end_behavior": {"missing_payment_method": "cancel"}}
 
 
 @pytest.mark.django_db
@@ -77,6 +144,7 @@ def test_an_unpaid_subscription_session_does_nothing(profile):
 
 @pytest.mark.django_db
 def test_failed_payment_warns_then_goes_offline_after_24_hours(profile):
+    _approve(profile)
     handle_checkout_session_paid(_session(profile))
     HANDLERS["invoice.payment_failed"](_invoice_event("invoice.payment_failed", profile))
 
@@ -97,6 +165,7 @@ def test_failed_payment_warns_then_goes_offline_after_24_hours(profile):
 
 @pytest.mark.django_db
 def test_a_later_payment_brings_a_lapsed_profile_back(profile):
+    _approve(profile)
     handle_checkout_session_paid(_session(profile))
     HANDLERS["invoice.payment_failed"](_invoice_event("invoice.payment_failed", profile))
     billing.lapse_unpaid_professionals(now=timezone.now() + timedelta(hours=25))
@@ -122,6 +191,7 @@ def test_a_staff_suspension_is_not_lifted_by_a_payment(profile):
 
 @pytest.mark.django_db
 def test_cancelling_the_subscription_takes_the_profile_offline(profile):
+    _approve(profile)
     handle_checkout_session_paid(_session(profile))
     event = {"id": "evt_del", "type": "customer.subscription.deleted", "data": {"object": {"id": "sub_1", "metadata": {}}}}
 

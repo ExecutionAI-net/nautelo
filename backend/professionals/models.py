@@ -74,6 +74,9 @@ class ProfessionalPlan(UUIDTimeStampedModel):
     currency = models.CharField(max_length=3, default="EUR")
     stripe_product_id = models.CharField(max_length=64, blank=True, default="")
     stripe_price_id = models.CharField(max_length=64, blank=True, default="")
+    trial_days = models.PositiveSmallIntegerField(
+        default=30, help_text="Free days before the first charge; a card is still collected up front. 0 = no trial."
+    )
     is_active = models.BooleanField(default=False)
 
     class Meta:
@@ -101,6 +104,9 @@ class ProfessionalSubscription(UUIDTimeStampedModel):
     stripe_subscription_id = models.CharField(max_length=64, blank=True, default="")
     current_period_end = models.DateTimeField(null=True, blank=True)
     last_paid_at = models.DateTimeField(null=True, blank=True)
+    # One free trial per organization, ever.
+    trial_used_at = models.DateTimeField(null=True, blank=True)
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
     # Set by the first failed invoice; the profile goes offline 24 hours later.
     past_due_since = models.DateTimeField(null=True, blank=True)
 

@@ -17,7 +17,7 @@ from accounts.permissions import (
 from brokers.dashboard import broker_dashboard_metrics
 from brokers.models import BrokerMembership, BrokerOrganization
 from brokers.moderation import bulk_approve_pending_broker_revisions
-from brokers.permissions import IsBrokerMember
+from brokers.permissions import IsBrokerBilling, IsBrokerMember
 from brokers.serializers import (
     BrokerApprovalPolicySerializer,
     BrokerBulkApproveSerializer,
@@ -242,3 +242,43 @@ class BrokerDashboardView(APIView):
     def get(self, request, broker_id):
         broker = get_object_or_404(BrokerOrganization, pk=broker_id)
         return Response(broker_dashboard_metrics(broker, viewer=request.user))
+
+
+class BrokerSubscriptionView(BrokerTeamBaseView):
+    """Billing state of the brokerage. Any member may read; team managers may start checkout."""
+
+    # Billing must stay reachable in every status, including a brokerage that
+    # was suspended for non-payment.
+    permission_classes = [IsActiveUser, IsEmailVerified, IsBrokerBilling]
+
+    def get(self, request, broker_id):
+        from brokers.billing import trial_available
+        from brokers.models import BrokerSubscription
+
+        broker = self.get_broker()
+        subscription = BrokerSubscription.objects.filter(broker=broker).first()
+        plan = broker.plan
+        return Response(
+            {
+                "broker_status": broker.status,
+                "status": subscription.status if subscription else "INACTIVE",
+                "current_period_end": subscription.current_period_end if subscription else None,
+                "trial_ends_at": subscription.trial_ends_at if subscription else None,
+                "trial_available": trial_available(broker),
+                "trial_days": plan.trial_days if plan else 0,
+                "past_due_since": subscription.past_due_since if subscription else None,
+                "plan": (
+                    {"name": plan.name, "monthly_price": str(plan.monthly_price), "currency": plan.currency}
+                    if plan
+                    else None
+                ),
+            }
+        )
+
+    def post(self, request, broker_id):
+        from brokers.billing import create_subscription_checkout
+
+        return Response(
+            {"checkout_url": create_subscription_checkout(broker=self.get_broker())},
+            status=status.HTTP_201_CREATED,
+        )

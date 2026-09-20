@@ -26,7 +26,7 @@ class BrokerMembershipInline(admin.TabularInline):
 
 @admin.register(BrokerPlan)
 class BrokerPlanAdmin(admin.ModelAdmin):
-    list_display = ("name", "monthly_price", "listing_limit", "seat_limit", "profile_visibility", "is_active", "display_order")
+    list_display = ("name", "monthly_price", "trial_days", "listing_limit", "seat_limit", "profile_visibility", "is_active", "display_order")
     list_editable = ("is_active", "display_order")
     prepopulated_fields = {"slug": ("name",)}
 

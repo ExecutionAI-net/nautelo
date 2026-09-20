@@ -7,7 +7,10 @@ import { formatPrice } from "@/lib/api/plans";
 
 interface Membership {
   profile_status: string;
-  status: "INACTIVE" | "ACTIVE" | "PAST_DUE" | "LAPSED" | "CANCELED";
+  trial_ends_at: string | null;
+  trial_available: boolean;
+  trial_days: number;
+  status: "INACTIVE" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "LAPSED" | "CANCELED";
   current_period_end: string | null;
   past_due_since: string | null;
   plan: { name: string; tagline: string; monthly_price: string; currency: string } | null;
@@ -15,6 +18,7 @@ interface Membership {
 
 const STATUS_COPY: Record<Membership["status"], string> = {
   INACTIVE: "Not subscribed",
+  TRIALING: "Free trial",
   ACTIVE: "Active",
   PAST_DUE: "Payment overdue",
   LAPSED: "Offline - payment not received",
@@ -49,14 +53,14 @@ export default function ProviderMembership() {
   if (error && !membership) return <p role="alert" className="font-body-md text-on-surface-variant">{error}</p>;
   if (!membership) return <p className="font-body-md text-on-surface-variant">Loading...</p>;
 
-  const live = membership.status === "ACTIVE" || membership.status === "PAST_DUE";
+  const live = membership.status === "TRIALING" || membership.status === "ACTIVE" || membership.status === "PAST_DUE";
   return (
     <div className="flex flex-col gap-space-lg">
       <div>
         <span className="font-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / Membership</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Membership</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">
-          Your profile is listed in the NAUTA directory while your monthly membership is paid. It goes live automatically once the payment is confirmed.
+          Your profile is listed in the NAUTA directory while your monthly membership is paid. It goes live once our team has reviewed and approved it.
         </p>
       </div>
 
@@ -90,7 +94,12 @@ export default function ProviderMembership() {
             We could not collect your last payment. Your profile goes offline 24 hours after the due date unless it is paid.
           </p>
         ) : null}
-        {membership.current_period_end && live ? (
+        {membership.status === "TRIALING" && membership.trial_ends_at ? (
+          <p className="font-body-sm text-on-surface-variant">
+            Free trial until {new Date(membership.trial_ends_at).toLocaleDateString("en-GB")}. Your card is charged then, and monthly after that. Cancel any time before.
+          </p>
+        ) : null}
+        {membership.current_period_end && live && membership.status !== "TRIALING" ? (
           <p className="font-body-sm text-on-surface-variant">
             Paid until {new Date(membership.current_period_end).toLocaleDateString("en")}. Renews automatically each month.
           </p>
@@ -103,7 +112,7 @@ export default function ProviderMembership() {
               onClick={() => void subscribe()}
               className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container disabled:opacity-50"
             >
-              {membership.status === "INACTIVE" ? "Subscribe and go live" : "Pay and bring my profile back"}
+              {membership.status === "INACTIVE" ? (membership.trial_available ? `Start your ${membership.trial_days}-day free trial` : "Subscribe") : "Pay and bring my profile back"}
             </button>
           </div>
         ) : null}

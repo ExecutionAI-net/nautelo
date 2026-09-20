@@ -23,7 +23,7 @@ class ProfessionalProfileAdmin(admin.ModelAdmin):
 @admin.register(ProfessionalPlan)
 class ProfessionalPlanAdmin(admin.ModelAdmin):
     list_display = ("name", "monthly_price", "currency", "is_active")
-    fields = ("slug", "name", "tagline", "monthly_price", "currency", "stripe_product_id", "stripe_price_id", "is_active")
+    fields = ("slug", "name", "tagline", "monthly_price", "currency", "trial_days", "stripe_product_id", "stripe_price_id", "is_active")
 
 
 @admin.register(ProfessionalSubscription)
