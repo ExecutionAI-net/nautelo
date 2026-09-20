@@ -143,6 +143,9 @@ export default function ContactPanel({
           <p className="mt-space-sm font-body-sm text-on-surface-variant">
             {tContact(locale, "contact.locked_explanation")}
           </p>
+          <p className="mt-space-xs font-body-sm text-on-surface-variant">
+            {tContact(locale, "contact.blur_reason")}
+          </p>
         </>
       ) : null}
 
