@@ -265,6 +265,30 @@ def remove_media(*, actor, media: ListingMedia) -> ListingMedia:
     return reject_media(media, "Removed by the seller.", actor=actor)
 
 
+def reorder_media(*, listing: BoatListing, media_type: str, ordered_ids: list) -> None:
+    """Give the listed non-rejected items of one type sort_order 0..n-1 in that order.
+
+    Two passes because (listing, media_type, sort_order) is unique.
+    """
+    with transaction.atomic():
+        rows = list(
+            ListingMedia.objects.select_for_update()
+            .filter(listing=listing, media_type=media_type)
+            .exclude(status=MediaStatus.REJECTED)
+        )
+        by_id = {str(row.pk): row for row in rows}
+        wanted = [str(pk) for pk in ordered_ids]
+        if set(wanted) != set(by_id) or len(wanted) != len(by_id):
+            raise ValueError("ids must list every item of that type exactly once")
+        base = (
+            ListingMedia.objects.filter(listing=listing, media_type=media_type).aggregate(top=Max("sort_order"))["top"] or 0
+        ) + 1
+        for offset, pk in enumerate(wanted):
+            ListingMedia.objects.filter(pk=pk).update(sort_order=base + offset)
+        for index, pk in enumerate(wanted):
+            ListingMedia.objects.filter(pk=pk).update(sort_order=index)
+
+
 def cleanup_stale_uploads(*, now=None) -> int:
     """Spec §24.2 step 9: UPLOADING reservations older than an hour are freed."""
     now = now or timezone.now()

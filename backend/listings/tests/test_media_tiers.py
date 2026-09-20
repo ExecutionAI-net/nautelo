@@ -65,3 +65,17 @@ def test_the_owner_can_read_one_upload_with_its_rejection_reason():
 
 def test_the_minimum_image_size_lets_a_550_by_410_photo_through():
     assert 550 >= IMAGE_MIN_WIDTH and 410 >= IMAGE_MIN_HEIGHT
+
+
+def test_the_owner_can_reorder_photos_and_the_first_becomes_the_cover():
+    seller = make_private_seller()
+    listing = make_private_listing(owner=seller)
+    first = make_media(listing, sort_order=0)
+    second = make_media(listing, sort_order=1)
+    client = APIClient()
+    client.force_authenticate(seller)
+    url = reverse("listing-media-reorder", args=[listing.pk])
+    body = client.post(url, {"media_type": "IMAGE", "ids": [str(second.pk), str(first.pk)]}, format="json")
+    assert body.status_code == 200
+    assert [row["id"] for row in body.data] == [str(second.pk), str(first.pk)]
+    assert client.post(url, {"media_type": "IMAGE", "ids": [str(second.pk)]}, format="json").status_code == 400

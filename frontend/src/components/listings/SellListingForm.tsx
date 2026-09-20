@@ -13,6 +13,7 @@ import {
   listMedia,
   listModels,
   removeMedia,
+  reorderMedia,
   searchBrands,
   startListingRightCheckout,
   submitListing,
@@ -130,6 +131,7 @@ export default function SellListingForm({
 
   const [listing, setListing] = useState<WorkflowListing | null>(initial ?? null);
   const [media, setMedia] = useState<MediaRow[]>([]);
+  const [pending, setPending] = useState<{ file: File; url: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -289,7 +291,13 @@ export default function SellListingForm({
       const saved = listing
         ? await updateDraft(listing.id, listing.revision?.version ?? listing.version, payload())
         : await createDraft(payload(), brokerId);
+      const firstSave = !listing;
       setListing(saved);
+      if (firstSave && pending.length > 0) {
+        await uploadAll(saved.id, pending.map((item) => item.file));
+        pending.forEach((item) => URL.revokeObjectURL(item.url));
+        setPending([]);
+      }
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 3000);
     } catch (caught) {
@@ -308,22 +316,78 @@ export default function SellListingForm({
     }
   }
 
-  async function addFiles(files: FileList | null) {
-    if (!listing || !files) return;
-    setBusy(true);
-    setError(null);
-    try {
-      for (const file of Array.from(files)) {
-        const row = await uploadMedia(listing.id, file);
-        if (row.status === "REJECTED") {
-          setError(t("sell.media_rejected", { reason: row.rejection_reason || file.name }));
-        }
+  // Limits shown before the draft exists follow who is selling and which right will be used.
+  const mediaLimits = (() => {
+    if (listing) return { images: listing.policy.image_limit, videos: listing.policy.video_limit };
+    const l = options?.media_limits;
+    if (!l) return { images: 1, videos: 0 };
+    if (brokerId) return { images: l.broker_images, videos: l.broker_videos };
+    return eligibility?.free.available === false
+      ? { images: l.paid_images, videos: l.paid_videos }
+      : { images: l.free_images, videos: l.free_videos };
+  })();
+  const isVideo = (file: File) => file.type.startsWith("video/");
+  const imageCount = media.filter((row) => row.media_type === "IMAGE").length + pending.filter((item) => !isVideo(item.file)).length;
+  const videoCount = media.filter((row) => row.media_type === "VIDEO").length + pending.filter((item) => isVideo(item.file)).length;
+
+  async function uploadAll(listingId: string, files: File[]) {
+    for (const file of files) {
+      const row = await uploadMedia(listingId, file);
+      if (row.status === "REJECTED") {
+        setError(t("sell.media_rejected", { reason: row.rejection_reason || file.name }));
       }
-      setMedia(await listMedia(listing.id));
+    }
+    setMedia(await listMedia(listingId));
+  }
+
+  async function addFiles(files: FileList | null) {
+    if (!files) return;
+    setError(null);
+    let images = imageCount;
+    let videos = videoCount;
+    const accepted: File[] = [];
+    for (const file of Array.from(files)) {
+      if (isVideo(file) ? videos >= mediaLimits.videos : images >= mediaLimits.images) {
+        setError(t("sell.media_full", { limit: isVideo(file) ? mediaLimits.videos : mediaLimits.images }));
+        continue;
+      }
+      if (isVideo(file)) videos += 1;
+      else images += 1;
+      accepted.push(file);
+    }
+    if (accepted.length === 0) return;
+    if (!listing) {
+      setPending((current) => [...current, ...accepted.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+      return;
+    }
+    setBusy(true);
+    try {
+      await uploadAll(listing.id, accepted);
     } catch (caught) {
       setError(describe(caught, locale));
     } finally {
       setBusy(false);
+    }
+  }
+
+  function dropPending(index: number) {
+    setPending((current) => {
+      URL.revokeObjectURL(current[index].url);
+      return current.filter((_, i) => i !== index);
+    });
+  }
+
+  async function move(row: MediaRow, delta: number) {
+    if (!listing) return;
+    const ids = media.filter((item) => item.media_type === row.media_type).map((item) => item.id);
+    const from = ids.indexOf(row.id);
+    const to = from + delta;
+    if (to < 0 || to >= ids.length) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    try {
+      setMedia(await reorderMedia(listing.id, row.media_type, ids));
+    } catch (caught) {
+      setError(describe(caught, locale));
     }
   }
 
@@ -695,65 +759,112 @@ export default function SellListingForm({
 
           <section className={CARD} aria-labelledby="media-heading">
             <StepHeading n={5} id="media-heading">{t("sell.media")}</StepHeading>
-            {listing ? (
-              <>
+            <div className="flex flex-wrap items-center gap-space-md font-label-md text-on-surface-variant">
+              <span>{t("sell.photos_counter", { count: imageCount, limit: mediaLimits.images })}</span>
+              <span>{t("sell.videos_counter", { count: videoCount, limit: mediaLimits.videos })}</span>
+            </div>
+            <label className="mt-space-sm flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-space-lg text-center font-body-md text-on-surface-variant hover:bg-surface-container">
+              <span className="material-symbols-outlined text-3xl text-secondary" aria-hidden="true">add_photo_alternate</span>
+              <span>{t("sell.media_drop")}</span>
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,video/mp4"
+                aria-label={t("sell.add_media")}
+                disabled={busy}
+                onChange={(e) => {
+                  void addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+                className="sr-only"
+              />
+            </label>
+            <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("sell.media_hint")}</p>
+            {!listing && pending.length > 0 ? <p className="font-body-sm text-on-surface-variant">{t("sell.media_pending")}</p> : null}
+            {!brokerId && mediaLimits.images <= 1 ? (
+              <div className="mt-space-sm rounded-lg bg-surface-container-low p-space-md">
                 <p className="font-body-sm text-on-surface-variant">
-                  {t("sell.media_limits", { images: listing.policy.image_limit, videos: listing.policy.video_limit })}
+                  {t("sell.media_free_note", { images: mediaLimits.images, paid_images: options?.media_limits.paid_images ?? 20, paid_videos: options?.media_limits.paid_videos ?? 1 })}
                 </p>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/webp,video/mp4"
-                  aria-label={t("sell.add_media")}
-                  disabled={busy}
-                  onChange={(e) => void addFiles(e.target.files)}
-                  className="mt-space-sm block w-full rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-space-lg font-body-md"
-                />
-                {!brokerId && listing.policy.image_limit <= 1 ? (
-                  <div className="mt-space-sm rounded-lg bg-surface-container-low p-space-md">
-                    <p className="font-body-sm text-on-surface-variant">
-                      {t("sell.media_free_note", { images: listing.policy.image_limit, paid_images: options?.media_limits.paid_images ?? 20, paid_videos: options?.media_limits.paid_videos ?? 1 })}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void buyRight()}
-                      className="mt-space-xs rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container"
-                    >
-                      {t("sell.allowance_buy")}
-                    </button>
-                  </div>
-                ) : null}
-                <ul className="mt-space-sm flex flex-col gap-space-xs">
-                  {media.map((row) => (
-                    <li key={row.id} className="flex items-center gap-space-sm font-body-sm">
-                      <span>{row.media_type} · {row.status}</span>
-                      {row.rejection_reason ? <span role="note">{row.rejection_reason}</span> : null}
+                <button
+                  type="button"
+                  onClick={() => void buyRight()}
+                  className="mt-space-xs rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container"
+                >
+                  {t("sell.allowance_buy")}
+                </button>
+              </div>
+            ) : null}
+            <ul className="mt-space-sm grid grid-cols-2 gap-space-sm sm:grid-cols-3">
+              {media.map((row) => {
+                const siblings = media.filter((item) => item.media_type === row.media_type);
+                const position = siblings.indexOf(row);
+                return (
+                  <li key={row.id} className="overflow-hidden rounded-lg bg-surface-container-low">
+                    <div className="relative aspect-[4/3] bg-primary-container">
+                      {row.preview_url && row.media_type === "IMAGE" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img alt="" src={row.preview_url} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="absolute inset-0 flex items-center justify-center font-label-sm text-on-primary">{row.media_type} · {row.status}</span>
+                      )}
+                      {position === 0 && row.media_type === "IMAGE" ? (
+                        <span className="absolute left-1 top-1 rounded bg-primary px-2 py-0.5 font-label-sm text-on-primary">{t("sell.cover")}</span>
+                      ) : null}
+                    </div>
+                    {row.rejection_reason ? <p role="note" className="px-space-xs font-body-sm text-error">{row.rejection_reason}</p> : null}
+                    <div className="flex items-center justify-between gap-1 p-space-xs font-label-md">
+                      <span className="flex gap-1">
+                        <button type="button" aria-label={t("sell.move_earlier")} disabled={position === 0} onClick={() => void move(row, -1)} className="rounded px-2 text-primary disabled:opacity-30">←</button>
+                        <button type="button" aria-label={t("sell.move_later")} disabled={position === siblings.length - 1} onClick={() => void move(row, 1)} className="rounded px-2 text-primary disabled:opacity-30">→</button>
+                      </span>
                       <button type="button" onClick={() => void remove(row)} className="text-primary underline">
                         {t("sell.remove")}
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <p className="font-body-sm text-on-surface-variant">{t("sell.save_draft")} →</p>
-            )}
+                    </div>
+                  </li>
+                );
+              })}
+              {pending.map((item, index) => (
+                <li key={item.url} className="overflow-hidden rounded-lg bg-surface-container-low">
+                  <div className="relative aspect-[4/3] bg-primary-container">
+                    {!isVideo(item.file) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img alt="" src={item.url} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center font-label-sm text-on-primary">VIDEO</span>
+                    )}
+                  </div>
+                  <div className="flex justify-end p-space-xs font-label-md">
+                    <button type="button" onClick={() => dropPending(index)} className="text-primary underline">
+                      {t("sell.remove")}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </section>
 
-          <section className={CARD} aria-labelledby="step-contact">
-            <StepHeading n={6} id="step-contact">{t("sell.step.contact")}</StepHeading>
-            <p className="font-body-md text-on-surface-variant">{t("sell.contact_note")}</p>
-            {listing ? (
+          <section className="rounded-lg bg-surface-container-low p-space-md" aria-labelledby="step-contact">
+            <p id="step-contact" className="flex items-center gap-space-xs font-title-sm text-title-sm text-primary">
+              <span className="material-symbols-outlined text-base text-secondary" aria-hidden="true">lock</span>
+              {t("sell.step.contact")}
+            </p>
+            <p className="mt-1 font-body-sm text-on-surface-variant">{t("sell.contact_note")}</p>
+          </section>
+
+          {listing ? (
+            <div>
               <button
                 type="button"
                 disabled={busy || media.every((row) => row.status !== "READY")}
                 onClick={() => void submit()}
-                className="mt-space-md rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container disabled:opacity-50"
+                className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container disabled:opacity-50"
               >
                 {t("sell.submit")}
               </button>
-            ) : null}
-          </section>
+            </div>
+          ) : null}
 
           {error ? (
             <p role="alert" className="text-error">
