@@ -79,6 +79,17 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </p>
+          <p className="font-body-sm text-on-surface-variant">
+            Representing a business?{" "}
+            <Link href="/register/professional" className="text-primary underline">
+              Register as a professional
+            </Link>{" "}
+            or{" "}
+            <Link href="/register/broker" className="text-primary underline">
+              as a broker
+            </Link>
+            .
+          </p>
         </form>
       )}
     </AuthShell>
