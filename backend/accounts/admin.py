@@ -57,16 +57,41 @@ class UserAdmin(DjangoUserAdmin):
     def gift_paid_listing(self, request, queryset):
         """Staff-admin gift: a paid listing right that never expires in practice."""
         from accounts.services import is_staff_admin
-        from entitlements.admin import EntitlementReasonForm
+        from django import forms
+
         from entitlements.services import EntitlementReasonRequired, grant_listing_right
+        from payments.models import ListingPackage
+
+        class GiftForm(forms.Form):
+            package = forms.ModelChoiceField(
+                queryset=ListingPackage.objects.all(),
+                required=False,
+                empty_label="No package (platform defaults)",
+                help_text="The gift carries this package's days, photos and videos.",
+            )
+            reason = forms.CharField(
+                widget=forms.Textarea(attrs={"rows": 3}),
+                label="Reason (recorded on the entitlement and in the audit trail)",
+            )
 
         if not is_staff_admin(request.user):
             self.message_user(request, "Only staff admins can gift listings.", level=messages.ERROR)
             return None
         if "apply_reason" in request.POST:
-            form = EntitlementReasonForm(request.POST)
+            form = GiftForm(request.POST)
             if form.is_valid():
                 done = 0
+                package = form.cleaned_data["package"]
+                extra = (
+                    {
+                        "package": package.slug,
+                        "publication_days": package.publication_days,
+                        "image_limit": package.image_limit,
+                        "video_limit": package.video_limit,
+                    }
+                    if package
+                    else {}
+                )
                 for user in queryset:
                     try:
                         grant_listing_right(
@@ -74,6 +99,7 @@ class UserAdmin(DjangoUserAdmin):
                             actor=request.user,
                             reason=form.cleaned_data["reason"],
                             valid_days=3650,
+                            extra_metadata=extra,
                         )
                     except EntitlementReasonRequired as exc:
                         self.message_user(request, str(exc), level=messages.ERROR)
@@ -82,7 +108,7 @@ class UserAdmin(DjangoUserAdmin):
                 self.message_user(request, f"{done} paid listing(s) gifted.")
                 return redirect(request.get_full_path())
         else:
-            form = EntitlementReasonForm()
+            form = GiftForm()
         return render(
             request,
             "admin/entitlements/reason_action.html",
