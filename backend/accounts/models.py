@@ -119,3 +119,41 @@ class PasswordResetToken(UUIDTimeStampedModel):
     class Meta:
         ordering = ("-created_at",)
         indexes = [models.Index(fields=["user", "used_at"])]
+
+
+class OrganizationInvitation(UUIDTimeStampedModel):
+    """An emailed invitation into a broker or professional organization."""
+
+    org_type = models.CharField(max_length=20, choices=[(UserRole.BROKER, "Broker"), (UserRole.PROFESSIONAL, "Professional")])
+    broker = models.ForeignKey(
+        "brokers.BrokerOrganization", null=True, blank=True, related_name="invitations", on_delete=models.CASCADE
+    )
+    professional = models.ForeignKey(
+        "professionals.ProfessionalProfile", null=True, blank=True, related_name="invitations", on_delete=models.CASCADE
+    )
+    email = models.EmailField(max_length=254)
+    role = models.CharField(max_length=10)
+    invited_by = models.ForeignKey(
+        "accounts.User", null=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    accepted_user = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["email", "accepted_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=(models.Q(org_type="BROKER", broker__isnull=False, professional__isnull=True)
+                           | models.Q(org_type="PROFESSIONAL", professional__isnull=False, broker__isnull=True)),
+                name="accounts_invitation_one_organization",
+            ),
+        ]
+
+    def __str__(self):
+        return f"invite {self.email} -> {self.org_type}"

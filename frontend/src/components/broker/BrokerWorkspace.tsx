@@ -1,5 +1,6 @@
 "use client";
 
+import InvitePanel from "@/components/team/InvitePanel";
 import { useCallback, useEffect, useState } from "react";
 
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
@@ -55,8 +56,6 @@ export function BrokerTeam() {
   const brokerId = useBrokerId();
   const [members, setMembers] = useState<Member[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("AGENT");
 
   const reload = useCallback(async () => {
     if (!brokerId) return;
@@ -172,40 +171,7 @@ export function BrokerTeam() {
           </table>
         </div>
       </div>
-      <form
-        className={`${CARD} grid gap-space-sm sm:grid-cols-3`}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void run(
-            () =>
-              apiFetch(`/api/v1/brokers/${brokerId}/members/`, {
-                method: "POST",
-                headers: JSON_HEADERS,
-                body: JSON.stringify({ user_email: email, role }),
-              }),
-            "Member added.",
-          );
-          setEmail("");
-        }}
-      >
-        <label className={LABEL}>
-          Existing account email
-          <input className={FIELD} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label className={LABEL}>
-          Role
-          <select className={FIELD} value={role} onChange={(e) => setRole(e.target.value)}>
-            {["ADMIN", "MANAGER", "AGENT", "VIEWER"].map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className="self-end rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary">
-          Add member
-        </button>
-      </form>
+      <InvitePanel baseUrl={`/api/v1/brokers/${brokerId}/invitations/`} onChange={() => void reload()} />
     </div>
   );
 }

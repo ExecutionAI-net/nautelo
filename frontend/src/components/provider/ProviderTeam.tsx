@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import InvitePanel from "@/components/team/InvitePanel";
 import { apiFetch } from "@/lib/api/client";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -151,7 +152,7 @@ export default function ProviderTeam() {
           </tbody>
         </table>
       </div>
-      <p className="font-body-sm text-on-surface-variant">Invitations by email are coming next.</p>
+      <InvitePanel baseUrl="/api/v1/provider/team/invitations/" />
     </div>
   );
 }
