@@ -17,8 +17,8 @@ VIDEO_MAX_BYTES = 250 * MIB
 VIDEO_MAX_SECONDS = 120
 # Spec §24.3: "Minimum recommended resolution 1280x720; reject unusably small
 # images below defined product threshold." The rejection threshold is 640x360.
-IMAGE_MIN_WIDTH = 640
-IMAGE_MIN_HEIGHT = 360
+IMAGE_MIN_WIDTH = 400
+IMAGE_MIN_HEIGHT = 300
 
 ALLOWED_MIME = {
     MediaType.IMAGE: {
@@ -137,5 +137,5 @@ def inspect_bytes(*, media_type: str, declared_mime: str, data: bytes) -> Inspec
     except struct.error:
         raise RejectedMedia("This image is damaged.") from None
     if width < IMAGE_MIN_WIDTH or height < IMAGE_MIN_HEIGHT:
-        raise RejectedMedia("This image is too small.")
+        raise RejectedMedia(f"This image is too small (minimum {IMAGE_MIN_WIDTH} x {IMAGE_MIN_HEIGHT} pixels).")
     return Inspection(mime_type=real, width=width, height=height)

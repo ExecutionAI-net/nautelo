@@ -488,9 +488,13 @@ class ListingMediaCompleteView(_MediaBaseView):
 
 
 class ListingMediaDetailView(_MediaBaseView):
-    """DELETE /api/v1/listings/<id>/media/<media_id>/."""
+    """GET (poll one upload, incl. why it was rejected) and DELETE /api/v1/listings/<id>/media/<media_id>/."""
 
-    http_method_names = ["delete", "options"]
+    http_method_names = ["get", "delete", "options"]
+
+    def get(self, request, listing_id, media_id):
+        _, media = self.get_media(request, listing_id, media_id)
+        return Response(ListingMediaSerializer(media).data)
 
     def delete(self, request, listing_id, media_id):
         _, media = self.get_media(request, listing_id, media_id)

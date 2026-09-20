@@ -25,3 +25,12 @@ def test_options_endpoint_serves_every_list_to_a_signed_in_user():
         assert body[key]
     assert {"TR", "US", "CA", "RU", "DE", "IT", "ES"} <= set(body["countries"])
     assert APIClient().get(reverse("listing-form-options")).status_code in (401, 403)
+
+
+def test_options_carry_the_media_limits_staff_configure():
+    limits = form_options()["media_limits"]
+    assert limits == {
+        "free_images": 1, "free_videos": 0,
+        "paid_images": 20, "paid_videos": 1,
+        "broker_images": 20, "broker_videos": 1,
+    }

@@ -126,10 +126,23 @@ export async function uploadMedia(listingId: string, file: File): Promise<MediaR
   if (!put.ok) {
     throw new Error("upload_failed");
   }
-  return apiFetch<MediaRow>(
+  const completed = await apiFetch<MediaRow>(
     `/api/v1/listings/${listingId}/media/${intent.media.id}/complete/`,
     { method: "POST" },
   );
+  return waitForMedia(listingId, completed);
+}
+
+const PROCESSING = new Set(["UPLOADING", "SCANNING", "PROCESSING"]);
+
+/** Server-side checks (scan, size, format) run asynchronously; wait for the verdict. */
+async function waitForMedia(listingId: string, row: MediaRow): Promise<MediaRow> {
+  let current = row;
+  for (let attempt = 0; attempt < 30 && PROCESSING.has(current.status); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    current = await apiFetch<MediaRow>(`/api/v1/listings/${listingId}/media/${row.id}/`);
+  }
+  return current;
 }
 
 export function applyMediaUpgrade(listingId: string) {

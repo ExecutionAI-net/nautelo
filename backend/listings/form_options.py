@@ -62,8 +62,23 @@ def year_choices(now=None) -> list[int]:
     return list(range(current, OLDEST_YEAR - 1, -1))
 
 
+def media_limits() -> dict:
+    """Photo/video allowances, read from the platform settings staff edit in Django."""
+    from platform_settings.services import get_setting_value
+
+    return {
+        "free_images": int(get_setting_value("media.private_base_image_limit")),
+        "free_videos": int(get_setting_value("media.private_base_video_limit")),
+        "paid_images": int(get_setting_value("media.upgraded_image_limit")),
+        "paid_videos": int(get_setting_value("media.upgraded_video_limit")),
+        "broker_images": int(get_setting_value("media.broker_image_limit")),
+        "broker_videos": int(get_setting_value("media.broker_video_limit")),
+    }
+
+
 def form_options(now=None) -> dict:
     return {
+        "media_limits": media_limits(),
         "years": year_choices(now),
         "boat_types": BOAT_TYPES,
         "hull_materials": HULL_MATERIALS,

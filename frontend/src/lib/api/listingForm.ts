@@ -9,6 +9,14 @@ export interface FormOptions {
   cabins: string[];
   bathrooms: string[];
   countries: string[];
+  media_limits: {
+    free_images: number;
+    free_videos: number;
+    paid_images: number;
+    paid_videos: number;
+    broker_images: number;
+    broker_videos: number;
+  };
 }
 
 export interface Eligibility {

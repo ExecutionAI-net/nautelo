@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 
 import SearchSelect from "@/components/forms/SearchSelect";
-import MediaUpgradePanel from "@/components/listings/MediaUpgradePanel";
 import type { Locale } from "@/lib/i18n/directory";
 import { tSell } from "@/lib/i18n/sell";
 import { ApiError } from "@/lib/api/client";
@@ -305,7 +304,10 @@ export default function SellListingForm({
     setError(null);
     try {
       for (const file of Array.from(files)) {
-        await uploadMedia(listing.id, file);
+        const row = await uploadMedia(listing.id, file);
+        if (row.status === "REJECTED") {
+          setError(t("sell.media_rejected", { reason: row.rejection_reason || file.name }));
+        }
       }
       setMedia(await listMedia(listing.id));
     } catch (caught) {
@@ -681,7 +683,20 @@ export default function SellListingForm({
                   onChange={(e) => void addFiles(e.target.files)}
                   className="mt-space-sm block w-full rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-space-lg font-body-md"
                 />
-                <MediaUpgradePanel listingId={listing.id} onApplied={() => setError(null)} />
+                {!brokerId && listing.policy.image_limit <= 1 ? (
+                  <div className="mt-space-sm rounded-lg bg-surface-container-low p-space-md">
+                    <p className="font-body-sm text-on-surface-variant">
+                      {t("sell.media_free_note", { images: listing.policy.image_limit, paid_images: options?.media_limits.paid_images ?? 20, paid_videos: options?.media_limits.paid_videos ?? 1 })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void buyRight()}
+                      className="mt-space-xs rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container"
+                    >
+                      {t("sell.allowance_buy")}
+                    </button>
+                  </div>
+                ) : null}
                 <ul className="mt-space-sm flex flex-col gap-space-xs">
                   {media.map((row) => (
                     <li key={row.id} className="flex items-center gap-space-sm font-body-sm">

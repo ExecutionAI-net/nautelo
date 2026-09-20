@@ -39,6 +39,7 @@ vi.mock("@/lib/api/listingForm", () => ({
     cabins: ["1"],
     bathrooms: ["1"],
     countries: ["IT", "TR"],
+    media_limits: { free_images: 1, free_videos: 0, paid_images: 20, paid_videos: 1, broker_images: 20, broker_videos: 1 },
   }),
   fetchEligibility: vi.fn().mockResolvedValue({
     can_start_listing: true,

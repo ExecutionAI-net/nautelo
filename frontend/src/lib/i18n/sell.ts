@@ -118,6 +118,13 @@ const SELL: Record<string, Entry> = {
     it: "Le imbarcazioni su Nauta sono controllate prima della pubblicazione. Le traduzioni IA mantengono la terminologia nautica.",
     es: "Las embarcaciones en Nauta se revisan antes de publicarse. Las traducciones con IA conservan la terminologia nautica.",
   },
+  "sell.media_free_note": {
+    en: "A free listing includes {images} photo and no video. A paid listing includes up to {paid_images} photos and {paid_videos} video.",
+    it: "Un annuncio gratuito include {images} foto e nessun video. Un annuncio a pagamento include fino a {paid_images} foto e {paid_videos} video.",
+    es: "Un anuncio gratuito incluye {images} foto y ningun video. Un anuncio de pago incluye hasta {paid_images} fotos y {paid_videos} video.",
+  },
+  "sell.media_rejected": { en: "Photo not accepted: {reason}", it: "Foto non accettata: {reason}", es: "Foto no aceptada: {reason}" },
+  "sell.media_added": { en: "Photo added", it: "Foto aggiunta", es: "Foto anadida" },
   "sell.condition": { en: "Boat condition", it: "Condizione", es: "Estado" },
   "sell.condition.new": { en: "New vessel", it: "Nuova", es: "Nueva" },
   "sell.condition.used": { en: "Used / pre-owned", it: "Usata", es: "De segunda mano" },
