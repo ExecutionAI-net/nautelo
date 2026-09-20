@@ -90,6 +90,16 @@ cloning `dev` once the project is in a shippable state.
 
 ## Log
 
+### 2026-09-20 - Dashboard shell, media module, staff backend and design pass
+
+- **Dashboards**: no global header on `/dashboard/*`; `AreaShell` renders a left accordion menu (`DashboardSidebar`) with a Home button, language, notifications and sign out.
+- **Sell form media**: photos/videos can be picked before the first save (uploaded after the draft exists), counters per type, cover = first photo, reorder via `POST listings/<id>/media/reorder/`, video poster frame (ffmpeg) shown as thumbnail; seller contact is an info notice.
+- **Staff backend**: list `facets`, user account-state filter and audited freeze endpoint, richer `/staff/reports/` (breakdowns, 6-month series, 30-day growth), `GET/PATCH /staff/settings/` over the settings registry.
+- **Broker directory**: broker organisations gained tagline, about, city, country, logo/cover URLs and specialties (migrations 0002-0003); `/brokers/` has search, country/specialty filters and facets; guides list returns published categories.
+- **UI taken from the Stitch markup**: staff registry tables, reports, settings, advertising, guides CMS, dashboard overview, entitlement ledger; broker fleet inventory (add form at `/dashboard/broker/fleet/new/`), team/profile/subscription; provider dashboard/services; seller account/services; messages inbox; brokers directory/profile; guides index.
+- **Deliberately not built** (no data or spec 28 excludes): escrow, KYC documents, GMV/banking, impressions/CTR, contract values, financing study request form, Login demo-role picker.
+- **Still open**: CSP nonces (needs dynamic rendering), video transcode, remaining design comparison for staff Taxonomy/Broker detail/Revision review, IT/ES copy and hreflang review, S3 CORS check, legal review.
+
 ### 2026-09-20 - Translation, catalogue import, sell form and Lighthouse pass
 
 - **OpenRouter translation** (`backend/translation`): the full OpenRouter catalogue (`/models?output_modalities=all`, 604 models, 447 text-output) is stored and refreshed daily (04:30 beat) or on demand (Django admin "Sync from OpenRouter", `manage.py sync_openrouter_models`). `TranslationSettings` (admin singleton) picks the model through a searchable dropdown limited to text-output models. `POST /api/v1/translate/` and `GET /api/v1/translate/status/` back the "Translate with AI" button in the sell form. The key is `OPENROUTER_API_KEY` (AWS Secrets Manager `nautelo/dev`, never in the repo or DB).
