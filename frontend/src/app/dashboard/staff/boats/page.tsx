@@ -21,6 +21,7 @@ export default function StaffBoatsPage() {
             { key: "owner_email", label: "Owner" },
             { key: "broker_name", label: "Broker" },
           ]}
+          reviewLink={{ key: "pending_revision_id", base: "/dashboard/staff/revisions/", label: "Review and decide" }}
           statusOptions={["DRAFT", "PENDING_APPROVAL", "PUBLISHED", "REJECTED", "SUSPENDED", "EXPIRED", "ARCHIVED"]}
         />
       </RequirePermission>

@@ -33,7 +33,6 @@ class BoatListingAdmin(admin.ModelAdmin):
     readonly_fields = (
         "id",
         "version",
-        "status",
         "current_public_snapshot",
         "seller_type",
         "owner_user",

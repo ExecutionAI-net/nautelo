@@ -32,6 +32,8 @@ interface Props {
   endpoint: string;
   columns: Column[];
   statusOptions?: string[];
+  /** When the row carries this key, the details panel links to `base + value` (e.g. the revision review screen). */
+  reviewLink?: { key: string; base: string; label: string };
   groups?: ChipGroup[];
   /** Base path such as /api/v1/staff/providers/; enables Activate/Suspend in the side panel. */
   statusActionsBase?: string;
@@ -76,7 +78,7 @@ function rowState(row: Record<string, unknown>): string | null {
 
 const CHIP = "px-3 py-1 rounded font-label-md";
 
-export default function StaffDataTable({ title, eyebrow, description, endpoint, columns, statusOptions, groups, statusActionsBase, totalLabel }: Props) {
+export default function StaffDataTable({ title, eyebrow, description, endpoint, columns, statusOptions, groups, statusActionsBase, totalLabel, reviewLink }: Props) {
   const chipGroups: ChipGroup[] = groups ?? (statusOptions ? [{ param: "status", label: "Status", options: statusOptions.map((value) => ({ value, label: value })), facets: true }] : []);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -304,6 +306,15 @@ export default function StaffDataTable({ title, eyebrow, description, endpoint, 
                 </div>
               ))}
             </dl>
+            {reviewLink && typeof selected[reviewLink.key] === "string" ? (
+              <a
+                href={`${reviewLink.base}${selected[reviewLink.key]}/`}
+                className="w-full bg-primary text-on-primary hover:bg-primary-container font-title-md text-body-sm py-2.5 rounded transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">fact_check</span>
+                {reviewLink.label}
+              </a>
+            ) : null}
             {statusActionsBase ? (
               <div className="grid grid-cols-2 gap-space-sm">
                 {state !== "ACTIVE" ? (
