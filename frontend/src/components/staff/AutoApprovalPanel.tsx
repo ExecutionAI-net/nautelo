@@ -67,7 +67,7 @@ export default function AutoApprovalPanel({
   return (
     <section
       aria-labelledby="auto-approval-heading"
-      className="rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md"
+      className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm"
     >
       <h2
         id="auto-approval-heading"

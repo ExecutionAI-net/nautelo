@@ -62,7 +62,7 @@ export default function BulkApprovePanel({
   return (
     <section
       aria-labelledby="bulk-approve-heading"
-      className="rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md"
+      className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm"
     >
       <h2
         id="bulk-approve-heading"

@@ -32,7 +32,7 @@ export default function BrokerAuditHistory({
   return (
     <section
       aria-labelledby="broker-audit-heading"
-      className="rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md"
+      className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm"
     >
       <h2
         id="broker-audit-heading"

@@ -48,7 +48,11 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
     setBusy(true);
     setError(null);
     try {
-      await decideRevision(revisionId, { decision, version: detail.version, note });
+      await decideRevision(revisionId, {
+        decision,
+        version: detail.version,
+        note,
+      });
       setDone(decision);
     } catch (caught) {
       setError(
@@ -81,8 +85,11 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
 
   const decidable = detail.state === "SUBMITTED";
   return (
-    <section>
-      <h1 className="font-headline-md text-headline-md text-primary">
+    <section className="flex flex-col gap-space-md">
+      <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">
+        Staff Admin / Revision review
+      </span>
+      <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">
         {detail.year} {detail.brand} {detail.model}
       </h1>
       <p className="font-body-sm text-on-surface-variant">
@@ -90,9 +97,15 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
       </p>
 
       {detail.warnings.length > 0 ? (
-        <ul className="mt-space-md flex flex-col gap-space-xs" aria-label="Warnings">
+        <ul
+          className="mt-space-md flex flex-col gap-space-xs"
+          aria-label="Warnings"
+        >
           {detail.warnings.map((warning) => (
-            <li key={warning.code} className="rounded-lg border border-outline-variant p-space-sm">
+            <li
+              key={warning.code}
+              className="rounded-lg bg-secondary-container text-on-secondary-container p-space-sm font-body-sm"
+            >
               {warning.code === "other_model"
                 ? `Uses the Other model: “${String(warning.custom_model_name ?? "")}”`
                 : warning.code === "media_not_ready"
@@ -103,11 +116,13 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
         </ul>
       ) : null}
 
-      <h2 className="mt-space-lg font-title-md text-title-md">Changes</h2>
+      <h2 className="mt-space-md font-title-md text-title-md text-primary">
+        Changes
+      </h2>
       {detail.diff.length === 0 ? (
         <p className="text-on-surface-variant">No field changes.</p>
       ) : (
-        <table className="mt-space-sm w-full text-left font-body-sm">
+        <table className="mt-space-sm w-full text-left font-body-sm bg-surface-container-lowest rounded-xl shadow-sm [&_th]:p-space-sm [&_td]:p-space-sm [&_tr]:border-b [&_tr]:border-outline-variant/40">
           <thead>
             <tr>
               <th scope="col">Field</th>
@@ -127,12 +142,12 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
         </table>
       )}
       <p className="mt-space-sm font-body-sm text-on-surface-variant">
-        Media: +{detail.media_diff.added.length} / −{detail.media_diff.removed.length}, kept{" "}
-        {detail.media_diff.kept}
+        Media: +{detail.media_diff.added.length} / −
+        {detail.media_diff.removed.length}, kept {detail.media_diff.kept}
       </p>
 
       {decidable ? (
-        <div className="mt-space-lg">
+        <div className="mt-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
           <label className="block font-body-md" htmlFor="decision-note">
             Note (required to reject or request changes)
           </label>
@@ -140,7 +155,7 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
             id="decision-note"
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            className="mt-space-xs w-full rounded-lg border border-outline-variant p-space-sm"
+            className="mt-space-xs w-full rounded-lg bg-surface-container-low p-space-sm"
             rows={3}
           />
           {error ? (
@@ -149,19 +164,36 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
             </p>
           ) : null}
           <div className="mt-space-sm flex flex-wrap gap-space-sm">
-            <button type="button" disabled={busy} onClick={() => void decide("APPROVE")}>
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-lg px-space-md py-space-sm font-label-md font-semibold disabled:opacity-50 bg-primary text-on-primary"
+              onClick={() => void decide("APPROVE")}
+            >
               Approve
             </button>
-            <button type="button" disabled={busy} onClick={() => void decide("REQUEST_CHANGES")}>
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-lg px-space-md py-space-sm font-label-md font-semibold disabled:opacity-50 bg-secondary-container text-on-secondary-container"
+              onClick={() => void decide("REQUEST_CHANGES")}
+            >
               Request changes
             </button>
-            <button type="button" disabled={busy} onClick={() => void decide("REJECT")}>
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-lg px-space-md py-space-sm font-label-md font-semibold disabled:opacity-50 bg-error text-on-error"
+              onClick={() => void decide("REJECT")}
+            >
               Reject
             </button>
           </div>
         </div>
       ) : (
-        <p className="mt-space-lg text-on-surface-variant">This revision is not awaiting a decision.</p>
+        <p className="mt-space-lg text-on-surface-variant">
+          This revision is not awaiting a decision.
+        </p>
       )}
     </section>
   );
