@@ -138,3 +138,24 @@ def test_staff_manages_plans():
     assert created.status_code == 201
     listed = staff.get(reverse("staff-broker-plan-list")).json()
     assert "test-tier" in [p["slug"] for p in listed]
+
+
+def test_subscription_list_reports_usage_summary_and_filters_by_plan():
+    staff = _staff_client()
+    premier = BrokerPlan.objects.get(slug="premier-fleet")
+    boutique = BrokerPlan.objects.get(slug="boutique-broker")
+    make_broker(name="Aaa Premier", slug="aaa-premier", plan=premier)
+    make_broker(name="Bbb Boutique", slug="bbb-boutique", plan=boutique)
+    make_broker(name="Ccc Unplanned", slug="ccc-unplanned")
+
+    body = staff.get(reverse("staff-broker-subscriptions")).json()
+    assert body["count"] == 3
+    assert body["summary"]["monthly_recurring_revenue"] == "1180.00"
+    assert body["summary"]["annual_run_rate"] == "14160.00"
+    assert body["summary"]["by_plan"] == {"premier-fleet": 1, "boutique-broker": 1}
+    assert body["summary"]["unassigned_brokers"] == 1
+
+    only = staff.get(reverse("staff-broker-subscriptions"), {"plan": "boutique-broker"}).json()
+    assert [row["name"] for row in only["results"]] == ["Bbb Boutique"]
+    none_plan = staff.get(reverse("staff-broker-subscriptions"), {"plan": "none"}).json()
+    assert [row["name"] for row in none_plan["results"]] == ["Ccc Unplanned"]

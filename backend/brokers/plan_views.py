@@ -1,7 +1,9 @@
 """Public pricing (/pricing/) and staff plan management."""
 
+from django.db.models import Count, Q, Sum
 from rest_framework import serializers
-from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
+from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveUpdateAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -115,3 +117,70 @@ class StaffBrokerPlanAssignView(APIView):
                 metadata={},
             )
         return Response({"id": str(broker.pk), "plan": slug or None, "renews_at": broker.plan_renews_at})
+
+
+class StaffSubscriptionPagination(PageNumberPagination):
+    page_size = 20
+    max_page_size = 100
+    page_size_query_param = "page_size"
+
+
+class StaffSubscriberSerializer(serializers.ModelSerializer):
+    plan_slug = serializers.CharField(source="plan.slug", read_only=True, default=None)
+    plan_name = serializers.CharField(source="plan.name", read_only=True, default=None)
+    monthly_price = serializers.DecimalField(source="plan.monthly_price", max_digits=10, decimal_places=2, read_only=True, default=None)
+    currency = serializers.CharField(source="plan.currency", read_only=True, default=None)
+    listing_limit = serializers.IntegerField(source="plan.listing_limit", read_only=True, default=None)
+    seat_limit = serializers.IntegerField(source="plan.seat_limit", read_only=True, default=None)
+    listings_used = serializers.IntegerField(read_only=True)
+    seats_used = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = BrokerOrganization
+        fields = (
+            "id", "name", "slug", "status", "city", "country_code", "plan_slug", "plan_name", "monthly_price", "currency",
+            "plan_renews_at", "listing_limit", "seat_limit", "listings_used", "seats_used",
+        )
+
+
+class StaffBrokerSubscriptionListView(ListAPIView):
+    """Brokers with their plan and live usage; filter by ?plan=<slug|none> and ?q=name. The summary rides along."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
+    serializer_class = StaffSubscriberSerializer
+    pagination_class = StaffSubscriptionPagination
+
+    def get_queryset(self):
+        from brokers.plans import COUNTED_LISTING_STATES
+
+        queryset = BrokerOrganization.objects.select_related("plan").annotate(
+            listings_used=Count("listings", filter=Q(listings__status__in=COUNTED_LISTING_STATES), distinct=True),
+            seats_used=Count("memberships", filter=Q(memberships__is_active=True), distinct=True),
+        )
+        params = self.request.query_params
+        plan = params.get("plan", "").strip()
+        if plan == "none":
+            queryset = queryset.filter(plan__isnull=True)
+        elif plan:
+            queryset = queryset.filter(plan__slug=plan)
+        term = params.get("q", "").strip()
+        if term:
+            queryset = queryset.filter(name__icontains=term)
+        return queryset.order_by("name")
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        subscribed = BrokerOrganization.objects.filter(plan__isnull=False)
+        monthly = subscribed.aggregate(total=Sum("plan__monthly_price"))["total"] or 0
+        response.data["summary"] = {
+            "monthly_recurring_revenue": str(monthly),
+            "annual_run_rate": str(monthly * 12),
+            "subscribed_brokers": subscribed.count(),
+            "unassigned_brokers": BrokerOrganization.objects.filter(plan__isnull=True).count(),
+            "by_plan": {
+                row["plan__slug"]: row["n"]
+                for row in subscribed.values("plan__slug").annotate(n=Count("id"))
+            },
+        }
+        return response
