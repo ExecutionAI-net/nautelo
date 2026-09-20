@@ -26,7 +26,7 @@ vi.mock("@/lib/api/sellerListings", () => ({
   applyMediaUpgrade: vi.fn(),
   startMediaUpgradeCheckout: vi.fn(),
   fetchMyListings: vi.fn().mockResolvedValue([
-    { id: "a", title: "Boat", status: "DRAFT", seller_type: "PRIVATE", slug: null, updated_at: "", expires_at: null },
+    { id: "a", title: "Boat", status: "DRAFT", seller_type: "PRIVATE", slug: null, updated_at: "", expires_at: null, price: null, currency: "EUR", year: null, city: "", country: "", boat_type: "", condition: "", loa_m: "", beam_m: "", engine: "", views: 0, image_url: null },
   ]),
 }));
 vi.mock("@/lib/api/listingForm", () => ({
