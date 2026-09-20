@@ -177,6 +177,27 @@ class StaffReportsView(APIView):
         def by(model, field):
             return {str(k): n for k, n in model.objects.order_by().values_list(field).annotate(n=Count("pk"))}
 
+        from django.db.models.functions import TruncMonth
+
+        def monthly(model):
+            start = (now.replace(day=1) - timedelta(days=150)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            rows = (
+                model.objects.filter(created_at__gte=start)
+                .annotate(month=TruncMonth("created_at"))
+                .order_by()
+                .values_list("month")
+                .annotate(n=Count("pk"))
+            )
+            return {month.strftime("%Y-%m"): n for month, n in rows}
+
+        series = {"users": monthly(User), "listings": monthly(BoatListing), "conversations": monthly(Conversation)}
+        months = []
+        cursor = now.replace(day=1)
+        for _ in range(6):
+            months.append(cursor.strftime("%Y-%m"))
+            cursor = (cursor - timedelta(days=1)).replace(day=1)
+        months.reverse()
+        monthly_rows = [{"month": m, **{name: data.get(m, 0) for name, data in series.items()}} for m in months]
         new_users = User.objects.filter(created_at__gte=last).count()
         prior_users = User.objects.filter(created_at__gte=before, created_at__lt=last).count()
         return Response(
@@ -192,6 +213,8 @@ class StaffReportsView(APIView):
                 "brokers_by_status": by(BrokerOrganization, "status"),
                 "providers_by_status": by(ProfessionalProfile, "status"),
                 "entitlements_by_state": by(UserEntitlement, "state"),
+                "monthly": monthly_rows,
+                "listings_by_seller_type": by(BoatListing, "seller_type"),
                 "new_users_30d": new_users,
                 "new_users_prev_30d": prior_users,
                 "new_listings_30d": BoatListing.objects.filter(created_at__gte=last).count(),
