@@ -63,6 +63,33 @@ while the owner can still open billing (a lapsed brokerage can always pay).
 Non-staff get 403 on staff lists; staff addresses cannot be invited into an organization; organization
 registration on an existing address is refused.
 
+## 3b. Live broker session (2026-09-21, signed in by the owner in Chrome)
+
+Account: broker admin of "hakan broker" (brokerage ACTIVE, ADMIN seat, all three capabilities).
+
+| Check | Result |
+| --- | --- |
+| Session | role BROKER, membership ADMIN with edit/team/messages, **email not verified** |
+| Permissions the session reports | only `browse_public_content` |
+| Dashboard home (`/dashboard/broker/`) | loads; all counters 0 |
+| Profile, Team, Subscription pages | **all fail**: API answers `403 email_not_verified`, the screens say "The profile could not be loaded. Editing needs an administrator role." / "The account details could not be loaded." (wrong cause) |
+| "Add vessel" (dashboard button and empty-state link) | leads to **"Access denied - your account does not have permission"** (same hidden cause) |
+| Messages / Leads | load, empty; "Leads" is just Messages pre-filtered to "Listing inquiries", with a bare "No conversations match this filter." |
+| Public page `/brokers/hakan-broker/` | 200; empty tagline/about/logo, country IT |
+
+Findings:
+
+| ID | Sev | Finding | Status |
+| --- | --- | --- | --- |
+| R2-13 | **S1** | A brokerage created by staff has an admin who is not email-verified, and **every organization screen is dead** with misleading messages. A real user would conclude the product is broken or that they lack rights. | Fixed for the UI in PR 365: every dashboard now shows a "Verify your email" banner with a resend button. Still open: staff-created accounts should be created verified (or get the verification mail automatically). |
+| R2-14 | S2 | "Access denied" for a missing capability never says what to do. Same for the team/profile error texts. | Map `email_not_verified` (and other known codes) to specific messages on every screen. |
+| R2-15 | S3 | Empty states give no next step: Leads and Messages say only "No conversations match this filter"; dashboard "Mandate inventory" fine. | Add guidance (e.g. "Share your public page", "Add your first vessel"). |
+| R2-16 | S3 | The browser viewport in this session was small (about 1045x450 usable) and the dashboard sidebar consumed a large share; not judged. | Needs a desktop-size pass. |
+
+Blocked until the broker account is verified: profile completion, logo upload, team invitation, subscription and
+trial checkout, adding a vessel, receiving and answering a message. The backend scenario in section 3 covers
+those steps; the live UI still needs a pass.
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |
