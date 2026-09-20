@@ -36,11 +36,32 @@ def test_profile_lifecycle_and_submit():
     assert created.json()["status"] == "DRAFT"
     assert created.json()["country_code"] == "ES"
     assert api.post(reverse("provider-profile"), PROFILE, format="json").status_code == 409
-    patched = api.patch(
-        reverse("provider-profile"), {"city": "Palma", "status": "ACTIVE", "submit": True}, format="json"
-    ).json()
-    assert patched["city"] == "Palma"
+    # Submitting an unfinished profile is refused, and says what is missing.
+    incomplete = api.patch(reverse("provider-profile"), {"city": "Palma", "submit": True}, format="json")
+    assert incomplete.status_code == 400
+    assert "profile_incomplete" in str(incomplete.json())
+    saved = api.get(reverse("provider-profile")).json()
+    assert saved["city"] == "Palma"
+    assert set(saved["completeness"]["missing"]) == {"short_description", "description", "service_area", "services"}
+
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-x")
+    api.post(reverse("provider-service-list"), {"category": str(category.id), "title_en": "Mast"}, format="json")
+    full = {
+        "short_description": "Rigging experts",
+        "description": "We rig, repair and inspect sailing yachts across the western Mediterranean coast.",
+        "service_area": ["ES-IB"],
+        "submit": True,
+    }
+    # Complete, but no subscription yet.
+    unpaid = api.patch(reverse("provider-profile"), full, format="json")
+    assert unpaid.status_code == 400 and "subscription_required" in str(unpaid.json())
+
+    from professionals.models import ProfessionalSubscription
+
+    ProfessionalSubscription.objects.create(profile=ProfessionalProfile.objects.get(), status="TRIALING")
+    patched = api.patch(reverse("provider-profile"), {**full, "status": "ACTIVE"}, format="json").json()
     assert patched["status"] == "PENDING"
+    assert patched["completeness"]["percent"] == 100
 
 
 def test_services_are_scoped_to_the_owner():

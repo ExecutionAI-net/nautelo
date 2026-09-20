@@ -1,12 +1,13 @@
 "use client";
 
 import BrokerBilling from "@/components/broker/BrokerBilling";
+import CompletenessChecklist, { type Completeness } from "@/components/team/CompletenessChecklist";
 import InvitePanel from "@/components/team/InvitePanel";
 import { useCallback, useEffect, useState } from "react";
 
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
 import PlanCards from "@/components/pricing/PlanCards";
-import { apiFetch } from "@/lib/api/client";
+import { ApiError, apiFetch } from "@/lib/api/client";
 import { fetchPricingClient, formatPrice, type PlanSummary } from "@/lib/api/plans";
 import { useSession } from "@/lib/auth/session";
 
@@ -37,11 +38,17 @@ interface BrokerProfile {
   logo_url: string;
   cover_image_url: string;
   specialties: string[];
+  completeness?: Completeness;
   plan?: PlanSummary | null;
   renews_at?: string | null;
   listings_used?: number;
   seats_used?: number;
 }
+
+const SUBMIT_REASONS: Record<string, string> = {
+  profile_incomplete: "Finish the items in the checklist before submitting.",
+  subscription_required: "Start your free trial on the Membership page first, then submit for review.",
+};
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
 const LABEL = "font-label-sm uppercase text-on-surface-variant";
@@ -240,6 +247,7 @@ export function BrokerProfileForm() {
         <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Company profile</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Brokerage profile</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">This is what buyers see on your public broker page.</p>
+        {form.status === "DRAFT" ? <CompletenessChecklist completeness={form.completeness} /> : null}
         {message ? (
           <p role="status" className="mt-space-sm font-body-md">
             {message}
@@ -294,9 +302,34 @@ export function BrokerProfileForm() {
           onChange={(event) => setTags(event.target.value)}
         />
       </label>
-      <button type="submit" className="self-start rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary">
-        Save profile
-      </button>
+      <div className="flex gap-space-sm sm:col-span-2">
+        <button type="submit" className="rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary">
+          Save profile
+        </button>
+        {form.status === "DRAFT" ? (
+          <button
+            type="button"
+            className="rounded-lg border border-primary px-space-md py-space-sm font-body-md text-primary"
+            onClick={async () => {
+              setMessage(null);
+              try {
+                setProfile(await apiFetch<BrokerProfile>(`/api/v1/brokers/${brokerId}/profile/submit/`, { method: "POST" }));
+                setMessage("Submitted for review.");
+              } catch (caught) {
+                const code = caught instanceof ApiError ? caught.fields.submit?.[0]?.message : undefined;
+                setMessage((code && SUBMIT_REASONS[code]) || "The profile could not be submitted.");
+                try {
+                  setProfile(await apiFetch<BrokerProfile>(`/api/v1/brokers/${brokerId}/profile/`));
+                } catch {
+                  /* keep the current view */
+                }
+              }
+            }}
+          >
+            Submit for review
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 }

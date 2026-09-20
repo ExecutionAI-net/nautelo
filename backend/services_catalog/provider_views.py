@@ -32,12 +32,18 @@ class IsServiceProvider(BasePermission):
 
 class ProviderProfileSerializer(serializers.ModelSerializer):
     submit = serializers.BooleanField(write_only=True, required=False)
+    completeness = serializers.SerializerMethodField()
+
+    def get_completeness(self, obj):
+        from professionals.completeness import completeness
+
+        return completeness(obj)
 
     class Meta:
         model = ProfessionalProfile
         fields = (
             "id", "display_name", "slug", "short_description", "description", "public_email", "public_phone",
-            "website_url", "city", "postal_code", "region", "country_code", "service_area", "status", "submit",
+            "website_url", "city", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness",
         )
         read_only_fields = ("id", "slug", "status")
 
@@ -61,6 +67,13 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         submit = validated_data.pop("submit", False)
         instance = super().update(instance, validated_data)
         if submit and instance.status == ProfessionalProfileStatus.DRAFT:
+            from professionals.completeness import missing_items, subscription_is_live
+
+            missing = missing_items(instance)
+            if missing:
+                raise serializers.ValidationError({"submit": ["profile_incomplete"]})
+            if not subscription_is_live(instance):
+                raise serializers.ValidationError({"submit": ["subscription_required"]})
             instance.status = ProfessionalProfileStatus.PENDING
             instance.save(update_fields=["status", "updated_at"])
         return instance
