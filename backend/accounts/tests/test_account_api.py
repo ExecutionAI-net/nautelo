@@ -59,7 +59,7 @@ def test_a_user_can_update_their_name_and_locale(api):
 
 @pytest.mark.django_db
 def test_privileged_and_identity_fields_are_read_only(api):
-    user = make_user("escalate@example.com", role=UserRole.BUYER)
+    user = make_user("escalate@example.com", role=UserRole.PRIVATE_SELLER)
     _authenticate(api, user)
 
     api.patch(
@@ -75,7 +75,7 @@ def test_privileged_and_identity_fields_are_read_only(api):
 
     user.refresh_from_db()
     assert user.email == "escalate@example.com"
-    assert user.primary_role == UserRole.BUYER
+    assert user.primary_role == UserRole.PRIVATE_SELLER
     assert user.is_active is True
     assert user.is_email_verified is True
 

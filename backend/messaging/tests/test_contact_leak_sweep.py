@@ -70,7 +70,7 @@ def unlock_enabled():
 
 @pytest.fixture
 def professional():
-    owner = make_user(email="secret-yard-owner@example.com", role=UserRole.SERVICE_PROVIDER)
+    owner = make_user(email="secret-yard-owner@example.com", role=UserRole.PROFESSIONAL)
     return make_professional(
         owner,
         display_name="Secret Yard",

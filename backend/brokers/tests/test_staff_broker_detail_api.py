@@ -125,7 +125,7 @@ def test_counts_only_cover_this_broker(api):
 @pytest.mark.django_db
 @pytest.mark.parametrize(
     "role,expected",
-    [(UserRole.BROKER, 403), (UserRole.PRIVATE_SELLER, 403), (UserRole.BUYER, 403)],
+    [(UserRole.BROKER, 403), (UserRole.PRIVATE_SELLER, 403), (UserRole.PRIVATE_SELLER, 403)],
 )
 def test_a_non_staff_user_cannot_read_the_staff_broker_detail(api, role, expected):
     broker = make_broker(name="Guarded", slug="guarded-detail")
@@ -185,7 +185,7 @@ def test_a_staff_role_user_without_a_staff_group_is_refused(api):
 @pytest.mark.django_db
 def test_a_staff_group_member_without_the_staff_role_is_refused(api):
     broker = make_broker(name="Wrong Role", slug="wrong-role")
-    user = make_user("detail-wrongrole@example.com", role=UserRole.BUYER, verified=True)
+    user = make_user("detail-wrongrole@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
     user.groups.add(Group.objects.get(name=StaffGroup.ADMIN))
     api.force_authenticate(user)
 

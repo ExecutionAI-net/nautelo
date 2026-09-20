@@ -59,7 +59,7 @@ def test_staff_tiers_come_from_groups_not_from_primary_role():
 @pytest.mark.django_db
 def test_a_buyer_in_a_staff_group_is_not_staff():
     """The group is additive on top of the STAFF primary role, never a substitute for it."""
-    impostor = _in_group(make_user("impostor@example.com", role=UserRole.BUYER), StaffGroup.ADMIN)
+    impostor = _in_group(make_user("impostor@example.com", role=UserRole.PRIVATE_SELLER), StaffGroup.ADMIN)
     assert is_staff_admin(impostor) is False
     assert is_staff_moderator(impostor) is False
 
@@ -260,8 +260,8 @@ def test_a_private_seller_cannot_forge_a_broker_context():
 
 
 @pytest.mark.django_db
-def test_a_buyer_cannot_resolve_a_private_seller_context():
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+def test_a_professional_cannot_resolve_a_private_seller_context():
+    buyer = make_user("pro@example.com", role=UserRole.PROFESSIONAL)
     with pytest.raises(PermissionDenied) as exc_info:
         resolve_seller_context(buyer)
     assert exc_info.value.detail.code == "private_listing_not_allowed"

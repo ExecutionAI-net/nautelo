@@ -20,7 +20,7 @@ from professionals.tests.factories import make_professional
 
 
 def build_professional():
-    owner = make_user(email="reveal-owner@example.com", role=UserRole.SERVICE_PROVIDER)
+    owner = make_user(email="reveal-owner@example.com", role=UserRole.PROFESSIONAL)
     return make_professional(
         owner,
         display_name="Ligurian Refit",

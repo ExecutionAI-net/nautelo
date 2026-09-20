@@ -22,7 +22,7 @@ class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("Users must have an email address.")
-        extra_fields.setdefault("primary_role", UserRole.BUYER)
+        extra_fields.setdefault("primary_role", UserRole.PRIVATE_SELLER)
         extra_fields.setdefault("locale", Locale.EN)
         user = self.model(email=self.normalize_email(email), **extra_fields)
         user.set_password(password)
@@ -45,7 +45,7 @@ class User(UUIDTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=254, unique=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     primary_role = models.CharField(
-        max_length=20, choices=UserRole.choices, default=UserRole.BUYER
+        max_length=20, choices=UserRole.choices, default=UserRole.PRIVATE_SELLER
     )
     locale = models.CharField(max_length=2, choices=Locale.choices, default=Locale.EN)
     full_name = models.CharField(max_length=150, blank=True)

@@ -165,7 +165,7 @@ def register_user(*, email, password, full_name="", locale=None, primary_role=No
         password=password,
         full_name=full_name,
         locale=locale or Locale.EN,
-        primary_role=primary_role or UserRole.BUYER,
+        primary_role=primary_role or UserRole.PRIVATE_SELLER,
     )
     queue_email_verification(user)
     return user

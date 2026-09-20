@@ -38,7 +38,7 @@ def listing(owner):
 
 
 def _viewer(email):
-    return make_user(email, role=UserRole.BUYER, verified=True)
+    return make_user(email, role=UserRole.PRIVATE_SELLER, verified=True)
 
 
 def test_an_authenticated_view_stores_the_user_and_no_hash(listing):
@@ -335,7 +335,7 @@ def test_a_staff_administrator_is_still_denied_add_change_and_delete():
 
 def test_a_signed_in_non_staff_user_may_not_read_the_rows():
     model_admin = admin_site._registry[ListingView]
-    request = _request_for(make_user("buyer2@example.com", role=UserRole.BUYER))
+    request = _request_for(make_user("buyer2@example.com", role=UserRole.PRIVATE_SELLER))
 
     assert model_admin.has_view_permission(request) is False
 

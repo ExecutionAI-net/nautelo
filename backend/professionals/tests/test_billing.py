@@ -19,7 +19,7 @@ from professionals.tests.factories import make_professional
 
 @pytest.fixture
 def profile(db):
-    owner = make_user("pro@example.com", role=UserRole.SERVICE_PROVIDER)
+    owner = make_user("pro@example.com", role=UserRole.PROFESSIONAL)
     return make_professional(owner, status=ProfessionalProfileStatus.PENDING)
 
 

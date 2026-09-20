@@ -29,7 +29,7 @@ def test_no_header_authenticates_nobody_and_raises_nothing():
 
 
 def test_a_valid_token_identifies_the_user():
-    user = make_user("buyer@example.com", role=UserRole.BUYER)
+    user = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     token = AccessToken.for_user(user)
 
     result = OptionalJWTAuthentication().authenticate(_request(f"Bearer {token}"))
@@ -54,7 +54,7 @@ def test_a_broken_token_degrades_to_anonymous_instead_of_401(authorization):
 
 
 def test_a_token_for_a_deleted_user_degrades_to_anonymous():
-    user = make_user("gone@example.com", role=UserRole.BUYER)
+    user = make_user("gone@example.com", role=UserRole.PRIVATE_SELLER)
     token = str(AccessToken.for_user(user))
     user.delete()
 

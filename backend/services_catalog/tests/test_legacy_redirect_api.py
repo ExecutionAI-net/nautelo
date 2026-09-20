@@ -22,7 +22,7 @@ ENDPOINT = "/api/v1/legacy/professional-redirect/"
 
 def build_professional(email, *, slug, status=ProfessionalProfileStatus.ACTIVE):
     return make_professional(
-        make_user(email, role=UserRole.SERVICE_PROVIDER),
+        make_user(email, role=UserRole.PROFESSIONAL),
         slug=slug,
         display_name=slug.replace("-", " ").title(),
         status=status,

@@ -15,10 +15,9 @@ export type PermissionKey =
 export type PermissionMap = Record<PermissionKey, boolean>;
 
 export type UserRole =
-  | "BUYER"
   | "PRIVATE_SELLER"
   | "BROKER"
-  | "SERVICE_PROVIDER"
+  | "PROFESSIONAL"
   | "STAFF";
 
 export type LocaleCode = "EN" | "IT" | "ES";

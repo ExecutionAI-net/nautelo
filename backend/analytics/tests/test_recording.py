@@ -112,7 +112,7 @@ def test_a_refresh_by_the_same_authenticated_user_touches_and_does_not_increment
     """The user-identity branch of the conflict path: `ViewerIdentity.lookup()`
     must key on `viewer_user`, not on the (NULL) hash, or the touch matches
     nothing and the race handler re-raises."""
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     record_listing_view(listing=listing, request=_request(factory, user=buyer))
     first = ListingView.objects.get()
 
@@ -133,8 +133,8 @@ def test_a_touch_moves_only_that_users_row(factory, listing, view_counting_enabl
     would still find *a* row to touch — this listing's other viewers' — and quietly
     rewrite their recency.
     """
-    first = make_user("buyer-one@example.com", role=UserRole.BUYER)
-    second = make_user("buyer-two@example.com", role=UserRole.BUYER)
+    first = make_user("buyer-one@example.com", role=UserRole.PRIVATE_SELLER)
+    second = make_user("buyer-two@example.com", role=UserRole.PRIVATE_SELLER)
     record_listing_view(listing=listing, request=_request(factory, user=first))
     record_listing_view(listing=listing, request=_request(factory, user=second))
     untouched_before = ListingView.objects.get(viewer_user=second).last_seen_at
@@ -191,8 +191,8 @@ def test_a_different_address_is_a_different_viewer(
 
 def test_two_authenticated_viewers_count_as_two(factory, listing, view_counting_enabled):
     """Spec §19's acceptance test 3."""
-    first = make_user("buyer-one@example.com", role=UserRole.BUYER)
-    second = make_user("buyer-two@example.com", role=UserRole.BUYER)
+    first = make_user("buyer-one@example.com", role=UserRole.PRIVATE_SELLER)
+    second = make_user("buyer-two@example.com", role=UserRole.PRIVATE_SELLER)
 
     record_listing_view(listing=listing, request=_request(factory, user=first))
     record_listing_view(listing=listing, request=_request(factory, user=second))
@@ -211,7 +211,7 @@ def test_the_same_person_anonymously_then_signed_in_counts_twice_by_design(
     identity may count separately; do not attempt risky probabilistic identity
     merging." This is the documented behaviour, not an accident."""
     settings.TRUSTED_PROXY_COUNT = 0
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
 
     record_listing_view(listing=listing, request=_request(factory))
     record_listing_view(listing=listing, request=_request(factory, user=buyer))

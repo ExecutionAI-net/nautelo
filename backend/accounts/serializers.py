@@ -6,11 +6,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from accounts.enums import Locale, UserRole
 from accounts.models import User, UserManager
 
-SELF_SERVICE_ROLES = (
-    UserRole.BUYER,
-    UserRole.PRIVATE_SELLER,
-    UserRole.SERVICE_PROVIDER,
-)
+# Plain sign-up always yields a private seller; broker/professional accounts
+# are created through organization registration or a team invitation.
+SELF_SERVICE_ROLES = (UserRole.PRIVATE_SELLER,)
 
 
 class RegistrationSerializer(serializers.Serializer):
@@ -21,7 +19,7 @@ class RegistrationSerializer(serializers.Serializer):
     primary_role = serializers.ChoiceField(
         choices=[(role.value, role.label) for role in SELF_SERVICE_ROLES],
         required=False,
-        default=UserRole.BUYER,
+        default=UserRole.PRIVATE_SELLER,
     )
 
     def validate_email(self, value):

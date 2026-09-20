@@ -26,7 +26,7 @@ class IsServiceProvider(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        return bool(user and user.is_authenticated and user.primary_role == UserRole.SERVICE_PROVIDER)
+        return bool(user and user.is_authenticated and user.primary_role == UserRole.PROFESSIONAL)
 
 
 class ProviderProfileSerializer(serializers.ModelSerializer):

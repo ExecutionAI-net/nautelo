@@ -17,14 +17,14 @@ PROFILE = {
 }
 
 
-def client_for(role=UserRole.SERVICE_PROVIDER, email="prov@example.com"):
+def client_for(role=UserRole.PROFESSIONAL, email="prov@example.com"):
     client = APIClient()
     client.force_authenticate(make_user(email=email, role=role, verified=True))
     return client
 
 
 def test_only_service_providers_may_use_the_endpoints():
-    assert client_for(UserRole.BUYER, "b1@example.com").get(reverse("provider-profile")).status_code == 403
+    assert client_for(UserRole.PRIVATE_SELLER, "b1@example.com").get(reverse("provider-profile")).status_code == 403
     assert APIClient().get(reverse("provider-profile")).status_code in (401, 403)
 
 

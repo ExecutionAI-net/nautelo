@@ -140,7 +140,7 @@ def test_a_staff_moderator_is_staff():
 
 @pytest.mark.django_db
 def test_a_buyer_is_not_staff():
-    assert viewer_is_staff(make_user("b@example.com", role=UserRole.BUYER)) is False
+    assert viewer_is_staff(make_user("b@example.com", role=UserRole.PRIVATE_SELLER)) is False
 
 
 @pytest.mark.django_db
@@ -238,7 +238,7 @@ def test_an_anonymous_browser_gets_a_hashed_ip_identity(factory, published, sett
 
 @pytest.mark.django_db
 def test_a_signed_in_buyer_gets_a_user_identity_and_no_hash(factory, published):
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     identity = _resolve(factory, published, user=buyer)
 
     assert identity.viewer_type == ViewerType.USER
@@ -503,7 +503,7 @@ def test_non_prefetch_header_values_are_not_a_prefetch(factory, header):
 
 @pytest.mark.django_db
 def test_a_superuser_is_staff_whatever_their_role():
-    user = make_user("su@example.com", role=UserRole.BUYER)
+    user = make_user("su@example.com", role=UserRole.PRIVATE_SELLER)
     user.is_superuser = True
     user.save(update_fields=["is_superuser"])
 
@@ -511,7 +511,7 @@ def test_a_superuser_is_staff_whatever_their_role():
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("role", [UserRole.BUYER, UserRole.PRIVATE_SELLER, UserRole.BROKER])
+@pytest.mark.parametrize("role", [UserRole.PRIVATE_SELLER, UserRole.PRIVATE_SELLER, UserRole.BROKER])
 def test_non_staff_roles_are_not_staff(role):
     assert viewer_is_staff(make_user("r@example.com", role=role)) is False
 
@@ -621,7 +621,7 @@ def test_rejected_and_archived_listings_do_not_count(factory, published, status)
     ],
 )
 def test_bot_and_prefetch_variants_do_not_count_even_when_signed_in(factory, published, kwargs):
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
 
     assert _resolve(factory, published, user=buyer, **kwargs) is None
 
@@ -634,7 +634,7 @@ def test_only_get_counts_and_get_does(factory, published):
 
 @pytest.mark.django_db
 def test_a_signed_in_viewer_with_no_user_agent_is_labelled_unknown(factory, published):
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     identity = _resolve(factory, published, user=buyer, user_agent=None)
 
     assert identity.user_agent_class == UserAgentClass.UNKNOWN
@@ -651,7 +651,7 @@ def test_a_blank_user_agent_still_counts_as_unknown(factory, published):
 
 @pytest.mark.django_db
 def test_a_signed_in_viewer_never_carries_a_hash_even_with_a_valid_ip(factory, published):
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     identity = _resolve(factory, published, user=buyer, remote_addr="198.51.100.9")
 
     assert identity.viewer_hash is None

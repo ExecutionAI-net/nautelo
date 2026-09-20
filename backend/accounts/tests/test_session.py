@@ -46,8 +46,8 @@ def test_a_guest_gets_a_full_all_false_permission_map(api):
 
 
 @pytest.mark.django_db
-def test_an_authenticated_buyer_may_inquire_but_not_sell(api):
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER, locale=Locale.IT)
+def test_an_authenticated_professional_may_inquire_but_not_sell_privately(api):
+    buyer = make_user("buyer@example.com", role=UserRole.PROFESSIONAL, locale=Locale.IT)
     _authenticate(api, buyer)
 
     response = api.get(SESSION_URL)
@@ -154,7 +154,7 @@ def test_a_staff_admin_may_configure_everything(api):
 
 @pytest.mark.django_db
 def test_a_service_provider_session_includes_their_profile(api):
-    pro = make_user("pro@example.com", role=UserRole.SERVICE_PROVIDER)
+    pro = make_user("pro@example.com", role=UserRole.PROFESSIONAL)
     profile = make_professional(pro, display_name="Ocean Legal", slug="ocean-legal")
     _authenticate(api, pro)
 

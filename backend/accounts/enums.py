@@ -2,12 +2,16 @@ from django.db import models
 
 
 class UserRole(models.TextChoices):
-    """The single primary marketplace role held by every account (spec 5, 11.1)."""
+    """The single marketplace role held by every account (spec 5, 11.1).
 
-    BUYER = "BUYER", "Buyer"
+    Self-registered accounts are private sellers (they can also browse and
+    enquire). BROKER and PROFESSIONAL accounts belong to an organization: the
+    owner registers it, team members are invited into it.
+    """
+
     PRIVATE_SELLER = "PRIVATE_SELLER", "Private seller"
     BROKER = "BROKER", "Broker"
-    SERVICE_PROVIDER = "SERVICE_PROVIDER", "Service provider"
+    PROFESSIONAL = "PROFESSIONAL", "Professional"
     STAFF = "STAFF", "Staff"
 
 

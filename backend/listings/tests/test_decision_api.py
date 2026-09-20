@@ -282,7 +282,7 @@ def test_a_non_staff_account_in_the_moderator_group_cannot_decide(api, workflow_
     """The mirror image: group membership alone is not the capability either -
     is_staff_moderator() requires primary_role == STAFF as well."""
     _, revision = _submitted()
-    impostor = make_user("impostor@example.com", role=UserRole.BUYER)
+    impostor = make_user("impostor@example.com", role=UserRole.PRIVATE_SELLER)
     impostor.groups.add(Group.objects.get(name=StaffGroup.MODERATOR))
     api.force_authenticate(impostor)
 

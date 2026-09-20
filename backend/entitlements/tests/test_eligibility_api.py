@@ -218,7 +218,7 @@ def test_one_seller_never_sees_another_sellers_quota(api, entitlements_enforced)
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "role", [UserRole.BROKER, UserRole.BUYER, UserRole.SERVICE_PROVIDER]
+    "role", [UserRole.BROKER, UserRole.PROFESSIONAL]
 )
 @pytest.mark.parametrize("flag_on", [True, False])
 def test_non_seller_roles_get_the_payload_with_a_blocking_reason(

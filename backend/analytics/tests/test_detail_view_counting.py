@@ -150,7 +150,7 @@ def test_a_signed_in_buyer_counts_as_themselves_not_as_their_ip(
     api, listing, view_counting_enabled, settings
 ):
     settings.TRUSTED_PROXY_COUNT = 0
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
 
     _as(api, buyer).get(_detail_url(listing))
 
@@ -239,7 +239,7 @@ def test_no_viewer_identity_appears_anywhere_in_the_public_payload(
     count." The assertion is over the serialized bytes, not over known keys, so a
     field added later by another phase cannot smuggle one in unnoticed."""
     settings.TRUSTED_PROXY_COUNT = 0
-    buyer = make_user("buyer@example.com", role=UserRole.BUYER)
+    buyer = make_user("buyer@example.com", role=UserRole.PRIVATE_SELLER)
     _as(api, buyer).get(_detail_url(listing))
     api.credentials()
 
