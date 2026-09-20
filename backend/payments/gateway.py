@@ -58,6 +58,8 @@ class StripeGateway(Protocol):
 
     def retrieve_price(self, price_id: str) -> PriceSnapshot: ...
 
+    def create_portal_session(self, *, customer_id: str, return_url: str) -> str: ...
+
 
 class StripeApiGateway:
     """The real gateway. Uses stripe.StripeClient rather than the module-level
@@ -86,6 +88,16 @@ class StripeApiGateway:
             # the message this raises carries nothing.
             raise StripeUnavailable("Stripe rejected the session creation.") from exc
         return CheckoutSessionResult(session_id=session.id, url=session.url)
+
+    def create_portal_session(self, *, customer_id: str, return_url: str) -> str:
+        """Stripe-hosted page for cards, tax details and invoices."""
+        try:
+            session = self._client.v1.billing_portal.sessions.create(
+                params={"customer": customer_id, "return_url": return_url}
+            )
+        except stripe.StripeError as exc:
+            raise StripeUnavailable("Stripe rejected the portal session.") from exc
+        return session.url
 
     def retrieve_price(self, price_id: str) -> PriceSnapshot:
         try:

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import ManageBillingButton from "@/components/team/ManageBillingButton";
 import { apiFetch } from "@/lib/api/client";
 import { formatPrice } from "@/lib/api/plans";
 
@@ -116,6 +117,7 @@ export default function ProviderMembership() {
             </button>
           </div>
         ) : null}
+        {membership.status !== "INACTIVE" ? <ManageBillingButton portalEndpoint="/api/v1/provider/membership/portal/" /> : null}
         {error ? <p role="alert" className="font-body-sm text-error">{error}</p> : null}
       </section>
     </div>
