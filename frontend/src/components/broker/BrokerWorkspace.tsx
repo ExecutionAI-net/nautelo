@@ -74,44 +74,91 @@ export function BrokerTeam() {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <h1 className="font-headline-lg text-headline-lg text-primary">Team</h1>
+      <div className="flex flex-wrap items-end justify-between gap-space-md">
+        <div>
+          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Team</span>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Team</h1>
+        </div>
+        <div className="bg-surface-container-lowest px-space-md py-space-xs rounded-xl shadow-sm flex items-center gap-space-md">
+          <div className="flex flex-col">
+            <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Active members</span>
+            <span className="font-spec-num text-spec-num font-semibold text-primary">{members.filter((m) => m.is_active).length} of {members.length}</span>
+          </div>
+        </div>
+      </div>
       {message ? (
         <p role="status" className="font-body-md">
           {message}
         </p>
       ) : null}
-      <ul className={`${CARD} divide-y divide-outline-variant`}>
-        {members.map((member) => (
-          <li key={member.id} className="flex flex-wrap items-center justify-between gap-space-sm py-space-sm">
-            <div>
-              <p className="font-title-sm text-title-sm text-on-surface">{member.user_full_name || member.user_email}</p>
-              <p className="font-body-sm text-on-surface-variant">
-                {member.user_email} - {member.role} - {member.is_active ? "Active" : "Inactive"}
-              </p>
-            </div>
-            <div className="flex gap-space-sm">
-              <button
-                type="button"
-                className="font-body-md text-primary underline"
-                onClick={() =>
-                  void run(
-                    () =>
-                      apiFetch(`/api/v1/brokers/${brokerId}/members/${member.id}/`, {
-                        method: "PATCH",
-                        headers: JSON_HEADERS,
-                        body: JSON.stringify({ is_active: !member.is_active }),
-                      }),
-                    "Member updated.",
-                  )
-                }
-              >
-                {member.is_active ? "Deactivate" : "Reactivate"}
-              </button>
-            </div>
-          </li>
-        ))}
-        {members.length === 0 ? <li className="py-space-sm font-body-md text-on-surface-variant">No members.</li> : null}
-      </ul>
+      <div className="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-body-sm">
+            <thead className="bg-surface-container-low text-on-surface-variant font-label-sm uppercase tracking-wider">
+              <tr>
+                <th className="py-3 px-4">Member</th>
+                <th className="py-3 px-4">Role</th>
+                <th className="py-3 px-4">Access</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container">
+              {members.map((member) => (
+                <tr key={member.id} className="hover:bg-surface-container-low/50 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-3">
+                      <div aria-hidden="true" className="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-title-md text-body-sm shrink-0">
+                        {(member.user_full_name || member.user_email).split(/[\s@]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-title-md text-primary font-semibold truncate">{member.user_full_name || member.user_email}</span>
+                        <span className="text-body-sm text-on-surface-variant truncate">{member.user_email}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 whitespace-nowrap">
+                    <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">{member.role}</span>
+                  </td>
+                  <td className="py-3.5 px-4 text-on-surface-variant">
+                    {[member.can_edit_listings && "Listings", member.can_manage_team && "Team", member.can_read_messages && "Messages"].filter(Boolean).join(" - ") || "Read only"}
+                  </td>
+                  <td className="py-3.5 px-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-label-sm font-medium ${member.is_active ? "bg-emerald-50 text-emerald-800" : "bg-surface-container text-on-surface-variant"}`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
+                      {member.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      className="text-secondary hover:text-primary font-title-md text-body-sm px-2 py-1"
+                      onClick={() =>
+                        void run(
+                          () =>
+                            apiFetch(`/api/v1/brokers/${brokerId}/members/${member.id}/`, {
+                              method: "PATCH",
+                              headers: JSON_HEADERS,
+                              body: JSON.stringify({ is_active: !member.is_active }),
+                            }),
+                          "Member updated.",
+                        )
+                      }
+                    >
+                      {member.is_active ? "Deactivate" : "Reactivate"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {members.length === 0 ? (
+                <tr>
+                  <td className="py-space-md px-4 text-on-surface-variant" colSpan={5}>No members.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <form
         className={`${CARD} grid gap-space-sm sm:grid-cols-3`}
         onSubmit={(event) => {
@@ -201,7 +248,9 @@ export function BrokerProfileForm() {
       }}
     >
       <div className="sm:col-span-2">
-        <h1 className="font-headline-lg text-headline-lg text-primary">Brokerage profile</h1>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Company profile</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Brokerage profile</h1>
+        <p className="mt-space-xs font-body-md text-on-surface-variant">This is what buyers see on your public broker page.</p>
         {message ? (
           <p role="status" className="mt-space-sm font-body-md">
             {message}
@@ -237,24 +286,43 @@ export function BrokerSubscription() {
   if (!brokerId) return <p className="font-body-md text-on-surface-variant">No brokerage is linked to this account.</p>;
   if (error) return <p role="alert">The account details could not be loaded.</p>;
 
+  const cards = [
+    { label: "Account status", value: profile?.status ?? "-", icon: "verified_user", note: "Set by the platform team" },
+    {
+      label: "Listing approval",
+      value: profile ? (profile.auto_approve_listings ? "Automatic" : "Reviewed by staff") : "-",
+      icon: "rule",
+      note: "How new listings reach the public site",
+    },
+    { label: "Public page", value: profile?.slug ? `/brokers/${profile.slug}/` : "-", icon: "public", note: "Your marketplace profile address" },
+  ];
+
   return (
     <div className="flex flex-col gap-space-lg">
-      <h1 className="font-headline-lg text-headline-lg text-primary">Subscription</h1>
-      <div className={`${CARD} grid gap-space-md sm:grid-cols-2`}>
-        <div>
-          <p className={LABEL}>Account status</p>
-          <p className="font-title-md text-title-md text-primary">{profile?.status ?? "-"}</p>
-        </div>
-        <div>
-          <p className={LABEL}>Listing approval</p>
-          <p className="font-title-md text-title-md text-primary">
-            {profile ? (profile.auto_approve_listings ? "Automatic" : "Reviewed by staff") : "-"}
-          </p>
-        </div>
+      <div>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Subscription</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Subscription</h1>
       </div>
-      <p className="font-body-md text-on-surface-variant">
-        Billing for brokerage plans is not self-service yet. Contact the platform team to change your plan.
-      </p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+        {cards.map((card) => (
+          <div key={card.label} className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-on-surface-variant">
+              <span className="font-label-md text-label-md uppercase tracking-wider">{card.label}</span>
+              <div className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{card.icon}</span>
+              </div>
+            </div>
+            <p className="mt-space-md font-headline-sm text-headline-sm text-primary break-words">{card.value}</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">{card.note}</p>
+          </div>
+        ))}
+      </div>
+      <div className="bg-surface-container-low rounded-xl p-space-lg flex items-start gap-space-md">
+        <span className="material-symbols-outlined text-secondary" aria-hidden="true">info</span>
+        <p className="font-body-md text-on-surface-variant">
+          Billing for brokerage plans is not self-service yet. Contact the platform team to change your plan.
+        </p>
+      </div>
     </div>
   );
 }
