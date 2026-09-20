@@ -515,7 +515,7 @@ export default function SellListingForm({
   ];
   const brandName = brands.find((b) => b.id === brandId)?.name ?? "";
   const modelLabel = isOther ? customModel : (models.find((m) => m.id === modelId)?.name ?? "");
-  const previewTitle = titles.en || [year, brandName, modelLabel].filter(Boolean).join(" ") || t("sell.title");
+  const previewTitle = titles.en || [year, brandName, modelLabel].filter(Boolean).join(" ") || t(brokerId ? "sell.title_broker" : "sell.title");
   const previewImage = media.find((row) => row.status === "READY" && row.media_type === "IMAGE");
 
   if (blocked) {
@@ -525,7 +525,7 @@ export default function SellListingForm({
       <div className="flex flex-col gap-space-lg">
         <header>
           <span className="font-label-sm uppercase tracking-widest text-secondary">{t("sell.eyebrow")}</span>
-          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t("sell.title")}</h1>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(brokerId ? "sell.title_broker" : "sell.title")}</h1>
         </header>
         <section role="alert" className={`${CARD} border-l-4 border-secondary`}>
           <h2 className="font-headline-sm text-headline-sm text-primary">{t("sell.allowance_title")}</h2>
@@ -543,7 +543,7 @@ export default function SellListingForm({
     <div className="flex flex-col gap-space-lg">
       <header>
         <span className="font-label-sm uppercase tracking-widest text-secondary">{t("sell.eyebrow")}</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t("sell.title")}</h1>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(brokerId ? "sell.title_broker" : "sell.title")}</h1>
         <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{t("sell.lead")}</p>
       </header>
 
