@@ -282,6 +282,32 @@ export default function AdsAdmin() {
                   ) : null}
                 </div>
               </div>
+              <label className="mt-space-md block font-label-sm uppercase text-on-surface-variant">
+                Links to
+                <select
+                  className={FIELD}
+                  value={selected.broker ? `broker:${selected.broker}` : selected.professional ? `professional:${selected.professional}` : ""}
+                  onChange={(e) => {
+                    const [kind, id] = e.target.value.split(":");
+                    void run(
+                      () => staffAds.update(selected.id, { broker: kind === "broker" ? id : null, professional: kind === "professional" ? id : null }),
+                      "Advertisement updated.",
+                    );
+                  }}
+                >
+                  <option value="">External URL</option>
+                  <optgroup label="Brokers">
+                    {targets.brokers.map((b) => (
+                      <option key={b.id} value={`broker:${b.id}`}>{b.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Professionals">
+                    {targets.professionals.map((p) => (
+                      <option key={p.id} value={`professional:${p.id}`}>{p.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </label>
             </div>
           ) : (
             <p className="font-body-md text-on-surface-variant">Add an advertisement to preview it here.</p>
