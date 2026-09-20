@@ -213,6 +213,7 @@ def test_stripe_metadata_carries_internal_ids_and_no_personal_data(seller, gatew
         "user_id": str(seller.pk),
         "product_code": ProductCode.INDIVIDUAL_LISTING_RIGHT,
         "listing_id": "",
+        "quantity": "1",
     }
     flattened = str(gateway.created[0]["params"])
     assert seller.email not in flattened
@@ -549,3 +550,22 @@ def test_no_secret_or_url_token_reaches_an_audit_event(seller, gateway, settings
         for event in AuditEvent.objects.all()
     )
     assert "sk_live_NEVER_LOG_ME" not in dumped
+
+
+@pytest.mark.django_db
+def test_several_listing_rights_can_be_bought_in_one_checkout(seller, gateway):
+    listing_right_product()
+
+    result = create_checkout_session(
+        user=seller,
+        product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        quantity=3,
+        client_idempotency_key="idem-q",
+        gateway=gateway,
+    )
+
+    assert result.order.quantity == 3
+    assert result.order.amount == Decimal("147.00")
+    params = gateway.created[0]["params"]
+    assert params["line_items"][0]["quantity"] == 3
+    assert params["metadata"]["quantity"] == "3"

@@ -151,6 +151,8 @@ class PaymentOrder(UUIDTimeStampedModel):
         on_delete=models.PROTECT,
         related_name="payment_orders",
     )
+    # Units bought in one checkout. `amount` is the total for all of them.
+    quantity = models.PositiveSmallIntegerField(default=1)
     status = models.CharField(
         max_length=16,
         choices=PaymentOrderStatus.choices,
@@ -190,6 +192,9 @@ class PaymentOrder(UUIDTimeStampedModel):
         constraints = [
             models.CheckConstraint(
                 condition=Q(amount__gt=0), name="payments_order_amount_is_positive"
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gte=1), name="payments_order_quantity_is_positive"
             ),
             models.CheckConstraint(
                 condition=Q(currency__regex=r"^[A-Z]{3}$"),

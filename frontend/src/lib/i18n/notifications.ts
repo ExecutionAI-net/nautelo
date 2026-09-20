@@ -66,9 +66,9 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "ES": "Tu anuncio esta por caducar"
   },
   "notification.listing_expiring.body": {
-    "EN": "Renew or edit it before it leaves the marketplace.",
-    "IT": "Rinnovalo o modificalo prima che esca dal marketplace.",
-    "ES": "Renuevalo o editalo antes de que salga del mercado."
+    "EN": "Buy a paid listing to extend it and unlock 20 photos and a video, or it leaves the marketplace.",
+    "IT": "Acquista un annuncio a pagamento per prolungarlo e sbloccare 20 foto e un video, altrimenti esce dal marketplace.",
+    "ES": "Compra un anuncio de pago para prolongarlo y desbloquear 20 fotos y un video, o saldra del mercado."
   },
   "notification.listing_expired.title": {
     "EN": "Your listing has expired",

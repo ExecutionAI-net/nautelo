@@ -19,6 +19,7 @@ from .views import (
     ListingMediaListView,
     ListingMediaReorderView,
     ListingMediaUpgradeApplyView,
+    ListingRenewView,
     ListingSubmitView,
     StaffListingSuspensionView,
     StaffModerationQueueView,
@@ -58,6 +59,11 @@ urlpatterns = [
         "listings/<uuid:listing_id>/withdraw/",
         ListingWithdrawView.as_view(),
         name="listing-withdraw",
+    ),
+    path(
+        "listings/<uuid:listing_id>/renew/",
+        ListingRenewView.as_view(),
+        name="listing-renew",
     ),
     path(
         "listings/<uuid:listing_id>/media-upgrade/apply/",

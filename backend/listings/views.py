@@ -29,6 +29,7 @@ from .decisions import (
 )
 from .staff_queue import TABS, queue_rows, revision_detail
 from .media_upgrade import apply_media_upgrade
+from .renewal import renew_listing
 from .media_uploads import complete_upload, create_upload_intent, remove_media
 from .drafts import create_listing_draft, update_listing_draft
 from .enums import ListingStatus
@@ -415,6 +416,25 @@ class ListingMediaUpgradeApplyView(ListingDraftUpdateView):
                 "listing_id": str(listing.pk),
                 "entitlement_id": str(entitlement.pk),
                 "state": entitlement.state,
+            }
+        )
+
+
+class ListingRenewView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/renew/ - spend a paid listing right to extend
+    or re-activate a private listing (20 images and 1 video included)."""
+
+    http_method_names = ["post", "options"]
+    throttle_scope = "media_upgrade_apply"
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        renewed = renew_listing(listing_id=listing.pk, actor=request.user)
+        return Response(
+            {
+                "listing_id": str(renewed.pk),
+                "status": renewed.status,
+                "expires_at": renewed.expires_at,
             }
         )
 

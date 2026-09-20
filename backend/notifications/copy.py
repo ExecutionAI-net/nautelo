@@ -39,7 +39,7 @@ TEXT = {
     ),
     NotificationType.LISTING_EXPIRING: (
         _t("Your listing is about to expire", "Il tuo annuncio sta per scadere", "Tu anuncio esta por caducar"),
-        _t("Renew or edit it before it leaves the marketplace.", "Rinnovalo o modificalo prima che esca dal marketplace.", "Renuevalo o editalo antes de que salga del mercado."),
+        _t("Buy a paid listing to extend it and unlock 20 photos and a video, or it leaves the marketplace.", "Acquista un annuncio a pagamento per prolungarlo e sbloccare 20 foto e un video, altrimenti esce dal marketplace.", "Compra un anuncio de pago para prolongarlo y desbloquear 20 fotos y un video, o saldra del mercado."),
     ),
     NotificationType.LISTING_EXPIRED: (
         _t("Your listing has expired", "Il tuo annuncio e scaduto", "Tu anuncio ha caducado"),

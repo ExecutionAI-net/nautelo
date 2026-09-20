@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchMyListings, type MyListingRow } from "@/lib/api/sellerListings";
+import PaidListingBuy from "@/components/listings/PaidListingBuy";
+import { ApiError } from "@/lib/api/client";
+import { fetchMyListings, renewListing, type MyListingRow } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
@@ -18,7 +20,43 @@ const STATUS_LABEL: Record<string, string> = {
   PUBLISHED: "Publicly live",
   PENDING_APPROVAL: "In review",
   DRAFT: "Draft",
+  EXPIRED: "Expired",
 };
+
+const RENEW_WINDOW_MS = 7 * 24 * 3600 * 1000;
+
+function renewable(row: MyListingRow): boolean {
+  if (row.seller_type !== "PRIVATE" || !row.expires_at) return false;
+  if (row.status === "EXPIRED") return true;
+  return row.status === "PUBLISHED" && new Date(row.expires_at).getTime() - Date.now() <= RENEW_WINDOW_MS;
+}
+
+function RenewPanel({ row }: { row: MyListingRow }) {
+  const [state, setState] = useState<"idle" | "busy" | "need_right" | "done" | "error">("idle");
+  async function renew() {
+    setState("busy");
+    try {
+      await renewListing(row.id);
+      setState("done");
+      window.location.reload();
+    } catch (caught) {
+      setState(caught instanceof ApiError && caught.status === 403 ? "need_right" : "error");
+    }
+  }
+  const expiry = row.expires_at ? new Date(row.expires_at).toLocaleDateString("en") : "";
+  return (
+    <div className="mt-space-xs flex flex-col gap-space-xs rounded-lg bg-secondary-container p-space-sm text-on-secondary-container">
+      <p className="font-body-sm">
+        {row.status === "EXPIRED" ? `Expired on ${expiry}.` : `Goes offline on ${expiry}.`} Use a paid listing to keep it online for another period, with up to 20 photos and 1 video.
+      </p>
+      <button type="button" disabled={state === "busy"} onClick={() => void renew()} className="rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary disabled:opacity-50">
+        {row.status === "EXPIRED" ? "Re-activate with a paid listing" : "Extend with a paid listing"}
+      </button>
+      {state === "need_right" ? <PaidListingBuy /> : null}
+      {state === "error" ? <p role="alert" className="font-body-sm text-error">This listing could not be renewed.</p> : null}
+    </div>
+  );
+}
 
 function money(row: MyListingRow): string | null {
   if (!row.price) return null;
@@ -94,6 +132,7 @@ export function ListingCard({ row }: { row: MyListingRow }) {
         >
           {row.status === "DRAFT" ? "Continue editing" : "Edit listing"}
         </Link>
+        {renewable(row) ? <RenewPanel row={row} /> : null}
       </div>
     </li>
   );

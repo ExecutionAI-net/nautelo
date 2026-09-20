@@ -598,3 +598,41 @@ def test_no_stripe_payload_is_copied_wholesale_into_an_audit_event(order):
     )
     assert "leak@example.com" not in dumped
     assert "Leak Street" not in dumped
+
+
+@pytest.mark.django_db
+def test_a_multi_unit_order_grants_one_right_per_unit(seller):
+    order = make_order(
+        user=seller,
+        product=listing_right_product(),
+        status=PaymentOrderStatus.CHECKOUT_OPEN,
+        amount=Decimal("147.00"),
+        currency="EUR",
+        quantity=3,
+        stripe_checkout_session_id="cs_live_3",
+    )
+    event = event_for(order, amount_total=14700)
+    event["data"]["object"]["metadata"]["quantity"] = "3"
+
+    assert handle_checkout_session_paid(event) == WebhookResult.FULFILLED
+
+    rights = UserEntitlement.objects.filter(source_payment=order)
+    assert rights.count() == 3
+    assert sorted(rights.values_list("grant_index", flat=True)) == [0, 1, 2]
+    # A replayed event grants nothing more.
+    assert handle_checkout_session_paid(event) == WebhookResult.ALREADY_FULFILLED
+    assert UserEntitlement.objects.filter(source_payment=order).count() == 3
+
+
+@pytest.mark.django_db
+def test_a_quantity_mismatch_blocks_fulfilment(seller):
+    order = make_order(
+        user=seller,
+        product=listing_right_product(),
+        status=PaymentOrderStatus.CHECKOUT_OPEN,
+        amount=Decimal("98.00"),
+        currency="EUR",
+        quantity=2,
+        stripe_checkout_session_id="cs_live_q",
+    )
+    assert verify_session_against_order(order=order, session=session_for(order, amount_total=9800)) == "quantity_mismatch"

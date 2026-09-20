@@ -72,9 +72,9 @@ def test_the_seeded_durations_are_spec_23_1s_defaults():
     right = MarketplaceProduct.objects.get(code=ProductCode.INDIVIDUAL_LISTING_RIGHT)
     upgrade = MarketplaceProduct.objects.get(code=ProductCode.LISTING_MEDIA_UPGRADE)
 
-    # "Default entitlement validity: 365 days from purchase."
-    # "Default publication: 30 days from staff approval/publication."
-    assert (right.entitlement_valid_days, right.publication_days) == (365, 30)
+    # A purchased paid listing effectively never expires (10 years); its
+    # publication window is 30 days from approval.
+    assert (right.entitlement_valid_days, right.publication_days) == (3650, 30)
     # A media upgrade grants no publication window of its own.
     assert (upgrade.entitlement_valid_days, upgrade.publication_days) == (365, None)
 

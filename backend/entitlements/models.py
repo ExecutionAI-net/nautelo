@@ -109,6 +109,13 @@ class UserEntitlement(UUIDTimeStampedModel):
         related_name="+",
     )
     metadata = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder)
+    # One order can pay for several rights (quantity > 1): each unit gets its own
+    # ledger row, told apart by this index.
+    grant_index = models.PositiveSmallIntegerField(default=0)
+    # A right consumed to renew an already-published listing. It may sit next to
+    # the right that first published the listing, so it is exempt from the
+    # one-live-right-per-listing index.
+    is_renewal = models.BooleanField(default=False)
 
     objects = UserEntitlementQuerySet.as_manager()
 
@@ -146,7 +153,9 @@ class UserEntitlement(UUIDTimeStampedModel):
             # against the same listing without tripping the index.
             models.UniqueConstraint(
                 fields=["listing", "entitlement_type"],
-                condition=Q(listing__isnull=False) & ~Q(state=EntitlementState.REVOKED),
+                condition=Q(listing__isnull=False)
+                & Q(is_renewal=False)
+                & ~Q(state=EntitlementState.REVOKED),
                 name="entitlements_one_live_right_per_listing_and_type",
             ),
             # Spec §6.4's "an entitlement was created exactly once", as a
@@ -159,7 +168,7 @@ class UserEntitlement(UUIDTimeStampedModel):
             # on (listing, entitlement_type) and is NULL for every listing-right
             # purchase.
             models.UniqueConstraint(
-                fields=["source_payment"],
+                fields=["source_payment", "grant_index"],
                 condition=Q(source_payment__isnull=False)
                 & ~Q(state=EntitlementState.REVOKED),
                 name="entitlements_one_live_right_per_payment",

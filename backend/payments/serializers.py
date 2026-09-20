@@ -17,6 +17,7 @@ class CheckoutSessionRequestSerializer(serializers.Serializer):
 
     product_code = serializers.ChoiceField(choices=ProductCode.choices)
     listing_id = serializers.UUIDField(required=False, allow_null=True)
+    quantity = serializers.IntegerField(required=False, min_value=1, max_value=20, default=1)
     return_url = serializers.CharField(
         required=False, allow_null=True, allow_blank=True, max_length=200
     )
@@ -46,6 +47,7 @@ class PaymentOrderSerializer(serializers.ModelSerializer):
             "listing_id",
             "amount",
             "currency",
+            "quantity",
             "entitlement_id",
             "created_at",
             "paid_at",

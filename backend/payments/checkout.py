@@ -59,6 +59,9 @@ RETURN_URL_ALLOWLIST: frozenset[str] = frozenset(
 )
 DEFAULT_RETURN_URL = "/dashboard/private-seller/listings/"
 
+# Listing rights can be bought several at a time; nothing else can.
+MAX_LISTING_RIGHT_QUANTITY = 20
+
 # Spec §23.1: the upgrade applies to a listing that can still be published.
 UPGRADABLE_LISTING_STATES: frozenset[str] = frozenset(
     {
@@ -128,9 +131,9 @@ def _resolve_listing(*, user, product_code, listing_id):
     return listing
 
 
-def _request_fingerprint(product_code, listing, return_url) -> str:
+def _request_fingerprint(product_code, listing, return_url, quantity=1) -> str:
     listing_part = "" if listing is None else str(listing.pk)
-    return f"{product_code}|{listing_part}|{return_url or DEFAULT_RETURN_URL}"
+    return f"{product_code}|{listing_part}|{return_url or DEFAULT_RETURN_URL}|{quantity}"
 
 
 @dataclass(frozen=True)
@@ -146,6 +149,7 @@ def create_checkout_session(
     product_code: str,
     listing_id=None,
     return_url: str | None = None,
+    quantity: int = 1,
     client_idempotency_key: str,
     request_id: str | None = None,
     gateway=None,
@@ -160,7 +164,10 @@ def create_checkout_session(
     listing = _resolve_listing(
         user=user, product_code=product.code, listing_id=listing_id
     )
-    fingerprint = _request_fingerprint(product.code, listing, return_url)
+    if product.code in LISTING_BOUND_PRODUCTS:
+        quantity = 1
+    quantity = max(1, min(int(quantity or 1), MAX_LISTING_RIGHT_QUANTITY))
+    fingerprint = _request_fingerprint(product.code, listing, return_url, quantity)
     # Validate the return URL before writing anything, so a hostile one leaves
     # no order behind.
     build_return_urls("probe", return_url)
@@ -178,7 +185,8 @@ def create_checkout_session(
                 product=product,
                 listing=listing,
                 status=PaymentOrderStatus.CREATED,
-                amount=product.display_amount,
+                amount=product.display_amount * quantity,
+                quantity=quantity,
                 currency=product.currency.upper(),
                 client_idempotency_key=client_idempotency_key,
                 metadata={
@@ -238,7 +246,7 @@ def _open_stripe_session(order, return_url, gateway, request_id) -> str:
         "mode": "payment",
         # Spec §23.2: "Server loads Stripe Price; client cannot submit
         # amount/currency." The price id IS the amount; no number is sent.
-        "line_items": [{"price": order.product.stripe_price_id, "quantity": 1}],
+        "line_items": [{"price": order.product.stripe_price_id, "quantity": order.quantity}],
         "success_url": success_url,
         "cancel_url": cancel_url,
         "client_reference_id": str(order.pk),
@@ -252,6 +260,7 @@ def _open_stripe_session(order, return_url, gateway, request_id) -> str:
             "user_id": str(order.user_id),
             "product_code": order.product.code,
             "listing_id": "" if order.listing_id is None else str(order.listing_id),
+            "quantity": str(order.quantity),
         },
     }
     try:

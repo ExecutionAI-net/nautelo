@@ -157,7 +157,8 @@ def test_the_client_cannot_submit_an_amount_or_a_price(
     api_client, seller, checkout_enabled, patched_gateway
 ):
     """Spec §23.2: "Server loads Stripe Price; client cannot submit
-    amount/currency." Unknown keys must be ignored, never honoured."""
+    amount/currency." Unknown keys must be ignored, never honoured. Quantity is honoured
+    only inside its 1-20 bound."""
     listing_right_product()
     api_client.force_authenticate(user=seller)
 
@@ -168,7 +169,6 @@ def test_the_client_cannot_submit_an_amount_or_a_price(
             "amount": "0.01",
             "currency": "USD",
             "price_id": "price_attacker",
-            "quantity": 99,
         },
     )
 
@@ -385,3 +385,14 @@ def test_an_anonymous_caller_cannot_poll(api_client, seller):
     response = api_client.get(f"/api/v1/payment-orders/{order.pk}/")
 
     assert response.status_code in (401, 403)
+
+
+@pytest.mark.django_db
+def test_a_quantity_above_the_cap_is_rejected(api_client, seller, checkout_enabled, patched_gateway):
+    listing_right_product()
+    api_client.force_authenticate(user=seller)
+    response = post_checkout(
+        api_client,
+        {"product_code": ProductCode.INDIVIDUAL_LISTING_RIGHT, "quantity": 99},
+    )
+    assert response.status_code == 400

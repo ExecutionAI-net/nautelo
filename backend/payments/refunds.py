@@ -68,10 +68,24 @@ def revoke_for_refund(*, order, reason: str) -> str:
         "source": AuditEvent.Source.WEBHOOK,
     }
 
-    right = order.fulfilled_entitlement
-    if right is None:
+    rights = list(order.granted_entitlements.all()) or (
+        [order.fulfilled_entitlement] if order.fulfilled_entitlement else []
+    )
+    outcomes = [
+        _revoke_one(order=order, right=right, reason=reason, attribution=attribution,
+                    release_reservation=release_reservation, revoke_entitlement=revoke_entitlement,
+                    invalid=InvalidEntitlementState)
+        for right in rights
+    ]
+    if not outcomes:
         return "nothing_to_revoke"
+    for preferred in ("staff_review", "released_and_revoked", "revoked"):
+        if preferred in outcomes:
+            return preferred
+    return "nothing_to_revoke"
 
+
+def _revoke_one(*, order, right, reason, attribution, release_reservation, revoke_entitlement, invalid) -> str:
     if right.state == EntitlementState.CONSUMED:
         # Spec §23.4: "do not silently unpublish solely on a webhook".
         flag_for_staff(
@@ -102,7 +116,7 @@ def revoke_for_refund(*, order, reason: str) -> str:
                     entitlement=right, actor=None, reason=reason, **attribution
                 )
                 return "released_and_revoked" if released else "revoked"
-    except InvalidEntitlementState:
+    except invalid:
         flag_for_staff(
             order,
             reason="entitlement_state_conflict",
