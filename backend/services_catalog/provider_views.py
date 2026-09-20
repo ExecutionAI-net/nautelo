@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from accounts.enums import UserRole
 from accounts.permissions import IsActiveUser
+from common.field_rules import phone_number, plain_text
 from professionals.enums import ProfessionalProfileStatus
 from professionals.access import add_owner_membership, membership_for, profile_for
 from professionals.models import ProfessionalProfile
@@ -58,6 +59,21 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
             "website_url", "city", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness", "logo_url", "cover_url",
         )
         read_only_fields = ("id", "slug", "status", "logo_url", "cover_url")
+
+    def validate_display_name(self, value):
+        return plain_text(value)
+
+    def validate_city(self, value):
+        return plain_text(value)
+
+    def validate_region(self, value):
+        return plain_text(value)
+
+    def validate_postal_code(self, value):
+        return plain_text(value)
+
+    def validate_public_phone(self, value):
+        return phone_number(value)
 
     def validate_country_code(self, value):
         if len(value) != 2 or not value.isalpha():

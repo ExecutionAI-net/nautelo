@@ -9,6 +9,7 @@ from rest_framework import serializers
 from rest_framework.response import Response
 
 from brokers.models import BrokerOrganization
+from common.field_rules import phone_number, plain_text
 from brokers.plans import plan_usage
 from brokers.views import BrokerTeamBaseView
 
@@ -37,6 +38,18 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
         if not isinstance(value, list) or len(value) > 8 or any(not isinstance(v, str) or not v.strip() or len(v) > 40 for v in value):
             raise serializers.ValidationError("Up to 8 short specialties.")
         return [v.strip() for v in value]
+
+    def validate_name(self, value):
+        return plain_text(value)
+
+    def validate_city(self, value):
+        return plain_text(value)
+
+    def validate_tagline(self, value):
+        return plain_text(value)
+
+    def validate_public_phone(self, value):
+        return phone_number(value)
 
     def validate_country_code(self, value):
         return value.upper()
