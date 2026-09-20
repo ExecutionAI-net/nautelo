@@ -95,6 +95,19 @@ def is_locked_for_owner(listing: BoatListing) -> bool:
     )
 
 
+# Private sellers also cannot change these specification entries once the listing went to review.
+FROZEN_SPECIFICATION_KEYS = ("condition", "boat_type")
+
+
+def is_frozen_after_submission(listing: BoatListing) -> bool:
+    """A private seller's basic information (taxonomy, condition, boat type) is fixed as soon as the
+    listing was submitted for review. Broker listings stay editable. Staff corrections are unaffected."""
+    return (
+        listing.seller_type == SellerType.PRIVATE
+        and listing.revisions.filter(submitted_at__isnull=False).exists()
+    )
+
+
 def allowed_payload_fields(*, listing: BoatListing, origin: str) -> frozenset[str]:
     allowed = set(CONTENT_FIELDS)
     if listing.seller_type == SellerType.BROKER:

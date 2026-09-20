@@ -5,7 +5,12 @@ from rest_framework.exceptions import ErrorDetail
 from finance.listing_quotes import FinancePolicy, FinanceQuoteService
 
 from .drafts import open_revision_for
-from .payloads import IMMUTABLE_FIELD_NAMES, is_locked_for_owner
+from .payloads import (
+    FROZEN_SPECIFICATION_KEYS,
+    IMMUTABLE_FIELD_NAMES,
+    is_frozen_after_submission,
+    is_locked_for_owner,
+)
 from .policies import effective_media_allowance, requires_staff_approval
 
 
@@ -58,13 +63,17 @@ class ListingWorkflowSerializer(serializers.Serializer):
             "revision": RevisionSerializer(revision).data if revision else None,
             "policy": {
                 "requires_approval": requires_staff_approval(listing),
-                "immutable_fields": (
-                    list(IMMUTABLE_FIELD_NAMES) if is_locked_for_owner(listing) else []
-                ),
+                "immutable_fields": _immutable_fields_for(listing),
                 "image_limit": allowance.images,
                 "video_limit": allowance.videos,
             },
         }
+
+
+def _immutable_fields_for(listing):
+    frozen = is_frozen_after_submission(listing)
+    names = list(IMMUTABLE_FIELD_NAMES) if frozen or is_locked_for_owner(listing) else []
+    return names + list(FROZEN_SPECIFICATION_KEYS) if frozen else names
 
 
 class ListingDraftUpdateSerializer(serializers.Serializer):

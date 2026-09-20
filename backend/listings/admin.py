@@ -1,5 +1,7 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.db import transaction
 
+from .enums import ListingStatus
 from .models import BoatListing, ListingMedia, ListingRevision, ListingSnapshot
 
 
@@ -45,6 +47,27 @@ class BoatListingAdmin(admin.ModelAdmin):
         "updated_at",
     )
     raw_id_fields = ("brand", "model", "created_by", "updated_by")
+    actions = ("send_back_to_draft",)
+
+    @admin.action(description="Send pending listings back to draft (withdraw the review)")
+    def send_back_to_draft(self, request, queryset):
+        """`status` stays read-only; this goes through the withdraw workflow (state machine, version, audit)."""
+        from .drafts import InvalidWorkflowState
+        from .drafts import open_revision_for
+        from .submissions import withdraw_listing_revision
+
+        done = 0
+        for listing in queryset.filter(status=ListingStatus.PENDING_APPROVAL):
+            revision = open_revision_for(listing)
+            if revision is None:
+                continue
+            try:
+                with transaction.atomic():
+                    withdraw_listing_revision(listing=listing, actor=request.user, expected_version=revision.version)
+                done += 1
+            except InvalidWorkflowState as exc:
+                self.message_user(request, f"{listing.pk}: {exc}", level=messages.WARNING)
+        self.message_user(request, f"{done} listing(s) sent back to draft.")
 
 
 @admin.register(ListingMedia)

@@ -280,6 +280,8 @@ export default function SellListingForm({
   }
 
   const locked = (listing?.policy.immutable_fields.length ?? 0) > 0;
+  // The server names what it froze (private seller after submission adds condition and boat type).
+  const frozenSpecs = listing?.policy.immutable_fields ?? [];
   const setSpec = (key: string, value: string) => setSpecs((current) => ({ ...current, [key]: value }));
 
   function payload(): Record<string, unknown> {
@@ -504,6 +506,7 @@ export default function SellListingForm({
       value={specs[key]}
       options={toOptions(values)}
       onChange={(value) => setSpec(key, value)}
+      disabled={frozenSpecs.includes(key)}
       placeholder={t("sell.select")}
       searchPlaceholder={t("sell.search")}
       emptyText={t("sell.no_results")}
@@ -605,6 +608,7 @@ export default function SellListingForm({
                       key={value}
                       type="button"
                       aria-pressed={specs.condition === value}
+                      disabled={frozenSpecs.includes("condition")}
                       onClick={() => setSpec("condition", value)}
                       className={`rounded-md px-space-md py-space-xs font-label-md ${specs.condition === value ? "bg-primary text-on-primary" : "text-on-surface-variant"}`}
                     >

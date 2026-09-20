@@ -526,3 +526,50 @@ def test_the_endpoint_is_closed_while_the_feature_flag_is_off(api, db):
 
     assert response.status_code == 403
     assert response.data["error"]["code"] == "feature_disabled"
+
+
+def _submitted(owner):
+    listing = make_private_listing(owner=owner, status=ListingStatus.PENDING_APPROVAL)
+    revision = make_revision(
+        listing,
+        state=RevisionStatus.WITHDRAWN,
+        submitted_at=timezone.now(),
+        submitted_by=owner,
+        payload={"brand_id": str(listing.brand_id), "specifications": {"condition": "new", "boat_type": "Sailing yacht"}},
+    )
+    return listing, revision
+
+
+@pytest.mark.django_db
+def test_basic_information_is_frozen_once_a_private_listing_was_submitted(api, workflow_enabled):
+    owner = _seller()
+    listing, revision = _submitted(owner)
+    listing.status = ListingStatus.DRAFT
+    listing.save(update_fields=["status"])
+    open_rev = make_revision(
+        listing,
+        payload={"brand_id": str(listing.brand_id), "specifications": {"condition": "new", "boat_type": "Sailing yacht"}},
+    )
+    api.force_authenticate(owner)
+
+    changed_year = api.patch(_url(listing), {"version": open_rev.version, "manufacture_year": 1999}, format="json")
+    changed_type = api.patch(
+        _url(listing),
+        {"version": open_rev.version, "specifications": {"condition": "new", "boat_type": "Catamaran"}},
+        format="json",
+    )
+    repeated = api.patch(
+        _url(listing),
+        {
+            "version": open_rev.version,
+            "brand_id": str(listing.brand_id),
+            "title_en": "New title",
+            "specifications": {"condition": "new", "boat_type": "Sailing yacht", "cabins": "2"},
+        },
+        format="json",
+    )
+
+    assert changed_year.status_code == 400
+    assert changed_year.data["error"]["fields"]["manufacture_year"][0]["code"] == "immutable_after_submission"
+    assert changed_type.status_code == 400
+    assert repeated.status_code == 200
