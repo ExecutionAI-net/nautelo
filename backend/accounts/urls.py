@@ -4,6 +4,7 @@ from accounts.invitation_views import (
     BrokerInvitationView,
     InvitationAcceptView,
     InvitationPreviewView,
+    OrganizationRegisterView,
     ProfessionalInvitationView,
 )
 
@@ -35,6 +36,7 @@ urlpatterns = [
         BrokerInvitationView.as_view(),
         name="broker-invitation-detail",
     ),
+    path("auth/register/organization/", OrganizationRegisterView.as_view(), name="auth-register-organization"),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/verify-email/", VerifyEmailView.as_view(), name="auth-verify-email"),
     path(

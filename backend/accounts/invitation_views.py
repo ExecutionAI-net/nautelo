@@ -109,3 +109,18 @@ class ProfessionalInvitationView(_InviteBase):
 
             raise PermissionDenied("You cannot manage this team.")
         return UserRole.PROFESSIONAL, seat.profile
+
+
+class OrganizationRegisterView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        from accounts.org_registration import OrganizationRegistrationSerializer, register_organization
+        from accounts.serializers import UserSummarySerializer
+
+        serializer = OrganizationRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = register_organization(serializer.validated_data)
+        return Response(UserSummarySerializer(user).data, status=status.HTTP_201_CREATED)
