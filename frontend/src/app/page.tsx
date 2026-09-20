@@ -21,7 +21,7 @@ async function latest(): Promise<PublicListing[]> {
 
 export default async function Home() {
   const locale = await getRequestLocale();
-  const [boats, facets, [ad]] = await Promise.all([latest(), fetchListingFacets(), fetchAds("HOME")]);
+  const [boats, facets, [ad, banner]] = await Promise.all([latest(), fetchListingFacets(), fetchAds("HOME")]);
   return (
     <main className="w-full bg-surface">
 <div className="flex flex-col w-full">
@@ -150,6 +150,7 @@ export default async function Home() {
 </div>
 </section>
 
+{banner ? (
 <section className="w-full bg-surface-container-low py-space-lg">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
 <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col md:flex-row items-center justify-between gap-space-lg">
@@ -157,22 +158,23 @@ export default async function Home() {
 <div className="flex items-center gap-2 mb-1">
 <span className="font-label-sm text-label-sm text-outline uppercase tracking-widest">ADVERTISEMENT</span>
 <span className="text-outline-variant font-label-sm">·</span>
-<span className="font-label-sm text-label-sm text-secondary">Costa Smeralda Marina Authority</span>
+<span className="font-label-sm text-label-sm text-secondary">{banner.sponsor}</span>
 </div>
-<h3 className="font-headline-sm text-headline-sm text-primary font-serif">Porto Cervo Marina Services — Berths &amp; Full Shore Support</h3>
-<p className="font-body-md text-body-md text-on-surface-variant max-w-2xl mt-1">
-            Secured deep-water superyacht berths from 15m to 120m, round-the-clock bunkering, shore power connections, and VIP concierge assistance on the Sardinian coast.
-          </p>
+<h3 className="font-headline-sm text-headline-sm text-primary font-serif">{banner.headline}</h3>
+{banner.body ? <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl mt-1">{banner.body}</p> : null}
 </div>
+{banner.cta_url && banner.cta_label ? (
 <div className="shrink-0">
-<Link className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md" href="/services/professionals/">
-            Reserve Seasonal Berth
-            <span className="material-symbols-outlined text-[18px]">dock</span>
-</Link>
+<AdLink
+ad={banner}
+className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md"
+/>
 </div>
+) : null}
 </div>
 </div>
 </section>
+) : null}
 
 <section className="w-full py-space-2xl bg-surface">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">

@@ -41,6 +41,15 @@ describe("Home", () => {
     expect(screen.getByRole("link", { name: /Request quote/ }).getAttribute("href")).toBe("/brokers/acme/");
   });
 
+  it("feeds the lower banner from the second HOME ad, not from fixed copy", async () => {
+    listings.fetchPublishedListings.mockResolvedValue({ results: [] });
+    const make = (id: string, sponsor: string, url: string) => ({ id, placement: "HOME", sponsor, headline: `${sponsor} headline`, body: "", cta_label: `Go ${sponsor}`, cta_url: url, image_url: "" });
+    ads.fetchAds.mockResolvedValueOnce([make("1", "First", "/brokers/a/"), make("2", "Second", "/services/professionals/b/")]);
+    render(await Home());
+    expect(screen.getByRole("link", { name: /Go Second/ }).getAttribute("href")).toBe("/services/professionals/b/");
+    expect(screen.queryByText(/Costa Smeralda Marina Authority/)).toBeNull();
+  });
+
   it("still renders when the catalogue is unavailable", async () => {
     listings.fetchPublishedListings.mockRejectedValue(new Error("down"));
     render(await Home());
