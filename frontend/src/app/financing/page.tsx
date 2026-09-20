@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 
 import PageBand from "@/components/layout/PageBand";
@@ -32,7 +33,7 @@ export default async function FinancingPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
 
   // Spec §18.3's three parameters. `listing` is the authority; `price` is an
   // untrusted display fallback the calculator shows only while the real quote

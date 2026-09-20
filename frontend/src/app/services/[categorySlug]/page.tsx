@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -42,7 +43,7 @@ export default async function ServiceCategoryPage({
   searchParams: SearchParams;
 }) {
   const { categorySlug } = await params;
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
   const category = await fetchServiceCategory(categorySlug, locale);
 
   // Only the approved SEO categories are public pages (spec 1). An active

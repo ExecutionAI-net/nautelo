@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,7 +32,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function ProfessionalDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
   const professional = await fetchProfessional(slug, locale);
 
   // Unknown slug, DRAFT, PENDING and SUSPENDED all arrive here as null.

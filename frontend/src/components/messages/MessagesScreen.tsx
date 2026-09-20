@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/lib/i18n/useLocale";
 import { useEffect, useState } from "react";
 
 import ConversationFilters from "@/components/messages/ConversationFilters";
@@ -36,7 +37,7 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId 
     errorKey: string | null;
   } | null>(null);
 
-  const locale = resolveLocale(session?.user?.locale);
+  const locale = useLocale();
   const authenticated = session?.authenticated === true;
   const key = `${filter}|${brokerId ?? ""}`;
   const fetching = result?.key !== key;

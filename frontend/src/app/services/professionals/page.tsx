@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -61,7 +62,7 @@ export default async function CombinedDirectoryPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
   const filters = {
     q: first(params.q),
     category: first(params.category),

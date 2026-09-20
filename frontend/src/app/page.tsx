@@ -1,3 +1,4 @@
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import Link from "next/link";
 
 import BoatCard from "@/components/listings/BoatCard";
@@ -17,7 +18,7 @@ async function latest(): Promise<PublicListing[]> {
 }
 
 export default async function Home() {
-  const locale = DEFAULT_LOCALE;
+  const locale = await getRequestLocale();
   const boats = await latest();
   return (
     <main className="w-full bg-surface">
