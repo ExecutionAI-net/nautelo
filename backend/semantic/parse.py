@@ -20,7 +20,7 @@ CURRENCY = r"(?:€|eur(?:o|os)?)"
 LENGTH_UNIT = r"(?:-|\s)?(?:m|mt|mtr|mtrs|metre|metres|meter|meters|metri|metro|metros)\b"
 
 TYPES = {
-    "Sailing yacht": ["sailing yacht", "sailboat", "sailing boat", "veliero", "barca a vela", "velero", "yate de vela", "sloop", "ketch"],
+    "Sailing yacht": ["sailing yacht", "sail yacht", "sailboat", "sail boat", "sailing boat", "sailing", "yacht a vela", "veliero", "barca a vela", "velero", "barco de vela", "yate de vela", "voilier", "sloop", "ketch"],
     "Motor yacht": ["motor yacht", "motoryacht", "yacht a motore", "yate a motor", "yate de motor", "power yacht", "flybridge"],
     "Catamaran": ["catamaran", "catamarano"],
     "Motorboat": ["motorboat", "motor boat", "motoscafo", "lancha", "speedboat", "speed boat"],
