@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 
 from accounts.enums import UserRole
 from accounts.permissions import IsActiveUser
-from common.field_rules import phone_number, plain_text
+from common.field_rules import phone_number, plain_text, service_country
 from professionals.enums import ProfessionalProfileStatus
 from professionals.access import add_owner_membership, membership_for, profile_for
 from professionals.models import ProfessionalProfile
@@ -82,9 +82,7 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         return phone_number(value)
 
     def validate_country_code(self, value):
-        if len(value) != 2 or not value.isalpha():
-            raise serializers.ValidationError("Use a two-letter country code.")
-        return value.upper()
+        return service_country(value)
 
     def create(self, validated_data):
         validated_data.pop("submit", None)

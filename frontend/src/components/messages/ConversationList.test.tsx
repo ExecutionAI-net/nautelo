@@ -47,7 +47,7 @@ describe("ConversationList", () => {
       <ConversationList locale="en" rows={[]} hrefFor={() => "/x/"} />,
     );
     expect(
-      screen.getByText("No conversations match this filter."),
+      screen.getByText(/Nothing here yet/),
     ).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });

@@ -20,3 +20,14 @@ def phone_number(value: str) -> str:
     if len(digits) < 6 or any(not (c.isdigit() or c in "+-() .") for c in value):
         raise serializers.ValidationError("Enter a valid phone number.")
     return value
+
+
+def service_country(value: str) -> str:
+    """Brokers and professionals operate in the supported markets only (settings.SUPPORTED_COUNTRIES)."""
+    from django.conf import settings
+
+    code = (value or "").strip().upper()
+    allowed = list(getattr(settings, "SUPPORTED_COUNTRIES", ["ES", "IT"]))
+    if code not in allowed:
+        raise serializers.ValidationError(f"Choose one of the supported countries: {', '.join(allowed)}.")
+    return code

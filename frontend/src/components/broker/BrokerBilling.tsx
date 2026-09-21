@@ -77,6 +77,11 @@ export default function BrokerBilling({ brokerId }: { brokerId: string }) {
       {billing.broker_status === "PENDING" || billing.broker_status === "DRAFT" ? (
         <p className="font-body-sm text-on-surface-variant">The brokerage goes live after our team has reviewed and approved it.</p>
       ) : null}
+      {!live && !billing.plan ? (
+        <p role="status" className="rounded-lg bg-surface-container-low p-space-md font-body-md text-on-surface-variant">
+            Membership is not open yet. We will let you know as soon as plans are available.
+          </p>
+        ) : null}
       {!live && billing.plan ? (
         <div>
           <button
