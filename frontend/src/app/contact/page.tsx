@@ -1,5 +1,11 @@
 import ContactRequestForm from "@/components/contact/ContactRequestForm";
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Contact",
+  description: "Ask NAUTA a question about buying, selling, listing or services.",
+};
 
 export default function ContactPage() {
   return (

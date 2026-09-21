@@ -4,8 +4,8 @@ type Tab = "login" | "register" | "recovery";
 
 const TABS: { key: Tab; label: string; href: string }[] = [
   { key: "login", label: "Sign in", href: "/login/" },
-  { key: "register", label: "Join Nauta", href: "/register/" },
-  { key: "recovery", label: "Recovery", href: "/forgot-password/" },
+  { key: "register", label: "Create account", href: "/register/" },
+  { key: "recovery", label: "Forgot password", href: "/forgot-password/" },
 ];
 
 const POINTS = [
