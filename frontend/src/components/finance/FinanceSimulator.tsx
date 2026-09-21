@@ -60,7 +60,7 @@ function Segmented<T extends string>({
  * Simple financing simulator. The rulebook (rates, limits, VAT, notes) comes from /api/v1/finance/simulator-config/ once;
  * every slider then answers in the browser. "I have a monthly budget" turns the payment around into the price it carries.
  */
-export default function FinanceSimulator({ compact = false }: { compact?: boolean }) {
+export default function FinanceSimulator({ compact = false, initialPrice }: { compact?: boolean; initialPrice?: number }) {
   const locale = useLocale();
   const t = (key: string, vars?: Record<string, string | number>) => tSim(locale, key, vars);
   const money = useMemo(() => new Intl.NumberFormat(LOCALE_TAG[locale], { style: "currency", currency: "EUR", maximumFractionDigits: 0 }), [locale]);
@@ -68,7 +68,7 @@ export default function FinanceSimulator({ compact = false }: { compact?: boolea
   const [rules, setRules] = useState<FinanceRule[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [mode, setMode] = useState<"price" | "budget">("price");
-  const [priceRaw, setPriceRaw] = useState(180000);
+  const [priceRaw, setPriceRaw] = useState(initialPrice && initialPrice > 0 ? initialPrice : 180000);
   const [budgetRaw, setBudgetRaw] = useState(1500);
   const [downRaw, setDownRaw] = useState<number | null>(null);
   const [termRaw, setTermRaw] = useState(10);

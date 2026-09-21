@@ -2,17 +2,14 @@ import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 
 import PageBand from "@/components/layout/PageBand";
-import FinanceCalculator from "@/components/finance/FinanceCalculator";
 import FinanceSimulator from "@/components/finance/FinanceSimulator";
 import FinancingInfo from "@/components/finance/FinancingInfo";
-import { fetchFinanceDefaults } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
 
 export const dynamic = "force-dynamic";
 
 const CANONICAL_PATH = "/financing/";
-const DEFAULT_CURRENCY = "EUR";
 
 export function generateMetadata(): Metadata {
   return {
@@ -37,22 +34,6 @@ export default async function FinancingPage({
   const params = await searchParams;
   const locale = await getRequestLocale();
 
-  // Spec §18.3's three parameters. `listing` is the authority; `price` is an
-  // untrusted display fallback the calculator shows only while the real quote
-  // loads, and never sends anywhere; `currency` only selects a display format,
-  // and anything unsupported falls back to EUR rather than reaching Intl.
-  const listingId = first(params.listing) ?? null;
-  const fallbackPrice = first(params.price) ?? null;
-  const requested = (first(params.currency) ?? "").toUpperCase();
-  const currency = requested === DEFAULT_CURRENCY ? requested : DEFAULT_CURRENCY;
-
-  // Spec §2.1 / §17.5: the calculator opens on the platform's REAL current
-  // assumptions, read at request time (`force-dynamic` above, `no-store`
-  // inside), never on a copy compiled into this bundle. `null` when no
-  // configuration is active — the form then opens un-prefilled rather than
-  // inventing numbers.
-  const defaults = await fetchFinanceDefaults();
-
   return (
     <main className="w-full bg-surface">
       <PageBand
@@ -61,16 +42,7 @@ export default async function FinancingPage({
         subtitle={tf(locale, "finance.page.intro")}
       />
       <div className="mx-auto max-w-[1440px] px-margin-mobile pt-space-xl md:px-margin lg:px-margin-desktop">
-        <div className="mx-auto max-w-2xl"><FinanceSimulator /></div>
-      </div>
-      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
-      <FinanceCalculator
-        locale={locale}
-        listingId={listingId}
-        fallbackPrice={fallbackPrice}
-        currency={currency}
-        defaults={defaults}
-      />
+        <div className="mx-auto max-w-2xl"><FinanceSimulator initialPrice={Number.parseFloat(first(params.price) ?? "") || undefined} /></div>
       </div>
       <FinancingInfo
         start={{
