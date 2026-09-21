@@ -9,11 +9,12 @@ parameter should still render a list.
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from django.db.models import Case, DecimalField, Q, QuerySet, When
+from django.db.models import Case, DecimalField, F, Q, QuerySet, When
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 
 SORTS = {
+    "featured": (F("featured_at").desc(nulls_last=True), "-published_at"),
     "newest": ("-published_at", "-created_at"),
     "price_asc": ("current_public_snapshot__price", "-published_at"),
     "price_desc": ("-current_public_snapshot__price", "-published_at"),
@@ -44,6 +45,11 @@ def _int(value: str | None) -> int | None:
 
 
 def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
+    if (params.get("featured") or "").strip() in ("1", "true"):
+        from django.utils import timezone
+
+        queryset = queryset.filter(featured_until__gt=timezone.now())
+
     exclude = (params.get("exclude") or "").strip()
     if exclude:
         try:

@@ -1,0 +1,138 @@
+from datetime import timedelta
+
+import pytest
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from accounts.enums import UserRole
+from accounts.tests.factories import make_user
+from listings.enums import ListingStatus
+from listings.tests.factories import make_private_listing, make_snapshot
+from payments.enums import WebhookResult
+from payments.tests.fakes import FakeStripeGateway
+from promotions.checkout import handle_checkout
+from promotions.models import ListingPromotion, PromotionPlan
+from promotions.services import start_waiting
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def seller():
+    return make_user("seller@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)
+
+
+@pytest.fixture
+def fake(monkeypatch):
+    gateway = FakeStripeGateway()
+    monkeypatch.setattr("payments.gateway.default_gateway", lambda: gateway)
+    return gateway
+
+
+def _api(user):
+    client = APIClient()
+    client.force_authenticate(user)
+    return client
+
+
+def _buy(user, listing, plan="week"):
+    response = _api(user).post(reverse("promotion-checkout"), {"listing_id": str(listing.pk), "plan": plan}, format="json")
+    assert response.status_code == 201, response.content
+    return ListingPromotion.objects.filter(listing=listing).order_by("-created_at").first()
+
+
+def _paid_session(promotion, amount=None):
+    return {
+        "metadata": {"kind": "listing_promotion", "promotion_id": str(promotion.pk)},
+        "payment_status": "paid",
+        "amount_total": amount if amount is not None else int(promotion.amount * 100),
+        "currency": "eur",
+        "payment_intent": "pi_1",
+    }
+
+
+def _publish(listing):
+    staff = make_user(f"mod-{listing.pk}@promo.example", role=UserRole.STAFF, verified=True)
+    snapshot = make_snapshot(listing, approved_by=staff)
+    listing.status = ListingStatus.PUBLISHED
+    listing.current_public_snapshot = snapshot
+    listing.published_at = timezone.now()
+    listing.save()
+
+
+def test_default_plans_are_public_and_editable_in_the_database():
+    body = APIClient().get(reverse("promotion-plans")).json()
+    assert [(p["code"], p["days"], p["price"]) for p in body] == [("week", 7, "99.00"), ("two-weeks", 14, "149.00"), ("month", 30, "199.00")]
+    PromotionPlan.objects.filter(code="week").update(price="12.50")
+    assert APIClient().get(reverse("promotion-plans")).json()[0]["price"] == "12.50"
+
+
+def test_checkout_sends_the_plan_price_and_binds_the_listing(seller, fake):
+    listing = make_private_listing(owner=seller)
+    promotion = _buy(seller, listing, "two-weeks")
+    params = fake.created[0]["params"]
+    assert params["line_items"][0]["price_data"]["unit_amount"] == 14900
+    assert params["metadata"]["promotion_id"] == str(promotion.pk)
+    assert (promotion.days, promotion.status) == (14, "PENDING")
+
+
+def test_someone_elses_listing_and_unverified_users_are_refused(seller, fake):
+    listing = make_private_listing(owner=seller)
+    other = make_user("other@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)
+    body = {"listing_id": str(listing.pk), "plan": "week"}
+    assert _api(other).post(reverse("promotion-checkout"), body, format="json").status_code == 404
+    unverified = make_user("new@promo.example", role=UserRole.PRIVATE_SELLER, verified=False)
+    assert _api(unverified).post(reverse("promotion-checkout"), body, format="json").status_code == 403
+    assert not fake.created
+
+
+def test_payment_before_publication_waits_and_starts_when_the_listing_goes_live(seller, fake):
+    listing = make_private_listing(owner=seller)
+    promotion = _buy(seller, listing)
+    assert handle_checkout(_paid_session(promotion)) == WebhookResult.FULFILLED
+    promotion.refresh_from_db()
+    listing.refresh_from_db()
+    assert promotion.status == "PAID" and promotion.starts_at is None and listing.featured_until is None
+    assert handle_checkout(_paid_session(promotion)) == WebhookResult.ALREADY_FULFILLED
+
+    _publish(listing)
+    assert start_waiting(listing) == 1
+    listing.refresh_from_db()
+    assert timedelta(days=6, hours=23) < listing.featured_until - timezone.now() <= timedelta(days=7)
+
+
+def test_a_second_purchase_stacks_after_the_running_one(seller, fake):
+    listing = make_private_listing(owner=seller)
+    _publish(listing)
+    first = _buy(seller, listing, "week")
+    handle_checkout(_paid_session(first))
+    second = _buy(seller, listing, "week")
+    handle_checkout(_paid_session(second))
+    listing.refresh_from_db()
+    assert timedelta(days=13, hours=23) < listing.featured_until - timezone.now() <= timedelta(days=14)
+
+
+def test_a_wrong_amount_is_held_for_staff_and_never_features_the_listing(seller, fake):
+    listing = make_private_listing(owner=seller)
+    _publish(listing)
+    promotion = _buy(seller, listing)
+    assert handle_checkout(_paid_session(promotion, amount=1)) == WebhookResult.MISMATCH
+    promotion.refresh_from_db()
+    listing.refresh_from_db()
+    assert promotion.status == "REVIEW" and listing.featured_until is None
+
+
+def test_public_list_shows_only_running_promotions_newest_first(seller, fake):
+    first, second, expired = (
+        make_private_listing(owner=make_user(f"o{i}@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)) for i in range(3)
+    )
+    now = timezone.now()
+    for i, listing in enumerate((first, second, expired)):
+        _publish(listing)
+        listing.featured_until = now + timedelta(days=3) if listing is not expired else now - timedelta(days=1)
+        listing.featured_at = now + timedelta(minutes=i)
+        listing.save()
+    response = APIClient().get(reverse("listing-list"), {"featured": "1", "sort": "featured"}).json()
+    assert [r["id"] for r in response["results"]] == [str(second.pk), str(first.pk)]
+    assert all(r["is_featured"] for r in response["results"])

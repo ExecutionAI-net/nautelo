@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "brokers",
     "contactdesk",
     "places",
+    "promotions",
     "professionals",
     "services_catalog",
     "audit",
