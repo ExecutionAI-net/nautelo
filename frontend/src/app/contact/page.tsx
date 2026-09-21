@@ -1,3 +1,4 @@
+import ContactRequestForm from "@/components/contact/ContactRequestForm";
 import Link from "next/link";
 
 export default function ContactPage() {
@@ -64,149 +65,7 @@ export default function ContactPage() {
 <span className="material-symbols-outlined text-[22px]">assignment_turned_in</span>
 </div>
 </div>
-<form className="space-y-space-md mt-space-xs" id="maritime-contact-form">
-
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-<div className="flex flex-col gap-1.5">
-<label className="font-label-md text-label-md text-primary flex items-center justify-between" htmlFor="full-name">
-<span>Full Name <span className="text-error">*</span></span>
-</label>
-<input className="w-full px-space-md py-2.5 rounded bg-surface-container-low text-primary placeholder:text-outline font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary transition-all" id="full-name" placeholder="e.g. Capt. Mateo Alarcón" required type="text"/>
-</div>
-<div className="flex flex-col gap-1.5">
-<label className="font-label-md text-label-md text-primary flex items-center justify-between" htmlFor="email-addr">
-<span>Institutional or Personal Email <span className="text-error">*</span></span>
-</label>
-<input className="w-full px-space-md py-2.5 rounded bg-surface-container-low text-primary placeholder:text-outline font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary transition-all" id="email-addr" placeholder="mateo.alarcon@yachtadvisors.eu" required type="email"/>
-</div>
-</div>
-
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-<div className="flex flex-col gap-1.5">
-<label className="font-label-md text-label-md text-primary" htmlFor="phone-num">
-                    Direct Telephone <span className="text-outline font-normal">(Optional)</span>
-</label>
-<div className="flex rounded bg-surface-container-low focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-secondary transition-all">
-<select className="bg-transparent pl-3 pr-2 py-2.5 text-primary font-body-md text-body-md border-r border-surface-container-highest focus:outline-none cursor-pointer">
-<option value="+34">ES (+34)</option>
-<option value="+39">IT (+39)</option>
-<option value="+33">FR (+33)</option>
-<option value="+44">UK (+44)</option>
-<option value="+1">US (+1)</option>
-<option value="+49">DE (+49)</option>
-</select>
-<input className="w-full px-space-md py-2.5 bg-transparent text-primary placeholder:text-outline font-body-md text-body-md focus:outline-none" id="phone-num" placeholder="610 982 344" type="tel"/>
-</div>
-</div>
-<div className="flex flex-col gap-1.5">
-<label className="font-label-md text-label-md text-primary flex items-center justify-between" htmlFor="vessel-ref">
-<span>Vessel or HIN/CIN ID <span className="text-outline font-normal">(Optional)</span></span>
-</label>
-<input className="w-full px-space-md py-2.5 rounded bg-surface-container-low text-primary placeholder:text-outline font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary transition-all uppercase tracking-wide" id="vessel-ref" placeholder="e.g. NAUTA-ES-88219 or IT-AZI48" type="text"/>
-</div>
-</div>
-
-<div className="flex flex-col gap-1.5">
-<label className="font-label-md text-label-md text-primary" htmlFor="inquiry-subject">
-                  Inquiry Topic / Operational Desk <span className="text-error">*</span>
-</label>
-<div className="relative">
-<select className="w-full px-space-md py-3 rounded bg-surface-container-low text-primary font-body-md text-body-md appearance-none focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary transition-all cursor-pointer pr-10" id="inquiry-subject" required>
-<option disabled  value="">Select nautical department or inquiry scope...</option>
-<option value="general">General Platform &amp; Account Inquiries</option>
-<option value="diligence">Buying &amp; Vessel Technical Due Diligence Support</option>
-<option value="selling">Listing &amp; Selling a Mediterranean Vessel</option>
-<option value="brokers">Accredited Yacht Broker Network &amp; Co-brokerage</option>
-<option value="verification">Marine Surveyor &amp; Refit Yard Verification</option>
-<option value="escrow">Nautical Legal Services, VAT &amp; Escrow Deposit Desk</option>
-<option value="press">Press, Port Authorities &amp; Strategic Partnerships</option>
-</select>
-<span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
-</div>
-</div>
-
-<div className="flex flex-col gap-2 pt-1">
-<span className="font-label-md text-label-md text-primary">Preferred Working Language of Response</span>
-<div className="flex flex-wrap items-center gap-space-sm" id="language-selector-group">
-<label className="cursor-pointer">
-<input defaultChecked className="peer sr-only" name="response_lang" type="radio" value="EN"/>
-<div className="px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary hover:bg-surface-container transition-all flex items-center gap-1.5">
-<span className="material-symbols-outlined text-[16px]">language</span>
-                      English (Global Maritime Standard)
-                    </div>
-</label>
-<label className="cursor-pointer">
-<input className="peer sr-only" name="response_lang" type="radio" value="ES"/>
-<div className="px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary hover:bg-surface-container transition-all flex items-center gap-1.5">
-<span>Castellano (España / Baleares)</span>
-</div>
-</label>
-<label className="cursor-pointer">
-<input className="peer sr-only" name="response_lang" type="radio" value="IT"/>
-<div className="px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary hover:bg-surface-container transition-all flex items-center gap-1.5">
-<span>Italiano (Tirreno / Adriatico)</span>
-</div>
-</label>
-</div>
-</div>
-
-<div className="flex flex-col gap-1.5 pt-1">
-<label className="font-label-md text-label-md text-primary flex items-center justify-between" htmlFor="inquiry-message">
-<span>Detailed Message &amp; Context <span className="text-error">*</span></span>
-<span className="text-outline font-normal text-body-sm">Include hull type, berth location, or transaction timeline</span>
-</label>
-<textarea className="w-full px-space-md py-3 rounded bg-surface-container-low text-primary placeholder:text-outline font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary transition-all resize-y" id="inquiry-message" placeholder="Specify yacht specifications, survey status, Mediterranean flag preference, or your brokerage inquiry details..." required rows={5}></textarea>
-</div>
-
-<div className="flex flex-col gap-1.5">
-<span className="font-label-md text-label-md text-primary">Supporting Nautical Documents (Optional)</span>
-<div className="group relative flex flex-col items-center justify-center p-space-md rounded bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer">
-<input aria-label="Upload files" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" multiple type="file"/>
-<div className="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center text-secondary group-hover:scale-105 transition-transform mb-2 shadow-sm">
-<span className="material-symbols-outlined text-[20px]">upload_file</span>
-</div>
-<div className="font-title-md text-body-md text-primary text-center">
-<span className="text-secondary font-semibold underline">Click to upload</span> or drag vessel documentation
-                  </div>
-<p className="font-body-sm text-body-sm text-outline mt-0.5 text-center">
-                    Registry Cert, Surveyor Report, or Spec Sheets (PDF, JPG, PNG ≤ 25MB total)
-                  </p>
-</div>
-</div>
-
-<div className="pt-2">
-<label className="flex items-start gap-3 cursor-pointer group">
-<input className="mt-1 h-4 w-4 rounded text-secondary focus:ring-secondary bg-surface-container-low border-outline-variant cursor-pointer" required type="checkbox"/>
-<span className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-                    I acknowledge that Nauta handles nautical transactional details according to European GDPR and Spanish/Italian maritime confidentiality frameworks. I agree to the
-                    <Link href="/privacy/" className="text-secondary hover:underline" >Privacy Policy</Link> and direct verification protocols.
-                  </span>
-</label>
-</div>
-
-<div className="hidden p-space-md rounded-lg bg-secondary-container text-on-secondary-container flex items-center gap-3" id="form-feedback">
-<span className="material-symbols-outlined text-[24px]">verified</span>
-<div className="font-body-md text-body-md">
-<strong>Inquiry Dispatched.</strong> Assigned to Mediterranean Desk queue. Reference: #NAU-2025-9481. Response expected within 4 business hours.
-                </div>
-</div>
-
-<div className="pt-space-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-space-md">
-<button className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary hover:bg-primary-container px-space-xl py-3.5 rounded font-title-md text-title-md transition-all shadow-md active:translate-y-0.5" type="submit">
-<span>Send Maritime Inquiry</span>
-<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</button>
-<div className="flex items-center gap-2 text-outline font-body-sm text-body-sm">
-<span className="material-symbols-outlined text-[18px] text-secondary">lock</span>
-<span>End-to-end encrypted inquiry transmission</span>
-</div>
-</div>
-
-<div className="pt-space-sm border-t border-surface-container-highest flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
-<span className="material-symbols-outlined text-[16px] text-secondary">schedule</span>
-<span>Average response time: within 4 business hours • Certified Maritime Protocol</span>
-</div>
-</form>
+<ContactRequestForm />
 </div>
 </div>
 
@@ -286,7 +145,7 @@ export default function ContactPage() {
 <Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">gavel</span>
-<span className="font-body-md text-body-md text-primary">Legal, Tax &amp; Escrow Desk</span>
+<span className="font-body-md text-body-md text-primary">Legal &amp; Tax Desk</span>
 </div>
 <span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">legal@nauta-maritime.example.com</span>
 </Link>
@@ -388,7 +247,7 @@ export default function ContactPage() {
 <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
                     Marina Port Vell, Moll del Dipòsit, Nau 4, 08039 Barcelona, Spain
                   </p>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Technical Escrow &amp; Superyacht Transit</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Technical Support &amp; Superyacht Transit</span>
 </div>
 </div>
 </div>
@@ -468,7 +327,7 @@ export default function ContactPage() {
                 What is the fee structure for listing a private yacht?
               </h3>
 <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                Direct private vessel listings up to 12m LOA are hosted on a transparent flat-fee model with AI multilingual translation included. Commercial yacht brokerage and escrow packages are custom scoped with transparent maritime notary tiers.
+                Direct private vessel listings up to 12m LOA are hosted on a transparent flat-fee model with AI multilingual translation included. Commercial yacht brokerage packages are custom scoped.
               </p>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-surface-container">
@@ -487,15 +346,15 @@ export default function ContactPage() {
 <span className="material-symbols-outlined text-[26px]">shield_with_heart</span>
 </div>
 <div>
-<div className="font-title-lg text-title-lg text-primary">Pan-Mediterranean Maritime Compliance</div>
+<div className="font-title-lg text-title-lg text-primary">A marketplace, not a payment desk</div>
 <p className="font-body-sm text-body-sm text-on-surface-variant">
-              Transactions, broker audits, and escrow procedures executed under strict Spanish Dirección General de la Marina Mercante (DGMM) and Italian Guardia Costiera standards.
+              Nauta is a marketplace: we connect buyers, sellers, brokers and service providers, and we do not hold or transfer your money.
             </p>
 </div>
 </div>
 <div className="flex items-center gap-space-lg shrink-0 text-on-surface-variant font-label-md text-label-md">
 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-secondary"></span>ISO 27001 Secure</span>
-<span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-secondary"></span>Escrow Bonded</span>
+
 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-secondary"></span>ANEN / UCINA Aligned</span>
 </div>
 </div>

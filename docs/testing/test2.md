@@ -175,6 +175,8 @@ Role STAFF, verified; capabilities include reveal_any_contact, create_listing_on
 
 | R2-30 | Found while trying the new valuation page live: the public **length filter matched nothing** (`/boats?length_min=..` returned 0 of 72) because it only read the `loa_m` spec key while the listings carry `length_m`. The filter and the valuation now read either key. |
 
+| R2-32 | **S1** | Public `/contact` form did nothing (static prototype with a fake reference number and unsupported claims). Now a real stored form; see design-review.md. Not yet sent by email. |
+
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 
 | ID | Sev | Finding | Suggestion |

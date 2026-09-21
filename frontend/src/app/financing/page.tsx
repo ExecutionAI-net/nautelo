@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import PageBand from "@/components/layout/PageBand";
 import FinanceCalculator from "@/components/finance/FinanceCalculator";
+import FinancingInfo from "@/components/finance/FinancingInfo";
 import { fetchFinanceDefaults } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
@@ -67,6 +68,7 @@ export default async function FinancingPage({
         defaults={defaults}
       />
       </div>
+      <FinancingInfo />
     </main>
   );
 }
