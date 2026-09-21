@@ -175,3 +175,35 @@ python3 -m unittest discover -s deploy/tests -v
 ```
 
 CI also renders Compose configs and tests Nginx syntax with a generated test certificate. Real Cloudflare edge/origin connectivity must be verified after deploying with your certificate and DNS. `nginx.conf`, `docker-compose.proxy.yml`, `cloudflare-realip.conf` and `proxy.py` travel together in the SSM bundle. The legacy dev HTTP files remain only for explicitly opted-in IP tests; do not re-enable them after the domain cutover.
+
+### Server-rendered pages receive HTML instead of API JSON
+
+Deployment automatically sets `INTERNAL_API_BASE_URL=http://api:8000` in the
+frontend runtime environment. Server-rendered listings, directory pages and ads
+call Django over the environment's private Compose network, preserving the
+public API Host and forwarded protocol. No additional Secrets Manager key is
+needed. Browser requests still use `NEXT_PUBLIC_API_BASE_URL` (the origin only,
+for example `https://dev.nautelo.com`, without `/api`). Rebuild and redeploy after
+this change; restarting an older image will not update the fetch code.
+
+A `200 text/html` API response does not establish that uploads or Docker volumes
+are missing. Compare the local origin and public edge from EC2 with GET requests
+(no redirect following):
+
+```bash
+curl --silent --show-error --insecure \
+  --resolve dev.nautelo.com:443:127.0.0.1 \
+  -H 'Accept: application/json' -D - -o /dev/null \
+  https://dev.nautelo.com/api/v1/listings/
+curl --silent --show-error \
+  -H 'Accept: application/json' -D - -o /dev/null \
+  https://dev.nautelo.com/api/v1/listings/
+```
+
+`--insecure` is only for the local origin check because Cloudflare Origin CA
+certificates are not publicly trusted. If the origin returns JSON but the edge
+returns HTML, inspect Cloudflare Workers, redirects, Access/challenge rules and
+cache rules for `/api/*`. If the origin also returns HTML, inspect the running
+proxy configuration and its `/api/` upstream. A `Location` header identifies a
+redirect that the previous Node fetch would have followed. Keep the existing
+volumes; deleting them cannot repair API routing and can destroy stored data.

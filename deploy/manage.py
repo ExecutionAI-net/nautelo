@@ -148,6 +148,7 @@ def environments(secret, region, environment="prod"):
         "CLAMAV_HOST": "clamav", "MEDIA_VIDEO_PROBE": "True",
     })
     frontend = {"NEXT_PUBLIC_BASE_URL": web, "NEXT_PUBLIC_API_BASE_URL": api,
+                "INTERNAL_API_BASE_URL": "http://api:8000",
                 "INTERNAL_SERVICE_SECRET": secret["INTERNAL_SERVICE_SECRET"]}
     postgres = {"POSTGRES_DB": "nautelo", "POSTGRES_USER": "nautelo", "POSTGRES_PASSWORD": secret["POSTGRES_PASSWORD"]}
     return {"backend": backend, "frontend": frontend, "postgres": postgres}
