@@ -42,5 +42,5 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // Pages only: not the API, Next's own files, or anything with a file extension (images, icons, sitemap.xml, robots.txt).
-  matcher: ["/((?!api/|_next/|.*\..*).*)"],
+  matcher: ["/((?!api/|_next/|.*\\..*).*)"],
 };
