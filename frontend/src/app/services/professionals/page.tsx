@@ -1,6 +1,6 @@
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import { fetchProfessionals, fetchServiceCategories, formatProfessionalLocation } from "@/lib/api/directory";
@@ -15,7 +15,6 @@ export function generateMetadata(): Metadata {
   return {
     title: t(DEFAULT_LOCALE, "directory.services_professionals.title"),
     description: t(DEFAULT_LOCALE, "directory.intro"),
-    alternates: { canonical: CANONICAL_PATH },
   };
 }
 

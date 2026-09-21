@@ -1,6 +1,6 @@
 import { specialtyLabels } from "@/lib/i18n/specialties";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import { fetchBrokers } from "@/lib/api/brokers";
 
@@ -8,7 +8,6 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Brokers",
-  alternates: { canonical: "/brokers/" },
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

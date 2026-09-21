@@ -2,7 +2,7 @@ import type { MessageKey } from "@/i18n";
 import { getT } from "@/i18n/server";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import AdSlot from "@/components/content/AdSlot";
 import BoatCard from "@/components/listings/BoatCard";
@@ -65,7 +65,6 @@ export function generateMetadata(): Metadata {
   return {
     title: tf(DEFAULT_LOCALE, "boats.title"),
     description: tf(DEFAULT_LOCALE, "boats.intro"),
-    alternates: { canonical: CANONICAL_PATH },
   };
 }
 

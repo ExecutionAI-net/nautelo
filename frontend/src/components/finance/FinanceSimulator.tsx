@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api/client";

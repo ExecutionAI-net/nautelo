@@ -1,6 +1,6 @@
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import ProfessionalResultCard from "@/components/directory/ProfessionalCard";
@@ -31,7 +31,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title: category.seo_title || category.name,
     description: category.seo_description || undefined,
     // Spec 1: the six approved service pages keep their own canonical URLs.
-    alternates: { canonical: `/services/${category.slug}/` },
   };
 }
 

@@ -27,6 +27,7 @@ import {
 import { formatInquiryMessage, tInquiry } from "@/lib/i18n/inquiry";
 import type { Locale } from "@/lib/i18n/directory";
 import { useSession } from "@/lib/auth/session";
+import { localizePath } from "@/lib/i18n/localePath";
 
 interface InquiryFormProps {
   context: InquiryContextRef;
@@ -177,7 +178,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
     // `pathname` is this app's own route, so it is always a single-slash local
     // path - exactly what lib/auth/next-url.ts's allowlist accepts (spec 33.1:
     // "Allowlist local return URLs; prevent open redirects").
-    router.push(`/login/?next=${encodeURIComponent(pathname)}`);
+    router.push(localizePath(`/login/?next=${encodeURIComponent(pathname)}`, locale));
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

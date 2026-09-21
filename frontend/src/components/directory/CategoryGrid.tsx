@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import type { ServiceCategory } from "@/lib/api/directory";
 import { type Locale, t } from "@/lib/i18n/directory";

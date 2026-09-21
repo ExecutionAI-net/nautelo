@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import AuthShell from "@/components/auth/AuthShell";
 import { useSearchParams } from "next/navigation";

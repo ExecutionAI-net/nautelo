@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
+import { usePageLocale } from "@/components/layout/LocaleContext";
+
 import { useSession } from "@/lib/auth/session";
 import { resolveLocale, type Locale } from "@/lib/i18n/directory";
 
@@ -21,8 +23,10 @@ export function writeLocaleCookie(locale: Locale) {
 const subscribe = () => () => {};
 
 export function useLocale(): Locale {
+  const pageLocale = usePageLocale();
   const { session } = useSession();
   // The cookie only changes together with a reload, so there is nothing to subscribe to.
   const cookieLocale = useSyncExternalStore(subscribe, readLocaleCookie, () => null);
+  if (pageLocale) return pageLocale;
   return cookieLocale ? resolveLocale(cookieLocale) : resolveLocale(session?.user?.locale);
 }

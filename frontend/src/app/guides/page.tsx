@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import AdSlot from "@/components/content/AdSlot";
 import { fetchGuides } from "@/lib/api/contentServer";
@@ -9,7 +9,6 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Nautical guides",
   description: "Practical guides on buying, selling and maintaining a boat in Spain and Italy.",
-  alternates: { canonical: "/guides/" },
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

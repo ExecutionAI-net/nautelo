@@ -2,7 +2,7 @@
 
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/useLocale";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { usePathname } from "next/navigation";
 
 import NotificationBell from "@/components/layout/NotificationBell";

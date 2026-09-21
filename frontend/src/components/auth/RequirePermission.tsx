@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
+import { localizePath } from "@/lib/i18n/localePath";
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -18,6 +20,7 @@ interface Props {
 export default function RequirePermission({ permission, children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const pageLocale = useLocaleOrDefault();
   const { session, loading, can } = useSession();
 
   const authenticated = session?.authenticated === true;
@@ -26,8 +29,8 @@ export default function RequirePermission({ permission, children }: Props) {
   useEffect(() => {
     if (loading || authenticated) return;
     const next = encodeURIComponent(safeNextUrl(pathname));
-    router.replace(`/login?next=${next}`);
-  }, [loading, authenticated, pathname, router]);
+    router.replace(localizePath(`/login?next=${next}`, pageLocale));
+  }, [loading, authenticated, pathname, router, pageLocale]);
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 import ContactRequestForm from "@/components/contact/ContactRequestForm";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 export const metadata: Metadata = {
   title: "Contact",

@@ -1,6 +1,6 @@
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import InquiryForm from "@/components/inquiry/InquiryForm";
@@ -70,7 +70,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return {
     title: listing.title[DEFAULT_LOCALE] || `${listing.brand_name} ${listing.model_name}`,
     description: listing.description[DEFAULT_LOCALE]?.slice(0, 160) || undefined,
-    alternates: { canonical: listingPath(listing) ?? undefined },
   };
 }
 

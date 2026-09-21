@@ -6,7 +6,6 @@ import ValuationForm from "@/components/valuation/ValuationForm";
 export const metadata: Metadata = {
   title: "What is my boat worth? Free valuation",
   description: "Free market-value estimate for your boat, based on comparable boats currently for sale on Nauta.",
-  alternates: { canonical: "/valuation/" },
 };
 
 const STEPS = [

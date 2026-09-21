@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import PageBand from "@/components/layout/PageBand";
 
 export const metadata: Metadata = {
   title: "Nauta for brokers and dealers",
   description: "Reach buyers across Italy and Spain, manage your fleet and leads, and add your team. 30-day free trial.",
-  alternates: { canonical: "/for-brokers/" },
 };
 
 const BENEFITS = [

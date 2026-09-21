@@ -21,7 +21,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const broker = await fetchBroker(slug);
   return {
     title: broker?.name ?? "Broker",
-    alternates: { canonical: `/brokers/${slug}/` },
   };
 }
 

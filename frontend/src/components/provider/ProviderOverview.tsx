@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import { fetchConversations, type ConversationRow } from "@/lib/api/conversations";

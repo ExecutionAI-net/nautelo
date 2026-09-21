@@ -2,7 +2,7 @@ import HomeSearch from "@/components/listings/HomeSearch";
 import FinanceSection from "@/components/finance/FinanceSection";
 import FeaturedSlider from "@/components/listings/FeaturedSlider";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import BoatCard from "@/components/listings/BoatCard";
 import AdLink from "@/components/content/AdLink";

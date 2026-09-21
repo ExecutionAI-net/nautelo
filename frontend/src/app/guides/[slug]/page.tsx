@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import AdSlot from "@/components/content/AdSlot";
@@ -17,7 +17,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return {
     title: guide.title,
     description: guide.excerpt || undefined,
-    alternates: { canonical: `/guides/${slug}/` },
   };
 }
 
