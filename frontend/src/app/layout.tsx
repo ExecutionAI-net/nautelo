@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
+import { clientMessages, loadMessages } from "@/i18n/server";
+import { MessagesProvider } from "@/i18n/client";
 import { LocaleProvider } from "@/components/layout/LocaleContext";
 import PrimaryNav from "@/components/layout/PrimaryNav";
 import SiteFooter from "@/components/layout/SiteFooter";
@@ -51,6 +53,7 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getRequestLocale();
+  const messages = clientMessages(await loadMessages(locale));
   return (
     <html lang={locale}>
       <head>
@@ -63,11 +66,13 @@ export default async function RootLayout({
         className={`${playfairDisplay.variable} ${plusJakartaSans.variable} bg-surface text-on-surface antialiased`}
       >
         <LocaleProvider locale={locale}>
-          <SessionProvider>
-            <PrimaryNav />
-            {children}
-            <SiteFooter />
-          </SessionProvider>
+          <MessagesProvider messages={messages}>
+            <SessionProvider>
+              <PrimaryNav />
+              {children}
+              <SiteFooter />
+            </SessionProvider>
+          </MessagesProvider>
         </LocaleProvider>
       </body>
     </html>
