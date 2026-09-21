@@ -72,6 +72,9 @@ def test_detail_never_contains_contact_details():
     assert "public_email" not in data
     assert "public_phone" not in data
     assert "website_url" not in data
+    # A team member's login e-mail is contact data too: it must not leave through the team list.
+    assert all("email" not in member for member in data["team"])
+    assert "c@example.com" not in response.content.decode()
 
 
 @pytest.mark.django_db

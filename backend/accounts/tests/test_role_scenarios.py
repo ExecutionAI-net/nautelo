@@ -210,7 +210,9 @@ def test_professional_journey(django_capture_on_commit_callbacks, storage):
     assert public.status_code == 200
     body = public.json()
     assert body["logo_url"].startswith("https://cdn.test/org-images/professional/")
-    assert [m["email"] for m in body["team"]] == ["owner@blue-rigging.example"]
+    # The public team list names people; it never carries their login e-mail.
+    assert len(body["team"]) == 1 and "email" not in body["team"][0]
+    assert "owner@blue-rigging.example" not in public.content.decode()
 
     # 7. Invite a colleague; they join as an agent who may read messages.
     with django_capture_on_commit_callbacks(execute=True):

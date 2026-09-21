@@ -110,13 +110,10 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                 {t(locale, "professional.team.heading")}
               </h2>
               <ul className="mt-space-sm grid gap-space-sm sm:grid-cols-2">
-                {professional.team.map((member) => (
-                  <li key={member.email} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+                {professional.team.map((member, index) => (
+                  <li key={`${member.name}-${index}`} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
                     <p className="font-title-md text-primary">{member.name}</p>
                     <p className="font-label-md text-on-surface-variant">{member.role}</p>
-                    <a className="font-body-sm text-secondary underline" href={`mailto:${member.email}`}>
-                      {member.email}
-                    </a>
                   </li>
                 ))}
               </ul>

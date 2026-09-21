@@ -73,7 +73,6 @@ export interface RelatedProfessional {
 
 export interface TeamMember {
   name: string;
-  email: string;
   role: string;
 }
 
