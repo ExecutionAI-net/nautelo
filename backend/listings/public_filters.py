@@ -140,7 +140,16 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
             | Q(**{f"{SNAP}specifications__cabins__in": list(wanted)})
         )
 
-    order = SORTS.get((params.get("sort") or "newest").strip(), SORTS["newest"])
+    sort = (params.get("sort") or "newest").strip()
+    order = SORTS.get(sort, SORTS["newest"])
+    if sort not in ("featured", "price_asc", "price_desc"):
+        # Running promotions come first in the everyday listings, then the normal order.
+        from django.utils import timezone
+
+        queryset = queryset.annotate(
+            _promo_rank=Case(When(featured_until__gt=timezone.now(), then=0), default=1, output_field=DecimalField(max_digits=2, decimal_places=0))
+        )
+        return queryset.order_by("_promo_rank", *order)
     return queryset.order_by(*order)
 
 

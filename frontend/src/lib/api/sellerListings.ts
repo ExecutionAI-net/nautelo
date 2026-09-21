@@ -219,6 +219,7 @@ export interface MyListingRow {
   slug: string | null;
   updated_at: string;
   expires_at: string | null;
+  featured_until?: string | null;
   price: string | null;
   currency: string;
   year: number | null;

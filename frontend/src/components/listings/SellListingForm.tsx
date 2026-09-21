@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import PromotionDialog from "@/components/promotion/PromotionDialog";
+import { tPromo } from "@/lib/i18n/promotion";
 import PlacePicker from "@/components/places/PlacePicker";
 import SearchSelect from "@/components/forms/SearchSelect";
 import type { Locale } from "@/lib/i18n/directory";
@@ -137,6 +139,13 @@ export default function SellListingForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [askPromo, setAskPromo] = useState(false);
+  const [promoPaid, setPromoPaid] = useState(false);
+  useEffect(() => {
+    // Stripe sends the seller back here with ?promotion=success once the promotion is paid.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
+    if (new URLSearchParams(window.location.search).get("promotion") === "success") setPromoPaid(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -909,7 +918,7 @@ export default function SellListingForm({
               <button
                 type="button"
                 disabled={busy || media.every((row) => row.status !== "READY")}
-                onClick={() => void submit()}
+                onClick={() => (promoPaid ? void submit() : setAskPromo(true))}
                 className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container disabled:opacity-50"
               >
                 {t("sell.submit")}
@@ -921,6 +930,20 @@ export default function SellListingForm({
             <p role="alert" className="text-error">
               {error}
             </p>
+          ) : null}
+          {promoPaid ? <p role="status" className="font-body-md text-secondary">{tPromo(locale, "promo.paid")}</p> : null}
+          {askPromo && listing ? (
+            <PromotionDialog
+              listingId={listing.id}
+              title={titles.en || titles.it || titles.es}
+              imageUrl={previewImage?.preview_url}
+              locale={locale}
+              returnPath={`/sell/${listing.id}/`}
+              onSkip={() => {
+                setAskPromo(false);
+                void submit();
+              }}
+            />
           ) : null}
         </div>
 
