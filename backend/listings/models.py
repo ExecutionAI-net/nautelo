@@ -96,6 +96,10 @@ class BoatListing(UUIDTimeStampedModel):
         related_name="+",
     )
     view_count_cached = models.BigIntegerField(default=0)
+    # Paid promotion ("featured"): featured while `featured_until` is in the future;
+    # `featured_at` orders the featured strip, newest first. Written only by promotions.services.
+    featured_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    featured_at = models.DateTimeField(null=True, blank=True)
     # Optimistic locking (spec §20.5); bumped by listings.locking.bump_version().
     version = models.PositiveIntegerField(default=1)
     # Spec 4.1's canonical /boats/<listing-slug>/. Assigned once, at first

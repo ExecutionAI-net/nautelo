@@ -343,6 +343,11 @@ def handle_checkout_session_paid(event) -> str:
         if result == WebhookResult.IGNORED:
             result = handle_broker_checkout(session)
         return result
+    from promotions.checkout import handle_checkout as handle_promotion_checkout
+
+    promo_result = handle_promotion_checkout(session)
+    if promo_result != WebhookResult.IGNORED:
+        return promo_result
     order = _locked_order_for(session)
     if order is None:
         return order_not_found(session)

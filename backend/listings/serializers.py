@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
 
@@ -220,6 +221,7 @@ class PublicListingSerializer(serializers.Serializer):
             ),
             "snapshot_version": snapshot.version,
             "published_at": listing.published_at,
+            "is_featured": bool(listing.featured_until and listing.featured_until > timezone.now()),
             "expires_at": listing.expires_at,
             "brand_name": snapshot.brand_name_snapshot,
             "model_name": snapshot.model_name_snapshot,
