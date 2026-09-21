@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const listings = vi.hoisted(() => ({
   fetchPublishedListings: vi.fn(),
-  fetchListingFacets: vi.fn().mockResolvedValue({ brands: [], countries: [], regions: ["Balearic Islands"], cities: [{ id: 6, name: "Palma" }], boat_types: ["Motor yacht"] }),
+  fetchListingFacets: vi.fn().mockResolvedValue({ brands: [], countries: ["ES", "IT"], regions: ["Balearic Islands"], cities: [{ id: 6, name: "Palma" }], boat_types: ["Motor yacht"] }),
 }));
 const ads = vi.hoisted(() => ({ fetchAds: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/api/listings", () => listings);
@@ -28,14 +28,15 @@ describe("Home", () => {
     const { container } = render(await Home());
     const form = container.querySelector("form#search-standard") as HTMLFormElement;
     const names = Array.from(form.elements).map((el) => (el as HTMLInputElement).name).filter(Boolean);
-    expect(names).toEqual(["boat_type", "place", "price_min", "price_max", "length_min", "length_max"]);
+    expect(names).toEqual(["boat_type", "price_min", "price_max", "length_min", "length_max"]);
     expect(screen.getByRole("option", { name: "Palma" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Spain" })).toBeTruthy();
   });
 
   it("offers a semantic tab that sends the description as mode=semantic", async () => {
     listings.fetchPublishedListings.mockResolvedValue({ results: [] });
     const { container } = render(await Home());
-    fireEvent.click(screen.getByRole("tab", { name: "Semantic search" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Describe your boat" }));
     const form = container.querySelector("form#search-semantic") as HTMLFormElement;
     expect(form.getAttribute("action")).toBe("/boats/");
     expect(Array.from(form.elements).map((el) => (el as HTMLInputElement).name).filter(Boolean)).toEqual(["mode", "query"]);
