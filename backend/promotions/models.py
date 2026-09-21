@@ -72,3 +72,25 @@ class ListingPromotion(UUIDTimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.listing_id} {self.plan.code} {self.status}"
+
+
+class PromotionDailyStat(models.Model):
+    """Impressions and clicks on featured placements, per target and day (UTC)."""
+
+    listing = models.ForeignKey("listings.BoatListing", null=True, blank=True, related_name="promo_stats", on_delete=models.CASCADE)
+    professional = models.ForeignKey(
+        "professionals.ProfessionalProfile", null=True, blank=True, related_name="promo_stats", on_delete=models.CASCADE
+    )
+    day = models.DateField()
+    impressions = models.PositiveIntegerField(default=0)
+    clicks = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["listing", "day"], condition=models.Q(listing__isnull=False), name="promo_stat_unique_listing_day"),
+            models.UniqueConstraint(fields=["professional", "day"], condition=models.Q(professional__isnull=False), name="promo_stat_unique_professional_day"),
+            models.CheckConstraint(
+                condition=(models.Q(listing__isnull=False, professional__isnull=True) | models.Q(listing__isnull=True, professional__isnull=False)),
+                name="promo_stat_exactly_one_target",
+            ),
+        ]

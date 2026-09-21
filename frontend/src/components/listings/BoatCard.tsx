@@ -1,6 +1,8 @@
 import { tPromo } from "@/lib/i18n/promotion";
 import Link from "next/link";
 
+import PromoTracker from "@/components/promotion/PromoTracker";
+
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
 import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { financingHref, listingPath, type ListingFinance, type PublicListing } from "@/lib/api/listings";
@@ -74,7 +76,7 @@ export default function BoatCard({
     .filter(Boolean)
     .join(" · ");
 
-  return (
+  const card = (
     <article className="flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
       {/* Spec §29.1: primary approved image or a defined placeholder. */}
       <div className="relative">
@@ -208,4 +210,5 @@ export default function BoatCard({
       </div>
     </article>
   );
+  return listing.is_featured ? <PromoTracker target="listing" id={listing.id}>{card}</PromoTracker> : card;
 }

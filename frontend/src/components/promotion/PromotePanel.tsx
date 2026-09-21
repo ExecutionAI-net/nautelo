@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import PromotionDialog from "@/components/promotion/PromotionDialog";
+import { apiFetch } from "@/lib/api/client";
 import { fetchMyListings, type MyListingRow } from "@/lib/api/sellerListings";
 
 /**
@@ -21,12 +22,19 @@ export default function PromotePanel({
   const [rows, setRows] = useState<MyListingRow[] | null>(null);
   const [target, setTarget] = useState<MyListingRow | "profile" | null>(null);
   const [paid, setPaid] = useState(false);
+  const [seen, setSeen] = useState<{ impressions: number; clicks: number } | null>(null);
 
   useEffect(() => {
     // Stripe returns here with ?promotion=success.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
     if (new URLSearchParams(window.location.search).get("promotion") === "success") setPaid(true);
-    if (mode !== "listings") return;
+    if (mode === "profile") {
+      apiFetch<{ profile: { impressions: number; clicks: number } | null }>("/api/v1/promotions/stats/").then(
+        (report) => setSeen(report.profile),
+        () => undefined,
+      );
+      return;
+    }
     fetchMyListings().then(
       (all) => setRows(all.filter((row) => row.seller_type === "BROKER" && (row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL"))),
       () => setRows([]),
@@ -46,6 +54,12 @@ export default function PromotePanel({
         Choose 1 week, 2 weeks or 1 month. The promotion starts when the {mode === "listings" ? "vessel is live" : "profile is live"}.
       </p>
       {paid ? <p role="status" className="mt-space-sm font-body-md text-secondary">Promotion paid. It starts as soon as it can go live.</p> : null}
+
+      {mode === "profile" && seen && seen.impressions > 0 ? (
+        <p className="mt-space-sm font-body-md text-secondary">
+          Your profile was seen {seen.impressions.toLocaleString("en")} times while featured, with {seen.clicks.toLocaleString("en")} clicks.
+        </p>
+      ) : null}
 
       {mode === "profile" ? (
         <button
@@ -72,6 +86,7 @@ export default function PromotePanel({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-title-md">{[row.year, row.title].filter(Boolean).join(" ")}</p>
                 <p className="font-body-sm text-on-surface-variant">
+                  {row.promo_impressions ? `Seen ${row.promo_impressions.toLocaleString("en")} times, ${(row.promo_clicks ?? 0).toLocaleString("en")} clicks. ` : ""}
                   {row.featured_until ? `Featured until ${new Date(row.featured_until).toLocaleDateString("en-GB")}` : row.status === "PUBLISHED" ? "Live" : "In review"}
                 </p>
               </div>

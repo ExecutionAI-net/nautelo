@@ -246,6 +246,7 @@ REST_FRAMEWORK = {
         "finance_quote": "120/min",
         "checkout_create": "30/min",
         "contact_request": "10/hour",
+        "promo_event": "1200/hour",
         # Eligibility is polled on every Sell/dashboard/create render (spec
         # §22.2 names five evaluation points), so it is sized like a page-load
         # endpoint rather than like the `auth` bucket. It is authenticated and
