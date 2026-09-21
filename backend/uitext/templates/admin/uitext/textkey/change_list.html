@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:uitext_textkey_publish' %}" class="addlink"
+       onclick="return confirm('Send all edited texts live on the platform now?');">
+      Publish to platform{% if pending_edits %} ({{ pending_edits }} edited){% endif %}
+    </a>
+  </li>
+  {{ block.super }}
+{% endblock %}
