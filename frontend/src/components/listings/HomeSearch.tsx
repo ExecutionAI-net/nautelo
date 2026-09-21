@@ -16,10 +16,28 @@ const EXAMPLES = [
  * The two ways to search from the home page: the filter form, or a sentence in English, Italian or Spanish.
  * Both land on /boats/; the sentence carries `mode=semantic` so the server reads it as a description.
  */
-export default function HomeSearch({ boatTypes, cities }: { boatTypes: string[]; cities: { id: number; name: string }[] }) {
+const countryName = (code: string) => {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
+
+export default function HomeSearch({
+  boatTypes,
+  cities,
+  countries = [],
+}: {
+  boatTypes: string[];
+  cities: { id: number; name: string }[];
+  countries?: string[];
+}) {
   const [tab, setTab] = useState<"standard" | "semantic">("standard");
+  // One "Location" choice: a whole country, or a single city. It is sent as `country` or `place`.
+  const [location, setLocation] = useState("");
   useEffect(() => {
-    // The footer's "Semantic search" link opens the home page on this tab, also when already on the home page.
+    // The footer's "Describe your boat" link opens the home page on this tab, also when already on the home page.
     const open = () => {
       if (window.location.hash === "#semantic") setTab("semantic");
     };
@@ -37,7 +55,7 @@ export default function HomeSearch({ boatTypes, cities }: { boatTypes: string[];
           Standard search
         </button>
         <button type="button" role="tab" id="tab-semantic-btn" aria-selected={tab === "semantic"} onClick={() => setTab("semantic")} className={tabClass(tab === "semantic")}>
-          Semantic search
+          Describe your boat
         </button>
       </div>
 
@@ -54,12 +72,25 @@ export default function HomeSearch({ boatTypes, cities }: { boatTypes: string[];
           </div>
           <div className="flex flex-col gap-1">
             <label className={LABEL} htmlFor="home-place">Location</label>
-            <select id="home-place" name="place" className={`${FIELD} cursor-pointer`}>
-              <option value="">Spain &amp; Italy (all cities)</option>
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>{city.name}</option>
-              ))}
+            <select id="home-place" value={location} onChange={(event) => setLocation(event.target.value)} className={`${FIELD} cursor-pointer`}>
+              <option value="">All countries</option>
+              {countries.length > 0 ? (
+                <optgroup label="Countries">
+                  {countries.map((code) => (
+                    <option key={code} value={`country:${code}`}>{countryName(code)}</option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {cities.length > 0 ? (
+                <optgroup label="Cities">
+                  {cities.map((city) => (
+                    <option key={city.id} value={`place:${city.id}`}>{city.name}</option>
+                  ))}
+                </optgroup>
+              ) : null}
             </select>
+            {location.startsWith("country:") ? <input type="hidden" name="country" value={location.slice(8)} /> : null}
+            {location.startsWith("place:") ? <input type="hidden" name="place" value={location.slice(6)} /> : null}
           </div>
           <div className="flex flex-col gap-1">
             <span className={LABEL}>Price range (€)</span>

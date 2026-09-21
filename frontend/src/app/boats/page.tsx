@@ -16,7 +16,15 @@ const CANONICAL_PATH = "/boats/";
 // (spec §18.1: "The disclaimer asterisk resolves within the card/list region").
 const DISCLAIMER_ID = "finance-disclaimer";
 
-const COUNTRY_NAMES: Record<string, string> = { ES: "Spain", IT: "Italy" };
+const COUNTRY_NAMES = new Proxy({} as Record<string, string>, {
+  get: (_target, code: string) => {
+    try {
+      return new Intl.DisplayNames(["en"], { type: "region" }).of(code.toUpperCase()) ?? code;
+    } catch {
+      return code;
+    }
+  },
+});
 
 const SORTS = [
   { value: "newest", label: "Newest" },
@@ -231,7 +239,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                 Country
               </label>
               <select id="f-country" name="country" defaultValue={filters.country ?? ""} className={FIELD}>
-                <option value="">Spain &amp; Italy</option>
+                <option value="">All countries</option>
                 {facets.countries.map((country) => (
                   <option key={country} value={country}>
                     {COUNTRY_NAMES[country] ?? country}
