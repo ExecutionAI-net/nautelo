@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import OrgLocationFields from "@/components/places/OrgLocationFields";
 import CompletenessChecklist from "@/components/team/CompletenessChecklist";
 import OrgImageUpload from "@/components/team/OrgImageUpload";
 import { ApiError } from "@/lib/api/client";
@@ -31,6 +32,7 @@ interface Draft {
   postal_code: string;
   region: string;
   country_code: string;
+  place_id: number | null;
   service_area: string;
 }
 
@@ -45,11 +47,12 @@ const EMPTY: Draft = {
   postal_code: "",
   region: "",
   country_code: "",
+  place_id: null,
   service_area: "",
 };
 
 function toDraft(profile: ProviderProfile): Draft {
-  return { ...profile, website_url: profile.website_url ?? "", service_area: profile.service_area.join(", ") };
+  return { ...profile, place_id: profile.place_id ?? null, website_url: profile.website_url ?? "", service_area: profile.service_area.join(", ") };
 }
 
 export default function ProviderProfileForm() {
@@ -132,10 +135,6 @@ export default function ProviderProfileForm() {
         <input className={FIELD} required value={draft.display_name} onChange={set("display_name")} />
       </label>
       <label className={LABEL}>
-        Country code
-        <input className={FIELD} required maxLength={2} value={draft.country_code} onChange={set("country_code")} />
-      </label>
-      <label className={LABEL}>
         Public email
         <input className={FIELD} type="email" required value={draft.public_email} onChange={set("public_email")} />
       </label>
@@ -147,14 +146,11 @@ export default function ProviderProfileForm() {
         Website
         <input className={FIELD} type="url" value={draft.website_url} onChange={set("website_url")} />
       </label>
-      <label className={LABEL}>
-        City
-        <input className={FIELD} value={draft.city} onChange={set("city")} />
-      </label>
-      <label className={LABEL}>
-        Region
-        <input className={FIELD} value={draft.region} onChange={set("region")} />
-      </label>
+      <OrgLocationFields
+        withRegion
+        value={{ country_code: draft.country_code, city: draft.city, region: draft.region, place_id: draft.place_id }}
+        onChange={(next) => setDraft({ ...draft, ...next })}
+      />
       <label className={LABEL}>
         Postal code
         <input className={FIELD} value={draft.postal_code} onChange={set("postal_code")} />

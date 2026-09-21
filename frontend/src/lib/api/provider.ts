@@ -14,6 +14,7 @@ export interface ProviderProfile {
   postal_code: string;
   region: string;
   country_code: string;
+  place_id?: number | null;
   service_area: string[];
   status: "DRAFT" | "PENDING" | "ACTIVE" | "SUSPENDED";
   completeness?: { percent: number; missing: string[] };

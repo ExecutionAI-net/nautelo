@@ -91,6 +91,7 @@ export interface ListingSearch {
   brand?: string;
   country?: string;
   region?: string;
+  place?: string;
   seller_type?: string;
   boat_type?: string;
   condition?: string;
@@ -111,6 +112,7 @@ export interface ListingFacets {
   brands: string[];
   countries: string[];
   regions: string[];
+  cities?: { id: number; name: string }[];
   boat_types?: string[];
   fuel_types?: string[];
 }

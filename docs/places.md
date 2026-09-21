@@ -20,4 +20,10 @@ python manage.py match_places       # dry run: shows what would change and what 
 python manage.py match_places --apply
 ```
 
-Not done: professional and broker profile cities are still free text (`brokers.BrokerOrganization.city`, `professionals.ProfessionalProfile.city`); they can use the same picker and a `place` foreign key later.
+Profiles: `BrokerOrganization` and `ProfessionalProfile` have `place_geoname_id`; their profile PATCH accepts `place_id` and then sets city, country (and region for professionals) to the canonical names; sending a free-text city without a place clears the place. Both dashboards use a country select plus the region/city picker.
+
+Boats page: the filter panel has a City select (`?place=<id>`) built from the cities present on live listings (`facets.cities`).
+
+Automatic first load: the migrate step of both compose files runs `ensure_places`, which queues the import on the maintenance queue when no cities exist (it never fails a release). The task also runs `match_places --apply`.
+
+`match_places` works on every snapshot that has no place (all versions of all listings, live or not); drafts and revisions in progress are not touched and get a place when the owner next picks a city.

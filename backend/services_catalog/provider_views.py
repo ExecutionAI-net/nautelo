@@ -33,6 +33,7 @@ class IsServiceProvider(BasePermission):
 
 class ProviderProfileSerializer(serializers.ModelSerializer):
     submit = serializers.BooleanField(write_only=True, required=False)
+    place_id = serializers.IntegerField(source="place_geoname_id", required=False, allow_null=True)
     completeness = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
@@ -56,9 +57,14 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         model = ProfessionalProfile
         fields = (
             "id", "display_name", "slug", "short_description", "description", "public_email", "public_phone",
-            "website_url", "city", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness", "logo_url", "cover_url",
+            "website_url", "city", "place_id", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness", "logo_url", "cover_url",
         )
         read_only_fields = ("id", "slug", "status", "logo_url", "cover_url")
+
+    def validate(self, attrs):
+        from places.matching import apply_place_to_attrs
+
+        return apply_place_to_attrs(attrs, has_region=True)
 
     def validate_display_name(self, value):
         return plain_text(value)

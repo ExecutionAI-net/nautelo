@@ -57,3 +57,11 @@ def test_length_filter_reads_either_spec_key():
     _publish(2, 100000, loa_m="30")
     hits = apply_public_filters(published_listings_queryset(), {"length_min": "11", "length_max": "13"})
     assert hits.count() == 1
+
+
+def test_facets_list_the_cities_that_have_a_place():
+    from listings.public_filters import facets
+    from listings.views import published_listings_queryset
+
+    _publish(1, 100000)
+    assert facets(published_listings_queryset())["cities"] == []
