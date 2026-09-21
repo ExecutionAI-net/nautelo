@@ -81,3 +81,16 @@ def test_services_are_scoped_to_the_owner():
     assert api.patch(url, {"is_active": False}, format="json").json()["is_active"] is False
     assert api.delete(url).status_code == 204
     assert ProfessionalProfile.objects.count() == 2
+
+
+def test_unverified_owner_can_read_but_not_change_the_profile():
+    client = APIClient()
+    client.force_authenticate(make_user(email="unver@example.com", role=UserRole.PROFESSIONAL, verified=False))
+    assert client.get(reverse("provider-profile")).status_code == 404
+    denied = client.post(reverse("provider-profile"), PROFILE, format="json")
+    assert denied.status_code == 403 and "email_not_verified" in str(denied.json())
+
+
+def test_country_outside_the_supported_markets_is_refused():
+    response = client_for(email="fr@example.com").post(reverse("provider-profile"), {**PROFILE, "country_code": "FR"}, format="json")
+    assert response.status_code == 400

@@ -216,3 +216,4 @@ screens (register, accept invite, team, billing, profile checklist).
 | R2-15 | Empty Messages/Leads state says what happens next. |
 | R2-21 | Brokers no longer see the private-seller "My listings" and "List my boat" entries. |
 | R2-26 | Membership and billing pages say "Membership is not open yet" when no plan exists. |
+| R2-4 | One rule: reads work for an unverified owner (the verify-email banner shows in every area); every change needs a verified email, now also on professional profile and services. |
