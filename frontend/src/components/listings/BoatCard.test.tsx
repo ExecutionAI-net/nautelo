@@ -105,7 +105,7 @@ describe("BoatCard", () => {
   it("shows the price and the view count for every card", () => {
     render(<BoatCard locale="en" listing={listing()} disclaimerId="d" />);
 
-    expect(screen.getByText("€459,000.00")).toBeInTheDocument();
+    expect(screen.getByText("€459,000")).toBeInTheDocument();
     expect(screen.getByText("149")).toBeInTheDocument();
     expect(screen.getByLabelText("149 views")).toBeInTheDocument();
     // ARIA 1.2 forbids aria-label on a generic role (axe: aria-prohibited-attr),
@@ -248,9 +248,9 @@ describe("BoatCard", () => {
   });
 
   it.each([
-    ["en" as const, "€459,000.00", "1,490 views"],
-    ["it" as const, "459.000,00 €", "1490 visualizzazioni"],
-    ["es" as const, "459.000,00 €", "1490 visualizaciones"],
+    ["en" as const, "€459,000", "1,490 views"],
+    ["it" as const, "459.000 €", "1490 visualizzazioni"],
+    ["es" as const, "459.000 €", "1490 visualizaciones"],
   ])("localises the price and the view count in %s", (locale, price, views) => {
     render(
       <BoatCard locale={locale} listing={listing({ view_count: 1490 })} disclaimerId="d" />,

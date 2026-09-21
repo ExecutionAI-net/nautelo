@@ -6,16 +6,58 @@ import { notFound } from "next/navigation";
 import InquiryForm from "@/components/inquiry/InquiryForm";
 import BoatCard from "@/components/listings/BoatCard";
 import ShareButtons from "@/components/listings/ShareButtons";
-import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
+import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
 import { fetchPublishedListingBySlug, fetchPublishedListings, financingHref, listingPath } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
+import { placeLabel } from "@/lib/i18n/places";
 
 export const dynamic = "force-dynamic";
 
 // Next 16: params is a Promise.
 type Params = Promise<{ slug: string }>;
+
+// The boat's own words for each stored spec, in the order a buyer reads them. Unknown keys still show, tidied.
+const SPEC_ORDER: [string, string][] = [
+  ["boat_type", "Boat type"],
+  ["condition", "Condition"],
+  ["loa_m", "Length (m)"],
+  ["length_m", "Length (m)"],
+  ["beam_m", "Beam (m)"],
+  ["draft_m", "Draft (m)"],
+  ["cabins", "Cabins"],
+  ["berths", "Berths"],
+  ["heads", "Bathrooms"],
+  ["hull_material", "Hull"],
+  ["engines", "Engines"],
+  ["engine_power_hp", "Engine power (hp)"],
+  ["engine_hours", "Engine hours"],
+  ["fuel_type", "Fuel"],
+  ["max_speed_kn", "Top speed (kn)"],
+  ["fuel_capacity_l", "Fuel tank (L)"],
+  ["water_capacity_l", "Water tank (L)"],
+  ["vat_paid", "VAT paid"],
+];
+
+function readableSpecs(specifications: Record<string, unknown>): { key: string; label: string; value: string }[] {
+  const shown = (value: unknown) =>
+    value === true ? "Yes" : value === false ? "No" : typeof value === "string" ? value.charAt(0).toUpperCase() + value.slice(1) : String(value);
+  const known = new Set(SPEC_ORDER.map(([key]) => key));
+  const rows: { key: string; label: string; value: string }[] = [];
+  const seenLabels = new Set<string>();
+  for (const [key, label] of SPEC_ORDER) {
+    const value = specifications[key];
+    if (value === null || value === undefined || value === "" || seenLabels.has(label)) continue;
+    seenLabels.add(label);
+    rows.push({ key, label, value: shown(value) });
+  }
+  for (const [key, value] of Object.entries(specifications)) {
+    if (known.has(key) || value === null || value === undefined || value === "") continue;
+    rows.push({ key, label: key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), value: shown(value) });
+  }
+  return rows;
+}
 
 const SITE_URL = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -42,17 +84,16 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
   const inquiryConfig = await fetchInquiryConfig();
   const modelName = listing.custom_model_name || listing.model_name;
   const heading = `${listing.manufacture_year} ${listing.brand_name} ${modelName}`;
-  const price = safeMoney(locale, listing.price.amount, listing.price.currency);
-  const location = [listing.location.city, listing.location.region, listing.location.country]
-    .filter(Boolean)
-    .join(", ");
+  const price = askingPrice(locale, listing.price.amount, listing.price.currency);
+  const location = placeLabel(listing.location);
   const canonicalUrl = `${SITE_URL}${listingPath(listing) ?? `/boats/${slug}/`}`;
   const images = listing.media.filter((item) => item.media_type === "IMAGE" && item.url);
-  const specs = Object.entries(listing.specifications).filter(
-    ([, value]) => value !== null && value !== "",
-  );
+  const specs = readableSpecs(listing.specifications);
 
-  const others = (await fetchPublishedListings({ page_size: "4", exclude: listing.id }).catch(() => null))?.results ?? [];
+  // Similar means the same kind of boat first; only when there are too few of those does it fall back to any boat.
+  const boatType = typeof listing.specifications.boat_type === "string" ? listing.specifications.boat_type : "";
+  const sameType = boatType ? ((await fetchPublishedListings({ page_size: "4", exclude: listing.id, boat_type: boatType }).catch(() => null))?.results ?? []) : [];
+  const others = sameType.length >= 2 ? sameType : ((await fetchPublishedListings({ page_size: "4", exclude: listing.id }).catch(() => null))?.results ?? []);
   const mainImage = images[0];
   const sideImages = images.slice(1, 3);
   const monthly =
@@ -68,7 +109,9 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
             {tf(locale, "boats.title")}
           </Link>
           <span aria-hidden="true"> / </span>
-          <span>{listing.brand_name}</span>
+          <Link href={`/boats/?brand=${encodeURIComponent(listing.brand_name)}`} className="hover:text-primary">
+            {listing.brand_name}
+          </Link>
         </nav>
 
         <div className="mt-space-md flex flex-col justify-between gap-space-md md:flex-row md:items-start">
@@ -79,10 +122,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
             <h1 className="mt-space-xs font-headline-lg text-headline-lg text-primary">
               {listing.title[locale] || heading}
             </h1>
-            <p className="mt-space-xs font-body-md text-on-surface-variant">
-              {heading}
-              {location ? ` · ${location}` : ""}
-            </p>
+            {location ? <p className="mt-space-xs font-body-md text-on-surface-variant">{location}</p> : null}
           </div>
           <div className="md:text-right">
             <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">Asking price</p>
@@ -114,10 +154,10 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
       {specs.length > 0 ? (
         <section aria-label="Key specifications" className="bg-surface-container-low py-space-md">
           <dl className="mx-auto grid max-w-[1440px] grid-cols-2 gap-space-sm px-margin-mobile sm:grid-cols-4 md:px-margin lg:grid-cols-6 lg:px-margin-desktop">
-            {specs.map(([key, value]) => (
-              <div key={key} className="rounded-lg bg-surface-container-lowest p-space-sm">
-                <dt className="font-label-sm uppercase text-on-surface-variant">{key.replace(/_/g, " ")}</dt>
-                <dd className="font-spec-num text-title-md text-primary">{String(value)}</dd>
+            {specs.map((spec) => (
+              <div key={spec.key} className="rounded-lg bg-surface-container-lowest p-space-sm">
+                <dt className="font-label-sm uppercase text-on-surface-variant">{spec.label}</dt>
+                <dd className="font-spec-num text-title-md text-primary">{spec.value}</dd>
               </div>
             ))}
           </dl>
