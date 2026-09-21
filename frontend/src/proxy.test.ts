@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
-import { proxy } from "@/proxy";
+import { config, proxy } from "@/proxy";
 
 const request = (path: string, cookie?: string, method = "GET") =>
   new NextRequest(`http://site.test${path}`, { method, headers: cookie ? { cookie: `nauta_locale=${cookie}` } : {} });
@@ -36,5 +36,11 @@ describe("proxy", () => {
   it("does not redirect a visitor who chose English, or anything that is not a page load", () => {
     expect(proxy(request("/boats/", "en")).status).toBe(200);
     expect(proxy(request("/boats/", "it", "POST")).status).toBe(200);
+  });
+
+  it("matcher covers pages (also prefixed ones) and skips the API, Next files and files with an extension", () => {
+    const re = new RegExp(`^${config.matcher[0]}$`);
+    for (const path of ["/", "/it/", "/es/boats/", "/boats/a-1/"]) expect(re.test(path)).toBe(true);
+    for (const path of ["/api/v1/x", "/_next/static/a.js", "/sitemap.xml", "/logo.png"]) expect(re.test(path)).toBe(false);
   });
 });
