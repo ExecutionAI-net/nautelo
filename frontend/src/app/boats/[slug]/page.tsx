@@ -1,3 +1,5 @@
+import { getT } from "@/i18n/server";
+import type { MessageKey, Translate } from "@/i18n";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "@/components/layout/LocaleLink";
@@ -19,34 +21,35 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ slug: string }>;
 
 // The boat's own words for each stored spec, in the order a buyer reads them. Unknown keys still show, tidied.
-const SPEC_ORDER: [string, string][] = [
-  ["boat_type", "Boat type"],
-  ["condition", "Condition"],
-  ["loa_m", "Length (m)"],
-  ["length_m", "Length (m)"],
-  ["beam_m", "Beam (m)"],
-  ["draft_m", "Draft (m)"],
-  ["cabins", "Cabins"],
-  ["berths", "Berths"],
-  ["heads", "Bathrooms"],
-  ["hull_material", "Hull"],
-  ["engines", "Engines"],
-  ["engine_power_hp", "Engine power (hp)"],
-  ["engine_hours", "Engine hours"],
-  ["fuel_type", "Fuel"],
-  ["max_speed_kn", "Top speed (kn)"],
-  ["fuel_capacity_l", "Fuel tank (L)"],
-  ["water_capacity_l", "Water tank (L)"],
-  ["vat_paid", "VAT paid"],
+const SPEC_ORDER: [string, MessageKey][] = [
+  ["boat_type", "boat.spec.boat_type"],
+  ["condition", "boat.spec.condition"],
+  ["loa_m", "boat.spec.length"],
+  ["length_m", "boat.spec.length"],
+  ["beam_m", "boat.spec.beam"],
+  ["draft_m", "boat.spec.draft"],
+  ["cabins", "boat.spec.cabins"],
+  ["berths", "boat.spec.berths"],
+  ["heads", "boat.spec.bathrooms"],
+  ["hull_material", "boat.spec.hull"],
+  ["engines", "boat.spec.engines"],
+  ["engine_power_hp", "boat.spec.engine_power"],
+  ["engine_hours", "boat.spec.engine_hours"],
+  ["fuel_type", "boat.spec.fuel"],
+  ["max_speed_kn", "boat.spec.top_speed"],
+  ["fuel_capacity_l", "boat.spec.fuel_tank"],
+  ["water_capacity_l", "boat.spec.water_tank"],
+  ["vat_paid", "boat.spec.vat_paid"],
 ];
 
-function readableSpecs(specifications: Record<string, unknown>): { key: string; label: string; value: string }[] {
+function readableSpecs(specifications: Record<string, unknown>, t: Translate): { key: string; label: string; value: string }[] {
   const shown = (value: unknown) =>
-    value === true ? "Yes" : value === false ? "No" : typeof value === "string" ? value.charAt(0).toUpperCase() + value.slice(1) : String(value);
+    value === true ? t("boat.yes") : value === false ? t("boat.no") : typeof value === "string" ? value.charAt(0).toUpperCase() + value.slice(1) : String(value);
   const known = new Set(SPEC_ORDER.map(([key]) => key));
   const rows: { key: string; label: string; value: string }[] = [];
   const seenLabels = new Set<string>();
-  for (const [key, label] of SPEC_ORDER) {
+  for (const [key, labelKey] of SPEC_ORDER) {
+    const label = t(labelKey);
     const value = specifications[key];
     if (value === null || value === undefined || value === "" || seenLabels.has(label)) continue;
     seenLabels.add(label);
@@ -65,7 +68,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { slug } = await params;
   const listing = await fetchPublishedListingBySlug(slug);
   if (!listing) {
-    return { title: "Boat" };
+    return { title: (await getT())("boat.meta_title") };
   }
   return {
     title: listing.title[DEFAULT_LOCALE] || `${listing.brand_name} ${listing.model_name}`,
@@ -76,6 +79,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function BoatDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
   const locale = await getRequestLocale();
+  const t = await getT();
   const listing = await fetchPublishedListingBySlug(slug);
   if (!listing) {
     notFound();
@@ -87,7 +91,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
   const location = placeLabel(listing.location);
   const canonicalUrl = `${SITE_URL}${listingPath(listing) ?? `/boats/${slug}/`}`;
   const images = listing.media.filter((item) => item.media_type === "IMAGE" && item.url);
-  const specs = readableSpecs(listing.specifications);
+  const specs = readableSpecs(listing.specifications, t);
 
   // Similar means the same kind of boat first; only when there are too few of those does it fall back to any boat.
   const boatType = typeof listing.specifications.boat_type === "string" ? listing.specifications.boat_type : "";
@@ -103,7 +107,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
   return (
     <main className="w-full bg-surface">
       <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-lg md:px-margin lg:px-margin-desktop">
-        <nav aria-label="Breadcrumb" className="font-body-sm text-on-surface-variant">
+        <nav aria-label={t("boat.breadcrumb")} className="font-body-sm text-on-surface-variant">
           <Link href="/boats/" className="hover:text-primary">
             {tf(locale, "boats.title")}
           </Link>
@@ -116,7 +120,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
         <div className="mt-space-md flex flex-col justify-between gap-space-md md:flex-row md:items-start">
           <div>
             <span className="rounded bg-surface-container px-2 py-0.5 font-label-sm uppercase text-on-surface-variant">
-              {listing.seller_type === "BROKER" ? "Professional seller" : "Private seller"}
+              {listing.seller_type === "BROKER" ? t("boat.professional_seller") : t("boat.private_seller")}
             </span>
             <h1 className="mt-space-xs font-headline-lg text-headline-lg text-primary">
               {listing.title[locale] || heading}
@@ -124,7 +128,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
             {location ? <p className="mt-space-xs font-body-md text-on-surface-variant">{location}</p> : null}
           </div>
           <div className="md:text-right">
-            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">Asking price</p>
+            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.asking_price")}</p>
             {price ? <p className="font-spec-num text-headline-lg font-semibold text-primary">{price}</p> : null}
             <div className="mt-space-xs">
               <ShareButtons url={canonicalUrl} locale={locale} />
@@ -151,7 +155,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
       </div>
 
       {specs.length > 0 ? (
-        <section aria-label="Key specifications" className="bg-surface-container-low py-space-md">
+        <section aria-label={t("boat.key_specs")} className="bg-surface-container-low py-space-md">
           <dl className="mx-auto grid max-w-[1440px] grid-cols-2 gap-space-sm px-margin-mobile sm:grid-cols-4 md:px-margin lg:grid-cols-6 lg:px-margin-desktop">
             {specs.map((spec) => (
               <div key={spec.key} className="rounded-lg bg-surface-container-lowest p-space-sm">
@@ -167,7 +171,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
         <div>
           {listing.description[locale] ? (
             <>
-              <h2 className="font-headline-md text-headline-md text-primary">Description</h2>
+              <h2 className="font-headline-md text-headline-md text-primary">{t("boat.description")}</h2>
               <p className="mt-space-md whitespace-pre-line rounded-xl bg-surface-container-lowest p-space-lg font-body-md text-on-surface shadow-sm">
                 {listing.description[locale]}
               </p>
@@ -176,7 +180,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
           {monthly ? (
             <div className="mt-space-lg flex flex-col justify-between gap-space-sm rounded-xl bg-surface-container-low p-space-lg sm:flex-row sm:items-center">
               <div>
-                <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">Marine financing</p>
+                <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.marine_financing")}</p>
                 <p className="font-title-lg text-title-lg text-primary">
                   {tf(locale, "finance.estimated_payment")} {monthly}
                   {tf(locale, "finance.per_month")}
@@ -195,7 +199,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
         <aside className="flex flex-col gap-space-md">
           <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
             <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">
-              {listing.broker ? "Listing brokerage" : "Private seller"}
+              {listing.broker ? t("boat.listing_brokerage") : t("boat.private_seller")}
             </p>
             {listing.broker ? (
               <p className="font-title-md text-title-md text-primary">
@@ -219,8 +223,8 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
       {others.length > 0 ? (
         <section className="bg-surface-container-low py-space-xl">
           <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
-            <span className="font-label-sm uppercase tracking-widest text-secondary">Curated selection</span>
-            <h2 className="mb-space-lg font-headline-lg text-headline-lg text-primary">Similar boats</h2>
+            <span className="font-label-sm uppercase tracking-widest text-secondary">{t("boat.curated")}</span>
+            <h2 className="mb-space-lg font-headline-lg text-headline-lg text-primary">{t("boat.similar")}</h2>
             <ul className="grid grid-cols-1 gap-space-lg sm:grid-cols-2 lg:grid-cols-4">
               {others.map((item) => (
                 <li key={item.id}>
