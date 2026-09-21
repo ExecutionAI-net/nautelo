@@ -828,7 +828,7 @@ export default function EnginesMaintenance() {
 </div>
 <div className="p-space-md flex flex-col justify-between flex-grow">
 <p className="font-body-md text-body-md text-on-surface-variant mb-space-md">
-              Cross-border Spanish matriculation tax (IEDMT), Italian VAT structuring, and MYBA vessel sales contract escrow management.
+              Cross-border Spanish matriculation tax (IEDMT), Italian VAT structuring, and vessel sales contract review.
             </p>
 <div className="flex items-center text-secondary font-title-md text-title-md gap-space-xs">
 <span>Learn more</span>

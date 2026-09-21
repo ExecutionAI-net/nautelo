@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "common",
     "accounts",
     "brokers",
+    "contactdesk",
     "professionals",
     "services_catalog",
     "audit",
@@ -237,6 +238,7 @@ REST_FRAMEWORK = {
         # session and well below scripted enumeration of the catalogue.
         "finance_quote": "120/min",
         "checkout_create": "30/min",
+        "contact_request": "10/hour",
         # Eligibility is polled on every Sell/dashboard/create render (spec
         # §22.2 names five evaluation points), so it is sized like a page-load
         # endpoint rather than like the `auth` bucket. It is authenticated and

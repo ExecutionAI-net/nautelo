@@ -263,7 +263,7 @@ export default function LegalServices() {
 <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Sellers</span>
 <h3 className="font-title-lg text-title-lg text-primary mt-1">Clear Title Transfer</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-                Owners selling registered vessels across European borders requiring swift flag deletion, escrow fund security, and liability indemnification post-delivery.
+                Owners selling registered vessels across European borders requiring swift flag deletion and liability indemnification post-delivery.
               </p>
 </div>
 <span className="text-primary font-label-md text-label-md mt-space-md inline-flex items-center gap-1">Closing protocols <span className="material-symbols-outlined text-[14px]">chevron_right</span></span>
@@ -344,9 +344,9 @@ export default function LegalServices() {
 <span className="font-display-hero text-headline-lg text-surface-tint opacity-30">03</span>
 <span className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary font-semibold text-body-sm">III</span>
 </div>
-<h3 className="font-title-lg text-title-lg text-primary">Escrow &amp; Closing Protocol</h3>
+<h3 className="font-title-lg text-title-lg text-primary">Closing Protocol</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-              Supervision of surveyor findings, deposit settlement held in dedicated client trust accounts, notarial execution of Bill of Sale, and protocol of delivery.
+              Supervision of surveyor findings, settlement of agreed conditions, notarial execution of Bill of Sale, and protocol of delivery.
             </p>
 </div>
 <div className="pt-space-md font-label-sm text-label-sm text-secondary uppercase tracking-wider">
@@ -378,8 +378,8 @@ export default function LegalServices() {
 <aside className="w-full p-space-lg rounded-lg bg-[#F2F6F6] border border-dashed border-outline-variant/60 flex flex-col md:flex-row items-center justify-between gap-space-md">
 <div className="flex flex-col gap-1 text-center md:text-left">
 <span className="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant font-semibold">ADVERTISEMENT</span>
-<p className="font-headline-sm text-headline-sm text-primary">Tirreno Marine Notary &amp; Escrow Services — Genoa &amp; Palma de Mallorca</p>
-<p className="font-body-sm text-body-sm text-on-surface-variant">Independent escrow deposit management and certified nautical notarisation services across the Western Mediterranean basin.</p>
+<p className="font-headline-sm text-headline-sm text-primary">Tirreno Marine Notary Services — Genoa &amp; Palma de Mallorca</p>
+<p className="font-body-sm text-body-sm text-on-surface-variant">Certified nautical notarisation services across the Western Mediterranean basin.</p>
 </div>
 <div className="shrink-0">
 <Link href="/services/professionals/" className="inline-flex items-center gap-2 px-space-md py-2.5 rounded bg-surface-container-lowest text-primary hover:bg-surface text-body-sm font-semibold transition-colors shadow-sm" >
@@ -444,7 +444,7 @@ export default function LegalServices() {
 <div>
 <h3 className="font-title-md text-title-md text-primary">Draft MoA or broker sales agreement</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                  Any existing signed offer, MYBA agreement, or pre-contract draft defining agreed price, escrow parameters, survey deadlines, and delivery location.
+                  Any existing signed offer, MYBA agreement, or pre-contract draft defining agreed price, survey deadlines, and delivery location.
                 </p>
 </div>
 </div>
@@ -688,10 +688,9 @@ export default function LegalServices() {
 
 <div className="p-space-lg rounded-lg bg-surface-container-lowest shadow-sm flex flex-col justify-between">
 <div>
-<h3 className="font-title-lg text-title-lg text-primary">Can a nautical lawyer hold deposit funds during sea trial and survey inspections?</h3>
+<h3 className="font-title-lg text-title-lg text-primary">Does Nauta or a lawyer on Nauta hold my money?</h3>
 <p className="font-body-md text-body-md text-on-surface-variant mt-3 leading-relaxed">
-              Yes. Maritime attorneys maintain segregated client trust escrow accounts (<em className="text-primary font-medium">cuenta de depósito / conto terzi</em>). The typically required 10% buyer deposit is held securely in escrow and is only released to the seller upon mutual execution of the protocol of delivery, or immediately refunded should the vessel exhibit unacceptable structural hull defects during surveyor inspection.
-            </p>
+              No. Nauta never holds or transfers funds. How a deposit is handled is agreed directly between buyer, seller and their advisers, and a lawyer can explain the options that apply in Spain and Italy.</p>
 </div>
 <span className="mt-space-md pt-space-xs font-label-sm text-label-sm text-secondary uppercase tracking-wider flex items-center gap-1">
 <span className="material-symbols-outlined text-[16px]">info</span>
@@ -775,7 +774,7 @@ export default function LegalServices() {
             Secure your Mediterranean boat transaction today
           </h2>
 <p className="font-body-lg text-body-lg text-on-primary-container mt-1">
-            Connect directly with verified nautical attorneys in Spain and Italy. Protect against undisclosed liens, ensure proper flag deletion, and establish bulletproof escrow protocols.
+            Connect directly with verified nautical attorneys in Spain and Italy. Protect against undisclosed liens, ensure proper flag deletion, and get the paperwork right.
           </p>
 </div>
 <div className="flex flex-col sm:flex-row items-center gap-space-md shrink-0">

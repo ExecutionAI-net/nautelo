@@ -50,8 +50,8 @@ export default function FullBrokerage() {
 </div>
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-1">
 <span className="material-symbols-outlined text-secondary text-2xl">account_balance</span>
-<span className="font-title-md text-title-md text-primary pt-1">End-to-End Escrow</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Secure stakeholder accounts safeguarding international deposits.</span>
+<span className="font-title-md text-title-md text-primary pt-1">End-to-End Support</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant">One accountable broker from first viewing to handover.</span>
 </div>
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-1">
 <span className="material-symbols-outlined text-secondary text-2xl">hub</span>
@@ -207,10 +207,10 @@ export default function FullBrokerage() {
 </div>
 <h3 className="font-title-lg text-title-lg text-primary mb-space-xs">Coordinating the sales process</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-              Supervision of haul-out and marine surveys, dispute mitigation on survey defect reports, escrow fund transfers, legal Bill of Sale execution, and formal delivery acceptance protocols.
+              Supervision of haul-out and marine surveys, dispute mitigation on survey defect reports, legal Bill of Sale execution, and formal delivery acceptance protocols.
             </p>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase font-semibold mt-space-md">06 · Escrow &amp; Handover</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase font-semibold mt-space-md">06 · Closing &amp; Handover</span>
 </div>
 </div>
 </div>
@@ -252,7 +252,7 @@ export default function FullBrokerage() {
 <span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">Step-by-Step Execution</span>
 <h2 className="font-headline-md text-headline-md text-primary">How the service works</h2>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-xl">
-          From initial naval assessment to funds release in escrow, each phase adheres to verified international maritime protocols.
+          From initial naval assessment to handover, each phase adheres to verified international maritime protocols.
         </p>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
@@ -285,7 +285,7 @@ export default function FullBrokerage() {
 <div className="font-display-hero text-display-hero text-surface-container-high font-semibold leading-none mb-2">04</div>
 <h3 className="font-title-lg text-title-lg text-primary mb-space-xs">Completion &amp; Handover</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-            Resolution of survey conditions, supervision of closing funds in an escrow account, preparation of notarized Bills of Sale, flag deletion certificates, and formal vessel handover protocol.
+            Resolution of survey conditions, coordination of the closing, preparation of notarized Bills of Sale, flag deletion certificates, and formal vessel handover protocol.
           </p>
 </div>
 </div>

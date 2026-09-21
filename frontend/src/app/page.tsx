@@ -275,7 +275,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 </div>
 <h3 className="font-title-lg text-title-lg text-primary mb-2">Full brokerage</h3>
 <p className="font-body-md text-body-md text-on-surface-variant mb-space-md">
-              Complete negotiation, escrow protection, and sea trial management handled by certified nautical brokers.
+              Complete negotiation, survey coordination, and sea trial management handled by certified nautical brokers.
             </p>
 </div>
 <Link className="inline-flex items-center gap-1 text-secondary hover:text-primary font-label-md text-label-md group" href="/services/professionals/">
