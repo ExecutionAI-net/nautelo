@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import LocationPicker from "@/components/listings/LocationPicker";
+import LocationFields from "@/components/listings/LocationFields";
+import type { FacetLocation } from "@/lib/api/listings";
 
 const FIELD =
   "w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline";
@@ -18,26 +19,8 @@ const EXAMPLES = [
  * The two ways to search from the home page: the filter form, or a sentence in English, Italian or Spanish.
  * Both land on /boats/; the sentence carries `mode=semantic` so the server reads it as a description.
  */
-const countryName = (code: string) => {
-  try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-};
-
-export default function HomeSearch({
-  boatTypes,
-  cities,
-  countries = [],
-}: {
-  boatTypes: string[];
-  cities: { id: number; name: string }[];
-  countries?: string[];
-}) {
+export default function HomeSearch({ boatTypes, locations = [] }: { boatTypes: string[]; locations?: FacetLocation[] }) {
   const [tab, setTab] = useState<"standard" | "semantic">("standard");
-  // One "Location" choice: a whole country, or a single city. It is sent as `country` or `place`.
-  const [location, setLocation] = useState("");
   useEffect(() => {
     // The footer's "Describe your boat" link opens the home page on this tab, also when already on the home page.
     const open = () => {
@@ -72,20 +55,7 @@ export default function HomeSearch({
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className={LABEL} htmlFor="home-place">Location</label>
-            <LocationPicker
-              id="home-place"
-              options={[
-                ...countries.map((code) => ({ value: `country:${code}`, label: countryName(code), kind: "Country" })),
-                ...cities.map((city) => ({ value: `place:${city.id}`, label: city.name, kind: "City" })),
-              ]}
-              value={location}
-              onChange={setLocation}
-            />
-            {location.startsWith("country:") ? <input type="hidden" name="country" value={location.slice(8)} /> : null}
-            {location.startsWith("place:") ? <input type="hidden" name="place" value={location.slice(6)} /> : null}
-          </div>
+          <LocationFields locations={locations} idPrefix="home" />
           <div className="flex flex-col gap-1">
             <span className={LABEL}>Price range (€)</span>
             <div className="grid grid-cols-2 gap-2">
@@ -93,7 +63,7 @@ export default function HomeSearch({
               <input className={FIELD} placeholder="Max price" aria-label="Maximum price" name="price_max" min="0" type="number" />
             </div>
           </div>
-          <div className="flex flex-col gap-1 md:col-span-2">
+          <div className="flex flex-col gap-1">
             <span className={LABEL}>Length (metres)</span>
             <div className="grid grid-cols-2 gap-2">
               <input className={FIELD} placeholder="Min length" aria-label="Minimum length" name="length_min" min="0" step="0.5" type="number" />

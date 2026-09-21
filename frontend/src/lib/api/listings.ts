@@ -112,11 +112,21 @@ export interface ListingSearch {
   sort?: string;
 }
 
+/** One place boats are listed in, with how many. */
+export interface FacetLocation {
+  country: string;
+  region: string;
+  place_id: number | null;
+  city: string;
+  count: number;
+}
+
 export interface ListingFacets {
   brands: string[];
   countries: string[];
   regions: string[];
   cities?: { id: number; name: string }[];
+  locations?: FacetLocation[];
   boat_types?: string[];
   fuel_types?: string[];
 }

@@ -91,6 +91,10 @@ def test_facets_list_distinct_choices(api, catalogue):
     assert body["brands"] == ["Bavaria", "Lagoon", "Sanlorenzo"]
     assert body["countries"] == ["ES", "IT"]
     assert "Liguria" in body["regions"]
+    # Every location row carries its own country and region, so the filter can offer only what belongs together.
+    assert {row["country"] for row in body["locations"]} == {"ES", "IT"}
+    assert all(set(row) == {"country", "region", "place_id", "city", "count"} and row["count"] >= 1 for row in body["locations"])
+    assert sum(row["count"] for row in body["locations"]) == len(api.get(reverse("listing-list")).json()["results"])
 
 
 def test_exclude_drops_one_listing_and_ignores_garbage(api, catalogue):

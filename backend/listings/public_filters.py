@@ -179,7 +179,20 @@ def facets(queryset: QuerySet) -> dict:
         .order_by()
         .distinct()
     }
+    # Country > region > city, with the number of boats in each city, so the filter can offer only what belongs together.
+    from django.db.models import Count
+
+    locations = [
+        {"country": country, "region": region or "", "place_id": pid, "city": city or "", "count": count}
+        for country, region, pid, city, count in queryset.order_by()
+        .values(f"{SNAP}location_country", f"{SNAP}location_region", f"{SNAP}location_place_id", f"{SNAP}location_city")
+        .annotate(n=Count("id"))
+        .values_list(f"{SNAP}location_country", f"{SNAP}location_region", f"{SNAP}location_place_id", f"{SNAP}location_city", "n")
+        if country
+    ]
+    locations.sort(key=lambda row: (row["country"], row["region"], row["city"]))
     return {
+        "locations": locations,
         "cities": [{"id": pid, "name": name} for pid, name in sorted(cities.items(), key=lambda item: item[1])],
         "brands": sorted(brands),
         "countries": sorted(countries),

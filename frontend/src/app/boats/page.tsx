@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdSlot from "@/components/content/AdSlot";
 import BoatCard from "@/components/listings/BoatCard";
 import { isFinanceablePrice } from "@/components/listings/money";
+import LocationFields from "@/components/listings/LocationFields";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 import { tf } from "@/lib/i18n/finance";
@@ -234,47 +235,12 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               </label>
               <input id="f-model" name="model" defaultValue={filters.model ?? ""} placeholder="Any model" className={FIELD} />
             </div>
-            <div>
-              <label className={LABEL} htmlFor="f-country">
-                Country
-              </label>
-              <select id="f-country" name="country" defaultValue={filters.country ?? ""} className={FIELD}>
-                <option value="">All countries</option>
-                {facets.countries.map((country) => (
-                  <option key={country} value={country}>
-                    {COUNTRY_NAMES[country] ?? country}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={LABEL} htmlFor="f-region">
-                Region
-              </label>
-              <select id="f-region" name="region" defaultValue={filters.region ?? ""} className={FIELD}>
-                <option value="">All regions</option>
-                {facets.regions.map((region) => (
-                  <option key={region} value={region}>
-                    {region}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {(facets.cities ?? []).length > 0 ? (
-              <div>
-                <label className={LABEL} htmlFor="f-place">
-                  City
-                </label>
-                <select id="f-place" name="place" defaultValue={filters.place ?? ""} className={FIELD}>
-                  <option value="">All cities</option>
-                  {(facets.cities ?? []).map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
+            <LocationFields
+              key={`${filters.country ?? ""}|${filters.place ?? ""}`}
+              locations={facets.locations ?? []}
+              idPrefix="f"
+              initial={{ country: filters.country, place: filters.place }}
+            />
             <fieldset>
               <legend className={LABEL}>Price range (€)</legend>
               <div className="grid grid-cols-2 gap-space-xs">
