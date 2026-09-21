@@ -76,6 +76,10 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
     if country:
         queryset = queryset.filter(**{f"{SNAP}location_country": country})
 
+    place = _int(params.get("place"))
+    if place is not None:
+        queryset = queryset.filter(**{f"{SNAP}location_place_id": place})
+
     region = (params.get("region") or "").strip()
     if region:
         queryset = queryset.filter(**{f"{SNAP}location_region__iexact": region})
