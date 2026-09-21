@@ -16,6 +16,7 @@ const SELL: Record<string, Entry> = {
   "sell.listing_title": { en: "Title", it: "Titolo", es: "Título" },
   "sell.description": { en: "Description", it: "Descrizione", es: "Descripción" },
   "sell.country": { en: "Country", it: "Paese", es: "País" },
+  "sell.city_hint": { en: "Choose your city from the list.", it: "Scegli la città dall'elenco.", es: "Elige tu ciudad de la lista." },
   "sell.city": { en: "City", it: "Città", es: "Ciudad" },
   "sell.price": { en: "Price (EUR)", it: "Prezzo (EUR)", es: "Precio (EUR)" },
   "sell.save_draft": { en: "Save draft", it: "Salva bozza", es: "Guardar borrador" },

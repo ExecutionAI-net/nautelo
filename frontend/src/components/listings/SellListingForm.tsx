@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import PlacePicker from "@/components/places/PlacePicker";
 import SearchSelect from "@/components/forms/SearchSelect";
 import type { Locale } from "@/lib/i18n/directory";
 import { tSell } from "@/lib/i18n/sell";
@@ -123,6 +124,7 @@ export default function SellListingForm({
   const [country, setCountry] = useState(text(seed, "location_country"));
   const [region, setRegion] = useState(text(seed, "location_region"));
   const [city, setCity] = useState(text(seed, "location_city"));
+  const [placeId, setPlaceId] = useState<number | null>(typeof seed.location_place_id === "number" ? seed.location_place_id : null);
   const [price, setPrice] = useState(text(seed, "price"));
   const [showFinance, setShowFinance] = useState(seed.show_finance_estimate === true);
   const [downOverride, setDownOverride] = useState(text(seed, "finance_down_payment_override_percent"));
@@ -305,6 +307,7 @@ export default function SellListingForm({
       location_country: country.toUpperCase(),
       location_region: region,
       location_city: city,
+      ...(placeId !== null ? { location_place_id: placeId } : {}),
       price,
       currency: "EUR",
     };
@@ -757,11 +760,17 @@ export default function SellListingForm({
                   emptyText={t("sell.no_results")}
                   required
                 />
-                <label className={LABEL}>{t("sell.region")}<input className={FIELD} value={region} onChange={(e) => setRegion(e.target.value)} /></label>
-                <label className={LABEL}>
-                  {t("sell.city")}
-                  <input className={FIELD} value={city} onChange={(e) => setCity(e.target.value)} required />
-                </label>
+                <PlacePicker
+                  country={country}
+                  locale={locale}
+                  value={{ placeId, city, region }}
+                  onChange={(next) => {
+                    setPlaceId(next.placeId);
+                    setCity(next.city);
+                    setRegion(next.region);
+                  }}
+                  labels={{ region: t("sell.region"), city: t("sell.city"), hint: t("sell.city_hint") }}
+                />
                 <label className={LABEL}>{t("sell.berth")}<input className={FIELD} value={specs.berth} onChange={(e) => setSpec("berth", e.target.value)} /></label>
               </div>
               {brokerId ? (
