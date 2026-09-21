@@ -212,7 +212,7 @@ export function tf(
 // needs a tag. Spain and Italy are exact; en-IE is the euro-native English
 // locale, so an English reader of a Spanish or Italian listing does not get
 // British or American grouping over a euro amount.
-const INTL_LOCALES: Record<Locale, string> = {
+export const INTL_LOCALES: Record<Locale, string> = {
   en: "en-IE",
   it: "it-IT",
   es: "es-ES",

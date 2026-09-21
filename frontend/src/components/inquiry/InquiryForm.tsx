@@ -268,27 +268,34 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
           />
         </label>
 
-        <label className="block font-label-md text-label-md" htmlFor="inquiry-email">
-          {tInquiry(locale, "inquiry.email")}
-          <input
-            id="inquiry-email"
-            name="email"
-            type="email"
-            readOnly
-            value={user?.email ?? ""}
-            className={`${FIELD_CLASS} bg-surface-container`}
-          />
-        </label>
-        {/* Spec 15.1 asks for an "Update in account" affordance beside the
-            read-only email. There is no /account/ PAGE yet - frontend/src/app
-            holds only 403, health, login, professionals, services and
-            verify-email - and linking to a 404 would be worse than explaining
-            the rule in place, so this is text until Phase 16 or 20 builds the
-            account screen. Recorded in Known Limitations. `GET|PATCH
-            /api/v1/account/` (Phase 3) already exists behind it. */}
-        <p className="font-body-sm text-on-surface-variant">
-          {tInquiry(locale, "inquiry.email_hint")}
-        </p>
+        {isSignedIn ? (
+          <>
+            <label className="block font-label-md text-label-md" htmlFor="inquiry-email">
+            {tInquiry(locale, "inquiry.email")}
+            <input
+              id="inquiry-email"
+              name="email"
+              type="email"
+              readOnly
+              value={user?.email ?? ""}
+              className={`${FIELD_CLASS} bg-surface-container`}
+            />
+          </label>
+          {/* Spec 15.1 asks for an "Update in account" affordance beside the
+              read-only email. There is no /account/ PAGE yet - frontend/src/app
+              holds only 403, health, login, professionals, services and
+              verify-email - and linking to a 404 would be worse than explaining
+              the rule in place, so this is text until Phase 16 or 20 builds the
+              account screen. Recorded in Known Limitations. `GET|PATCH
+              /api/v1/account/` (Phase 3) already exists behind it. */}
+          <p className="font-body-sm text-on-surface-variant">
+            {tInquiry(locale, "inquiry.email_hint")}
+          </p>
+  
+            </>
+        ) : (
+          <p className="font-body-sm text-on-surface-variant">{tInquiry(locale, "inquiry.guest_hint")}</p>
+        )}
 
         <label className="block font-label-md text-label-md" htmlFor="inquiry-phone">
           {tInquiry(locale, "inquiry.phone")}

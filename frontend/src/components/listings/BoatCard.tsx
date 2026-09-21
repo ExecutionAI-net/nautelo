@@ -4,9 +4,10 @@ import Link from "next/link";
 import PromoTracker from "@/components/promotion/PromoTracker";
 
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
-import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
+import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { financingHref, listingPath, type ListingFinance, type PublicListing } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
+import { placeLabel } from "@/lib/i18n/places";
 import { formatCount, formatViewCount, tf } from "@/lib/i18n/finance";
 
 type EligibleFinance = Extract<ListingFinance, { visible: true }>;
@@ -47,14 +48,12 @@ export default function BoatCard({
 }) {
   const modelName = listing.custom_model_name || listing.model_name;
   const heading = `${listing.manufacture_year} ${listing.brand_name} ${modelName}`;
-  const location = [listing.location.city, listing.location.region]
-    .filter(Boolean)
-    .join(", ");
+  const location = placeLabel({ city: listing.location.city, region: listing.location.region });
   const primaryImage = listing.media.find((item) => item.media_type === "IMAGE");
   // Compact above 9,999 (spec §19.5); the accessible label keeps the exact value.
   const views = formatViewCount(locale, listing.view_count);
   const exactViews = formatCount(locale, listing.view_count);
-  const price = safeMoney(locale, listing.price.amount, listing.price.currency);
+  const price = askingPrice(locale, listing.price.amount, listing.price.currency);
   const finance = eligibleFinance(listing.finance);
   // Spec §18.2's price half of the eligibility conjunction, re-checked here:
   // the server decides visibility, but a card that cannot render its own price
@@ -130,6 +129,7 @@ export default function BoatCard({
             labelled image rather than a bare span with a label. */}
         <span
           role="img"
+          title={tf(locale, "listing.views_label", { count: exactViews })}
           className="inline-flex items-center gap-space-xs"
           aria-label={tf(locale, "listing.views_label", { count: exactViews })}
         >
@@ -162,7 +162,7 @@ export default function BoatCard({
 
       {/* Spec §29.5: this row stacks cleanly below a breakpoint and neither
           value truncates ambiguously. */}
-      <div className="mt-space-sm flex flex-col gap-space-xs sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-space-sm flex flex-wrap items-end justify-between gap-x-space-md gap-y-space-xs">
         {price ? (
           <div>
             <span className="block font-label-sm text-label-sm uppercase text-outline">{tf(locale, "listing.asking_price")}</span>

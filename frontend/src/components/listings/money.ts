@@ -9,7 +9,7 @@
 // formats through safeMoney and drops what it cannot render, instead of
 // substituting a zero or a placeholder (spec §18.2: no zeroed finance UI).
 import type { Locale } from "@/lib/i18n/directory";
-import { formatMoney, isDecimalString } from "@/lib/i18n/finance";
+import { formatMoney, INTL_LOCALES, isDecimalString } from "@/lib/i18n/finance";
 
 /**
  * Mirror of backend `finance/serializers.py: SUPPORTED_CURRENCIES`. The
@@ -64,4 +64,23 @@ export function isFinanceablePrice(
     NON_ZERO_DIGIT.test(price.amount) &&
     isSupportedCurrency(price.currency)
   );
+}
+
+/**
+ * An asking price for a card or a page title: a whole amount reads "€13,500", not "€13,500.00".
+ * Cents show only when the price really has some; every calculated figure keeps formatMoney's two decimals.
+ */
+export function askingPrice(locale: Locale, amount: string, currency: string): string | null {
+  if (typeof amount !== "string" || !isDecimalString(amount)) return null;
+  const whole = /^\d+(\.0+)?$/.test(amount);
+  try {
+    return new Intl.NumberFormat(INTL_LOCALES[locale], {
+      style: "currency",
+      currency,
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(amount as `${number}`);
+  } catch {
+    return null;
+  }
 }
