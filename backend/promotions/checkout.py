@@ -19,7 +19,13 @@ from payments.products import minor_units
 from .models import ListingPromotion, PromotionPlan
 
 KIND = "listing_promotion"
-RETURN_PATHS = ("/sell/", "/dashboard/private-seller/listings/", "/dashboard/broker/fleet/")
+RETURN_PATHS = (
+    "/sell/",
+    "/dashboard/private-seller/listings/",
+    "/dashboard/broker/fleet/",
+    "/dashboard/broker/subscription/",
+    "/dashboard/service-provider/membership/",
+)
 RETURN_PATTERN = re.compile(r"^/sell/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/$")
 PROMOTABLE = (ListingStatus.DRAFT, ListingStatus.PENDING_APPROVAL, ListingStatus.PUBLISHED)
 
@@ -41,8 +47,6 @@ def _is_uuid(value) -> bool:
 def create_promotion_checkout(
     *, user, listing_id, plan_code: str, return_path: str = "/dashboard/private-seller/listings/", gateway=None
 ) -> str:
-    from payments.gateway import StripeUnavailable, default_gateway
-
     if return_path not in RETURN_PATHS and not RETURN_PATTERN.match(return_path):
         raise ValidationError({"return_path": ["invalid_return_path"]})
     listing = BoatListing.objects.filter(pk=listing_id).first()
@@ -57,12 +61,43 @@ def create_promotion_checkout(
     promotion = ListingPromotion.objects.create(
         listing=listing, user=user, plan=plan, days=plan.days, amount=plan.price, currency=plan.currency.upper()
     )
+    metadata = {"kind": KIND, "promotion_id": str(promotion.pk), "listing_id": str(listing.pk)}
+    return _open_checkout(user, promotion, metadata, return_path, f"Featured listing - {plan.name_en} ({plan.days} days)", gateway)
+
+
+def create_profile_promotion_checkout(
+    *, user, plan_code: str, return_path: str = "/dashboard/service-provider/membership/", gateway=None
+) -> str:
+    """Feature the caller's professional directory profile."""
+    from professionals.access import membership_for
+    from professionals.enums import ProfessionalProfileStatus
+
+    if return_path not in RETURN_PATHS:
+        raise ValidationError({"return_path": ["invalid_return_path"]})
+    seat = membership_for(user)
+    if seat is None or not seat.can_edit_profile:
+        raise PermissionDenied("Only people who can edit the profile can promote it.")
+    profile = seat.profile
+    if profile.status not in (ProfessionalProfileStatus.DRAFT, ProfessionalProfileStatus.PENDING, ProfessionalProfileStatus.ACTIVE):
+        raise PermissionDenied("This profile cannot be promoted in its current state.")
+    plan = PromotionPlan.objects.filter(code=plan_code, is_active=True).first()
+    if plan is None:
+        raise ValidationError({"plan": ["unknown_plan"]})
+    promotion = ListingPromotion.objects.create(
+        professional=profile, user=user, plan=plan, days=plan.days, amount=plan.price, currency=plan.currency.upper()
+    )
+    metadata = {"kind": KIND, "promotion_id": str(promotion.pk), "professional_id": str(profile.pk)}
+    return _open_checkout(user, promotion, metadata, return_path, f"Featured profile - {plan.name_en} ({plan.days} days)", gateway)
+
+
+def _open_checkout(user, promotion, metadata, return_path, product_name, gateway) -> str:
+    from payments.gateway import StripeUnavailable, default_gateway
+
     base = settings.PUBLIC_BASE_URL.rstrip("/")
 
     def _url(outcome):
         return f"{base}{return_path}?{urlencode({'promotion': outcome})}"
 
-    metadata = {"kind": KIND, "promotion_id": str(promotion.pk), "listing_id": str(listing.pk)}
     params = {
         "mode": "payment",
         "line_items": [
@@ -71,7 +106,7 @@ def create_promotion_checkout(
                 "price_data": {
                     "currency": promotion.currency.lower(),
                     "unit_amount": minor_units(promotion.amount, promotion.currency),
-                    "product_data": {"name": f"Featured listing - {plan.name_en} ({plan.days} days)"},
+                    "product_data": {"name": product_name},
                 },
             }
         ],

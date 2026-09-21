@@ -69,6 +69,12 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
     logo_url = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
     active_service_count = serializers.IntegerField(read_only=True)
+    is_featured = serializers.SerializerMethodField()
+
+    def get_is_featured(self, obj) -> bool:
+        from django.utils import timezone
+
+        return bool(obj.featured_until and obj.featured_until > timezone.now())
 
     def get_logo_url(self, obj):
         from common.org_images import resolve_url
@@ -95,6 +101,7 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
             "active_service_count",
             "logo_url",
             "cover_url",
+            "is_featured",
             "url",
         ]
 

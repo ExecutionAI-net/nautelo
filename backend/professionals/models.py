@@ -46,6 +46,9 @@ class ProfessionalProfile(UUIDTimeStampedModel):
     region = models.CharField(max_length=120, blank=True)
     country_code = models.CharField(max_length=2)
     service_area = models.JSONField(default=list, blank=True, validators=[validate_service_area])
+    # Paid promotion: featured in the directory while `featured_until` is in the future.
+    featured_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    featured_at = models.DateTimeField(null=True, blank=True)
     logo_key = models.CharField(max_length=300, blank=True, default="")
     cover_key = models.CharField(max_length=300, blank=True, default="")
     status = models.CharField(

@@ -7,3 +7,11 @@
 - **Where it shows**: home page Featured strip (newest activation first, slides on its own, pauses on hover or focus, respects reduced motion); until any promotion runs the strip shows the newest boats; "Featured" badge on cards; running promotions lead the everyday listings on /boats (not when sorting by price).
 - **Refunds**: not automatic. A purchase for a listing that is rejected before ever going live is refunded by staff in Stripe, then set to CANCELED in admin.
 - **Not done yet**: impressions/click counters and the "your boat was seen N times" report, renewal reminders, broker plan allowances, VAT handling (decide with your accountant whether Stripe Tax is needed).
+
+## My plan pages
+
+Broker (Subscription) and professional (Membership) pages are now called "My plan" and end with a Promotion block:
+- Brokers pick one of their vessels (live or in review) and buy 1 week / 2 weeks / 1 month; the pop-up is the same as in the sell form.
+- Professionals promote their directory profile (`target: "profile"` in `POST /api/v1/promotions/checkout/`). The clock starts when staff set the profile to ACTIVE. Featured profiles get a badge and lead the directory (`is_featured`, `ProfessionalProfile.featured_until`).
+- Profile promotions use the same plans and prices as vessel promotions; a separate price list would need an audience field on the plan.
+- The professional design set has no My plan screen; the broker one (Subscription) was followed, minus MLS feeds and escrow.
