@@ -1,4 +1,5 @@
 from datetime import timedelta
+import hashlib
 from pathlib import Path
 
 import environ
@@ -380,5 +381,6 @@ SEMANTIC_CACHE_DIR = env("SEMANTIC_CACHE_DIR", default="")
 _UITEXT_IMAGE_COPY = BASE_DIR / "ui_source.en.json"
 UITEXT_SOURCE_FILE = _UITEXT_IMAGE_COPY if _UITEXT_IMAGE_COPY.exists() else BASE_DIR.parent / "frontend" / "src" / "i18n" / "source.en.json"
 # Publishing tells the site to drop its cached text right away (optional; the site's own cache also expires in a minute).
-UITEXT_REVALIDATE_URL = env("UITEXT_REVALIDATE_URL", default="")
-UITEXT_REVALIDATE_TOKEN = env("UITEXT_REVALIDATE_TOKEN", default="")
+# The token is derived from the secret both sides already share, so no new secret has to be set anywhere.
+UITEXT_REVALIDATE_URL = env("UITEXT_REVALIDATE_URL", default="http://web:3000/api/revalidate-ui-text/" if env("DEPLOY_ENVIRONMENT", default="") else "")
+UITEXT_REVALIDATE_TOKEN = hashlib.sha256(f"uitext:{INTERNAL_SERVICE_SECRET}".encode()).hexdigest()

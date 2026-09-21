@@ -6,6 +6,10 @@ import type { PublicListing } from "@/lib/api/listings";
 
 const fetchPublishedListings = vi.fn();
 
+vi.mock("@/i18n/server", async () => {
+  const { makeTranslate } = await import("@/i18n");
+  return { getT: async () => makeTranslate({}) };
+});
 vi.mock("@/components/content/AdSlot", () => ({ default: () => null }));
 vi.mock("@/lib/api/listings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/listings")>(

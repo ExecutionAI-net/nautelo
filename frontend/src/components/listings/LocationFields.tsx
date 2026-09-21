@@ -10,6 +10,16 @@ const FIELD =
 
 const FIRST = ["ES", "IT"];
 
+export interface LocationLabels {
+  country: string;
+  allCountries: string;
+  city: string;
+  allCities: string;
+  chooseCountry: string;
+}
+
+const ENGLISH: LocationLabels = { country: "Country", allCountries: "All countries", city: "City", allCities: "All cities", chooseCountry: "Choose a country first" };
+
 const countryName = (code: string) => {
   try {
     return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
@@ -28,12 +38,14 @@ export default function LocationFields({
   initial = {},
   labelClass = HOME_LABEL,
   wrapperClass = "flex flex-col gap-1",
+  labels = ENGLISH,
 }: {
   locations: FacetLocation[];
   idPrefix: string;
   initial?: { country?: string; place?: string };
   labelClass?: string;
   wrapperClass?: string;
+  labels?: LocationLabels;
 }) {
   const [country, setCountry] = useState((initial.country ?? "").toUpperCase());
   const [place, setPlace] = useState(initial.place ?? "");
@@ -49,7 +61,7 @@ export default function LocationFields({
   return (
     <>
       <div className={wrapperClass}>
-        <label className={labelClass} htmlFor={`${idPrefix}-country`}>Country</label>
+        <label className={labelClass} htmlFor={`${idPrefix}-country`}>{labels.country}</label>
         <select
           id={`${idPrefix}-country`}
           name="country"
@@ -60,7 +72,7 @@ export default function LocationFields({
           }}
           className={FIELD}
         >
-          <option value="">All countries</option>
+          <option value="">{labels.allCountries}</option>
           {countries.map((code) => (
             <option key={code} value={code}>
               {countryName(code)} ({boatsIn(locations.filter((row) => row.country === code))})
@@ -69,7 +81,7 @@ export default function LocationFields({
         </select>
       </div>
       <div className={wrapperClass}>
-        <label className={labelClass} htmlFor={`${idPrefix}-place`}>City</label>
+        <label className={labelClass} htmlFor={`${idPrefix}-place`}>{labels.city}</label>
         <select
           id={`${idPrefix}-place`}
           name="place"
@@ -78,7 +90,7 @@ export default function LocationFields({
           onChange={(event) => setPlace(event.target.value)}
           className={FIELD}
         >
-          <option value="">{country ? "All cities" : "Choose a country first"}</option>
+          <option value="">{country ? labels.allCities : labels.chooseCountry}</option>
           {cities.map((row) => (
             <option key={row.place_id} value={String(row.place_id)}>
               {row.city} ({row.count})

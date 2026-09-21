@@ -1,3 +1,5 @@
+import type { MessageKey } from "@/i18n";
+import { getT } from "@/i18n/server";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -28,12 +30,12 @@ const COUNTRY_NAMES = new Proxy({} as Record<string, string>, {
   },
 });
 
-const SORTS = [
-  { value: "newest", label: "Newest" },
-  { value: "price_asc", label: "Price: low to high" },
-  { value: "price_desc", label: "Price: high to low" },
-  { value: "year_desc", label: "Year: newest first" },
-  { value: "year_asc", label: "Year: oldest first" },
+const SORTS: { value: string; key: MessageKey }[] = [
+  { value: "newest", key: "boats.sort.newest" },
+  { value: "price_asc", key: "boats.sort.price_asc" },
+  { value: "price_desc", key: "boats.sort.price_desc" },
+  { value: "year_desc", key: "boats.sort.year_desc" },
+  { value: "year_asc", key: "boats.sort.year_asc" },
 ];
 
 const FILTER_KEYS = [
@@ -101,6 +103,7 @@ const LABEL = "mb-1 block font-label-sm uppercase tracking-wider text-on-surface
 export default async function BoatsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const locale = await getRequestLocale();
+  const t = await getT();
   const filters: ListingSearch = {};
   for (const key of FILTER_KEYS) {
     const value = first(params[key]);
@@ -127,20 +130,21 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
   const previousPage = pageOf(results.previous);
   const nextPage = pageOf(results.next);
   const active = FILTER_KEYS.filter((key) => key !== "sort" && key !== "mode" && filters[key]);
+  const filterCount = active.filter((key) => key !== "q" && key !== "query").length;
   const interpretation = (results as { interpretation?: { labels: string[]; relaxed?: string[] } }).interpretation;
   const understood = interpretation?.labels ?? [];
   const relaxed = interpretation?.relaxed ?? [];
   const chipLabel = (key: (typeof FILTER_KEYS)[number]) => {
     const value = filters[key] ?? "";
     if (key === "country") return COUNTRY_NAMES[value.toUpperCase()] ?? value;
-    if (key === "seller_type") return value === "BROKER" ? "Professional broker" : "Private owner";
-    if (key === "price_min") return `From €${value}`;
-    if (key === "price_max") return `Up to €${value}`;
-    if (key === "year_min") return `From ${value}`;
-    if (key === "year_max") return `Until ${value}`;
-    if (key === "length_min") return `From ${value} m`;
-    if (key === "length_max") return `Up to ${value} m`;
-    if (key === "cabins_min") return `${value}+ cabins`;
+    if (key === "seller_type") return t(value === "BROKER" ? "boats.f.broker" : "boats.f.private");
+    if (key === "price_min") return t("boats.chip.from_price", { value });
+    if (key === "price_max") return t("boats.chip.up_to_price", { value });
+    if (key === "year_min") return t("boats.chip.from_year", { value });
+    if (key === "year_max") return t("boats.chip.until_year", { value });
+    if (key === "length_min") return t("boats.chip.from_length", { value });
+    if (key === "length_max") return t("boats.chip.up_to_length", { value });
+    if (key === "cabins_min") return t("boats.chip.cabins_plus", { value });
     if (key === "q" || key === "query") return `“${value}”`;
     return value;
   };
@@ -150,7 +154,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
       <header className="bg-surface-container-low py-space-xl">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-space-md px-margin-mobile md:px-margin lg:flex-row lg:items-end lg:justify-between lg:px-margin-desktop">
           <div>
-            <span className="font-label-sm uppercase tracking-widest text-secondary">Mediterranean boat marketplace</span>
+            <span className="font-label-sm uppercase tracking-widest text-secondary">{t("boats.eyebrow")}</span>
             <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{tf(locale, "boats.title")}</h1>
             <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{tf(locale, "boats.intro")}</p>
           </div>
@@ -159,7 +163,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               <input key={key} type="hidden" name={key} value={filters[key]} />
             ))}
             <label className="sr-only" htmlFor="boat-search">
-              Search boats
+              {t("boats.search_label")}
             </label>
             <input type="hidden" name="mode" value="semantic" />
             <input
@@ -167,24 +171,24 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               name="query"
               maxLength={300}
               defaultValue={filters.query ?? filters.q ?? ""}
-              placeholder="Describe it, e.g. sailing yacht in Mallorca"
+              placeholder={t("boats.search_placeholder")}
               className="flex-1 rounded-lg bg-surface-container-lowest px-space-md py-space-sm font-body-md shadow-sm focus:outline-none"
             />
             <button type="submit" className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
-              Search
+              {t("boats.search_button")}
             </button>
           </form>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-[1440px] gap-space-lg px-margin-mobile py-space-xl md:px-margin lg:grid-cols-[280px_1fr] lg:px-margin-desktop">
-        <aside aria-label="Filters">
-<MobileFilters activeCount={active.filter((key) => key !== "q" && key !== "query").length}>
+        <aside aria-label={t("boats.filters")}>
+<MobileFilters label={filterCount > 0 ? t("boats.filters_active", { count: filterCount }) : t("boats.filters")}>
           <form action={CANONICAL_PATH} method="get" className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="font-title-md text-title-md text-primary">Filters</h2>
+              <h2 className="font-title-md text-title-md text-primary">{t("boats.filters")}</h2>
               <Link href={CANONICAL_PATH} className="font-label-sm text-secondary hover:underline">
-                Reset all
+                {t("boats.reset_all")}
               </Link>
             </div>
             {filters.q ? <input type="hidden" name="q" value={filters.q} /> : null}
@@ -197,10 +201,10 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
 
             <div>
               <label className={LABEL} htmlFor="f-type">
-                Boat type
+                {t("boats.f.boat_type")}
               </label>
               <select id="f-type" name="boat_type" defaultValue={filters.boat_type ?? ""} className={FIELD}>
-                <option value="">All boat types</option>
+                <option value="">{t("boats.f.all_types")}</option>
                 {(facets.boat_types ?? []).map((type) => (
                   <option key={type} value={type}>
                     {type}
@@ -210,20 +214,20 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             </div>
             <div>
               <label className={LABEL} htmlFor="f-condition">
-                Condition
+                {t("boats.f.condition")}
               </label>
               <select id="f-condition" name="condition" defaultValue={filters.condition ?? ""} className={FIELD}>
-                <option value="">Any</option>
-                <option value="used">Used</option>
-                <option value="new">New</option>
+                <option value="">{t("boats.f.any")}</option>
+                <option value="used">{t("boats.f.used")}</option>
+                <option value="new">{t("boats.f.new")}</option>
               </select>
             </div>
             <div>
               <label className={LABEL} htmlFor="f-brand">
-                Brand
+                {t("boats.f.brand")}
               </label>
               <select id="f-brand" name="brand" defaultValue={filters.brand ?? ""} className={FIELD}>
-                <option value="">All brands</option>
+                <option value="">{t("boats.f.all_brands")}</option>
                 {facets.brands.map((brand) => (
                   <option key={brand} value={brand}>
                     {brand}
@@ -233,45 +237,46 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             </div>
             <div>
               <label className={LABEL} htmlFor="f-model">
-                Model
+                {t("boats.f.model")}
               </label>
-              <input id="f-model" name="model" defaultValue={filters.model ?? ""} placeholder="Any model" className={FIELD} />
+              <input id="f-model" name="model" defaultValue={filters.model ?? ""} placeholder={t("boats.f.any_model")} className={FIELD} />
             </div>
             <LocationFields
               key={`${filters.country ?? ""}|${filters.place ?? ""}`}
               locations={facets.locations ?? []}
               idPrefix="f"
               labelClass={LABEL}
+              labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country") }}
               wrapperClass=""
               initial={{ country: filters.country, place: filters.place }}
             />
             <fieldset>
-              <legend className={LABEL}>Price range (€)</legend>
+              <legend className={LABEL}>{t("boats.f.price_range")}</legend>
               <div className="grid grid-cols-2 gap-space-xs">
-                <input aria-label="Minimum price" name="price_min" type="number" min={0} placeholder="Min" defaultValue={filters.price_min ?? ""} className={FIELD} />
-                <input aria-label="Maximum price" name="price_max" type="number" min={0} placeholder="Max" defaultValue={filters.price_max ?? ""} className={FIELD} />
+                <input aria-label={t("boats.f.min_price")} name="price_min" type="number" min={0} placeholder={t("boats.f.min")} defaultValue={filters.price_min ?? ""} className={FIELD} />
+                <input aria-label={t("boats.f.max_price")} name="price_max" type="number" min={0} placeholder={t("boats.f.max")} defaultValue={filters.price_max ?? ""} className={FIELD} />
               </div>
             </fieldset>
             <fieldset>
-              <legend className={LABEL}>Year built</legend>
+              <legend className={LABEL}>{t("boats.f.year_built")}</legend>
               <div className="grid grid-cols-2 gap-space-xs">
-                <input aria-label="Earliest year" name="year_min" type="number" min={1900} placeholder="From" defaultValue={filters.year_min ?? ""} className={FIELD} />
-                <input aria-label="Latest year" name="year_max" type="number" min={1900} placeholder="To" defaultValue={filters.year_max ?? ""} className={FIELD} />
+                <input aria-label={t("boats.f.earliest_year")} name="year_min" type="number" min={1900} placeholder={t("boats.f.from")} defaultValue={filters.year_min ?? ""} className={FIELD} />
+                <input aria-label={t("boats.f.latest_year")} name="year_max" type="number" min={1900} placeholder={t("boats.f.to")} defaultValue={filters.year_max ?? ""} className={FIELD} />
               </div>
             </fieldset>
             <fieldset>
-              <legend className={LABEL}>Length (metres)</legend>
+              <legend className={LABEL}>{t("boats.f.length")}</legend>
               <div className="grid grid-cols-2 gap-space-xs">
-                <input aria-label="Minimum length" name="length_min" type="number" min={0} step="0.5" placeholder="Min" defaultValue={filters.length_min ?? ""} className={FIELD} />
-                <input aria-label="Maximum length" name="length_max" type="number" min={0} step="0.5" placeholder="Max" defaultValue={filters.length_max ?? ""} className={FIELD} />
+                <input aria-label={t("boats.f.min_length")} name="length_min" type="number" min={0} step="0.5" placeholder={t("boats.f.min")} defaultValue={filters.length_min ?? ""} className={FIELD} />
+                <input aria-label={t("boats.f.max_length")} name="length_max" type="number" min={0} step="0.5" placeholder={t("boats.f.max")} defaultValue={filters.length_max ?? ""} className={FIELD} />
               </div>
             </fieldset>
             <div>
               <label className={LABEL} htmlFor="f-fuel">
-                Fuel type
+                {t("boats.f.fuel")}
               </label>
               <select id="f-fuel" name="fuel_type" defaultValue={filters.fuel_type ?? ""} className={FIELD}>
-                <option value="">Any fuel</option>
+                <option value="">{t("boats.f.any_fuel")}</option>
                 {(facets.fuel_types ?? []).map((fuel) => (
                   <option key={fuel} value={fuel}>
                     {fuel}
@@ -281,10 +286,10 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             </div>
             <div>
               <label className={LABEL} htmlFor="f-cabins">
-                Cabins
+                {t("boats.f.cabins")}
               </label>
               <select id="f-cabins" name="cabins_min" defaultValue={filters.cabins_min ?? ""} className={FIELD}>
-                <option value="">Any</option>
+                <option value="">{t("boats.f.any")}</option>
                 {[1, 2, 3, 4, 5].map((count) => (
                   <option key={count} value={count}>
                     {count}+
@@ -294,40 +299,40 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             </div>
             <div>
               <label className={LABEL} htmlFor="f-seller">
-                Seller type
+                {t("boats.f.seller")}
               </label>
               <select id="f-seller" name="seller_type" defaultValue={filters.seller_type ?? ""} className={FIELD}>
-                <option value="">Any seller</option>
-                <option value="BROKER">Professional broker</option>
-                <option value="PRIVATE">Private owner</option>
+                <option value="">{t("boats.f.any_seller")}</option>
+                <option value="BROKER">{t("boats.f.broker")}</option>
+                <option value="PRIVATE">{t("boats.f.private")}</option>
               </select>
             </div>
             <div>
               <label className={LABEL} htmlFor="f-sort">
-                Sort by
+                {t("boats.f.sort")}
               </label>
               <select id="f-sort" name="sort" defaultValue={filters.sort ?? "newest"} className={FIELD}>
                 {SORTS.map((sort) => (
                   <option key={sort.value} value={sort.value}>
-                    {sort.label}
+                    {t(sort.key)}
                   </option>
                 ))}
               </select>
             </div>
             <button type="submit" className="rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
-              Apply filters
+              {t("boats.apply")}
             </button>
           </form>
 </MobileFilters>
         </aside>
 
-        <section aria-label="Results">
+        <section aria-label={t("boats.results")}>
           <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
             <p className="font-title-md text-title-md text-primary">
-              <span className="font-spec-num">{results.count ?? results.results.length}</span> boats found
+              {t("boats.found", { count: results.count ?? results.results.length })}
             </p>
             {active.length > 0 ? (
-              <ul className="mt-space-xs flex flex-wrap items-center gap-space-xs" aria-label="Active filters">
+              <ul className="mt-space-xs flex flex-wrap items-center gap-space-xs" aria-label={t("boats.active_filters")}>
                 {active.map((key) => (
                   <li key={key} className="rounded-full bg-secondary-container px-space-sm py-0.5 font-label-sm text-on-secondary-container">
                     {chipLabel(key)}
@@ -335,22 +340,22 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                 ))}
                 <li>
                   <Link href={CANONICAL_PATH} className="font-label-sm text-secondary hover:underline">
-                    Clear filters
+                    {t("boats.clear")}
                   </Link>
                 </li>
               </ul>
             ) : null}
             {understood.length > 0 ? (
               <p className="mt-space-xs font-body-sm text-on-surface-variant">
-                Understood: {understood.join(" · ")}.
-                {relaxed.length > 0 ? " Nothing matched every detail, so type and cabins were left out and the closest boats are shown." : ""}
+                {t("boats.understood", { labels: understood.join(" · ") })}
+                {relaxed.length > 0 ? ` ${t("boats.relaxed")}` : ""}
               </p>
             ) : null}
           </div>
 
           {results.results.length === 0 ? (
             <p className="mt-space-xl font-body-md text-on-surface-variant">
-              {active.length > 0 ? "No boats match these filters." : tf(locale, "boats.empty")}
+              {active.length > 0 ? t("boats.none_match") : tf(locale, "boats.empty")}
             </p>
           ) : (
             <ul className="mt-space-lg grid grid-cols-1 gap-space-lg sm:grid-cols-2 xl:grid-cols-3">
