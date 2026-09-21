@@ -204,3 +204,15 @@ screens (register, accept invite, team, billing, profile checklist).
 1. Sign in once per role in the Chrome window, then run the UX pass (layout, wording, comparison with competitors).
 2. Create the Stripe products and prices so the trial flow can be tried for real in test mode.
 3. Decide R2-4, R2-5 and R2-6.
+
+
+### Fixes after the second round (part 2)
+
+| # | Fix |
+|---|-----|
+| R2-5 | DRAFT/PENDING/SUSPENDED brokerages see an onboarding checklist on the dashboard home instead of a failing metrics call. |
+| R2-7 | Broker and professional country is limited to `SUPPORTED_COUNTRIES` (default ES, IT; env-driven). |
+| R2-9 | Broker trial started, payment failed and suspended notify the team managers (EN/IT/ES copy). |
+| R2-15 | Empty Messages/Leads state says what happens next. |
+| R2-21 | Brokers no longer see the private-seller "My listings" and "List my boat" entries. |
+| R2-26 | Membership and billing pages say "Membership is not open yet" when no plan exists. |

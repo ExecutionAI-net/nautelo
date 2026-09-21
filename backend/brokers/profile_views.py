@@ -9,7 +9,7 @@ from rest_framework import serializers
 from rest_framework.response import Response
 
 from brokers.models import BrokerOrganization
-from common.field_rules import phone_number, plain_text
+from common.field_rules import phone_number, plain_text, service_country
 from brokers.plans import plan_usage
 from brokers.views import BrokerTeamBaseView
 
@@ -58,7 +58,7 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
         return phone_number(value)
 
     def validate_country_code(self, value):
-        return value.upper()
+        return service_country(value)
 
     class Meta:
         model = BrokerOrganization

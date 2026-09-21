@@ -44,9 +44,9 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
   "messages.filter.label": { en: "Filter", it: "Filtro", es: "Filtro" },
 
   "messages.empty": {
-    en: "No conversations match this filter.",
-    it: "Nessuna conversazione corrisponde a questo filtro.",
-    es: "Ninguna conversación coincide con este filtro.",
+    en: "Nothing here yet. Enquiries from buyers appear here once your listings are live, so keep your vessels and public page complete.",
+    it: "Ancora niente qui. Le richieste degli acquirenti arrivano qui quando i tuoi annunci sono online: tieni completi imbarcazioni e pagina pubblica.",
+    es: "Todavía no hay nada. Las consultas de los compradores llegan aquí cuando tus anuncios estén publicados: mantén completos tus embarcaciones y tu página pública.",
   },
   "messages.loading": { en: "Loading…", it: "Caricamento…", es: "Cargando…" },
   "messages.unread_count": {

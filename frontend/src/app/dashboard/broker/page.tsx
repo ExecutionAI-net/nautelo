@@ -9,6 +9,7 @@ import { useLocale } from "@/lib/i18n/useLocale";
 
 import RequirePermission from "@/components/auth/RequirePermission";
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
+import OnboardingChecklist from "@/components/broker/OnboardingChecklist";
 import BrokerMetrics from "@/components/broker/BrokerMetrics";
 import {
   fetchBrokerDashboard,
@@ -28,7 +29,8 @@ export default function BrokerHomePage() {
 
   const locale = useLocale();
   const membership = primaryBrokerMembership(session);
-  const brokerId = membership?.broker_id ?? null;
+  const live = membership?.broker_status === "ACTIVE";
+  const brokerId = live ? (membership?.broker_id ?? null) : null;
 
   useEffect(() => {
     // Same session-timing rule as the messages screens: nothing is fetched
@@ -87,6 +89,7 @@ export default function BrokerHomePage() {
                 Add vessel
               </Link>
             </div>
+            {membership.broker_status !== "ACTIVE" ? <OnboardingChecklist status={membership.broker_status} /> : null}
             {errorKey ? (
               <p role="alert" className="mt-space-lg font-body-md text-error">
                 {tConversations(locale, errorKey)}
@@ -97,6 +100,7 @@ export default function BrokerHomePage() {
                 <BrokerMetrics locale={locale} dashboard={dashboard} />
               </div>
             ) : null}
+            {live ? (
             <section aria-labelledby="inventory-heading" className="mt-space-xl">
               <h2 id="inventory-heading" className="font-headline-sm text-headline-sm text-primary">
                 Mandate inventory
@@ -112,6 +116,7 @@ export default function BrokerHomePage() {
                 ) : null}
               </ul>
             </section>
+            ) : null}
           </>
         )}
       </RequirePermission>

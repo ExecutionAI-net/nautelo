@@ -106,6 +106,11 @@ export default function ProviderMembership() {
             Paid until {new Date(membership.current_period_end).toLocaleDateString("en")}. Renews automatically each month.
           </p>
         ) : null}
+        {!live && !membership.plan ? (
+          <p role="status" className="rounded-lg bg-surface-container-low p-space-md font-body-md text-on-surface-variant">
+            Membership is not open yet. We will let you know as soon as plans are available.
+          </p>
+        ) : null}
         {!live && membership.plan ? (
           <div>
             <button

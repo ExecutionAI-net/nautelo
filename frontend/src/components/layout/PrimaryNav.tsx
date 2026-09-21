@@ -81,7 +81,8 @@ export default function PrimaryNav() {
   const visible = LINKS.filter((link) => {
     if (link.permission !== undefined && !can(link.permission)) return false;
     if (link.requiresBrokerMembership && !isBrokerMember) return false;
-    if (link.requiresListingRight && !(can("create_private_listing") || can("create_broker_listing"))) return false;
+    // Brokers manage vessels under Fleet; the private-seller entries would only confuse them.
+    if (link.requiresListingRight && (isBrokerMember || !can("create_private_listing"))) return false;
     return true;
   });
 
@@ -125,12 +126,14 @@ export default function PrimaryNav() {
             Sign in
           </Link>
         )}
+        {isBrokerMember ? null : (
         <Link
           href="/sell/"
           className="inline-flex items-center justify-center rounded-lg bg-primary-container px-space-md py-space-sm font-body-md text-on-primary shadow-sm transition-colors hover:bg-primary"
         >
           List my boat
         </Link>
+        )}
       </div>
     </nav>
   );

@@ -161,3 +161,22 @@ def test_a_brokerage_submits_for_review_only_when_complete_and_subscribed(broker
     BrokerSubscription.objects.create(broker=broker, status="TRIALING")
     res = api.post(url)
     assert res.status_code == 200 and res.json()["status"] == "PENDING"
+
+
+def test_team_managers_are_told_about_trial_payment_failure_and_suspension(broker):
+    from notifications.models import Notification
+
+    admin = make_user("admin@notify.example", role=UserRole.BROKER, verified=True)
+    make_membership(admin, broker, can_manage_team=True)
+    agent = make_user("agent@notify.example", role=UserRole.BROKER, verified=True)
+    make_membership(agent, broker)
+
+    handle_checkout_session_paid(_session(broker))
+    broker.status = "ACTIVE"
+    broker.save()
+    HANDLERS["invoice.payment_failed"](_invoice("invoice.payment_failed", broker))
+    billing.lapse_unpaid_brokers(now=timezone.now() + timezone.timedelta(hours=25))
+
+    kinds = set(Notification.objects.filter(recipient=admin).values_list("notification_type", flat=True))
+    assert {"broker.trial_started", "broker.payment_failed", "broker.suspended"} <= kinds
+    assert not Notification.objects.filter(recipient=agent).exists()

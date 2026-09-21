@@ -20,6 +20,8 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 
+from notifications.enums import NotificationType
+from notifications.fanout import notify
 from professionals.enums import SubscriptionStatus
 
 from .enums import BrokerOrganizationStatus
@@ -76,6 +78,21 @@ def create_subscription_checkout(*, broker, gateway=None) -> str:
     except StripeUnavailable as exc:
         raise SubscriptionUnavailable() from exc
     return result.url
+
+
+def _notify(broker, notification_type, key):
+    """Tell everyone who can manage the brokerage's team (owner and admins)."""
+    from .models import BrokerMembership
+
+    managers = BrokerMembership.objects.filter(broker=broker, is_active=True, can_manage_team=True).select_related("user")
+    for membership in managers:
+        notify(
+            membership.user,
+            notification_type,
+            target_url=SUBSCRIPTION_PATH,
+            payload={"broker_id": str(broker.pk)},
+            dedupe_key=f"{key}:{membership.user_id}",
+        )
 
 
 def _from_unix(value):
@@ -145,6 +162,7 @@ def _start_trial(subscription, *, now=None):
     subscription.current_period_end = subscription.trial_ends_at
     subscription.save()
     _sync_plan_renewal(subscription)
+    _notify(subscription.broker, NotificationType.BROKER_TRIAL_STARTED, f"{subscription.pk}:trial:{now.date()}")
 
 
 def _deactivate(subscription, *, status):
@@ -154,6 +172,7 @@ def _deactivate(subscription, *, status):
     if broker.status == BrokerOrganizationStatus.ACTIVE:
         broker.status = BrokerOrganizationStatus.SUSPENDED
         broker.save(update_fields=["status", "updated_at"])
+        _notify(broker, NotificationType.BROKER_SUSPENDED, f"{subscription.pk}:suspended:{timezone.now().date()}")
 
 
 def handle_checkout(session: dict) -> str:
@@ -198,7 +217,9 @@ def handle_invoice_paid(event) -> str:
 def handle_invoice_payment_failed(event) -> str:
     from payments.enums import WebhookResult
 
-    subscription = _subscription_for(**_refs(event["data"]["object"]))
+    invoice = event["data"]["object"]
+    invoice_id = invoice.get("id", "")
+    subscription = _subscription_for(**_refs(invoice))
     if subscription is None:
         return WebhookResult.IGNORED
     if subscription.past_due_since is None:
@@ -206,6 +227,7 @@ def handle_invoice_payment_failed(event) -> str:
     if subscription.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING):
         subscription.status = SubscriptionStatus.PAST_DUE
     subscription.save()
+    _notify(subscription.broker, NotificationType.BROKER_PAYMENT_FAILED, f"{subscription.pk}:failed:{invoice_id}")
     return WebhookResult.FULFILLED
 
 

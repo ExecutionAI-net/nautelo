@@ -173,6 +173,9 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+# Markets brokers and professionals may register in.
+SUPPORTED_COUNTRIES = env.list("SUPPORTED_COUNTRIES", default=["ES", "IT"])
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
