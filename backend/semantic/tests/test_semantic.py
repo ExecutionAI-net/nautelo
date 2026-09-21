@@ -25,7 +25,9 @@ def places():
 def test_prices_lengths_cabins_and_types_are_read_in_three_languages():
     en = parse_query("12 m sailing yacht with 3 cabins under 180,000 euro")
     assert en.filters["length_min"] == "10.8" and en.filters["length_max"] == "13.2"
-    assert en.filters["boat_type"] == "Sailing yacht" and en.filters["cabins_min"] == "3"
+    assert en.filters["boat_type"] == "Sailing yacht" and en.filters["cabins"] == "3"
+    assert parse_query("at least 3 cabins").filters["cabins_min"] == "3"
+    assert parse_query("veliero 4+ cabine").filters["cabins_min"] == "4"
     assert en.filters["price_max"] == "180000"
     it = parse_query("veliero di 12 metri sotto 180 mila euro")
     assert it.filters["boat_type"] == "Sailing yacht" and it.filters["price_max"] == "180000"
@@ -97,7 +99,7 @@ def test_a_search_with_no_exact_match_relaxes_type_and_cabins_before_giving_up()
     index_all()
     data = APIClient().get(reverse("listing-list"), {"mode": "semantic", "query": "3 cabins catamaran Genova"}).json()
     assert data["count"] == 1
-    assert data["interpretation"]["relaxed"] == ["boat_type", "cabins_min"]
+    assert data["interpretation"]["relaxed"] == ["boat_type", "cabins"]
     strict = APIClient().get(reverse("listing-list"), {"mode": "semantic", "query": "catamaran Cadiz"}).json()
     assert strict["count"] == 0  # place is never dropped
 
