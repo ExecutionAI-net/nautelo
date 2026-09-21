@@ -8,6 +8,8 @@ const listings = vi.hoisted(() => ({
 const ads = vi.hoisted(() => ({ fetchAds: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/api/listings", () => listings);
 vi.mock("@/lib/api/contentServer", () => ads);
+vi.mock("@/lib/i18n/useLocale", () => ({ useLocale: () => "en" }));
+vi.mock("@/lib/api/client", () => ({ apiFetch: () => new Promise(() => {}) }));
 vi.mock("@/components/listings/BoatCard", () => ({ default: () => <div>card</div> }));
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,

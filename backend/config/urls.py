@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from common.views import HealthCheckView
-from finance.views import FinanceQuoteView
+from finance.views import FinanceQuoteView, SimulatorConfigView
 from payments.views import StripeWebhookView
 from platform_settings.views import PublicPlatformSettingsView
 
@@ -32,6 +32,7 @@ urlpatterns = [
         name="platform-public-settings",
     ),
     path("api/v1/finance/quotes/", FinanceQuoteView.as_view(), name="finance-quote"),
+    path("api/v1/finance/simulator-config/", SimulatorConfigView.as_view(), name="finance-simulator-config"),
     path("api/v1/", include("content.urls")),
     path("api/v1/", include("staffops.urls")),
     path("api/v1/", include("translation.urls")),

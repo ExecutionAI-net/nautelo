@@ -1,4 +1,5 @@
 import HomeSearch from "@/components/listings/HomeSearch";
+import FinanceSection from "@/components/finance/FinanceSection";
 import FeaturedSlider from "@/components/listings/FeaturedSlider";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import Link from "next/link";
@@ -117,6 +118,8 @@ export default async function Home() {
 </div>
 </div>
 </section>
+
+<FinanceSection />
 
 {banner ? (
 <section className="w-full bg-surface-container-low py-space-lg">

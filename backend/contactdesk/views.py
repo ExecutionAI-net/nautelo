@@ -7,7 +7,7 @@ from common.field_rules import phone_number, plain_text
 
 from .models import ContactRequest
 
-DETAIL_KEYS = ("price", "deposit", "term_months", "vessel_ref")
+DETAIL_KEYS = ("price", "deposit", "term_months", "vessel_ref", "country", "product", "condition", "use", "down_percent", "term_years", "boat_year")
 
 
 class ContactRequestSerializer(serializers.Serializer):
@@ -51,6 +51,18 @@ class ContactRequestView(APIView):
     authentication_classes = []
     throttle_scope = "contact_request"
 
+    @staticmethod
+    def _with_calculation(values):
+        """A financing study keeps what the server calculates from the rulebook next to what the visitor typed."""
+        details = dict(values["details"])
+        if values["topic"] == ContactRequest.Topic.FINANCING and "down_percent" in details:
+            from finance.study import calculated_details
+
+            calculated = calculated_details(details)
+            if calculated:
+                details["calculated"] = calculated
+        return details
+
     def post(self, request):
         data = ContactRequestSerializer(data=request.data)
         data.is_valid(raise_exception=True)
@@ -60,6 +72,6 @@ class ContactRequestView(APIView):
             return Response({"reference": "NAU-0000"}, status=status.HTTP_201_CREATED)
         row = ContactRequest.objects.create(
             topic=values["topic"], name=values["name"], email=values["email"], phone=values["phone"],
-            message=values["message"], details=values["details"], reply_language=values["reply_language"],
+            message=values["message"], details=self._with_calculation(values), reply_language=values["reply_language"],
         )
         return Response({"reference": f"NAU-{str(row.pk)[:8].upper()}"}, status=status.HTTP_201_CREATED)

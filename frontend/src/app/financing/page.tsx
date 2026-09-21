@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import PageBand from "@/components/layout/PageBand";
 import FinanceCalculator from "@/components/finance/FinanceCalculator";
+import FinanceSimulator from "@/components/finance/FinanceSimulator";
 import FinancingInfo from "@/components/finance/FinancingInfo";
 import { fetchFinanceDefaults } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
@@ -59,6 +60,9 @@ export default async function FinancingPage({
         title={tf(locale, "finance.page.title")}
         subtitle={tf(locale, "finance.page.intro")}
       />
+      <div className="mx-auto max-w-[1440px] px-margin-mobile pt-space-xl md:px-margin lg:px-margin-desktop">
+        <div className="mx-auto max-w-2xl"><FinanceSimulator /></div>
+      </div>
       <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
       <FinanceCalculator
         locale={locale}
@@ -68,7 +72,18 @@ export default async function FinancingPage({
         defaults={defaults}
       />
       </div>
-      <FinancingInfo />
+      <FinancingInfo
+        start={{
+          price: first(params.price),
+          down: first(params.down),
+          term: first(params.term),
+          product: first(params.product),
+          country: first(params.country),
+          condition: first(params.condition),
+          use: first(params.use),
+          year: first(params.year),
+        }}
+      />
     </main>
   );
 }

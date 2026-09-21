@@ -16,11 +16,43 @@ const TOPICS: [string, string][] = [
   ["press", "Press and partnerships"],
 ];
 
-const TERMS = ["36", "48", "60", "84", "120"];
+const TERMS = ["36", "48", "60", "84", "96", "120", "144", "180"];
+
+/** What the simulator sends along, so the study starts from the visitor's own numbers. */
+export interface StudyStart {
+  price?: string;
+  down?: string;
+  term?: string;
+  product?: string;
+  country?: string;
+  condition?: string;
+  use?: string;
+  year?: string;
+}
 const field = "w-full rounded bg-surface-container-low px-space-md py-2.5 font-body-md text-primary focus:outline-none focus:ring-2 focus:ring-secondary";
 
+function financingDetails(get: (key: string) => string, start: StudyStart): Record<string, string> {
+  const details: Record<string, string> = { price: get("price"), deposit: get("deposit"), term_months: get("term_months") };
+  const price = Number(get("price"));
+  const deposit = Number(get("deposit") || 0);
+  const months = Number(get("term_months"));
+  if (start.product && price > 0 && Number.isFinite(deposit) && months % 12 === 0) {
+    // The server recalculates from these, so they always describe the form as it stands, not the link that opened it.
+    Object.assign(details, {
+      country: start.country ?? "ES",
+      product: start.product,
+      condition: start.condition ?? "NEW",
+      use: start.use ?? "PRIVATE",
+      down_percent: String(Math.round((deposit / price) * 10000) / 100),
+      term_years: String(months / 12),
+      ...(start.year ? { boat_year: start.year } : {}),
+    });
+  }
+  return details;
+}
+
 /** Public message form: stored for the team, answered by email in the chosen language. */
-export default function ContactRequestForm({ mode = "contact" }: { mode?: Mode }) {
+export default function ContactRequestForm({ mode = "contact", start = {} }: { mode?: Mode; start?: StudyStart }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
@@ -43,7 +75,7 @@ export default function ContactRequestForm({ mode = "contact" }: { mode?: Mode }
           reply_language: get("reply_language") || "EN",
           consent: form.get("consent") === "on",
           website: get("website"),
-          details: mode === "financing" ? { price: get("price"), deposit: get("deposit"), term_months: get("term_months") } : {},
+          details: mode === "financing" ? financingDetails(get, start) : {},
         }),
       });
       setReference(result.reference);
@@ -104,15 +136,15 @@ export default function ContactRequestForm({ mode = "contact" }: { mode?: Mode }
         <div className="grid gap-space-md sm:grid-cols-3">
           <label className="font-label-md">
             Boat price (EUR)
-            <input name="price" inputMode="numeric" className={`${field} mt-1`} />
+            <input name="price" inputMode="numeric" defaultValue={start.price} className={`${field} mt-1`} />
           </label>
           <label className="font-label-md">
             Deposit (EUR)
-            <input name="deposit" inputMode="numeric" className={`${field} mt-1`} />
+            <input name="deposit" inputMode="numeric" defaultValue={start.price && start.down ? String(Math.round((Number(start.price) * Number(start.down)) / 100)) : undefined} className={`${field} mt-1`} />
           </label>
           <label className="font-label-md">
             Term
-            <select name="term_months" defaultValue="60" className={`${field} mt-1`}>
+            <select name="term_months" defaultValue={start.term ? String(Number(start.term) * 12) : "60"} className={`${field} mt-1`}>
               {TERMS.map((t) => (
                 <option key={t} value={t}>
                   {t} months
