@@ -27,3 +27,10 @@ export async function getT(): Promise<Translate> {
   const locale = await getRequestLocale();
   return makeTranslate(await loadMessages(locale));
 }
+
+/** Groups of keys that client components may use; everything else stays on the server so pages do not carry the whole dictionary. */
+export const CLIENT_GROUPS = ["nav.", "place.", "search."];
+
+export function clientMessages(messages: Messages): Messages {
+  return Object.fromEntries(Object.entries(messages).filter(([key]) => CLIENT_GROUPS.some((group) => key.startsWith(group))));
+}

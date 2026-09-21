@@ -1,12 +1,14 @@
 "use client";
 
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/directory";
+import { useT } from "@/i18n/client";
 import { localizePath, splitLocalePath } from "@/lib/i18n/localePath";
 import { useLocale, writeLocaleCookie } from "@/lib/i18n/useLocale";
 
 /** EN / IT / ES pills from the design; opens the same page at the chosen language's address and remembers the choice. */
 export default function LanguageSwitcher() {
   const current = useLocale();
+  const t = useT();
 
   function choose(locale: Locale) {
     writeLocaleCookie(locale);
@@ -16,7 +18,7 @@ export default function LanguageSwitcher() {
   }
 
   return (
-    <div role="group" aria-label="Language" className="inline-flex rounded-full bg-surface-container p-0.5 font-label-sm text-label-sm">
+    <div role="group" aria-label={t("nav.language")} className="inline-flex rounded-full bg-surface-container p-0.5 font-label-sm text-label-sm">
       {SUPPORTED_LOCALES.map((locale) => (
         <button
           key={locale}

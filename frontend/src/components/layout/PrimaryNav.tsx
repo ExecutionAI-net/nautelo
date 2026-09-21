@@ -1,6 +1,9 @@
 "use client";
 
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
+import { splitLocalePath } from "@/lib/i18n/localePath";
 import { useLocale } from "@/lib/i18n/useLocale";
 import Link from "@/components/layout/LocaleLink";
 import { usePathname } from "next/navigation";
@@ -13,8 +16,8 @@ import { resolveLocale } from "@/lib/i18n/directory";
 
 interface NavLink {
   href: string;
-  /** Hard-coded English, as the six entries merged in Phase 3 all are. */
-  label?: string;
+  /** The site-text key of the visible name. */
+  label?: MessageKey;
   /** A key in CONVERSATION_MESSAGES, resolved per the viewer's locale.
    *
    * New UI text must be an EN/IT/ES key (spec 37), so this phase's entry uses
@@ -36,15 +39,15 @@ interface NavLink {
 
 // Public routes come from spec 4.1; the gated ones from spec 5's capability table.
 const LINKS: NavLink[] = [
-  { href: "/boats/", label: "Buy" },
-  { href: "/services/professionals/", label: "Services" },
-  { href: "/brokers/", label: "Brokers" },
-  { href: "/financing/", label: "Financing" },
-  { href: "/guides/", label: "Guides" },
-  { href: "/pricing/", label: "Pricing" },
-  { href: "/sell/", label: "Sell", permission: "create_private_listing" },
-  { href: "/dashboard/private-seller/listings/", label: "My listings", requiresListingRight: true },
-  { href: "/dashboard/broker/fleet/", label: "Fleet", permission: "create_broker_listing" },
+  { href: "/boats/", label: "nav.buy" },
+  { href: "/services/professionals/", label: "nav.services" },
+  { href: "/brokers/", label: "nav.brokers" },
+  { href: "/financing/", label: "nav.financing" },
+  { href: "/guides/", label: "nav.guides" },
+  { href: "/pricing/", label: "nav.pricing" },
+  { href: "/sell/", label: "nav.sell", permission: "create_private_listing" },
+  { href: "/dashboard/private-seller/listings/", label: "nav.my_listings", requiresListingRight: true },
+  { href: "/dashboard/broker/fleet/", label: "nav.fleet", permission: "create_broker_listing" },
   {
     href: "/dashboard/broker/",
     // Spec 37: new UI text is a key, never a literal. `broker.dashboard.title`
@@ -55,12 +58,12 @@ const LINKS: NavLink[] = [
   },
   {
     href: "/dashboard/staff/",
-    label: "Moderation",
+    label: "nav.moderation",
     permission: "approve_listings_and_revisions",
   },
   {
     href: "/dashboard/staff/settings/",
-    label: "Settings",
+    label: "nav.settings",
     permission: "configure_products_and_settings",
   },
 ];
@@ -68,6 +71,7 @@ const LINKS: NavLink[] = [
 export default function PrimaryNav() {
   const { session, loading, can, logout } = useSession();
   const pathname = usePathname();
+  const t = useT();
   const authenticated = session?.authenticated === true;
 
   const isBrokerMember = (session?.broker_memberships?.length ?? 0) > 0;
@@ -87,11 +91,11 @@ export default function PrimaryNav() {
   });
 
   // Dashboards have their own left menu with a Home button; no site header there.
-  if (pathname?.startsWith("/dashboard")) return null;
+  if (pathname && splitLocalePath(pathname).path.startsWith("/dashboard")) return null;
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t("nav.aria")}
       className="sticky top-0 z-50 flex min-h-20 flex-wrap items-center gap-x-space-lg gap-y-space-xs py-space-xs bg-surface-container-lowest px-margin-mobile shadow-[0_1px_8px_rgba(0,0,0,0.04)] md:px-margin lg:px-margin-desktop"
     >
       <Link href="/" className="font-title-lg text-title-lg uppercase tracking-tight text-primary">
@@ -104,7 +108,7 @@ export default function PrimaryNav() {
               href={link.href}
               className="inline-flex items-center whitespace-nowrap py-space-xs font-body-md text-on-surface-variant transition-colors hover:text-on-surface"
             >
-              {link.messageKey ? tConversations(locale, link.messageKey) : link.label}
+              {link.messageKey ? tConversations(locale, link.messageKey) : link.label ? t(link.label) : null}
             </Link>
           </li>
         ))}
@@ -118,12 +122,12 @@ export default function PrimaryNav() {
               {session?.user?.full_name || session?.user?.email}
             </Link>
             <button type="button" onClick={() => void logout()} className="font-label-md text-label-md text-primary">
-              Sign out
+              {t("nav.sign_out")}
             </button>
           </>
         ) : (
           <Link href="/login" className="font-body-md font-medium text-primary transition-colors hover:text-secondary">
-            Sign in
+            {t("nav.sign_in")}
           </Link>
         )}
         {isBrokerMember ? null : (
@@ -131,7 +135,7 @@ export default function PrimaryNav() {
           href="/sell/"
           className="inline-flex items-center justify-center rounded-lg bg-primary-container px-space-md py-space-sm font-body-md text-on-primary shadow-sm transition-colors hover:bg-primary"
         >
-          List my boat
+          {t("nav.list_boat")}
         </Link>
         )}
       </div>
