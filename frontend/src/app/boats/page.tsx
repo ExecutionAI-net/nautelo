@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdSlot from "@/components/content/AdSlot";
 import BoatCard from "@/components/listings/BoatCard";
 import { isFinanceablePrice } from "@/components/listings/money";
+import MobileFilters from "@/components/listings/MobileFilters";
 import LocationFields from "@/components/listings/LocationFields";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
@@ -166,7 +167,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               name="query"
               maxLength={300}
               defaultValue={filters.query ?? filters.q ?? ""}
-              placeholder="Describe it: 12 m sailing yacht in Mallorca under €180,000"
+              placeholder="Describe it, e.g. sailing yacht in Mallorca"
               className="flex-1 rounded-lg bg-surface-container-lowest px-space-md py-space-sm font-body-md shadow-sm focus:outline-none"
             />
             <button type="submit" className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
@@ -177,10 +178,11 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
       </header>
 
       <div className="mx-auto grid max-w-[1440px] gap-space-lg px-margin-mobile py-space-xl md:px-margin lg:grid-cols-[280px_1fr] lg:px-margin-desktop">
-        <aside aria-label="Filter registry">
+        <aside aria-label="Filters">
+<MobileFilters activeCount={active.filter((key) => key !== "q" && key !== "query").length}>
           <form action={CANONICAL_PATH} method="get" className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="font-title-md text-title-md text-primary">Filter registry</h2>
+              <h2 className="font-title-md text-title-md text-primary">Filters</h2>
               <Link href={CANONICAL_PATH} className="font-label-sm text-secondary hover:underline">
                 Reset all
               </Link>
@@ -313,9 +315,10 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               </select>
             </div>
             <button type="submit" className="rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
-              Update results ({results.count ?? results.results.length})
+              Apply filters
             </button>
           </form>
+</MobileFilters>
         </aside>
 
         <section aria-label="Results">

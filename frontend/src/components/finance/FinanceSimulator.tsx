@@ -145,6 +145,7 @@ export default function FinanceSimulator({ compact = false, initialPrice }: { co
             </div>
             <input
               id="sim-price"
+              aria-label={t("sim.price")}
               type="range"
               min={rule?.min_price ?? 15000}
               max={rule?.max_price ?? 2000000}
