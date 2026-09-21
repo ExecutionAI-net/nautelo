@@ -1,13 +1,120 @@
-# Nautelo on one EC2 instance
+# Nautelo deployment: Cloudflare HTTPS on one EC2
 
-Two independent Compose projects run behind one shared Nginx container. Region: **eu-west-1**. Replace the example domains everywhere before deployment.
+Region: `eu-west-1`; AWS account: `790702264138`; EC2: `i-0a628b595b9e8d709` (current public IP `108.130.226.143`). Use an Elastic IP or keep DNS updated if the address changes.
 
-| Environment | Source branch | Frontend | API | Image tag |
+| Environment | Deployment branch | Site | API example | S3 bucket |
 |---|---|---|---|---|
-| dev | `dev` | `dev.example.com` | `api.dev.example.com` | `GITHUB_RUN_NUMBER` |
-| prod | `main` | `example.com` | `api.example.com` | `GITHUB_RUN_NUMBER` |
+| dev | `dev` | `https://dev.nautelo.com` | `https://dev.nautelo.com/api/v1/health/` | `nautelo-dev` |
+| prod | `main` | `https://nautelo.com` and `https://www.nautelo.com` | `/api/v1/health/` on either hostname | `nautelo-prod` |
 
-Image references use these four ECR repositories:
+`ww.nautelo.com` was treated as a typo for `www.nautelo.com`; no `ww` route is configured. Both production names serve the application. The canonical public URL used for generated links is `https://nautelo.com`.
+
+Nginx routes `/api/`, `/ws/`, and `/admin/` to Django, `/static/` to Django's collected assets, and all other paths to Next.js. It preserves the existing `/api/v1/...` paths. **Do not append `/api` to `NEXT_PUBLIC_API_BASE_URL`: the frontend already adds it.**
+
+The two environments retain separate databases, Redis, ClamAV, workers, schedules, networks and volumes. One shared proxy publishes only ports 80 and 443. It can start before prod is deployed; the undeployed environment returns 502 without preventing dev from running. Media remains in private S3 with signed PUT/GET URLs, independent of Cloudflare site proxying.
+
+## 1. Cloudflare DNS and SSL
+
+Create these **Proxied** (orange cloud) records:
+
+| Type | Name | Target |
+|---|---|---|
+| A | `@` | `108.130.226.143` |
+| A | `dev` | `108.130.226.143` |
+| CNAME | `www` | `nautelo.com` |
+
+Remove conflicting records. Only add AAAA records if this EC2 is configured for public IPv6. In Cloudflare SSL/TLS, select **Full (strict)**, not Flexible, and enable Always Use HTTPS. Confirm Cloudflare's edge certificate is active for all three names before testing.
+
+Under SSL/TLS → Origin Server, create/download an Origin CA certificate covering **`nautelo.com` and `*.nautelo.com`** (or all three exact hostnames). Download PEM certificate and unencrypted private key. Name the files `origin.pem` and `origin.key`.
+
+[Cloudflare Origin CA certificates](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/) are trusted by Cloudflare, not ordinary browser trust stores. Keep the DNS records proxied; direct-IP HTTPS and DNS-only browser access will not validate this certificate. [Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/) validates the origin certificate.
+
+## 2. Upload the certificate to EC2 before merging
+
+Run from the computer holding your certificate/key (add `-i /path/to/ssh-key` to scp if needed):
+
+```bash
+scp origin.pem origin.key ubuntu@108.130.226.143:~/
+```
+
+Then in your EC2 SSH session:
+
+```bash
+sudo install -d -m 700 /etc/nautelo/tls
+sudo install -m 644 ~/origin.pem /etc/nautelo/tls/origin.pem
+sudo install -m 600 ~/origin.key /etc/nautelo/tls/origin.key
+rm ~/origin.pem ~/origin.key
+sudo openssl x509 -in /etc/nautelo/tls/origin.pem -noout -subject -dates -ext subjectAltName
+```
+
+These are the exact persistent paths mounted read-only into Nginx. Do not upload the private key to GitHub, ECR, Secrets Manager, or the repository. This deployment uses Origin CA certificates rather than Certbot/Let's Encrypt; no ACME or Certbot renewal job is needed. Monitor expiration and replace the files before expiry. After rotation, reload the proxy:
+
+```bash
+sudo docker compose -f /opt/nautelo/proxy/docker-compose.proxy.yml exec -T nginx nginx -t
+sudo docker compose -f /opt/nautelo/proxy/docker-compose.proxy.yml exec -T nginx nginx -s reload
+```
+
+Python 3, AWS CLI v2, Docker, Compose 2.30+, `openssl`, and `curl` must be installed on EC2. Your SSM Agent and existing instance role remain in use. Keep ports 80/443 available; SSH can remain restricted to your administration IP. Application ports, PostgreSQL, Redis and ClamAV do not need host ingress rules.
+
+## 3. Update the AWS secrets
+
+Change only these keys in each existing JSON secret; retain database passwords, signing secrets, payment credentials and other app settings. The values below are partial updates, not complete secret replacements.
+
+**`nautelo/dev`:**
+
+```json
+{
+  "DEPLOY_ALLOW_HTTP": "false",
+  "NEXT_PUBLIC_BASE_URL": "https://dev.nautelo.com",
+  "NEXT_PUBLIC_API_BASE_URL": "https://dev.nautelo.com",
+  "OBJECT_STORAGE_BUCKET_NAME": "nautelo-dev",
+  "OBJECT_STORAGE_REGION": "eu-west-1"
+}
+```
+
+**`nautelo/prod`:**
+
+```json
+{
+  "DEPLOY_ALLOW_HTTP": "false",
+  "NEXT_PUBLIC_BASE_URL": "https://nautelo.com",
+  "NEXT_PUBLIC_API_BASE_URL": "https://nautelo.com",
+  "OBJECT_STORAGE_BUCKET_NAME": "nautelo-prod",
+  "OBJECT_STORAGE_REGION": "eu-west-1"
+}
+```
+
+The helper derives allowed hosts, CSRF trusted origins, CORS origins, secure cookies, database/Redis URLs, and production Django settings. Prod trusts both `nautelo.com` and `www.nautelo.com`. Removing `DEPLOY_ALLOW_HTTP` has the same effect as setting it to `false`. Do not keep the previous `true` value.
+
+Public URLs are embedded in Next.js at build time, so update the secrets **before starting a new workflow run**. Existing IP-test images need rebuilding. Both base URLs must be origins without `/api` or other paths; the validation rejects a path to prevent `/api/api/v1/...` requests.
+
+The complete required key set remains in `secret.example.json`. Use separate random signing/database secrets per environment. The example console email backend logs emails; use your configured delivery backend for real email. AWS credentials are supplied by the EC2 role; do not put static AWS keys in the secret. Updating a PostgreSQL password in Secrets Manager alone does not rotate an existing database role password.
+
+## 4. Update private S3 CORS
+
+Using AWS administration credentials with `s3:PutBucketCORS`, apply the checked-in configurations from the repository root:
+
+```bash
+aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-dev --cors-configuration file://deploy/aws/s3-cors.dev.json
+aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-prod --cors-configuration file://deploy/aws/s3-cors.prod.json
+```
+
+Dev allows `https://dev.nautelo.com`; prod allows both `https://nautelo.com` and `https://www.nautelo.com`. Keep S3 Block Public Access enabled. Browser uploads/downloads continue going directly to signed S3 URLs; `MEDIA_PUBLIC_BASE_URL` is kept empty by the deployment helper.
+
+## 5. GitHub Actions and branch deployment
+
+Create GitHub environments `dev` and `prod`. Allow branch `dev` for the dev environment and `main` for prod. Both environments can use your shared GitHub OIDC role and the same EC2 instance.
+
+| Environment variable | dev | prod |
+|---|---|---|
+| `AWS_BUILD_ROLE_ARN` | Your GitHub OIDC role ARN | Same role, if it trusts both environments |
+| `EC2_INSTANCE_ID` | `i-0a628b595b9e8d709` | Same |
+| `ECR_REGISTRY` (optional override) | `790702264138.dkr.ecr.eu-west-1.amazonaws.com` | Same |
+| `AWS_SECRET_ID` (optional override) | `nautelo/dev` | `nautelo/prod` |
+
+No GitHub secrets are needed for AWS authentication. The shared OIDC role must trust both `repo:OWNER/REPO:environment:dev` and `repo:OWNER/REPO:environment:prod`. The IAM examples under `deploy/aws/` cover secret reads, ECR build/push, and SSM commands; EC2 separately needs secret reads, ECR pulls, S3 access and SSM Agent permissions. Both roles run administrative commands on the same host; these environments are not an IAM/OS isolation boundary.
+
+Image references retain the workflow run number:
 
 ```text
 790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/frontend/dev:GITHUB_RUN_NUMBER
@@ -16,252 +123,55 @@ Image references use these four ECR repositories:
 790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/backend/prod:GITHUB_RUN_NUMBER
 ```
 
-`GITHUB_RUN_NUMBER` is replaced with the workflow's numeric run number, for example `42`. The HTTPS configuration uses hardened Django production settings; the dev environment is a deployed test environment. The root `docker-compose.yml` remains the local Postgres/Redis/MinIO setup.
+Push `devops` and merge into `dev` first. CI runs tests, builds/pushes images, smoke-tests frontend startup, and sends the release to EC2 through SSM. No repository clone or manual proxy-file copying is required on EC2. After dev works, merge the changes to `main` to deploy prod.
 
-Each environment has its own Postgres, Redis, Celery worker, Celery beat, frontend, API, volumes, Secrets Manager secret, and S3 bucket. Only Nginx publishes host ports (80 and 443). API and frontend join their environment's proxy network. Databases and Redis stay on their environment's default network. The worker consumes all four queues, including notifications.
+The HTTPS deployment:
 
-## Current rollout: dev only on the EC2 public IP
+1. Fetches that environment's secret and checks certificate files, key permissions, expiration, SAN coverage and matching public keys **before migrations or app replacement**.
+2. Pulls images, starts infrastructure, and runs migrations/collectstatic.
+3. Locks the shared proxy, prepares both proxy networks/static volumes, and runs `nginx -t` on the candidate configuration with the actual certificate. Only after validation does it stop the old `nautelo-dev-http-proxy` container.
+4. Installs shared proxy files under `/opt/nautelo/proxy` and starts/reloads Nginx on 80/443. An unchanged config does not force container recreation; updates can briefly interrupt both environments. The other app stack is not redeployed.
+5. Starts the selected environment's app containers, waits for their health checks, then checks the API through local HTTPS Nginx routing with the domain's SNI. That local routing check skips public CA verification because Origin CA is not in the host public CA store; Cloudflare's external Full (strict) verification remains enabled.
 
-For the initial test, use **http://108.130.226.143**. The API is at **http://108.130.226.143/api/v1/** on the same port. Nginx routes `/api/`, `/ws/`, `/admin/`, and Django `/static/` assets to the backend; other requests go to the frontend. Only host port **80** is published by this temporary proxy. Your existing security group ports 80, 443, and 22 are sufficient. Keep database, Redis, 3000, 8000, and 8080 closed.
+This is not a zero-downtime rollout. Use backward-compatible migrations or planned maintenance. Failure does not automatically roll back images, migrations or proxy files. Certificate/config validation failures leave the old proxy running; a later start failure may require restoring it or correcting the config. Do not delete volumes to recover a failed deployment.
 
-Update these three keys in the existing **`nautelo/dev`** Secrets Manager JSON, keeping all other required keys:
+## 6. Verify and operate
 
-```json
-{
-  "DEPLOY_ALLOW_HTTP": "true",
-  "NEXT_PUBLIC_BASE_URL": "http://108.130.226.143",
-  "NEXT_PUBLIC_API_BASE_URL": "http://108.130.226.143"
-}
-```
-
-This is a partial update example, not a replacement for the complete secret. Prod must keep HTTPS URLs and omit `DEPLOY_ALLOW_HTTP` (or set it to `false`). The deployment script rejects HTTP mode for prod. Dev HTTP keeps `DEBUG=False` and explicit allowed hosts, while disabling SSL redirects, HSTS, and secure-only cookies for this test. HTTP does not encrypt logins or session traffic; use test accounts and data.
-
-Apply the dev bucket CORS origin using AWS credentials with `s3:PutBucketCORS` (an AWS administration session or the S3 console; this configuration permission is not required on the application role):
+From your computer after dev succeeds:
 
 ```bash
-aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-dev \
-  --cors-configuration '{"CORSRules":[{"AllowedOrigins":["http://108.130.226.143"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
+curl --fail https://dev.nautelo.com/api/v1/health/
+curl --fail https://dev.nautelo.com/login/
 ```
 
-Set `EC2_INSTANCE_ID=i-0a628b595b9e8d709` in the GitHub dev environment along with the OIDC role variable. Push `devops` and merge it into `dev` when ready. CI builds the dev images with these public URLs, then SSM deploys the app and automatically starts the temporary dev HTTP proxy. No certificates, domains, prod secret lookup, prod network, or manual proxy bootstrap is needed for this mode. Leave `main` unchanged until you are ready for prod. Port 80 must be free of any existing host Nginx/Apache or HTTPS proxy before the first deployment.
-
-After the workflow succeeds:
+After prod succeeds:
 
 ```bash
-curl --fail http://108.130.226.143/api/v1/health/
-curl --fail http://108.130.226.143/login/
+curl --fail https://nautelo.com/api/v1/health/
+curl --fail https://www.nautelo.com/api/v1/health/
 ```
 
-Check login/refresh, a photo/video upload, and signed S3 downloads in your browser. WebSocket connections use `ws://108.130.226.143/ws/...`. If the IP changes, update both public URLs, bucket CORS, and rebuild/redeploy.
+Use normal certificate verification for these public Cloudflare URLs. Test login/refresh, Django admin styles, WebSocket notifications (`wss://HOST/ws/notifications/`), and one media upload/download in each environment. Verify prod from both apex and www. The health API uses `/api/v1/health/`; `/api` itself need not be a valid Django endpoint.
 
-When moving to domains, set the dev URLs to the distinct HTTPS frontend/API origins, remove the HTTP opt-in, update S3 CORS, obtain the certificate, and bootstrap the shared HTTPS proxy as described below. Stop the temporary proxy first to release port 80:
+On EC2:
 
 ```bash
-sudo docker ps --filter label=com.docker.compose.project=nautelo-dev-http-proxy
-# In the last successful dev release directory:
-sudo env DEV_HTTP_HOST=108.130.226.143 docker compose -f deploy/docker-compose.proxy.dev-http.yml down
-```
-
-Do not use `down -v`; the static volume is shared with the dev application. HTTP-to-HTTPS migration should be a planned cutover. Normal HTTPS deployments do not automatically delete or replace the temporary proxy.
-
-## 1. Prepare AWS and EC2
-
-Use a Linux **x86_64** EC2 instance (the GitHub build runner builds amd64 images), an encrypted persistent EBS volume, and an Elastic IP. Install Docker Engine, Docker Compose **2.30+**, Python 3, AWS CLI v2, Git, and Certbot. The deployment account must be able to use Docker. Size RAM/CPU for two copies of the app, two databases, and four Celery worker processes; monitor memory and disk before adding traffic. Building images in CI avoids EC2 build load.
-
-Allow inbound TCP 80 and 443; restrict SSH to your administration IP or use SSM. Do not open PostgreSQL, Redis, 3000, or 8000. Point all four DNS A records at the Elastic IP. Use the domains directly; adding a CDN proxy changes the trusted client-IP configuration.
-
-All four ECR repository paths above have been confirmed, including `790702264138.dkr.ecr.eu-west-1.amazonaws.com/nautelo/frontend/dev`. The creation commands below are reference only; do not recreate existing repositories:
-
-```bash
-aws ecr create-repository --region eu-west-1 --repository-name nautelo/backend/dev --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo/frontend/dev --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo/backend/prod --image-tag-mutability IMMUTABLE
-aws ecr create-repository --region eu-west-1 --repository-name nautelo/frontend/prod --image-tag-mutability IMMUTABLE
-```
-
-Keep your existing EC2 IAM role with Secrets Manager, S3, and ECR permissions. `aws/ec2-policy.example.json` is a reference to compare resource scope with your account `790702264138` and your confirmed buckets `nautelo-dev` / `nautelo-prod`; do not create a duplicate role. The role needs Secrets Manager read, ECR pull, and object access to the two buckets. If using a customer-managed KMS key, also grant the appropriate KMS permissions and key-policy access. Require IMDSv2 and set the response hop limit to **2**, so container SDKs can retrieve rotating role credentials:
-
-```bash
-aws ec2 modify-instance-metadata-options --region eu-west-1 --instance-id i-REPLACE \
-  --http-tokens required --http-put-response-hop-limit 2 --http-endpoint enabled
-```
-
-Do not put AWS access keys in Secrets Manager or Compose. The instance role supplies S3 credentials. These environments share a host and its IAM role: Docker network separation is not a security boundary against a compromised host/container with role access. Use separate instances/roles if dev must be unable to access prod AWS resources.
-
-## 2. Configure the existing private S3 buckets
-
-Use the existing buckets directly; no CloudFront distribution is needed. Set these values in each Secrets Manager JSON:
-
-| Secret | `OBJECT_STORAGE_BUCKET_NAME` | `OBJECT_STORAGE_REGION` |
-|---|---|---|
-| `nautelo/dev` | `nautelo-dev` | `eu-west-1` |
-| `nautelo/prod` | `nautelo-prod` | `eu-west-1` |
-
-The secret example uses the dev bucket. Change it to `nautelo-prod` when preparing the prod secret. The application reads this setting from Secrets Manager at deployment. The EC2 IAM policy example covers these exact buckets and their objects.
-
-Apply or verify the following configuration on the existing dev bucket:
-
-```bash
-aws s3api put-public-access-block --region eu-west-1 --bucket nautelo-dev \
-  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-aws s3api put-bucket-versioning --region eu-west-1 --bucket nautelo-dev \
-  --versioning-configuration Status=Enabled
-aws s3api put-bucket-cors --region eu-west-1 --bucket nautelo-dev \
-  --cors-configuration file://deploy/aws/s3-cors.dev.json
-```
-
-Repeat for bucket `nautelo-prod` using `s3-cors.prod.json`. Replace CORS origins with the actual frontend origins. Keep default encryption enabled; configure lifecycle retention for noncurrent versions to control storage usage. Do not delete active media by age.
-
-The existing upload-intent API gives the browser a presigned PUT URL. Photo/video bytes go directly to S3, avoiding Nginx's 5 MB API request limit. Workers validate uploads and sanitize images. The deployment enables `MEDIA_SIGNED_URLS`, which adds expiring signed GET URLs to approved public snapshot media; unsigned bucket access stays blocked. URLs expire (django-storages defaults to one hour), so long-lived browser pages must refetch listing data when needed. Existing video validation/processing behavior is unchanged; this setup does not add transcoding.
-
-The deployment helper explicitly sets `MEDIA_PUBLIC_BASE_URL` to an empty string and `MEDIA_SIGNED_URLS=True`, so delivery is directly from private S3 even if an old CDN value remains in a secret. CloudFront is not used. When adding a CDN later, update this override along with the origin-access and publication policy; do not make the upload bucket public.
-
-## 3. Store environment configuration in Secrets Manager
-
-Your existing secrets are `nautelo/dev` and `nautelo/prod` in account `790702264138`, region `eu-west-1`. The workflow defaults to these names. The ARNs supplied without the generated suffix are partial ARNs; using the secret names avoids ambiguity. IAM examples match the six-character suffix with `??????`.
-
-Copy `deploy/secret.example.json` to an ignored `deploy/secret.dev.json`, fill in every value, and store **one JSON SecretString per environment** in those existing secrets. Use independent random Django, contact-hash, internal-service, and database secrets. Use Stripe test credentials in dev and live credentials in prod. Set the two HTTPS URLs, bucket, region, and email settings for each environment.
-
-```bash
-aws secretsmanager put-secret-value --region eu-west-1 --secret-id nautelo/dev \
-  --secret-string file://deploy/secret.dev.json
-aws secretsmanager put-secret-value --region eu-west-1 --secret-id nautelo/prod \
-  --secret-string file://deploy/secret.prod.json
-```
-
-Remove local input copies after confirming the secrets exist. To change a secret use `put-secret-value` with the same file input. Values must be single-line strings. Dollars, quotes, spaces, and `#` are preserved. Do not include `AWS_*`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, or `OBJECT_STORAGE_ENDPOINT_URL`: S3 uses the EC2 role and AWS endpoints.
-
-The helper derives internal DB/Redis URLs, allowed hosts, CORS/CSRF origins, and secure-cookie settings. The PostgreSQL password is URL-encoded for Django. The frontend receives only its public URLs and `INTERNAL_SERVICE_SECRET`; Postgres receives only its DB/user/password. Console email in the example is for initial testing; configure and validate a supported mail backend before production email flows.
-
-Secrets are fetched during deployment and written atomically into ignored `deploy/runtime/dev/` or `prod/` directories (directory mode 0700, files 0600). They remain on EC2 for container recreation and operational commands. Docker administrators can inspect container environments. Secrets are never used as Docker build arguments; only the two `NEXT_PUBLIC_*` URLs are supplied to the frontend build. Rotating runtime secrets requires redeployment. Changing public URLs requires rebuilding the frontend with a new tag as Next.js embeds them at build time.
-
-Changing `POSTGRES_PASSWORD` in Secrets Manager does **not** change an existing database role password. Coordinate `ALTER ROLE` and secret rotation during maintenance; do not delete the database volume.
-
-## 4. Build tagged images from branches
-
-Create GitHub environments `dev` and `prod`, restricting their deployment branches to `dev` and `main` respectively. Configure these environment variables:
-
-- `AWS_BUILD_ROLE_ARN`: the OIDC role to assume for that environment.
-- `ECR_REGISTRY` (optional override): defaults to `790702264138.dkr.ecr.eu-west-1.amazonaws.com`.
-- `AWS_SECRET_ID` (optional override): defaults to `nautelo/dev` or `nautelo/prod` based on the branch.
-- `EC2_INSTANCE_ID`: your instance ID, identical in both environments because both run on the same EC2.
-
-Create the GitHub OIDC provider and role using `aws/github-trust.example.json`. Account `790702264138` is already set; substitute OWNER/REPO; use `environment:prod` for the prod role. Attach `aws/build-policy.example.json`, restricting the Secrets Manager resource to the role's own environment. Also attach `aws/ssm-deploy-policy.example.json`, replacing `i-REPLACE` with your one target instance. The GitHub role can push images, read configuration, send `AWS-RunShellScript` commands to that instance, and read command status. It does not need S3 access. SSM shell commands execute as root: both GitHub environment roles therefore have administrative access to the shared host; environment rules do not isolate them at the OS level. Set production environment protection/branch rules as needed. The build role reads the secret to obtain public build URLs; the script never prints the secret payload.
-
-`.github/workflows/images.yml` runs on pushes to `dev` and `main` and can be manually dispatched on either branch. It first calls the reusable CI workflow (backend tests, frontend checks/build, and deployment configuration validation). Only after CI succeeds does it build/push both images and deploy through SSM. Pull requests run CI without deployment.
-
-Tags are exactly `GITHUB_RUN_NUMBER`; the environment is part of the repository name. Re-running the same workflow run keeps its run number, so it cannot overwrite an image already published to an immutable ECR repository. To rebuild, dispatch a new workflow run; to retry only deployment, use the existing numeric tag with `ssm_deploy.py`. The SSM helper sends the matching deployment files and public configuration inline in a compressed payload; it sends no secret values, source checkout, GitHub token, or AWS keys. EC2 installs the files under `/opt/nautelo/releases/ENV/TAG/`, fetches runtime secrets using its own role, pulls images, runs migrations, and checks health. No GitHub authentication, Git fetch, SSH key, or inbound SSH port is needed on EC2.
-
-The job prints the SSM command ID, polls for completion, and fails on command failure or timeout. It deliberately does not echo remote output into GitHub logs; inspect Run Command output in Systems Manager when troubleshooting. A cancelled GitHub run does not cancel an already-sent remote command: check its status before retrying. Per-environment locks also serialize remote deployments. The last successful release path is recorded in `/opt/nautelo/deploy/runtime/ENV/last-successful-release`.
-
-For a local build, copy `config.dev.example.json` to `config.dev.json`, authenticate AWS CLI with a permitted role, and run from the appropriate branch:
-
-```bash
-python3 deploy/manage.py build dev 42
-# From main:
-python3 deploy/manage.py build prod 43
-```
-
-Use the numeric run number assigned to the release; avoid manually publishing tags that a future workflow run could need. Build from clean checkouts and record the source commit alongside any manual build. The helper checks the selected branch. Both Dockerfiles use the repository root as build context, and `.dockerignore` excludes secrets, local environments, and build artifacts.
-
-## 5. Enable SSM on the existing instance
-
-Attach **AmazonSSMManagedInstanceCore** to your existing EC2 role if it is not already attached. Install/start the SSM Agent and verify the instance is **Online** in Systems Manager in `eu-west-1`. The instance needs outbound HTTPS access to Systems Manager/SSM Messages, ECR, Secrets Manager, and S3 through internet/NAT or the appropriate VPC endpoints. No inbound SSM port is needed.
-
-Keep Python 3, Docker, Compose 2.30+, AWS CLI v2, certificates, and the shared Nginx proxy installed on the host. SSM runs the deployment as root, and owns `/opt/nautelo/releases` and `/opt/nautelo/deploy/runtime`; use `sudo` for manual operational commands that read those runtime files. For HTTPS, the shared Nginx proxy is bootstrapped once using the next section and is not recreated by each app deployment. Dev HTTP mode instead automatically starts its own temporary proxy.
-
-## 6. Start the shared HTTPS proxy
-
-Copy the shared proxy files (`docker-compose.proxy.yml`, `nginx.conf`, and `proxy.env.example`) into `/opt/nautelo/deploy` once. You can also bootstrap from a repository checkout there, but ongoing deployments do not need one. Run the following commands from `/opt/nautelo`. Copy `deploy/proxy.env.example` to `deploy/proxy.env` and replace the four domains. Create the two proxy networks (once):
-
-```bash
-docker network create nautelo-dev-edge
-docker network create nautelo-prod-edge
-mkdir -p deploy/acme
-```
-
-Before starting Nginx, issue a single certificate covering all four names. Port 80 must be free for initial standalone issuance; replace the names below:
-
-```bash
-sudo certbot certonly --standalone --cert-name nautelo \
-  -d dev.example.com -d api.dev.example.com -d example.com -d api.example.com
-
-docker compose --env-file deploy/proxy.env -f deploy/docker-compose.proxy.yml up -d
-docker compose --env-file deploy/proxy.env -f deploy/docker-compose.proxy.yml exec nginx nginx -t
-```
-
-Nginx can start while either app stack is absent; it dynamically resolves each environment's Docker alias. Requests to an absent stack return 502 without taking down the other environment. The shared certificate is expected at `/etc/letsencrypt/live/nautelo/`.
-
-After issuance, configure renewals to use the shared webroot (substitute the actual checkout path):
-
-```bash
-sudo certbot reconfigure --cert-name nautelo --webroot --webroot-path /opt/nautelo/deploy/acme
-sudo certbot renew --dry-run
-```
-
-Install a root-owned executable deploy hook under `/etc/letsencrypt/renewal-hooks/deploy/` containing:
-
-```sh
-#!/bin/sh
-cd /opt/nautelo || exit 1
-docker compose --env-file deploy/proxy.env -f deploy/docker-compose.proxy.yml exec -T nginx nginx -s reload
-```
-
-Enable the OS-provided Certbot renewal timer and verify it runs. Older Certbot releases without `reconfigure` need their renewal configuration updated using the release's supported workflow.
-
-## 7. Deploy dev and prod independently
-
-With GitHub variables, OIDC policies, SSM, and the shared proxy configured, push to `dev` for dev or `main` for prod. The workflow handles the deployment automatically after CI passes. No environment config files need to be manually copied to EC2 for this path.
-
-For a manual deployment from a local checkout with AWS SSM permissions, copy the matching config example, fill in the account/secret details, and use an existing published tag:
-
-```bash
-python3 deploy/ssm_deploy.py dev 42 --instance-id i-REPLACE
-python3 deploy/ssm_deploy.py prod 43 --instance-id i-REPLACE
-```
-
-The local `manage.py deploy` command remains available when running directly on EC2 from a release directory. To inspect the active dev deployment from the host:
-
-```bash
-sudo sh -c 'cd "$(cat /opt/nautelo/deploy/runtime/dev/last-successful-release)" && docker compose --env-file /opt/nautelo/deploy/runtime/dev/compose.env -f deploy/docker-compose.dev.yml ps'
-```
-
-Keep old release directories while their runtime Compose references or rollback procedures need them. Do not delete the shared runtime directory during release cleanup.
-
-The helper authenticates to ECR, fetches configuration, pulls images, waits for Postgres/Redis, runs migrations plus `collectstatic`, then recreates the four app services and waits for API/frontend health. A migration failure stops before app replacement. It locks per environment to prevent overlapping deployments. Static assets for Django admin are served by Nginx from separate named volumes. The frontend image serves its own assets.
-
-This is a single-host Compose rollout with a brief interruption, not a zero-downtime deployment. Existing workers/API can still run while migrations execute: use backward-compatible schema migrations, or stop that environment's app services for a planned maintenance migration. A failed health check is reported and does not automatically roll back. Inspect logs and deploy a known-good compatible tag. Database migrations are not reversed by image rollback.
-
-Verify after each deployment:
-
-```bash
-curl --fail https://api.dev.example.com/api/v1/health/
-curl --fail https://api.example.com/api/v1/health/
-# Logs on EC2 for the last successful dev release:
+sudo docker compose -f /opt/nautelo/proxy/docker-compose.proxy.yml logs --tail=100 nginx
 sudo sh -c 'cd "$(cat /opt/nautelo/deploy/runtime/dev/last-successful-release)" && docker compose --env-file /opt/nautelo/deploy/runtime/dev/compose.env -f deploy/docker-compose.dev.yml logs --tail=100 api worker web'
 ```
 
-Also exercise login/refresh, notifications over WebSocket, Django admin styles, and one photo and video upload/completion/download in each environment. Confirm dev records and uploads do not appear in prod. Set up database backups and test restores, monitor disk/memory and certificate expiry, and retain prior ECR tags for rollback. Never use `docker compose down -v` on these stacks unless intentionally destroying their data.
+Use prod paths for prod logs. SSM release directories remain under `/opt/nautelo/releases/ENV/TAG`; runtime secret files stay under `/opt/nautelo/deploy/runtime/ENV` with restrictive permissions. Retain releases/images required for recovery and back up databases. Never use `down -v` on persistent stacks unless intentionally destroying their data.
 
-## Validation and references
+Cloudflare settings: bypass cache for dynamic application/API/auth/admin responses and WebSockets; do not apply a blanket Cache Everything rule. Cache immutable `/_next/static/` assets separately if desired. Browser S3 traffic does not pass through Cloudflare. No Cloudflare API token is needed by this pipeline.
 
-Run helper tests with `python3 -m unittest discover -s deploy/tests -v`. On a Docker-capable host, render each stack with the generated `compose.env` using `docker compose ... config --quiet`; avoid printing `config` output because it includes secret values.
+Nginx restores client IPs using `CF-Connecting-IP` only for Cloudflare's published source ranges in `cloudflare-realip.conf`, then replaces `X-Forwarded-For` with the verified address. Django retains `TRUSTED_PROXY_COUNT=1`. Direct non-Cloudflare requests cannot spoof this trusted header. Review the IP allowlist when Cloudflare changes its [IPv4](https://www.cloudflare.com/ips-v4) or [IPv6](https://www.cloudflare.com/ips-v6) ranges. This is header trust, not a firewall: optionally restrict EC2 web ingress to Cloudflare source ranges once the cutover works.
 
-- [Compose raw env files](https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/) require Compose 2.30+.
-- [EC2 metadata in containers](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html) explains the IMDS response hop limit.
-- [django-storages S3 authentication and signed URLs](https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html).
-- [Certbot renewal configuration](https://eff-certbot.readthedocs.io/en/latest/using.html).
-- [S3 CORS configuration](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ManageCorsUsing.html).
+Certificate renewal/rotation is manual: install the replacement certificate/key, validate them, then reload Nginx. Keep Cloudflare DNS proxied. Cloudflare 525/526 errors usually require checking the origin certificate/key, hostname coverage, validity, encryption mode, and port 443 reachability.
 
-- [Systems Manager instance permissions](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-instance-permissions.html).
-- [Run Command IAM setup](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command-setting-up.html).
+## Validation
 
-- [Secrets Manager accepts secret names or ARNs](https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html); [ARN suffix matching in IAM](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_iam-policies.html).
+```bash
+python3 -m unittest discover -s deploy/tests -v
+```
 
-- [Nginx proxy Host headers](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
-
-## Diagnosing AWS failures before image builds
-
-The workflow prints the caller identity after assuming the GitHub role. This can differ from the EC2 instance role. The build helper reports whether Secrets Manager `GetSecretValue` or ECR `GetAuthorizationToken` failed, with the recognized AWS error code and a targeted hint. It never prints the captured secret payload, ECR login password, or raw AWS stderr.
-
-For `AccessDeniedException`, check the permissions on the role shown by the GitHub identity step: `secretsmanager:GetSecretValue` must cover `arn:aws:secretsmanager:eu-west-1:790702264138:secret:nautelo/dev-??????` for dev, and ECR login needs `ecr:GetAuthorizationToken` on `*`. A customer-managed Secrets Manager KMS key additionally requires decrypt access. For `ResourceNotFoundException`, check secret name, region and account. The exit code alone cannot identify which of these conditions occurred.
+CI also renders Compose configs and tests Nginx syntax with a generated test certificate. Real Cloudflare edge/origin connectivity must be verified after deploying with your certificate and DNS. `nginx.conf`, `docker-compose.proxy.yml`, `cloudflare-realip.conf` and `proxy.py` travel together in the SSM bundle. The legacy dev HTTP files remain only for explicitly opted-in IP tests; do not re-enable them after the domain cutover.

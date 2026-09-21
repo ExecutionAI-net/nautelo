@@ -2,7 +2,7 @@
   "CORSRules": [
     {
       "AllowedOrigins": [
-        "http://108.130.226.143"
+        "https://dev.nautelo.com"
       ],
       "AllowedMethods": [
         "GET",

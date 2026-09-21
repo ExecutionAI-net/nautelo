@@ -42,3 +42,8 @@ deploy/secret.*.json
 !deploy/secret.example.json
 deploy/runtime/
 deploy/proxy.env
+
+# Cloudflare Origin private key and certificate files belong on EC2 only
+*.key
+*.pem
+deploy/tls/

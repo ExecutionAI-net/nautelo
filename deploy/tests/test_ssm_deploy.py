@@ -22,7 +22,7 @@ class SSMDeploymentTests(unittest.TestCase):
         args = shlex.split(body['Parameters']['commands'][-1])
         self.assertEqual(args[:2], ['python3', '-c'])
         data = json.loads(gzip.decompress(base64.b64decode(args[-1])))
-        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.dev.yml', 'config.dev.json', 'docker-compose.proxy.dev-http.yml', 'nginx.dev-http.conf'})
+        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.dev.yml', 'config.dev.json', 'docker-compose.proxy.dev-http.yml', 'nginx.dev-http.conf', 'proxy.py', 'docker-compose.proxy.yml', 'nginx.conf', 'cloudflare-realip.conf'})
         self.assertNotIn('private-value', json.dumps(data))
         self.assertEqual(body['InstanceIds'], ['i-0123456789abcdef0'])
         self.assertEqual(body['Parameters']['executionTimeout'], ['1800'])
@@ -33,7 +33,7 @@ class SSMDeploymentTests(unittest.TestCase):
         })
         args = shlex.split(body['Parameters']['commands'][-1])
         data = json.loads(gzip.decompress(base64.b64decode(args[-1])))
-        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.prod.yml', 'config.prod.json'})
+        self.assertEqual(set(data['files']), {'manage.py', 'docker-compose.prod.yml', 'config.prod.json', 'proxy.py', 'docker-compose.proxy.yml', 'nginx.conf', 'cloudflare-realip.conf'})
 
     def test_rejects_non_numeric_tags_and_command_injection(self):
         for env, tag, instance in [('prod', 'dev-abc', 'i-0123456789abcdef0'),

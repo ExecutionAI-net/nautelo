@@ -22,6 +22,8 @@ def request(environment, tag, instance_id, config):
     # Explicit allowlist: never send .env files or Secrets Manager contents to SSM.
     public_config = {key: config[key] for key in ('region', 'registry', 'secret_id')}
     files = {name: (ROOT / name).read_text() for name in ('manage.py', f'docker-compose.{environment}.yml')}
+    for name in ('proxy.py', 'docker-compose.proxy.yml', 'nginx.conf', 'cloudflare-realip.conf'):
+        files[name] = (ROOT / name).read_text()
     if environment == 'dev':
         for name in ('docker-compose.proxy.dev-http.yml', 'nginx.dev-http.conf'):
             files[name] = (ROOT / name).read_text()
