@@ -139,7 +139,7 @@ export default function ContactRequestForm({ mode = "contact", start = {} }: { m
             <input name="price" inputMode="numeric" defaultValue={start.price} className={`${field} mt-1`} />
           </label>
           <label className="font-label-md">
-            Deposit (EUR)
+            Down payment (EUR)
             <input name="deposit" inputMode="numeric" defaultValue={start.price && start.down ? String(Math.round((Number(start.price) * Number(start.down)) / 100)) : undefined} className={`${field} mt-1`} />
           </label>
           <label className="font-label-md">
@@ -147,7 +147,7 @@ export default function ContactRequestForm({ mode = "contact", start = {} }: { m
             <select name="term_months" defaultValue={start.term ? String(Number(start.term) * 12) : "60"} className={`${field} mt-1`}>
               {TERMS.map((t) => (
                 <option key={t} value={t}>
-                  {t} months
+                  {Number(t) / 12} years
                 </option>
               ))}
             </select>
