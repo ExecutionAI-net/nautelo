@@ -1,5 +1,6 @@
 "use client";
 
+import OrgLocationFields from "@/components/places/OrgLocationFields";
 import BrokerBilling from "@/components/broker/BrokerBilling";
 import OrgImageUpload from "@/components/team/OrgImageUpload";
 import CompletenessChecklist, { type Completeness } from "@/components/team/CompletenessChecklist";
@@ -36,6 +37,7 @@ interface BrokerProfile {
   tagline: string;
   about: string;
   city: string;
+  place_id?: number | null;
   country_code: string;
   logo_url: string;
   cover_image_url: string;
@@ -234,6 +236,7 @@ export function BrokerProfileForm() {
               tagline: form.tagline ?? "",
               about: form.about ?? "",
               city: form.city ?? "",
+              ...(form.place_id ? { place_id: form.place_id } : {}),
               country_code: form.country_code ?? "",
               specialties: tags === null ? (form.specialties ?? []) : tags.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 8),
             }),
@@ -274,14 +277,10 @@ export function BrokerProfileForm() {
         Public phone
         <input className={FIELD} required value={form.public_phone ?? ""} onChange={set("public_phone")} />
       </label>
-      <label className={LABEL}>
-        City
-        <input className={FIELD} value={form.city ?? ""} onChange={set("city")} />
-      </label>
-      <label className={LABEL}>
-        Country code (2 letters)
-        <input className={FIELD} maxLength={2} value={form.country_code ?? ""} onChange={set("country_code")} />
-      </label>
+      <OrgLocationFields
+        value={{ country_code: form.country_code ?? "", city: form.city ?? "", region: "", place_id: form.place_id ?? null }}
+        onChange={(next) => setDraft({ ...form, country_code: next.country_code, city: next.city, place_id: next.place_id })}
+      />
       <label className={`${LABEL} sm:col-span-2`}>
         Tagline
         <input className={FIELD} maxLength={300} value={form.tagline ?? ""} onChange={set("tagline")} />

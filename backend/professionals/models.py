@@ -40,6 +40,8 @@ class ProfessionalProfile(UUIDTimeStampedModel):
     address_line1 = models.CharField(max_length=200, blank=True)
     address_line2 = models.CharField(max_length=200, blank=True)
     city = models.CharField(max_length=120, blank=True)
+    # GeoNames id of the city picked from places.City; null while only free text exists.
+    place_geoname_id = models.PositiveBigIntegerField(null=True, blank=True, db_index=True)
     postal_code = models.CharField(max_length=20, blank=True)
     region = models.CharField(max_length=120, blank=True)
     country_code = models.CharField(max_length=2)

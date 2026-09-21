@@ -60,6 +60,8 @@ class BrokerOrganization(UUIDTimeStampedModel):
     tagline = models.CharField(max_length=300, blank=True, default="")
     about = models.TextField(max_length=4000, blank=True, default="")
     city = models.CharField(max_length=120, blank=True, default="")
+    # GeoNames id of the city picked from places.City; null while only free text exists.
+    place_geoname_id = models.PositiveBigIntegerField(null=True, blank=True, db_index=True)
     country_code = models.CharField(max_length=2, blank=True, default="")
     logo_url = models.URLField(max_length=500, blank=True, default="")
     cover_image_url = models.URLField(max_length=500, blank=True, default="")

@@ -31,6 +31,7 @@ const FILTER_KEYS = [
   "brand",
   "country",
   "region",
+  "place",
   "seller_type",
   "boat_type",
   "condition",
@@ -238,6 +239,21 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                 ))}
               </select>
             </div>
+            {(facets.cities ?? []).length > 0 ? (
+              <div>
+                <label className={LABEL} htmlFor="f-place">
+                  City
+                </label>
+                <select id="f-place" name="place" defaultValue={filters.place ?? ""} className={FIELD}>
+                  <option value="">All cities</option>
+                  {(facets.cities ?? []).map((city) => (
+                    <option key={city.id} value={city.id}>
+                      {city.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <fieldset>
               <legend className={LABEL}>Price range (€)</legend>
               <div className="grid grid-cols-2 gap-space-xs">

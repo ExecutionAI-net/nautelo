@@ -151,7 +151,15 @@ def facets(queryset: QuerySet) -> dict:
             regions.add(region)
     from .form_options import BOAT_TYPES, FUEL_TYPES
 
+    cities = {
+        pid: name
+        for pid, name in queryset.filter(**{f"{SNAP}location_place_id__isnull": False})
+        .values_list(f"{SNAP}location_place_id", f"{SNAP}location_city")
+        .order_by()
+        .distinct()
+    }
     return {
+        "cities": [{"id": pid, "name": name} for pid, name in sorted(cities.items(), key=lambda item: item[1])],
         "brands": sorted(brands),
         "countries": sorted(countries),
         "regions": sorted(regions),

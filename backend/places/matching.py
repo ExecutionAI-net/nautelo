@@ -51,3 +51,28 @@ def backfill_snapshots(*, apply: bool = False) -> dict:
                 location_city=city.name_en,
             )
     return {"matched": matched, "unmatched": sorted(set(unmatched))}
+
+
+def apply_place_to_attrs(attrs: dict, *, has_region: bool) -> dict:
+    """Serializer helper: `place_geoname_id` fixes country, city (and region) to canonical names.
+
+    A free-text city sent without a place forgets the old place, so the two never disagree.
+    Raises serializers.ValidationError for an unknown place.
+    """
+    from rest_framework import serializers
+
+    if "place_geoname_id" in attrs:
+        raw = attrs["place_geoname_id"]
+        if raw is None:
+            return attrs
+        try:
+            city = City.objects.select_related("region").get(geoname_id=raw)
+        except City.DoesNotExist:
+            raise serializers.ValidationError({"place_id": ["Choose a place from the list."]}) from None
+        attrs["country_code"] = city.country_code
+        attrs["city"] = city.name_en
+        if has_region:
+            attrs["region"] = city.region.name_en if city.region else ""
+    elif "city" in attrs:
+        attrs["place_geoname_id"] = None
+    return attrs
