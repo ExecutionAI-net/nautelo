@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "accounts",
     "brokers",
     "contactdesk",
+    "places",
     "professionals",
     "services_catalog",
     "audit",
@@ -158,6 +159,11 @@ CELERY_BEAT_SCHEDULE = {
     "sweep-entitlement-ledger": {
         "task": "entitlements.tasks.sweep_entitlement_ledger",
         "schedule": crontab(hour=3, minute=30),
+    },
+    "sync-places": {
+        "task": "places.tasks.sync_places",
+        "schedule": crontab(hour=2, minute=30, day_of_week="sunday"),
+        "options": {"queue": "maintenance"},
     },
     "flush-expired-jwt-tokens": {
         "task": "common.tasks.flush_expired_tokens",
