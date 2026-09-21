@@ -6,6 +6,7 @@ their own read path to find a draft, see its state and reopen it.
 
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -76,6 +77,7 @@ def _row(item) -> dict:
         "slug": item.slug,
         "updated_at": item.updated_at,
         "expires_at": item.expires_at,
+        "featured_until": item.featured_until if item.featured_until and item.featured_until > timezone.now() else None,
         "price": price,
         "currency": payload.get("currency") or (snapshot.currency if snapshot else "EUR"),
         "year": payload.get("manufacture_year") or (snapshot.manufacture_year_snapshot if snapshot else None),

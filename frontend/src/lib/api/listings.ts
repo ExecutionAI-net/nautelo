@@ -68,6 +68,7 @@ export interface PublicListing {
   price: { amount: string; currency: string };
   media: ListingMedia[];
   view_count: number;
+  is_featured?: boolean;
   finance: ListingFinance;
 }
 
@@ -92,6 +93,7 @@ export interface ListingSearch {
   country?: string;
   region?: string;
   place?: string;
+  featured?: string;
   seller_type?: string;
   boat_type?: string;
   condition?: string;

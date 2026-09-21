@@ -1,3 +1,4 @@
+import { tPromo } from "@/lib/i18n/promotion";
 import Link from "next/link";
 
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
@@ -77,6 +78,11 @@ export default function BoatCard({
     <article className="flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
       {/* Spec §29.1: primary approved image or a defined placeholder. */}
       <div className="relative">
+        {listing.is_featured ? (
+          <span className="absolute right-3 top-3 z-10 rounded bg-secondary px-2 py-0.5 font-label-sm uppercase text-on-secondary">
+            {tPromo(locale, "promo.badge")}
+          </span>
+        ) : null}
         {primaryImage?.url ? (
           // eslint-disable-next-line @next/next/no-img-element -- CDN URL, size unknown
           <img

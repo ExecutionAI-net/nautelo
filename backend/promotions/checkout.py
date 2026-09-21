@@ -4,6 +4,7 @@ The amount is read from the plan at this moment and sent as `price_data`, so the
 number staff set in Django admin is what the buyer pays and what is recorded.
 """
 
+import re
 import uuid
 from urllib.parse import urlencode
 
@@ -19,6 +20,7 @@ from .models import ListingPromotion, PromotionPlan
 
 KIND = "listing_promotion"
 RETURN_PATHS = ("/sell/", "/dashboard/private-seller/listings/", "/dashboard/broker/fleet/")
+RETURN_PATTERN = re.compile(r"^/sell/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/$")
 PROMOTABLE = (ListingStatus.DRAFT, ListingStatus.PENDING_APPROVAL, ListingStatus.PUBLISHED)
 
 
@@ -41,7 +43,7 @@ def create_promotion_checkout(
 ) -> str:
     from payments.gateway import StripeUnavailable, default_gateway
 
-    if return_path not in RETURN_PATHS:
+    if return_path not in RETURN_PATHS and not RETURN_PATTERN.match(return_path):
         raise ValidationError({"return_path": ["invalid_return_path"]})
     listing = BoatListing.objects.filter(pk=listing_id).first()
     if listing is None or not can_edit_owned_object(user, owner_user_id=listing.owner_user_id, broker_id=listing.broker_id):

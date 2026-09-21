@@ -1,3 +1,4 @@
+import FeaturedSlider from "@/components/listings/FeaturedSlider";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import Link from "next/link";
 
@@ -8,6 +9,15 @@ import { fetchListingFacets, fetchPublishedListings, type PublicListing } from "
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
+
+async function featured(): Promise<PublicListing[]> {
+  try {
+    const page = await fetchPublishedListings({ featured: "1", sort: "featured", page_size: "12" });
+    return page?.results ?? [];
+  } catch {
+    return [];
+  }
+}
 
 async function latest(): Promise<PublicListing[]> {
   try {
@@ -21,7 +31,10 @@ async function latest(): Promise<PublicListing[]> {
 
 export default async function Home() {
   const locale = await getRequestLocale();
-  const [boats, facets, [ad, banner]] = await Promise.all([latest(), fetchListingFacets(), fetchAds("HOME")]);
+  const [promoted, newest, facets, [ad, banner]] = await Promise.all([featured(), latest(), fetchListingFacets(), fetchAds("HOME")]);
+  // Paid promotions first; until there are any, the newest boats keep the strip from being empty.
+  const showingPromoted = promoted.length > 0;
+  const boats = showingPromoted ? promoted : newest;
   return (
     <main className="w-full bg-surface">
 <div className="flex flex-col w-full">
@@ -129,17 +142,21 @@ export default async function Home() {
 <div className="flex flex-col md:flex-row md:items-end justify-between mb-space-xl gap-space-sm">
 <div>
 <span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest block mb-1">Handpicked Inventory</span>
-<h2 className="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Featured boats</h2>
+<h2 className="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">{showingPromoted ? "Featured boats" : "Latest boats"}</h2>
 </div>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
           Inspected Mediterranean vessels with confirmed titles, VAT certification, and comprehensive technical histories.
         </p>
 </div>
 
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-space-lg mb-space-xl">
-{boats.length > 0 ? boats.map((listing) => (
+<div className="mb-space-xl">
+{boats.length > 0 ? (
+<FeaturedSlider label={showingPromoted ? "Featured boats" : "Latest boats"}>
+{boats.map((listing) => (
 <BoatCard key={listing.id} locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
-)) : <p className="font-body-md text-on-surface-variant md:col-span-2 lg:col-span-4">No boats are published yet.</p>}
+))}
+</FeaturedSlider>
+) : <p className="font-body-md text-on-surface-variant">No boats are published yet.</p>}
 </div>
 <div className="flex justify-center">
 <Link className="inline-flex items-center gap-space-xs bg-primary hover:bg-primary-container text-on-primary py-space-sm px-space-xl rounded-lg font-title-md text-title-md transition-colors shadow-sm" href="/boats/">

@@ -136,3 +136,22 @@ def test_public_list_shows_only_running_promotions_newest_first(seller, fake):
     response = APIClient().get(reverse("listing-list"), {"featured": "1", "sort": "featured"}).json()
     assert [r["id"] for r in response["results"]] == [str(second.pk), str(first.pk)]
     assert all(r["is_featured"] for r in response["results"])
+
+
+def test_featured_listings_lead_the_everyday_list(seller, fake):
+    plain = make_private_listing(owner=make_user("p@promo.example", role=UserRole.PRIVATE_SELLER, verified=True))
+    promoted = make_private_listing(owner=make_user("q@promo.example", role=UserRole.PRIVATE_SELLER, verified=True))
+    _publish(promoted)
+    _publish(plain)  # published later, so it would normally come first
+    promoted.featured_until = timezone.now() + timedelta(days=2)
+    promoted.featured_at = timezone.now()
+    promoted.save()
+    ids = [r["id"] for r in APIClient().get(reverse("listing-list")).json()["results"]]
+    assert ids[0] == str(promoted.pk)
+
+
+def test_the_return_path_may_be_the_listings_own_form(seller, fake):
+    listing = make_private_listing(owner=seller)
+    body = {"listing_id": str(listing.pk), "plan": "week", "return_path": f"/sell/{listing.pk}/"}
+    assert _api(seller).post(reverse("promotion-checkout"), {**body}, format="json").status_code == 201
+    assert _api(seller).post(reverse("promotion-checkout"), {**body, "return_path": "/evil/"}, format="json").status_code == 400

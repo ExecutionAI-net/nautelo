@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
+import PromotionDialog from "@/components/promotion/PromotionDialog";
 import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
@@ -107,6 +108,9 @@ function Spec({ label, value }: { label: string; value: string }) {
 }
 
 export function ListingCard({ row }: { row: MyListingRow }) {
+  const [promoting, setPromoting] = useState(false);
+  const featuredUntil = row.featured_until ?? null; // the API sends it only while the promotion runs
+  const promotable = row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL";
   const price = money(row);
   const location = [row.city, row.country].filter(Boolean).join(", ");
   const heading = [row.year, row.title].filter(Boolean).join(" ");
@@ -160,6 +164,19 @@ export function ListingCard({ row }: { row: MyListingRow }) {
         >
           {row.status === "DRAFT" ? "Continue editing" : "Edit listing"}
         </Link>
+        {featuredUntil ? (
+          <p className="rounded-lg bg-secondary-container px-space-md py-space-xs text-center font-label-md text-on-secondary-container">
+            Featured until {new Date(featuredUntil).toLocaleDateString("en-GB")}
+          </p>
+        ) : null}
+        {promotable ? (
+          <button type="button" onClick={() => setPromoting(true)} className="rounded-lg bg-surface-container-lowest px-space-md py-space-sm text-center font-body-md text-primary">
+            {featuredUntil ? "Extend promotion" : "Promote this boat"}
+          </button>
+        ) : null}
+        {promoting ? (
+          <PromotionDialog listingId={row.id} title={row.title} imageUrl={row.image_url} returnPath="/dashboard/private-seller/listings/" onSkip={() => setPromoting(false)} />
+        ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
       </div>
     </li>
