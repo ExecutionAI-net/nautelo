@@ -89,6 +89,8 @@ export interface ListingSearch {
   page_size?: string;
   broker?: string;
   q?: string;
+  mode?: string;
+  query?: string;
   brand?: string;
   country?: string;
   region?: string;

@@ -12,6 +12,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/ .
 ENV PATH="/app/.venv/bin:$PATH" DJANGO_SETTINGS_MODULE=config.settings.prod
 
+ENV SEMANTIC_CACHE_DIR=/opt/fastembed
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/opt/fastembed')" && chmod -R a+rX /opt/fastembed
+
 RUN useradd --create-home app && mkdir -p /app/staticfiles /app/beat && chown -R app /app
 USER app
 EXPOSE 8000

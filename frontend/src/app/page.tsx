@@ -1,3 +1,4 @@
+import HomeSearch from "@/components/listings/HomeSearch";
 import FeaturedSlider from "@/components/listings/FeaturedSlider";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import Link from "next/link";
@@ -55,57 +56,7 @@ export default async function Home() {
             Boats from private and professional sellers, together with specialised nautical services in Spain and Italy.
           </p>
 
-<div className="bg-surface-container-lowest rounded-xl shadow-md p-space-md md:p-space-lg">
-
-
-<form action="/boats/" method="get" className="grid grid-cols-1 md:grid-cols-3 gap-space-md" id="search-standard">
-<div className="flex flex-col gap-1">
-<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Boat type</label>
-<div className="relative bg-surface-container-low rounded-lg">
-<select aria-label="Boat type" name="boat_type" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
-<option value="">All boat types</option>
-{(facets.boat_types ?? []).map((type) => (
-<option key={type} value={type}>{type}</option>
-))}
-</select>
-<span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-outline text-[20px]">expand_more</span>
-</div>
-</div>
-<div className="flex flex-col gap-1">
-<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Location</label>
-<div className="relative bg-surface-container-low rounded-lg">
-<select aria-label="Location" name="region" className="w-full bg-transparent px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none appearance-none cursor-pointer">
-<option value="">Spain &amp; Italy (All coastal zones)</option>
-{facets.regions.map((region) => (
-<option key={region} value={region}>{region}</option>
-))}
-</select>
-<span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-outline text-[20px]">expand_more</span>
-</div>
-</div>
-<div className="flex flex-col gap-1">
-<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Price range (€)</label>
-<div className="grid grid-cols-2 gap-2">
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Min price" name="price_min" min="0" type="number"/>
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Max price" name="price_max" min="0" type="number"/>
-</div>
-</div>
-<div className="flex flex-col gap-1 md:col-span-2">
-<label className="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Length (metres)</label>
-<div className="grid grid-cols-2 gap-2">
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Min length" name="length_min" min="0" step="0.5" type="number"/>
-<input className="w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline" placeholder="Max length" name="length_max" min="0" step="0.5" type="number"/>
-</div>
-</div>
-<div className="flex items-end md:col-span-1">
-<button className="w-full bg-primary hover:bg-primary-container text-on-primary py-2.5 px-space-md rounded-lg font-title-md text-title-md transition-all flex items-center justify-center gap-space-xs shadow-sm" type="submit">
-<span className="material-symbols-outlined text-[18px]">search</span>
-                  Search boats
-                </button>
-</div>
-</form>
-
-</div>
+<HomeSearch boatTypes={facets.boat_types ?? []} cities={facets.cities ?? []} />
 </div>
 
 <div className="lg:col-span-4 w-full h-full flex flex-col justify-start">
