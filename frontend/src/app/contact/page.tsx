@@ -46,14 +46,14 @@ export default function ContactPage() {
 <span className="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
 </div>
 <div>
-<div className="font-title-md text-title-md text-primary leading-tight">Western Med Hubs Active</div>
+<div className="font-title-md text-title-md text-primary leading-tight">Desks in three ports</div>
 <div className="font-body-sm text-body-sm text-on-surface-variant">Palma · Genoa · Barcelona</div>
 </div>
 </div>
 <div className="h-8 w-px bg-surface-container-highest hidden sm:block"></div>
 <div className="text-right">
-<div className="font-label-sm text-label-sm uppercase text-outline">Mean Response</div>
-<div className="font-spec-num text-spec-num text-primary">≤ 4.0 Working Hours</div>
+<div className="font-label-sm text-label-sm uppercase text-outline">Reply time</div>
+<div className="font-spec-num text-spec-num text-primary">Usually one working day</div>
 </div>
 </div>
 </div>
@@ -172,12 +172,12 @@ export default function ContactPage() {
 <span className="font-medium text-primary">08:30 – 19:00 CET</span>
 </div>
 <div className="flex justify-between">
-<span>Saturday (Sea trial standby):</span>
+<span>Saturday:</span>
 <span className="font-medium text-primary">09:00 – 13:00 CET</span>
 </div>
 <div className="flex justify-between text-outline">
 <span>Sunday:</span>
-<span>Dockside Emergency Line for Verified Vessels</span>
+<span>Closed</span>
 </div>
 </div>
 </div>
@@ -290,10 +290,10 @@ export default function ContactPage() {
 <span className="material-symbols-outlined text-[20px]">verified_user</span>
 </div>
 <h3 className="font-title-lg text-title-lg text-primary mb-space-xs">
-                How do I verify if a broker or marine surveyor is Nauta accredited?
+                How do I check that a broker or surveyor is properly registered?
               </h3>
 <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                All Nauta Verified brokers carry a digital credential seal linked to the Spanish ANEN or Italian UCINA/Assomarinas registries. You can request direct registration checks via <code className="font-spec-num text-xs bg-surface-container px-1 py-0.5 rounded">brokers@nauta-maritime.example.com</code>.
+                NAUTA reviews every broker and professional profile before it is published, but NAUTA is not a licensing body. Ask the professional for their registration number and check it with the Spanish or Italian register. Questions about a profile: <code className="font-spec-num text-xs bg-surface-container px-1 py-0.5 rounded">brokers@nauta-maritime.example.com</code>.
               </p>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-surface-container">

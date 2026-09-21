@@ -30,13 +30,13 @@ export default async function PricingPage() {
         <section aria-labelledby="brokers-heading" className="flex flex-col gap-space-lg">
           <div className="flex flex-col gap-space-xs">
             <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">For brokerages</span>
-            <h2 id="brokers-heading" className="font-headline-md text-headline-md text-primary">Scalable Membership Tiers</h2>
+            <h2 id="brokers-heading" className="font-headline-md text-headline-md text-primary">Membership tiers</h2>
             <p className="font-body-md text-body-md text-on-surface-variant">
-              Tiers differ by active listings, team seats and how your profile is placed in the directory.
+              Tiers differ by active listings, team seats and how your profile is placed in the directory. Every plan starts with a 30-day free trial.
             </p>
           </div>
           {plans.length > 0 ? (
-            <PlanCards plans={plans} />
+            <PlanCards plans={plans} ctaHref="/register/broker/" ctaLabel="Start free trial" />
           ) : (
             <p className="font-body-md text-on-surface-variant">Membership tiers will be published soon.</p>
           )}
