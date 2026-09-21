@@ -176,6 +176,7 @@ Role STAFF, verified; capabilities include reveal_any_contact, create_listing_on
 | R2-30 | Found while trying the new valuation page live: the public **length filter matched nothing** (`/boats?length_min=..` returned 0 of 72) because it only read the `loa_m` spec key while the listings carry `length_m`. The filter and the valuation now read either key. |
 
 | R2-32 | **S1** | Public `/contact` form did nothing (static prototype with a fake reference number and unsupported claims). Now a real stored form; see design-review.md. Not yet sent by email. |
+| R2-31 | Live staff session: the Brokers list said **TOTAL RECORDS 119** while listing 11 (status counts multiplied by members x listings from the joins). Facets now count distinct rows. Also the filter label "All statuss" is now "All statuses". Note: the staff area shows the IT toggle active while the text is English (locale not applied to staff screens, not fixed). |
 
 ## 4. Open findings (not fixed - need a decision or a signed-in UX pass)
 

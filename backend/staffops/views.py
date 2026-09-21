@@ -49,7 +49,7 @@ class StaffListView(ListAPIView):
                 query |= Q(**{f"{field}__icontains": term})
             queryset = queryset.filter(query)
         if self.facet_field:
-            counts = queryset.order_by().values(self.facet_field).annotate(n=Count("pk")).values_list(self.facet_field, "n")
+            counts = queryset.order_by().values(self.facet_field).annotate(n=Count("pk", distinct=True)).values_list(self.facet_field, "n")
             self.paginator.facets = {str(key): n for key, n in counts}
         status = self.request.query_params.get("status", "").strip()
         if status and hasattr(self, "status_field"):
@@ -181,7 +181,7 @@ class StaffReportsView(APIView):
         last, before = now - timedelta(days=30), now - timedelta(days=60)
 
         def by(model, field):
-            return {str(k): n for k, n in model.objects.order_by().values_list(field).annotate(n=Count("pk"))}
+            return {str(k): n for k, n in model.objects.order_by().values_list(field).annotate(n=Count("pk", distinct=True))}
 
         from django.db.models.functions import TruncMonth
 
@@ -192,7 +192,7 @@ class StaffReportsView(APIView):
                 .annotate(month=TruncMonth("created_at"))
                 .order_by()
                 .values_list("month")
-                .annotate(n=Count("pk"))
+                .annotate(n=Count("pk", distinct=True))
             )
             return {month.strftime("%Y-%m"): n for month, n in rows}
 
