@@ -239,6 +239,8 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               key={`${filters.country ?? ""}|${filters.place ?? ""}`}
               locations={facets.locations ?? []}
               idPrefix="f"
+              labelClass={LABEL}
+              wrapperClass=""
               initial={{ country: filters.country, place: filters.place }}
             />
             <fieldset>
