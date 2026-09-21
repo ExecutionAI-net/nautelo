@@ -14,3 +14,7 @@ deploy/*.json
 deploy/acme
 **/staticfiles
 **/media
+
+**/*.key
+**/*.pem
+deploy/tls

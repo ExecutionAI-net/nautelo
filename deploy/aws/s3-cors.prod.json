@@ -2,7 +2,8 @@
   "CORSRules": [
     {
       "AllowedOrigins": [
-        "https://example.com"
+        "https://nautelo.com",
+        "https://www.nautelo.com"
       ],
       "AllowedMethods": [
         "GET",

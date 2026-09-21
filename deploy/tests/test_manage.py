@@ -13,6 +13,7 @@ SPEC.loader.exec_module(manage)
 class DeploymentConfigurationTests(unittest.TestCase):
     def setUp(self):
         self.secret = json.loads((Path(__file__).parents[1] / 'secret.example.json').read_text())
+        self.secret.update(NEXT_PUBLIC_BASE_URL='https://dev.example.com', NEXT_PUBLIC_API_BASE_URL='https://api.dev.example.com')
         # The runner's real disk is irrelevant to these flow tests; the check has its own tests below.
         patcher = patch.object(manage, 'ensure_free_space')
         patcher.start()
@@ -60,7 +61,7 @@ class DeploymentConfigurationTests(unittest.TestCase):
         self.assertNotIn('STRIPE_SECRET_KEY', result['frontend'])
         self.assertEqual(set(result['frontend']), {'NEXT_PUBLIC_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL', 'INTERNAL_SERVICE_SECRET'})
         self.assertIn('p%40ss%3A%2F%3F%23%24%27%22%3D%20word@postgres', result['backend']['DATABASE_URL'])
-        self.assertEqual(result['backend']['DJANGO_ALLOWED_HOSTS'], 'api.dev.example.com')
+        self.assertEqual(result['backend']['DJANGO_ALLOWED_HOSTS'], 'dev.example.com,api.dev.example.com')
         self.assertEqual(result['backend']['DJANGO_SETTINGS_MODULE'], 'config.settings.prod')
 
     def test_deployment_always_serves_private_s3_directly(self):
@@ -158,6 +159,26 @@ class DeploymentConfigurationTests(unittest.TestCase):
             self.assertLess(proxy_up, apps_up)
             self.assertIn('http://127.0.0.1/api/v1/health/', commands[-1])
             self.assertIn('Host: 108.130.226.143', commands[-1])
+
+    def test_https_same_origin_dev_and_prod_aliases(self):
+        for environment, host, hosts in [('dev', 'dev.nautelo.com', 'dev.nautelo.com'),
+                                         ('prod', 'nautelo.com', 'nautelo.com,www.nautelo.com')]:
+            with self.subTest(environment=environment):
+                values = manage.environments(dict(self.secret, NEXT_PUBLIC_BASE_URL=f'https://{host}',
+                    NEXT_PUBLIC_API_BASE_URL=f'https://{host}'), 'eu-west-1', environment)
+                backend = values['backend']
+                self.assertEqual(backend['DJANGO_ALLOWED_HOSTS'], hosts)
+                self.assertEqual(backend['DJANGO_SETTINGS_MODULE'], 'config.settings.prod')
+                self.assertEqual(backend['REFRESH_COOKIE_SECURE'], 'True')
+                self.assertEqual(backend['TRUSTED_PROXY_COUNT'], '1')
+                self.assertIn(f'https://{host}', backend['DJANGO_CSRF_TRUSTED_ORIGINS'])
+                if environment == 'prod':
+                    self.assertIn('https://www.nautelo.com', backend['DJANGO_CORS_ALLOWED_ORIGINS'])
+
+    def test_api_base_rejects_api_suffix_to_prevent_duplicate_paths(self):
+        with self.assertRaises(ValueError):
+            manage.environments(dict(self.secret, NEXT_PUBLIC_BASE_URL='https://dev.nautelo.com',
+                NEXT_PUBLIC_API_BASE_URL='https://dev.nautelo.com/api'), 'eu-west-1', 'dev')
 
     def test_deploy_stops_if_migration_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

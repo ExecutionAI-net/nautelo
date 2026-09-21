@@ -128,16 +128,18 @@ def environments(secret, region, environment="prod"):
         host = str(ipaddress.IPv4Address(urlsplit(web).hostname))
         if web != f"http://{host}" or api != f"http://{host}":
             raise ValueError("Dev HTTP requires frontend and API to use the same IPv4 address on port 80")
-    if web == api and not allow_http:
-        raise ValueError("Use distinct frontend and API origins")
+    origins = list(dict.fromkeys([web, api]))
+    if environment == "prod" and urlsplit(web).hostname in ("nautelo.com", "www.nautelo.com"):
+        origins = ["https://nautelo.com", "https://www.nautelo.com"]
+    hosts = list(dict.fromkeys(urlsplit(value).hostname for value in origins))
     backend = {k: v for k, v in secret.items() if not k.startswith("NEXT_PUBLIC_") and k != "POSTGRES_PASSWORD"}
     backend.update({
         "DJANGO_SETTINGS_MODULE": "config.settings.dev_http" if allow_http else "config.settings.prod",
         "DEPLOY_ENVIRONMENT": environment, "DEPLOY_ALLOW_HTTP": str(allow_http).lower(),
         "AWS_DEFAULT_REGION": region,
-        "DJANGO_ALLOWED_HOSTS": urlsplit(api).hostname,
-        "DJANGO_CSRF_TRUSTED_ORIGINS": f"{web},{api}",
-        "DJANGO_CORS_ALLOWED_ORIGINS": web, "PUBLIC_BASE_URL": web,
+        "DJANGO_ALLOWED_HOSTS": ",".join(hosts),
+        "DJANGO_CSRF_TRUSTED_ORIGINS": ",".join(origins),
+        "DJANGO_CORS_ALLOWED_ORIGINS": ",".join(origins), "PUBLIC_BASE_URL": web,
         "TRUSTED_PROXY_COUNT": "1", "REFRESH_COOKIE_SECURE": "False" if allow_http else "True",
         "DATABASE_URL": "postgres://nautelo:" + quote(secret["POSTGRES_PASSWORD"], safe="") + "@postgres:5432/nautelo",
         "REDIS_URL": "redis://redis:6379/0", "CELERY_BROKER_URL": "redis://redis:6379/1",
@@ -212,6 +214,8 @@ def main():
                 run(["docker", "push", ref])
             print("Published " + ", ".join(images.values()))
             return
+        if values["backend"]["DEPLOY_ALLOW_HTTP"] != "true":
+            run(["python3", str(ROOT / "deploy/proxy.py"), "check"])
         for part, variables in values.items():
             write_env(runtime / f"{part}.env", variables)
         deployment = {"BACKEND_IMAGE": images["backend"], "FRONTEND_IMAGE": images["frontend"], "RUNTIME_DIR": str(runtime)}
@@ -238,12 +242,21 @@ def main():
             proxy = ["docker", "compose", "-f", str(ROOT / "deploy/docker-compose.proxy.dev-http.yml")]
             run(proxy + ["config", "--quiet"], env=proxy_env)
             run(proxy + ["up", "-d", "--force-recreate", "--wait", "--wait-timeout", "90"], env=proxy_env)
+        else:
+            run(["python3", str(ROOT / "deploy/proxy.py"), "apply"])
         run(compose + ["up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "180",
                        "api", "worker", "beat", "web"], env=process_env)
         if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
             run(proxy + ["exec", "-T", "nginx", "wget", "-q", "-O", "/dev/null",
                          "--header", f"Host: {proxy_env['DEV_HTTP_HOST']}",
                          "http://127.0.0.1/api/v1/health/"], env=proxy_env)
+        else:
+            domain = urlsplit(values["frontend"]["NEXT_PUBLIC_BASE_URL"]).hostname
+            # Origin CA is trusted by Cloudflare, not the host's public CA store.
+            # Certificate/key/hostname checks ran before rollout; this checks local routing with SNI.
+            run(["curl", "--fail", "--silent", "--show-error", "--insecure", "--max-time", "20",
+                 "--noproxy", "*", "--resolve", f"{domain}:443:127.0.0.1",
+                 f"https://{domain}/api/v1/health/"])
         # Best effort: unused images and build cache filled the disk twice. Volumes are never touched.
         reclaim_disk_space()
         print(f"Deployed {args.environment}: {args.tag}")
