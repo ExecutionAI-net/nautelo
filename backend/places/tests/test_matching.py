@@ -37,3 +37,14 @@ def test_backfill_sets_place_and_canonical_names_only_when_applied():
     fresh = ListingSnapshot.objects.get(pk=snap.pk)
     assert (fresh.location_place_id, fresh.location_city, fresh.location_region) == (3176219, "Genoa", "Liguria")
     assert backfill_snapshots()["matched"] == 0
+
+
+def test_assign_org_places_fills_brokers_without_a_place():
+    from django.core.management import call_command
+
+    from brokers.tests.factories import make_broker
+
+    broker = make_broker()
+    call_command("assign_org_places", "--apply")
+    broker.refresh_from_db()
+    assert broker.place_geoname_id and broker.country_code and broker.city
