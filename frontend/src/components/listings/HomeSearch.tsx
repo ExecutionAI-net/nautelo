@@ -19,9 +19,13 @@ const EXAMPLES = [
 export default function HomeSearch({ boatTypes, cities }: { boatTypes: string[]; cities: { id: number; name: string }[] }) {
   const [tab, setTab] = useState<"standard" | "semantic">("standard");
   useEffect(() => {
-    // The footer's "Semantic search" link opens the home page on this tab.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the URL hash once after hydration
-    if (window.location.hash === "#semantic") setTab("semantic");
+    // The footer's "Semantic search" link opens the home page on this tab, also when already on the home page.
+    const open = () => {
+      if (window.location.hash === "#semantic") setTab("semantic");
+    };
+    open();
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
   }, []);
   const tabClass = (active: boolean) =>
     `px-space-md py-space-xs rounded-md font-label-md text-label-md transition-all ${active ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface"}`;
