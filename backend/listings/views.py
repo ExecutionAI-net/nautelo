@@ -358,7 +358,7 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
         self._relaxed = []
         if not queryset.exists():
             # No boat matches every detail: keep place, price and length, and let type and cabins go before saying "nothing".
-            for dropped in (("cabins_min",), ("boat_type", "cabins_min")):
+            for dropped in (("cabins", "cabins_min"), ("boat_type", "cabins", "cabins_min")):
                 loose = merged.copy()
                 gone = [key for key in dropped if key in parsed.filters and loose.get(key) == parsed.filters[key]]
                 for key in gone:

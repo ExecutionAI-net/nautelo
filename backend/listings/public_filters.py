@@ -132,6 +132,12 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
         if value:
             queryset = queryset.filter(**{f"{SNAP}specifications__{key}__iexact": value})
 
+    cabins_exact = _int(params.get("cabins"))
+    if cabins_exact is not None and cabins_exact > 0:
+        queryset = queryset.filter(
+            Q(**{f"{SNAP}specifications__cabins__in": [str(cabins_exact), cabins_exact]})
+        )
+
     cabins_min = _int(params.get("cabins_min"))
     if cabins_min is not None and cabins_min > 0:
         wanted = range(cabins_min, 13)

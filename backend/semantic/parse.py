@@ -119,10 +119,11 @@ def parse_query(text: str) -> Parsed:
                     parsed.labels.append(f"up to {_money(value)}")
                     take(match)
 
-    cabins = re.search(r"(\d)\s*\+?\s*(?:cabins?|cabine|cabinas?|camere|bedrooms?|dormitorios?)\b", work)
+    cabins = re.search(rf"(?:(?P<cue>{OVER})\s+)?(?P<num>\d)\s*(?P<plus>\+)?\s*(?:cabins?|cabine|cabinas?|camere|bedrooms?|dormitorios?)\b", work)
     if cabins:
-        parsed.filters["cabins_min"] = cabins.group(1)
-        parsed.labels.append(f"{cabins.group(1)}+ cabins")
+        at_least = bool(cabins.group("plus") or cabins.group("cue"))
+        parsed.filters["cabins_min" if at_least else "cabins"] = cabins.group("num")
+        parsed.labels.append(f"{cabins.group('num')}{'+' if at_least else ''} cabins")
         take(cabins)
 
     for boat_type, words in TYPES.items():
