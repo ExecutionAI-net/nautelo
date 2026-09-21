@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const listings = vi.hoisted(() => ({
   fetchPublishedListings: vi.fn(),
-  fetchListingFacets: vi.fn().mockResolvedValue({ brands: [], countries: ["ES", "IT"], regions: ["Balearic Islands"], cities: [{ id: 6, name: "Palma" }], boat_types: ["Motor yacht"] }),
+  fetchListingFacets: vi.fn().mockResolvedValue({ brands: [], countries: ["ES", "IT"], regions: ["Balearic Islands"], locations: [{ country: "ES", region: "Balearic Islands", place_id: 6, city: "Palma", count: 3 }, { country: "IT", region: "Liguria", place_id: 7, city: "Genoa", count: 2 }], boat_types: ["Motor yacht"] }),
 }));
 const ads = vi.hoisted(() => ({ fetchAds: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/lib/api/listings", () => listings);
@@ -30,14 +30,18 @@ describe("Home", () => {
     const { container } = render(await Home());
     const form = container.querySelector("form#search-standard") as HTMLFormElement;
     const names = Array.from(form.elements).map((el) => (el as HTMLInputElement).name).filter(Boolean);
-    expect(names).toEqual(["boat_type", "price_min", "price_max", "length_min", "length_max"]);
-    fireEvent.focus(screen.getByPlaceholderText("Search country or city"));
-    expect(screen.getByRole("option", { name: /Palma/ })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /Spain/ })).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText("Search country or city"), { target: { value: "pal" } });
-    expect(screen.queryByRole("option", { name: /Spain/ })).toBeNull();
-    fireEvent.mouseDown(screen.getByRole("option", { name: /Palma/ }));
-    expect((container.querySelector("input[name=place]") as HTMLInputElement).value).toBe("6");
+    expect(names).toEqual(["boat_type", "country", "place", "price_min", "price_max", "length_min", "length_max"]);
+    const country = screen.getByLabelText("Country") as HTMLSelectElement;
+    const city = screen.getByLabelText("City") as HTMLSelectElement;
+    expect(city.disabled).toBe(true);
+    expect(Array.from(country.options).map((o) => o.text)).toEqual(["All countries", "Spain (3)", "Italy (2)"]);
+    fireEvent.change(country, { target: { value: "ES" } });
+    expect(city.disabled).toBe(false);
+    expect(Array.from(city.options).map((o) => o.text)).toEqual(["All cities", "Palma (3)"]);
+    fireEvent.change(city, { target: { value: "6" } });
+    fireEvent.change(country, { target: { value: "IT" } });
+    expect(city.value).toBe("");
+    expect(Array.from(city.options).map((o) => o.text)).toEqual(["All cities", "Genoa (2)"]);
   });
 
   it("offers a semantic tab that sends the description as mode=semantic", async () => {

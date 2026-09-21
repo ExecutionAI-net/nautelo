@@ -57,7 +57,7 @@ export default async function Home() {
             Boats from private and professional sellers, together with specialised nautical services in Spain and Italy.
           </p>
 
-<HomeSearch boatTypes={facets.boat_types ?? []} cities={facets.cities ?? []} countries={facets.countries ?? []} />
+<HomeSearch boatTypes={facets.boat_types ?? []} locations={facets.locations ?? []} />
 </div>
 
 <div className="lg:col-span-4 w-full h-full flex flex-col justify-start">
