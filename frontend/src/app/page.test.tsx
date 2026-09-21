@@ -29,8 +29,13 @@ describe("Home", () => {
     const form = container.querySelector("form#search-standard") as HTMLFormElement;
     const names = Array.from(form.elements).map((el) => (el as HTMLInputElement).name).filter(Boolean);
     expect(names).toEqual(["boat_type", "price_min", "price_max", "length_min", "length_max"]);
-    expect(screen.getByRole("option", { name: "Palma" })).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Spain" })).toBeTruthy();
+    fireEvent.focus(screen.getByPlaceholderText("Search country or city"));
+    expect(screen.getByRole("option", { name: /Palma/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /Spain/ })).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("Search country or city"), { target: { value: "pal" } });
+    expect(screen.queryByRole("option", { name: /Spain/ })).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("option", { name: /Palma/ }));
+    expect((container.querySelector("input[name=place]") as HTMLInputElement).value).toBe("6");
   });
 
   it("offers a semantic tab that sends the description as mode=semantic", async () => {
