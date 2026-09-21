@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "contactdesk",
     "places",
     "promotions",
+    "semantic",
     "professionals",
     "services_catalog",
     "audit",
@@ -363,3 +364,8 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Natural-language boat search: open-source multilingual embeddings running on the CPU (see docs/semantic-search.md).
+SEMANTIC_EMBEDDER = env("SEMANTIC_EMBEDDER", default="fastembed")  # "hash" keeps tests offline
+SEMANTIC_MODEL = env("SEMANTIC_MODEL", default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+SEMANTIC_CACHE_DIR = env("SEMANTIC_CACHE_DIR", default="")

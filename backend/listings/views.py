@@ -326,12 +326,44 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
 
     pagination_class = PublicListingPagination
 
+    def _semantic(self):
+        """(query, parsed) when the caller asked for a natural-language search, else None."""
+        if not hasattr(self, "_semantic_cache"):
+            params = self.request.query_params
+            query = (params.get("query") or "").strip()[:300]
+            if params.get("mode") == "semantic" and query:
+                from semantic.parse import parse_query
+
+                self._semantic_cache = (query, parse_query(query))
+            else:
+                self._semantic_cache = None
+        return self._semantic_cache
+
     def get_queryset(self):
         queryset = super().get_queryset()
         broker = self.request.query_params.get("broker", "").strip()
         if broker:
             queryset = queryset.filter(broker__slug=broker)
-        return apply_public_filters(queryset, self.request.query_params)
+        params = self.request.query_params
+        semantic = self._semantic()
+        if semantic is None:
+            return apply_public_filters(queryset, params)
+        query, parsed = semantic
+        merged = params.copy()
+        for key, value in parsed.filters.items():
+            if not merged.get(key):  # a filter the visitor set by hand wins over the sentence
+                merged[key] = value
+        queryset = apply_public_filters(queryset, merged)
+        from semantic.search import rank
+
+        return rank(queryset, query, parsed)[0]
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        semantic = self._semantic()
+        if semantic is not None and isinstance(response.data, dict):
+            response.data["interpretation"] = {"labels": semantic[1].labels, "filters": semantic[1].filters}
+        return response
 
 
 class PublicListingFacetsView(PublicListingReadView, APIView):

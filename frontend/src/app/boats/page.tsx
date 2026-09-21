@@ -28,6 +28,8 @@ const SORTS = [
 
 const FILTER_KEYS = [
   "q",
+  "mode",
+  "query",
   "brand",
   "country",
   "region",
@@ -114,7 +116,8 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
   );
   const previousPage = pageOf(results.previous);
   const nextPage = pageOf(results.next);
-  const active = FILTER_KEYS.filter((key) => key !== "sort" && filters[key]);
+  const active = FILTER_KEYS.filter((key) => key !== "sort" && key !== "mode" && filters[key]);
+  const understood = (results as { interpretation?: { labels: string[] } }).interpretation?.labels ?? [];
   const chipLabel = (key: (typeof FILTER_KEYS)[number]) => {
     const value = filters[key] ?? "";
     if (key === "country") return COUNTRY_NAMES[value.toUpperCase()] ?? value;
@@ -126,7 +129,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
     if (key === "length_min") return `From ${value} m`;
     if (key === "length_max") return `Up to ${value} m`;
     if (key === "cabins_min") return `${value}+ cabins`;
-    if (key === "q") return `“${value}”`;
+    if (key === "q" || key === "query") return `“${value}”`;
     return value;
   };
 
@@ -140,17 +143,19 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{tf(locale, "boats.intro")}</p>
           </div>
           <form action={CANONICAL_PATH} method="get" role="search" className="flex w-full gap-space-sm lg:max-w-xl">
-            {FILTER_KEYS.filter((key) => key !== "q" && filters[key]).map((key) => (
+            {FILTER_KEYS.filter((key) => key !== "q" && key !== "query" && key !== "mode" && filters[key]).map((key) => (
               <input key={key} type="hidden" name={key} value={filters[key]} />
             ))}
             <label className="sr-only" htmlFor="boat-search">
               Search boats
             </label>
+            <input type="hidden" name="mode" value="semantic" />
             <input
               id="boat-search"
-              name="q"
-              defaultValue={filters.q ?? ""}
-              placeholder="Brand, model or port, e.g. Lagoon or Palma"
+              name="query"
+              maxLength={300}
+              defaultValue={filters.query ?? filters.q ?? ""}
+              placeholder="Describe it: 12 m sailing yacht in Mallorca under €180,000"
               className="flex-1 rounded-lg bg-surface-container-lowest px-space-md py-space-sm font-body-md shadow-sm focus:outline-none"
             />
             <button type="submit" className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
@@ -170,6 +175,12 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               </Link>
             </div>
             {filters.q ? <input type="hidden" name="q" value={filters.q} /> : null}
+            {filters.query ? (
+              <>
+                <input type="hidden" name="mode" value="semantic" />
+                <input type="hidden" name="query" value={filters.query} />
+              </>
+            ) : null}
 
             <div>
               <label className={LABEL} htmlFor="f-type">
@@ -347,6 +358,12 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                   </Link>
                 </li>
               </ul>
+            ) : null}
+            {understood.length > 0 ? (
+              <p className="mt-space-xs font-body-sm text-on-surface-variant">
+                <span className="material-symbols-outlined align-middle text-base text-secondary" aria-hidden="true">auto_awesome</span>{" "}
+                Understood: {understood.join(" · ")}. The rest of your description ranks the results.
+              </p>
             ) : null}
           </div>
 
