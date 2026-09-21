@@ -353,7 +353,22 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
         for key, value in parsed.filters.items():
             if not merged.get(key):  # a filter the visitor set by hand wins over the sentence
                 merged[key] = value
-        queryset = apply_public_filters(queryset, merged)
+        base = queryset
+        queryset = apply_public_filters(base, merged)
+        self._relaxed = []
+        if not queryset.exists():
+            # No boat matches every detail: keep place, price and length, and let type and cabins go before saying "nothing".
+            for dropped in (("cabins_min",), ("boat_type", "cabins_min")):
+                loose = merged.copy()
+                gone = [key for key in dropped if key in parsed.filters and loose.get(key) == parsed.filters[key]]
+                for key in gone:
+                    del loose[key]
+                if not gone:
+                    continue
+                candidate = apply_public_filters(base, loose)
+                if candidate.exists():
+                    queryset, self._relaxed = candidate, gone
+                    break
         from semantic.search import rank
 
         return rank(queryset, query, parsed)[0]
@@ -362,7 +377,11 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
         response = super().list(request, *args, **kwargs)
         semantic = self._semantic()
         if semantic is not None and isinstance(response.data, dict):
-            response.data["interpretation"] = {"labels": semantic[1].labels, "filters": semantic[1].filters}
+            response.data["interpretation"] = {
+                "labels": semantic[1].labels,
+                "filters": semantic[1].filters,
+                "relaxed": getattr(self, "_relaxed", []),
+            }
         return response
 
 

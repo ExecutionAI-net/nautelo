@@ -117,7 +117,9 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
   const previousPage = pageOf(results.previous);
   const nextPage = pageOf(results.next);
   const active = FILTER_KEYS.filter((key) => key !== "sort" && key !== "mode" && filters[key]);
-  const understood = (results as { interpretation?: { labels: string[] } }).interpretation?.labels ?? [];
+  const interpretation = (results as { interpretation?: { labels: string[]; relaxed?: string[] } }).interpretation;
+  const understood = interpretation?.labels ?? [];
+  const relaxed = interpretation?.relaxed ?? [];
   const chipLabel = (key: (typeof FILTER_KEYS)[number]) => {
     const value = filters[key] ?? "";
     if (key === "country") return COUNTRY_NAMES[value.toUpperCase()] ?? value;
@@ -361,8 +363,8 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             ) : null}
             {understood.length > 0 ? (
               <p className="mt-space-xs font-body-sm text-on-surface-variant">
-                <span className="material-symbols-outlined align-middle text-base text-secondary" aria-hidden="true">auto_awesome</span>{" "}
-                Understood: {understood.join(" · ")}. The rest of your description ranks the results.
+                Understood: {understood.join(" · ")}.
+                {relaxed.length > 0 ? " Nothing matched every detail, so type and cabins were left out and the closest boats are shown." : ""}
               </p>
             ) : null}
           </div>
