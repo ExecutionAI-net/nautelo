@@ -174,7 +174,8 @@ class ProfessionalDetailSerializer(ProfessionalCardSerializer):
 
     def get_team(self, obj):
         return [
-            {"name": m.user.full_name or m.user.email, "email": m.user.email, "role": m.role}
+            # No e-mail address here: contact details are released only through the gated contact panel.
+            {"name": m.user.full_name or "Team member", "role": m.role}
             for m in obj.memberships.select_related("user").filter(is_active=True, show_on_profile=True)
         ]
 
