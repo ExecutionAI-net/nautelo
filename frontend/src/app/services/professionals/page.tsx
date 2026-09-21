@@ -119,28 +119,28 @@ export default async function CombinedDirectoryPage({
 <div className="lg:col-span-8 space-y-space-sm">
 <div className="inline-flex items-center gap-space-xs bg-surface-container-high px-space-sm py-space-xs rounded-full">
 <span className="w-2 h-2 rounded-full bg-secondary"></span>
-<span className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">Mediterranean Maritime Services &amp; Expert Directory</span>
+<span className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">Boat services and specialists</span>
 </div>
 <h1 className="font-display-hero text-display-hero text-primary tracking-tight">
-          Maritime Services &amp; Verified Nautical Professionals
+          Services and specialists for your boat
         </h1>
 <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl leading-relaxed">
-          Find certified marine surveyors, legal advisors, yacht insurance brokers, naval architects, and refit specialists across Spain, Italy, and the Western Mediterranean.
+          Find surveyors, lawyers, insurers, engineers and delivery skippers for buying, selling or looking after a boat in Spain and Italy.
         </p>
 </div>
 
 <div className="lg:col-span-4 flex flex-col justify-end">
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex items-center justify-between">
 <div>
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest block">Active Network</span>
-<span className="font-headline-md text-headline-md text-primary font-spec-num">240+</span>
-<span className="font-body-sm text-body-sm text-secondary block">Surveyed Port Hubs</span>
+<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest block">Where we work</span>
+<span className="font-headline-md text-headline-md text-primary font-spec-num">ES · IT</span>
+<span className="font-body-sm text-body-sm text-secondary block">Spain and Italy</span>
 </div>
 <div className="h-10 w-px bg-surface-container-high"></div>
 <div>
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest block">Jurisdiction</span>
-<span className="font-headline-md text-headline-md text-primary font-spec-num">ES · IT · FR</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block">Trilingual Maritime Law</span>
+<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest block">Languages</span>
+<span className="font-headline-md text-headline-md text-primary font-spec-num">EN · IT · ES</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant block">Pages and messages</span>
 </div>
 </div>
 </div>
@@ -150,29 +150,29 @@ export default async function CombinedDirectoryPage({
 <form action="/services/professionals/" method="get" role="search" className="flex flex-col md:flex-row gap-space-sm items-center">
 <div className="relative flex-1 w-full">
 <span className="material-symbols-outlined absolute left-space-md top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-<input name="q" defaultValue={filters.q ?? ""} aria-label="Search specialists" className="w-full pl-11 pr-space-md py-space-sm bg-surface-container-low rounded text-body-md text-on-surface placeholder:text-outline focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-secondary transition-all" id="searchInput" placeholder="Search by specialty, port, or firm name (e.g. Ultrasonic NDT, Palma, Marine Law, Rigging)..." type="text"/>
+<input name="q" defaultValue={filters.q ?? ""} aria-label="Search specialists" className="w-full pl-11 pr-space-md py-space-sm bg-surface-container-low rounded text-body-md text-on-surface placeholder:text-outline focus:bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-secondary transition-all" id="searchInput" placeholder="Search by service, port or company (for example insurance, Palma, rigging)" type="text"/>
 </div>
 <button type="submit" className="w-full md:w-auto px-space-xl py-space-sm bg-primary text-on-primary rounded font-title-md text-title-md hover:bg-primary-container transition-colors flex items-center justify-center gap-space-xs">
 <span className="material-symbols-outlined text-[18px]">manage_search</span>
-<span>Find Specialist</span>
+<span>Search</span>
 </button>
 </form>
 
 <div className="flex flex-wrap items-center justify-between pt-space-xs gap-space-sm text-on-surface-variant">
 <div className="flex items-center gap-space-xs overflow-x-auto">
 <Link href="/services/professionals/" className="px-space-sm py-space-xs rounded font-label-md text-label-md bg-primary text-on-primary" >
-            All Services &amp; Experts
+            All services
           </Link>
 <a href="#core-services" className="px-space-sm py-space-xs rounded font-label-md text-label-md bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors" >
-            6 Core Service Categories
+            Service types
           </a>
 <a href="#directory-section" className="px-space-sm py-space-xs rounded font-label-md text-label-md bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors" >
-            Directory of Professionals
+            Find a professional
           </a>
 </div>
 <div className="flex items-center gap-space-xs text-outline font-label-sm text-label-sm">
 <span className="material-symbols-outlined text-[16px] text-secondary">verified</span>
-<span>Independent Maritime Directory</span>
+<span>Independent directory, not a licensing body</span>
 </div>
 </div>
 </div>
@@ -181,11 +181,11 @@ export default async function CombinedDirectoryPage({
 <section className="w-full max-w-7xl mx-auto px-margin-mobile lg:px-margin-desktop py-space-xl" id="core-services">
 <div className="flex flex-col md:flex-row md:items-end justify-between mb-space-xl gap-space-sm">
 <div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest block mb-space-xs font-semibold">Bespoke Naval Divisions</span>
-<h2 className="font-headline-lg text-headline-lg text-primary tracking-tight">6 Core Service Categories</h2>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest block mb-space-xs font-semibold">What we cover</span>
+<h2 className="font-headline-lg text-headline-lg text-primary tracking-tight">Six kinds of service</h2>
 </div>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
-        Dedicated Mediterranean operational disciplines supporting private yacht purchases, legal transfer procedures, and voyage logistics.
+        Everything around a boat sale, from the paperwork to getting the boat to its new port.
       </p>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop">
@@ -195,10 +195,10 @@ export default async function CombinedDirectoryPage({
 <div className="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center mb-space-md text-primary group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
 <span className="material-symbols-outlined text-[28px]">directions_boat</span>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Category 01</span>
-<h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Full Brokerage Service</h3>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Service 01</span>
+<h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Full brokerage</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md leading-relaxed">
-            Turnkey vessel representation across Italian and Spanish waters. Includes yacht valuation, verified dossier creation, and viewing coordination.
+            A broker sells your boat for you: valuation, the documents, and showing it to buyers.
           </p>
 <div className="space-y-space-xs mb-space-lg bg-surface-container-low p-space-sm rounded">
 <div className="flex items-center justify-between font-label-sm text-label-sm">
@@ -206,17 +206,17 @@ export default async function CombinedDirectoryPage({
 <span className="text-on-surface font-semibold">Baleares, Liguria, Costa Smeralda</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
-<span className="text-on-surface-variant">Typical Timeline:</span>
-<span className="text-on-surface font-semibold">Immediate Broker Roster</span>
+<span className="text-on-surface-variant">Start:</span>
+<span className="text-on-surface font-semibold">Pick a broker from the list</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
-<span className="text-on-surface-variant">Standard Protocol:</span>
-<span className="text-on-surface font-semibold">MYBA &amp; Mediterranean Clauses</span>
+<span className="text-on-surface-variant">Contract:</span>
+<span className="text-on-surface font-semibold">Standard broker agreement</span>
 </div>
 </div>
 </div>
 <Link href="/services/professionals/full-brokerage/" className="inline-flex items-center justify-between w-full px-space-md py-space-sm bg-surface-container-low hover:bg-primary text-primary hover:text-on-primary rounded font-title-md text-title-md transition-colors" >
-<span>View Service Overview &amp; Specialists</span>
+<span>See specialists</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </article>
@@ -226,28 +226,28 @@ export default async function CombinedDirectoryPage({
 <div className="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center mb-space-md text-primary group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
 <span className="material-symbols-outlined text-[28px]">gavel</span>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Category 02</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Service 02</span>
 <h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Nautical Legal Services</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md leading-relaxed">
-            Independent counsel for Spanish Matriculación Tax (IEDMT), Italian registry cancellations, flag state transitions, and maritime titles.
+            Lawyers who handle boat registration, the Spanish registration tax, and moving a boat between the Spanish and Italian registers.
           </p>
 <div className="space-y-space-xs mb-space-lg bg-surface-container-low p-space-sm rounded">
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Coverage:</span>
-<span className="text-on-surface font-semibold">Spain, Italy, Malta, UK Ensign</span>
+<span className="text-on-surface font-semibold">Spain, Italy, Malta, UK</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Typical Timeline:</span>
-<span className="text-on-surface font-semibold">5–14 Working Days</span>
+<span className="text-on-surface font-semibold">5 to 14 working days</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
-<span className="text-on-surface-variant">Key Focus:</span>
-<span className="text-on-surface font-semibold">Bilingual Bilateral Deeds</span>
+<span className="text-on-surface-variant">Good to know:</span>
+<span className="text-on-surface font-semibold">Contracts in two languages</span>
 </div>
 </div>
 </div>
 <Link href="/services/professionals/legal/" className="inline-flex items-center justify-between w-full px-space-md py-space-sm bg-surface-container-low hover:bg-primary text-primary hover:text-on-primary rounded font-title-md text-title-md transition-colors" >
-<span>View Service Overview &amp; Specialists</span>
+<span>See specialists</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </article>
@@ -257,28 +257,28 @@ export default async function CombinedDirectoryPage({
 <div className="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center mb-space-md text-primary group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
 <span className="material-symbols-outlined text-[28px]">verified_user</span>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Category 03</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Service 03</span>
 <h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Yacht Insurance</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md leading-relaxed">
-            Specialized marine underwriters facilitating comprehensive hull and machinery cover, P&amp;I policies, charter extensions, and tender coverage.
+            Insurance for the boat, its engines, liability towards others, charter use and the tender.
           </p>
 <div className="space-y-space-xs mb-space-lg bg-surface-container-low p-space-sm rounded">
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Coverage:</span>
-<span className="text-on-surface font-semibold">Pan-Mediterranean Navigational Limits</span>
+<span className="text-on-surface font-semibold">Whole Mediterranean</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Typical Timeline:</span>
-<span className="text-on-surface font-semibold">24–48 Hours Binding</span>
+<span className="text-on-surface font-semibold">Cover in 1 to 2 days</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
-<span className="text-on-surface-variant">Requirements:</span>
-<span className="text-on-surface font-semibold">Out-of-water Survey &lt; 3 yrs</span>
+<span className="text-on-surface-variant">You may need:</span>
+<span className="text-on-surface font-semibold">A survey done in the last 3 years</span>
 </div>
 </div>
 </div>
 <Link href="/services/professionals/insurance/" className="inline-flex items-center justify-between w-full px-space-md py-space-sm bg-surface-container-low hover:bg-primary text-primary hover:text-on-primary rounded font-title-md text-title-md transition-colors" >
-<span>View Service Overview &amp; Specialists</span>
+<span>See specialists</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </article>
@@ -288,28 +288,28 @@ export default async function CombinedDirectoryPage({
 <div className="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center mb-space-md text-primary group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
 <span className="material-symbols-outlined text-[28px]">build</span>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Category 04</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Service 04</span>
 <h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Engines &amp; Maintenance</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md leading-relaxed">
-            Certified marine engineers offering Caterpillar, MAN, MTU, and Volvo Penta diagnostics, endoscopic cylinder assessments, and overhaul services.
+            Engine checks, repairs and full overhauls by qualified marine engineers, for the main engine brands.
           </p>
 <div className="space-y-space-xs mb-space-lg bg-surface-container-low p-space-sm rounded">
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Coverage:</span>
-<span className="text-on-surface font-semibold">Drydock facilities &amp; Marina berths</span>
+<span className="text-on-surface font-semibold">Boatyards and marinas</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Typical Timeline:</span>
-<span className="text-on-surface font-semibold">Same-day oil analysis reports</span>
+<span className="text-on-surface font-semibold">Oil test results the same day</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
-<span className="text-on-surface-variant">Equipment:</span>
-<span className="text-on-surface font-semibold">Vibration sensors, thermal imaging</span>
+<span className="text-on-surface-variant">Tools:</span>
+<span className="text-on-surface font-semibold">Vibration and heat sensors</span>
 </div>
 </div>
 </div>
 <Link href="/services/professionals/engines-maintenance/" className="inline-flex items-center justify-between w-full px-space-md py-space-sm bg-surface-container-low hover:bg-primary text-primary hover:text-on-primary rounded font-title-md text-title-md transition-colors" >
-<span>View Service Overview &amp; Specialists</span>
+<span>See specialists</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </article>
@@ -319,28 +319,28 @@ export default async function CombinedDirectoryPage({
 <div className="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center mb-space-md text-primary group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
 <span className="material-symbols-outlined text-[28px]">near_me</span>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Category 05</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Service 05</span>
 <h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Transport &amp; Delivery</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md leading-relaxed">
-            Professional sea delivery skippers (MCA / RYA Yachtmaster Ocean) and specialized overland hydraulic low-loader yacht freight routes across Europe.
+            Skippers who sail your boat to its new port, and trucks that carry it overland across Europe.
           </p>
 <div className="space-y-space-xs mb-space-lg bg-surface-container-low p-space-sm rounded">
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Coverage:</span>
-<span className="text-on-surface font-semibold">Atlantic to Med, Tyrrhenian transits</span>
+<span className="text-on-surface font-semibold">Atlantic to the Mediterranean, Tyrrhenian Sea</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Typical Timeline:</span>
-<span className="text-on-surface font-semibold">Scheduled weather-window voyages</span>
+<span className="text-on-surface font-semibold">Sailed when the weather allows</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Included:</span>
-<span className="text-on-surface font-semibold">Live AIS satellite telemetry feed</span>
+<span className="text-on-surface font-semibold">Live position tracking</span>
 </div>
 </div>
 </div>
 <Link href="/services/professionals/transport-delivery/" className="inline-flex items-center justify-between w-full px-space-md py-space-sm bg-surface-container-low hover:bg-primary text-primary hover:text-on-primary rounded font-title-md text-title-md transition-colors" >
-<span>View Service Overview &amp; Specialists</span>
+<span>See specialists</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </article>
@@ -350,10 +350,10 @@ export default async function CombinedDirectoryPage({
 <div className="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center mb-space-md text-primary group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
 <span className="material-symbols-outlined text-[28px]">photo_camera</span>
 </div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Category 06</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Service 06</span>
 <h3 className="font-headline-sm text-headline-sm text-primary mt-1 mb-space-sm">Nautical Marketing</h3>
 <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-md leading-relaxed">
-            High-caliber marine photography, 4K stabilization sea-trial cinematography, 3D interior scans, and multilingual listing dossiers for yachts.
+            Photos, video and 3D tours of your boat, and listing texts in several languages.
           </p>
 <div className="space-y-space-xs mb-space-lg bg-surface-container-low p-space-sm rounded">
 <div className="flex items-center justify-between font-label-sm text-label-sm">
@@ -362,16 +362,16 @@ export default async function CombinedDirectoryPage({
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
 <span className="text-on-surface-variant">Typical Timeline:</span>
-<span className="text-on-surface font-semibold">48h Delivery Post-Shoot</span>
+<span className="text-on-surface font-semibold">Ready 2 days after the shoot</span>
 </div>
 <div className="flex items-center justify-between font-label-sm text-label-sm">
-<span className="text-on-surface-variant">Assets:</span>
-<span className="text-on-surface font-semibold">Matterport 3D, Drone FPV, Editorial</span>
+<span className="text-on-surface-variant">You get:</span>
+<span className="text-on-surface font-semibold">3D tour, drone video, photos</span>
 </div>
 </div>
 </div>
 <Link href="/services/professionals/nautical-marketing/" className="inline-flex items-center justify-between w-full px-space-md py-space-sm bg-surface-container-low hover:bg-primary text-primary hover:text-on-primary rounded font-title-md text-title-md transition-colors" >
-<span>View Service Overview &amp; Specialists</span>
+<span>See specialists</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
 </article>
@@ -381,11 +381,11 @@ export default async function CombinedDirectoryPage({
 <section className="w-full max-w-7xl mx-auto px-margin-mobile lg:px-margin-desktop py-space-xl" id="directory-section">
 <div className="flex flex-col md:flex-row md:items-end justify-between mb-space-lg gap-space-sm">
 <div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest block mb-space-xs font-semibold">Verified Mediterranean Guild</span>
-<h2 className="font-headline-lg text-headline-lg text-primary tracking-tight">Directory of Independent Professionals</h2>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest block mb-space-xs font-semibold">Professionals</span>
+<h2 className="font-headline-lg text-headline-lg text-primary tracking-tight">Find a professional</h2>
 </div>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
-        Direct connection with certified surveyors, naval jurists, and marine specialists. Zero intermediary transaction charges.
+        Contact surveyors, lawyers and other specialists directly. NAUTA does not take a commission on their work.
       </p>
 </div>
 

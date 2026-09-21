@@ -28,8 +28,8 @@ export default function SellLanding() {
 <div className="bg-surface-container-low px-space-md py-space-sm rounded-lg flex items-center gap-space-sm">
 <span className="material-symbols-outlined text-secondary">anchor</span>
 <div className="flex flex-col">
-<span className="font-label-sm text-label-sm uppercase text-on-surface-variant">Active Basins</span>
-<span className="font-title-md text-title-md text-primary font-medium">Baleares · Liguria · Tyrrhenian</span>
+<span className="font-label-sm text-label-sm uppercase text-on-surface-variant">Main sailing areas</span>
+<span className="font-title-md text-title-md text-primary font-medium">Balearics · Liguria · Tyrrhenian Sea</span>
 </div>
 </div>
 </div>
@@ -39,19 +39,19 @@ export default function SellLanding() {
 <div className="relative h-48 md:h-56 rounded-xl overflow-hidden shadow-sm">
 <img alt="" fetchPriority="high" className="w-full h-full object-cover" src="/design/2ea59788a7.jpg"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-md">
-<span className="font-label-md text-label-md text-on-primary tracking-wide">Direct Vessel Management</span>
+<span className="font-label-md text-label-md text-on-primary tracking-wide">Sell it yourself</span>
 </div>
 </div>
 <div className="relative h-48 md:h-56 rounded-xl overflow-hidden shadow-sm">
 <img alt="" className="w-full h-full object-cover" src="/design/6105378ad2.jpg"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-md">
-<span className="font-label-md text-label-md text-on-primary tracking-wide">Certified Yacht Brokers</span>
+<span className="font-label-md text-label-md text-on-primary tracking-wide">Or let a broker do it</span>
 </div>
 </div>
 <div className="relative h-48 md:h-56 rounded-xl overflow-hidden shadow-sm">
 <img alt="" className="w-full h-full object-cover" src="/design/4380ad7d78.jpg"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-md">
-<span className="font-label-md text-label-md text-on-primary tracking-wide">Cross-Border Pan-European Reach</span>
+<span className="font-label-md text-label-md text-on-primary tracking-wide">Buyers in Spain, Italy and beyond</span>
 </div>
 </div>
 </div>

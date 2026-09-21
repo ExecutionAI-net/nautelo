@@ -33,7 +33,7 @@ export default function FullBrokerage() {
 <div className="lg:col-span-7 flex flex-col gap-space-md">
 <div className="inline-flex items-center gap-2">
 <span className="w-2 h-2 rounded-full bg-secondary"></span>
-<span className="font-label-md text-label-md text-secondary tracking-widest uppercase font-semibold">Verified Mediterranean Maritime Representation</span>
+<span className="font-label-md text-label-md text-secondary tracking-widest uppercase font-semibold">Selling your boat with a broker</span>
 </div>
 <h1 className="font-headline-lg text-headline-lg text-primary leading-tight">
             Yacht broker services for selling a boat in Spain and Italy
@@ -45,8 +45,8 @@ export default function FullBrokerage() {
 <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-sm pt-space-sm">
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-1">
 <span className="material-symbols-outlined text-secondary text-2xl">verified_user</span>
-<span className="font-title-md text-title-md text-primary pt-1">100% Licensed Brokers</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Accredited RYA, MYBA, and ISYBA maritime practitioners.</span>
+<span className="font-title-md text-title-md text-primary pt-1">Professional brokers</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant">Brokers listed on NAUTA and reviewed by our team.</span>
 </div>
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-1">
 <span className="material-symbols-outlined text-secondary text-2xl">account_balance</span>
@@ -55,13 +55,13 @@ export default function FullBrokerage() {
 </div>
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-1">
 <span className="material-symbols-outlined text-secondary text-2xl">hub</span>
-<span className="font-title-md text-title-md text-primary pt-1">Verified Buyer Network</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Active qualified buyers vetted across Spanish &amp; Italian basins.</span>
+<span className="font-title-md text-title-md text-primary pt-1">Buyers in two countries</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant">Buyers looking for boats in Spain and Italy.</span>
 </div>
 </div>
 <div className="pt-space-xs flex items-center gap-space-md">
 <Link href="/services/professionals/" className="inline-flex items-center justify-center bg-primary-container text-on-primary hover:bg-primary font-body-md text-body-md px-space-lg py-space-sm rounded-lg transition-colors shadow-sm" >
-              Initiate Brokerage Mandate
+              Ask a broker to sell my boat
             </Link>
 <span className="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
 <span className="material-symbols-outlined text-base text-secondary">anchor</span>
@@ -79,7 +79,7 @@ export default function FullBrokerage() {
 <span className="material-symbols-outlined text-secondary text-xl">location_on</span>
 <div>
 <div className="font-label-md text-label-md text-primary">Palma de Mallorca — Marina Port de Mallorca</div>
-<div className="font-body-sm text-body-sm text-on-surface-variant">Commercial Central Agent Representation</div>
+<div className="font-body-sm text-body-sm text-on-surface-variant">Represented by a broker</div>
 </div>
 </div>
 <div className="text-right">
@@ -127,7 +127,7 @@ export default function FullBrokerage() {
 <section className="w-full bg-surface py-space-2xl">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
 <div className="flex flex-col gap-space-xs mb-space-xl">
-<span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">Scope of Mandate</span>
+<span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">What is included</span>
 <h2 className="font-headline-md text-headline-md text-primary">What the service includes</h2>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
           Six focused, structured pillars that define our Central Agency brokerage agreements from preparation through final discharge.
@@ -238,7 +238,7 @@ export default function FullBrokerage() {
 </div>
 <div className="flex items-center gap-2 text-primary font-title-md text-title-md">
 <span className="material-symbols-outlined text-secondary">gavel</span>
-<span>Central Agency Mandate</span>
+<span>Broker agreement</span>
 </div>
 </div>
 </div>
@@ -315,7 +315,7 @@ export default function FullBrokerage() {
 <section className="w-full bg-surface-container-low py-space-2xl">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
 <div className="flex flex-col gap-space-xs mb-space-lg">
-<span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">Mandate Preparation Checklist</span>
+<span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">Before you sign: checklist</span>
 <h2 className="font-headline-md text-headline-md text-primary">Information required from the customer</h2>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
           To initiate an expedited market valuation and preliminary Central Agency file, prepare the following 5 essential items:
@@ -432,7 +432,7 @@ export default function FullBrokerage() {
 <span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">Representation Inquiry</span>
 <h2 className="font-headline-md text-headline-md text-primary">Request brokerage service</h2>
 <p className="font-body-md text-body-md text-on-surface-variant">
-            Connect directly with an accredited Central Agent in your regional marina basin.
+            Talk directly to a broker who works in your marina area.
           </p>
 </div>
 <form className="flex flex-col gap-space-md">
