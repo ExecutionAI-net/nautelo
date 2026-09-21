@@ -35,3 +35,17 @@ def test_markup_is_refused_and_honeypot_stores_nothing():
     assert _post(name="<b>x</b>").status_code == 400
     assert _post(website="http://spam.example").status_code == 201
     assert ContactRequest.objects.count() == 0
+
+
+def test_a_financing_study_stores_the_servers_own_calculation():
+    sim = {"country": "ES", "product": "LOAN", "condition": "NEW", "use": "PRIVATE", "price": "180000", "down_percent": "20", "term_years": "10"}
+    assert _post(topic="financing", message="", details=sim).status_code == 201
+    calculated = ContactRequest.objects.get().details["calculated"]
+    assert 1500 < float(calculated["monthly"]) < 1700
+    assert calculated["financed"] == "144000.00"
+
+
+def test_a_simulation_outside_the_rules_is_stored_without_a_calculation():
+    sim = {"country": "ES", "product": "LOAN", "condition": "NEW", "use": "PRIVATE", "price": "5000", "down_percent": "20", "term_years": "10"}
+    _post(topic="financing", message="", details=sim)
+    assert "calculated" not in ContactRequest.objects.get().details

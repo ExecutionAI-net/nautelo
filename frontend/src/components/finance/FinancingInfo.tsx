@@ -1,4 +1,4 @@
-import ContactRequestForm from "@/components/contact/ContactRequestForm";
+import ContactRequestForm, { type StudyStart } from "@/components/contact/ContactRequestForm";
 
 const DOCUMENTS = [
   "Independent surveyor report on hull and engines",
@@ -8,16 +8,16 @@ const DOCUMENTS = [
 ];
 
 /** Study request, leasing overview and documents list shown under the estimator. */
-export default function FinancingInfo() {
+export default function FinancingInfo({ start = {} }: { start?: StudyStart }) {
   return (
     <div className="mx-auto max-w-[1440px] px-margin-mobile pb-space-2xl md:px-margin lg:px-margin-desktop">
-      <section className="mt-space-xl rounded-xl bg-surface-container-lowest p-space-lg">
+      <section id="study" className="mt-space-xl scroll-mt-24 rounded-xl bg-surface-container-lowest p-space-lg">
         <p className="font-label-sm uppercase tracking-widest text-secondary">Next step</p>
         <h2 className="font-headline-sm text-primary">Request a financing study</h2>
         <p className="mb-space-md mt-1 max-w-2xl font-body-md text-on-surface-variant">
           Tell us about the boat and we will come back with the options lenders in Spain and Italy usually offer for it. The estimate above is illustrative; a study is a first conversation, not a credit offer.
         </p>
-        <ContactRequestForm mode="financing" />
+        <ContactRequestForm mode="financing" start={start} />
       </section>
 
       <section className="mt-space-xl grid gap-space-lg md:grid-cols-2">
