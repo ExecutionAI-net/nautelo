@@ -47,6 +47,7 @@ from professionals.enums import ProfessionalProfileStatus
 from professionals.models import ProfessionalProfile
 from services_catalog.models import ProfessionalService, ServiceCategory
 from taxonomy.models import BoatBrand, BoatModel
+from taxonomy.services import normalize_taxonomy_name
 
 DEMO_DOMAIN = "demo.nauta.test"
 ASSETS = Path(__file__).resolve().parents[2] / "demo_assets"
@@ -306,8 +307,9 @@ class Command(BaseCommand):
     def taxonomy(self):
         rows = []
         for brand_name, model_name, kind, length, hp, engines, price in self.models:
-            brand, _ = BoatBrand.objects.get_or_create(name=brand_name)
-            model, _ = BoatModel.objects.get_or_create(brand=brand, name=model_name)
+            # Match on the normalised name: "Bwa" and an existing "BWA" are the same brand.
+            brand = BoatBrand.objects.filter(normalized_name=normalize_taxonomy_name(brand_name)).first() or BoatBrand.objects.create(name=brand_name)
+            model = BoatModel.objects.filter(brand=brand, normalized_name=normalize_taxonomy_name(model_name)).first() or BoatModel.objects.create(brand=brand, name=model_name)
             rows.append((brand, model, kind, length, hp, engines, price))
         return rows
 
