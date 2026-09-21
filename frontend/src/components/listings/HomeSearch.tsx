@@ -73,33 +73,29 @@ export default function HomeSearch({ boatTypes, cities }: { boatTypes: string[];
           </div>
           <div className="flex items-end md:col-span-1">
             <button className="w-full bg-primary hover:bg-primary-container text-on-primary py-2.5 px-space-md rounded-lg font-title-md text-title-md transition-all flex items-center justify-center gap-space-xs shadow-sm" type="submit">
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">search</span>
               Search boats
             </button>
           </div>
         </form>
       ) : (
-        <form action="/boats/" method="get" className="flex flex-col gap-space-md" id="search-semantic">
+        <form action="/boats/" method="get" className="flex flex-col gap-space-xs" id="search-semantic">
           <input type="hidden" name="mode" value="semantic" />
-          <div className="flex flex-col gap-1.5">
-            <label className={LABEL} htmlFor="home-query">Describe the boat you are looking for</label>
-            <textarea
+          <label className={LABEL} htmlFor="home-query">Describe the boat you are looking for</label>
+          <div className="flex flex-col gap-space-sm sm:flex-row">
+            <input
               id="home-query"
               name="query"
-              rows={3}
+              type="text"
               maxLength={300}
               required
               placeholder={`e.g. ${EXAMPLES[0]}`}
-              className={`${FIELD} resize-none p-space-md`}
+              className={`${FIELD} sm:flex-1`}
             />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-space-sm">
-            <p className="font-body-sm text-on-surface-variant">Works in English, Italian and Spanish. Place, price, length and type are understood.</p>
-            <button className="bg-primary hover:bg-primary-container text-on-primary py-2.5 px-space-lg rounded-lg font-title-md text-title-md transition-all flex items-center gap-space-xs shadow-sm" type="submit">
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">auto_awesome</span>
-              Search by description
+            <button className="shrink-0 rounded-lg bg-primary px-space-lg py-2.5 font-body-md text-on-primary hover:bg-primary-container" type="submit">
+              Search
             </button>
           </div>
+          <p className="font-body-sm text-body-sm text-on-surface-variant">English, Italian or Spanish. Place, price, length and type are understood.</p>
         </form>
       )}
     </div>

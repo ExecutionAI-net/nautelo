@@ -89,3 +89,14 @@ def test_unpublished_or_changed_listings_keep_the_index_honest():
     listing.save()
     assert index_listing(listing.pk) is False
     assert not ListingEmbedding.objects.filter(listing=listing).exists()
+
+
+def test_a_search_with_no_exact_match_relaxes_type_and_cabins_before_giving_up():
+    owner = make_user("o3@x.example", role=UserRole.PRIVATE_SELLER, verified=True)
+    _published(owner, make_brand("Nautica3"), "Genoa sloop", place=3176219, specs={"boat_type": "Sailing yacht"})
+    index_all()
+    data = APIClient().get(reverse("listing-list"), {"mode": "semantic", "query": "3 cabins catamaran Genova"}).json()
+    assert data["count"] == 1
+    assert data["interpretation"]["relaxed"] == ["boat_type", "cabins_min"]
+    strict = APIClient().get(reverse("listing-list"), {"mode": "semantic", "query": "catamaran Cadiz"}).json()
+    assert strict["count"] == 0  # place is never dropped
