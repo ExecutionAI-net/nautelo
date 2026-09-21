@@ -56,8 +56,8 @@ class OpenRouterModelAdmin(admin.ModelAdmin):
 
 @admin.register(TranslationSettings)
 class TranslationSettingsAdmin(admin.ModelAdmin):
-    autocomplete_fields = ("model",)
-    fields = ("enabled", "model", "temperature", "max_input_chars", "api_key_status", "catalogue_status")
+    autocomplete_fields = ("model", "ui_model")
+    fields = ("enabled", "model", "ui_enabled", "ui_model", "temperature", "max_input_chars", "api_key_status", "catalogue_status")
     readonly_fields = ("api_key_status", "catalogue_status")
 
     @admin.display(description="API key")

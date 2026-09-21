@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "content",
     "staffops",
     "translation",
+    "uitext",
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,10 @@ CELERY_BEAT_SCHEDULE = {
     "cleanup-stale-media-uploads": {
         "task": "listings.tasks.cleanup_stale_media_uploads",
         "schedule": crontab(minute=10),
+    },
+    "translate-site-text": {
+        "task": "uitext.tasks.translate_pending_ui_text",
+        "schedule": crontab(minute="*/10"),
     },
     "sync-openrouter-models": {
         "task": "translation.tasks.sync_openrouter_models",
@@ -369,3 +374,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 SEMANTIC_EMBEDDER = env("SEMANTIC_EMBEDDER", default="fastembed")  # "hash" keeps tests offline
 SEMANTIC_MODEL = env("SEMANTIC_MODEL", default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 SEMANTIC_CACHE_DIR = env("SEMANTIC_CACHE_DIR", default="")
+
+# Site text (every word of the interface, editable in the admin). The English source is one JSON file in the frontend repo;
+# the Docker image carries a copy next to manage.py.
+_UITEXT_IMAGE_COPY = BASE_DIR / "ui_source.en.json"
+UITEXT_SOURCE_FILE = _UITEXT_IMAGE_COPY if _UITEXT_IMAGE_COPY.exists() else BASE_DIR.parent / "frontend" / "src" / "i18n" / "source.en.json"
+# Publishing tells the site to drop its cached text right away (optional; the site's own cache also expires in a minute).
+UITEXT_REVALIDATE_URL = env("UITEXT_REVALIDATE_URL", default="")
+UITEXT_REVALIDATE_TOKEN = env("UITEXT_REVALIDATE_TOKEN", default="")
