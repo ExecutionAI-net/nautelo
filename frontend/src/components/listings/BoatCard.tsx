@@ -71,7 +71,7 @@ export default function BoatCard({
   const specLine = [
     String(listing.manufacture_year),
     specs.loa_m ? `${specs.loa_m} m` : "",
-    specs.cabins ? tf(locale, "listing.cabins", { count: String(specs.cabins) }) : "",
+    specs.cabins ? tf(locale, String(specs.cabins) === "1" ? "listing.cabin" : "listing.cabins", { count: String(specs.cabins) }) : "",
   ]
     .filter(Boolean)
     .join(" · ");

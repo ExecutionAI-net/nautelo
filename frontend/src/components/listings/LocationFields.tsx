@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { FacetLocation } from "@/lib/api/listings";
 
-const LABEL = "font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider";
+const HOME_LABEL = "font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider";
 const FIELD =
   "w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -26,10 +26,14 @@ export default function LocationFields({
   locations,
   idPrefix,
   initial = {},
+  labelClass = HOME_LABEL,
+  wrapperClass = "flex flex-col gap-1",
 }: {
   locations: FacetLocation[];
   idPrefix: string;
   initial?: { country?: string; place?: string };
+  labelClass?: string;
+  wrapperClass?: string;
 }) {
   const [country, setCountry] = useState((initial.country ?? "").toUpperCase());
   const [place, setPlace] = useState(initial.place ?? "");
@@ -39,13 +43,13 @@ export default function LocationFields({
     return rank(a) - rank(b) || countryName(a).localeCompare(countryName(b));
   });
   const inCountry = locations.filter((row) => row.country === country);
-  const cities = inCountry.filter((row) => row.place_id !== null);
+  const cities = inCountry.filter((row) => row.place_id !== null).sort((a, b) => a.city.localeCompare(b.city));
   const boatsIn = (rows: FacetLocation[]) => rows.reduce((sum, row) => sum + row.count, 0);
 
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <label className={LABEL} htmlFor={`${idPrefix}-country`}>Country</label>
+      <div className={wrapperClass}>
+        <label className={labelClass} htmlFor={`${idPrefix}-country`}>Country</label>
         <select
           id={`${idPrefix}-country`}
           name="country"
@@ -64,8 +68,8 @@ export default function LocationFields({
           ))}
         </select>
       </div>
-      <div className="flex flex-col gap-1">
-        <label className={LABEL} htmlFor={`${idPrefix}-place`}>City</label>
+      <div className={wrapperClass}>
+        <label className={labelClass} htmlFor={`${idPrefix}-place`}>City</label>
         <select
           id={`${idPrefix}-place`}
           name="place"

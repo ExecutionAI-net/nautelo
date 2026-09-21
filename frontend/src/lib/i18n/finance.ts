@@ -127,6 +127,7 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
   "listing.condition.new": { en: "New", it: "Nuova", es: "Nueva" },
   "listing.condition.used": { en: "Used", it: "Usata", es: "Usada" },
   "listing.asking_price": { en: "Asking price", it: "Prezzo richiesto", es: "Precio solicitado" },
+  "listing.cabin": { en: "{count} cabin", it: "{count} cabina", es: "{count} camarote" },
   "listing.cabins": { en: "{count} cabins", it: "{count} cabine", es: "{count} camarotes" },
   "listing.views": { en: "views", it: "visualizzazioni", es: "visualizaciones" },
   "listing.views_label": {
