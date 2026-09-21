@@ -362,6 +362,8 @@ class ListingSnapshot(UUIDModel):
     location_country = models.CharField(max_length=2)
     location_region = models.CharField(max_length=120, blank=True, default="")
     location_city = models.CharField(max_length=120)
+    # GeoNames id of the city picked from places.City; null on listings created before the picker.
+    location_place_id = models.PositiveBigIntegerField(null=True, blank=True, db_index=True)
     currency = models.CharField(max_length=3)
     price = models.DecimalField(max_digits=14, decimal_places=2)
     # Spec §18.2 reads these four as "listing.show_finance_estimate" etc. They

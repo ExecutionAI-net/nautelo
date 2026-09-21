@@ -244,6 +244,7 @@ class PublicListingSerializer(serializers.Serializer):
                 "country": snapshot.location_country,
                 "region": snapshot.location_region,
                 "city": snapshot.location_city,
+                "place_id": snapshot.location_place_id,
             },
             # Spec §30.2: money as decimal strings.
             "price": {

@@ -221,6 +221,7 @@ def payload_from_snapshot(snapshot) -> dict:
         "location_country": snapshot.location_country,
         "location_region": snapshot.location_region,
         "location_city": snapshot.location_city,
+        "location_place_id": snapshot.location_place_id,
         "currency": snapshot.currency,
         "price": f"{snapshot.price:f}",
         "media_ids": [entry["media_id"] for entry in snapshot.media_manifest],

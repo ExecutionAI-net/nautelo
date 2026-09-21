@@ -120,6 +120,7 @@ def test_the_detail_response_is_built_only_from_snapshot_columns(api):
         "country": snapshot.location_country,
         "region": "Liguria",
         "city": snapshot.location_city,
+        "place_id": snapshot.location_place_id,
     }
     assert response.data["specifications"] == snapshot.specifications
     assert response.data["specifications_schema_version"] == 1
