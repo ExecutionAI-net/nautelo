@@ -1,3 +1,5 @@
+import { placeLabel } from "@/lib/i18n/places";
+import { specialtyLabels } from "@/lib/i18n/specialties";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -63,13 +65,13 @@ export default async function BrokerPage({ params }: { params: Params }) {
               {broker.city || broker.country_code ? (
                 <p className="flex items-center gap-1 font-body-md text-on-surface-variant">
                   <span className="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">location_on</span>
-                  {[broker.city, broker.country_code].filter(Boolean).join(", ")}
+                  {placeLabel({ city: broker.city, country: broker.country_code })}
                 </p>
               ) : null}
               {broker.tagline ? <p className="max-w-2xl font-body-lg text-body-lg text-on-surface-variant">{broker.tagline}</p> : null}
               {broker.website_url ? (
                 <a href={broker.website_url} rel="noopener noreferrer nofollow" target="_blank" className="font-body-md text-primary underline">
-                  {broker.website_url}
+                  {broker.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                 </a>
               ) : null}
             </div>
@@ -89,7 +91,7 @@ export default async function BrokerPage({ params }: { params: Params }) {
           {broker.about ? <p className="mt-space-sm whitespace-pre-line font-body-md text-on-surface-variant">{broker.about}</p> : null}
           {broker.specialties.length > 0 ? (
             <div className="mt-space-md flex flex-wrap gap-space-xs">
-              {broker.specialties.map((tag) => (
+              {specialtyLabels(broker.specialties).map((tag) => (
                 <span key={tag} className="px-2.5 py-1 rounded bg-surface-container font-label-md text-label-md text-on-surface">
                   {tag}
                 </span>
@@ -100,7 +102,7 @@ export default async function BrokerPage({ params }: { params: Params }) {
       ) : null}
       <h2 className="mb-space-md font-headline-sm text-headline-sm text-primary">Active listings ({broker.listing_count})</h2>
       <div className="grid grid-cols-1 gap-space-xl lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <ul className="grid grid-cols-1 gap-space-md sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
           {(listings?.results ?? []).map((listing) => (
             <li key={listing.id}>
               <BoatCard locale={locale} listing={listing} disclaimerId="finance-disclaimer" />

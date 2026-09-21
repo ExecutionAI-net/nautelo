@@ -1,3 +1,4 @@
+import { specialtyLabels } from "@/lib/i18n/specialties";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -61,14 +62,14 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
             <div className="max-w-3xl">
               <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Yacht brokers</h1>
               <p className="mt-space-xs font-body-lg text-body-lg text-on-surface-variant">
-                Connect with licensed yacht brokers and maritime brokerage firms across Spain and Italy.
+                Find brokerage firms that sell boats in Spain, Italy and the rest of the Mediterranean.
               </p>
             </div>
           </div>
 
           <div className="mt-space-xl bg-surface-container-lowest p-space-md md:p-space-lg rounded-xl shadow-sm">
             <form method="get" action="/brokers/" className="grid grid-cols-1 md:grid-cols-12 gap-space-md items-center">
-              <div className="md:col-span-5 relative">
+              <div className="md:col-span-4 relative">
                 <label className="sr-only" htmlFor="broker-search-input">Search by broker or company name</label>
                 <div className="absolute inset-y-0 left-0 pl-space-md flex items-center pointer-events-none text-primary">
                   <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">search</span>
@@ -109,9 +110,10 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-1 flex">
-                <button aria-label="Filter results" type="submit" className="w-full h-12 flex items-center justify-center rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-sm">
-                  <span className="material-symbols-outlined text-[22px]" aria-hidden="true">tune</span>
+              <div className="md:col-span-2 flex">
+                <button type="submit" className="w-full h-12 flex items-center justify-center gap-space-xs rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-sm font-body-md">
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">tune</span>
+                  Apply filters
                 </button>
               </div>
             </form>
@@ -150,7 +152,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
               </span>
               <div>
                 <div className="font-title-md text-title-md text-primary">Coverage across the network</div>
-                <div className="font-body-sm text-body-sm text-on-surface-variant">Where our registered brokerage firms are based.</div>
+                <div className="font-body-sm text-body-sm text-on-surface-variant">The countries where most of our brokerage firms are based.</div>
               </div>
             </div>
             <div className="flex flex-col gap-1 w-full md:w-72">
@@ -205,7 +207,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                   {broker.tagline ? <p className="mt-space-md font-body-sm text-body-sm text-on-surface-variant line-clamp-2">{broker.tagline}</p> : null}
                   {broker.specialties.length > 0 ? (
                     <div className="mt-space-md flex flex-wrap gap-space-xs">
-                      {broker.specialties.map((tag) => (
+                      {specialtyLabels(broker.specialties).map((tag) => (
                         <span key={tag} className="px-2.5 py-1 rounded bg-surface-container font-label-md text-label-md text-on-surface">
                           {tag}
                         </span>
