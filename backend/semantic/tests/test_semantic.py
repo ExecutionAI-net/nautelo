@@ -100,3 +100,8 @@ def test_a_search_with_no_exact_match_relaxes_type_and_cabins_before_giving_up()
     assert data["interpretation"]["relaxed"] == ["boat_type", "cabins_min"]
     strict = APIClient().get(reverse("listing-list"), {"mode": "semantic", "query": "catamaran Cadiz"}).json()
     assert strict["count"] == 0  # place is never dropped
+
+
+def test_common_ways_to_say_sailboat_all_set_the_type():
+    for text in ("sail boat with 2 cabins", "sailboat", "barco de vela", "yacht a vela Genova"):
+        assert parse_query(text).filters["boat_type"] == "Sailing yacht", text
