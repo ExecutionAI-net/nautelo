@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.enums import UserRole
-from accounts.permissions import IsActiveUser
+from accounts.permissions import IsActiveUser, IsEmailVerifiedForWrites
 from common.field_rules import phone_number, plain_text, service_country
 from professionals.enums import ProfessionalProfileStatus
 from professionals.access import add_owner_membership, membership_for, profile_for
@@ -112,7 +112,7 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
 
 
 class ProviderProfileView(APIView):
-    permission_classes = [CombinedDirectoryEnabled, IsActiveUser, IsServiceProvider]
+    permission_classes = [CombinedDirectoryEnabled, IsActiveUser, IsServiceProvider, IsEmailVerifiedForWrites]
     throttle_scope = "staff_moderation"
 
     def _profile(self, request):
@@ -157,7 +157,7 @@ class ProviderServiceSerializer(serializers.ModelSerializer):
 
 
 class ProviderServiceMixin:
-    permission_classes = [CombinedDirectoryEnabled, IsActiveUser, IsServiceProvider]
+    permission_classes = [CombinedDirectoryEnabled, IsActiveUser, IsServiceProvider, IsEmailVerifiedForWrites]
     throttle_scope = "staff_moderation"
     serializer_class = ProviderServiceSerializer
 

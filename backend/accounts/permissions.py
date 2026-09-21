@@ -102,3 +102,16 @@ class CanReadBrokerMessages(BasePermission):
     def has_permission(self, request, view):
         broker_id = getattr(view, "kwargs", {}).get("broker_id")
         return can_read_broker_messages(request.user, broker_id)
+
+
+class IsEmailVerifiedForWrites(BasePermission):
+    """Reads stay open so an unverified owner sees the screen and the banner; changes need a verified email."""
+
+    message = "Verify your email address first."
+    code = "email_not_verified"
+
+    def has_permission(self, request, view):
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return True
+        user = request.user
+        return bool(user and user.is_authenticated and user.is_email_verified)
