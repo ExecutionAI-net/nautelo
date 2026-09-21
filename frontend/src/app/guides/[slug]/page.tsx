@@ -41,7 +41,7 @@ export default async function GuidePage({ params }: { params: Params }) {
         <h1 className="mt-space-md font-headline-lg text-headline-lg text-primary">{guide.title}</h1>
         <p className="mt-space-xs font-body-sm text-on-surface-variant">
           {guide.author_name ? `${guide.author_name} · ` : ""}
-          {guide.published_at ? new Date(guide.published_at).toLocaleDateString("en") : ""}
+          {guide.published_at ? new Date(guide.published_at).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" }) : ""}
         </p>
         {guide.hero_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- editorial image, size unknown

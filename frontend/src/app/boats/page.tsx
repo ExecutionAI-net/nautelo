@@ -149,7 +149,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
       <header className="bg-surface-container-low py-space-xl">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-space-md px-margin-mobile md:px-margin lg:flex-row lg:items-end lg:justify-between lg:px-margin-desktop">
           <div>
-            <span className="font-label-sm uppercase tracking-widest text-secondary">Mediterranean yacht exchange</span>
+            <span className="font-label-sm uppercase tracking-widest text-secondary">Mediterranean boat marketplace</span>
             <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{tf(locale, "boats.title")}</h1>
             <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{tf(locale, "boats.intro")}</p>
           </div>

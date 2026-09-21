@@ -48,7 +48,7 @@ export default async function Home() {
 <div className="lg:col-span-8 flex flex-col">
 <div className="mb-space-md flex items-center gap-space-xs">
 <span className="inline-block w-2 h-2 rounded-full bg-secondary"></span>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest">Mediterranean Vessel Exchange</span>
+<span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest">Mediterranean boat marketplace</span>
 </div>
 <h1 className="font-display-hero text-headline-lg-mobile md:text-display-hero text-primary tracking-tight mb-space-sm max-w-2xl">
             Find the right boat. With the services you need.

@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Sell your boat",
+  description: "List your boat yourself or ask a broker to sell it for you, in Spain and Italy.",
+};
 
 export default function SellLanding() {
   return (

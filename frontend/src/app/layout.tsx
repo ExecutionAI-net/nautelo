@@ -19,7 +19,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "NAUTA",
+  title: { default: "NAUTA", template: "%s · NAUTA" },
   description: "Yacht and boat marketplace for Spain and Italy",
 };
 
