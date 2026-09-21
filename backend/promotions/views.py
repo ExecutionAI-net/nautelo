@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser, IsEmailVerified
 
-from .checkout import create_promotion_checkout
+from .checkout import create_profile_promotion_checkout, create_promotion_checkout
 from .models import PromotionPlan
 
 
@@ -36,7 +36,8 @@ class PlanListView(APIView):
 
 
 class CheckoutSerializer(serializers.Serializer):
-    listing_id = serializers.UUIDField()
+    listing_id = serializers.UUIDField(required=False)
+    target = serializers.ChoiceField(choices=["listing", "profile"], default="listing")
     plan = serializers.CharField(max_length=30)
     return_path = serializers.CharField(max_length=80, required=False, default="/dashboard/private-seller/listings/")
 
@@ -50,10 +51,16 @@ class PromotionCheckoutView(APIView):
     def post(self, request):
         data = CheckoutSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        url = create_promotion_checkout(
-            user=request.user,
-            listing_id=data.validated_data["listing_id"],
-            plan_code=data.validated_data["plan"],
-            return_path=data.validated_data["return_path"],
-        )
+        values = data.validated_data
+        if values["target"] == "profile":
+            url = create_profile_promotion_checkout(user=request.user, plan_code=values["plan"], return_path=values["return_path"])
+        else:
+            if "listing_id" not in values:
+                raise serializers.ValidationError({"listing_id": ["This field is required."]})
+            url = create_promotion_checkout(
+                user=request.user,
+                listing_id=values["listing_id"],
+                plan_code=values["plan"],
+                return_path=values["return_path"],
+            )
         return Response({"checkout_url": url}, status=status.HTTP_201_CREATED)

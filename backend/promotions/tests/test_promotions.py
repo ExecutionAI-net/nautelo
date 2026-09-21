@@ -155,3 +155,32 @@ def test_the_return_path_may_be_the_listings_own_form(seller, fake):
     body = {"listing_id": str(listing.pk), "plan": "week", "return_path": f"/sell/{listing.pk}/"}
     assert _api(seller).post(reverse("promotion-checkout"), {**body}, format="json").status_code == 201
     assert _api(seller).post(reverse("promotion-checkout"), {**body, "return_path": "/evil/"}, format="json").status_code == 400
+
+
+def test_a_professional_can_promote_the_profile_and_the_clock_starts_when_it_is_active(fake):
+    from professionals.enums import ProfessionalProfileStatus
+    from professionals.tests.factories import make_professional
+
+    owner = make_user("pro@promo.example", role=UserRole.PROFESSIONAL, verified=True)
+    profile = make_professional(owner)
+    profile.status = ProfessionalProfileStatus.PENDING
+    profile.save()
+    response = _api(owner).post(reverse("promotion-checkout"), {"target": "profile", "plan": "month", "return_path": "/dashboard/service-provider/membership/"}, format="json")
+    assert response.status_code == 201, response.content
+    promotion = ListingPromotion.objects.get(professional=profile)
+    assert handle_checkout(_paid_session(promotion)) == WebhookResult.FULFILLED
+    profile.refresh_from_db()
+    assert profile.featured_until is None  # not approved yet: the clock waits
+
+    profile.status = ProfessionalProfileStatus.ACTIVE
+    profile.save()  # staff approval
+    profile.refresh_from_db()
+    assert timedelta(days=29, hours=23) < profile.featured_until - timezone.now() <= timedelta(days=30)
+    directory = APIClient().get(reverse("professional-directory")).json()
+    assert directory["results"][0]["is_featured"] is True
+
+
+def test_profile_promotion_needs_a_seat_that_can_edit_the_profile(fake):
+    outsider = make_user("nobody@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)
+    response = _api(outsider).post(reverse("promotion-checkout"), {"target": "profile", "plan": "week"}, format="json")
+    assert response.status_code == 403

@@ -24,7 +24,7 @@ const AREAS = {
       { href: "/dashboard/broker/messages/", label: "Messages" },
       { href: "/dashboard/broker/team/", label: "Team" },
       { href: "/dashboard/broker/profile/", label: "Profile" },
-      { href: "/dashboard/broker/subscription/", label: "Subscription" },
+      { href: "/dashboard/broker/subscription/", label: "My plan" },
     ] as Tab[],
   },
   provider: {
@@ -35,7 +35,7 @@ const AREAS = {
       { href: "/dashboard/service-provider/services/", label: "Services" },
       { href: "/dashboard/service-provider/profile/", label: "Profile" },
       { href: "/dashboard/service-provider/team/", label: "Team" },
-      { href: "/dashboard/service-provider/membership/", label: "Membership" },
+      { href: "/dashboard/service-provider/membership/", label: "My plan" },
     ] as Tab[],
   },
   staff: {
@@ -63,8 +63,8 @@ const AREAS = {
 // Menu sections per area; each entry names a tab above by its label.
 const GROUPS: Record<string, [string, string[]][]> = {
   seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account"]]],
-  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "Subscription"]]],
-  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "Membership"]]],
+  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan"]]],
+  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan"]]],
   staff: [["Moderation", ["Moderation", "Boats"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content"]], ["System", ["Reports", "Settings"]]],
 };
 

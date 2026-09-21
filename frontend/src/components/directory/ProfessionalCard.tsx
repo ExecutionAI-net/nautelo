@@ -15,6 +15,7 @@ export default function ProfessionalResultCard({
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
+      {professional.is_featured ? <span className="mb-space-xs self-start rounded bg-secondary px-2 py-0.5 font-label-sm uppercase text-on-secondary">Featured</span> : null}
       <h3 className="font-title-lg text-title-lg text-primary">
         <Link href={professional.url}>{professional.display_name}</Link>
       </h3>

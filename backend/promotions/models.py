@@ -41,7 +41,11 @@ class ListingPromotion(UUIDTimeStampedModel):
         REVIEW = "REVIEW", "Needs staff review"
         CANCELED = "CANCELED", "Canceled"
 
-    listing = models.ForeignKey("listings.BoatListing", related_name="promotions", on_delete=models.PROTECT)
+    # Exactly one target: a boat listing, or a professional directory profile.
+    listing = models.ForeignKey("listings.BoatListing", null=True, blank=True, related_name="promotions", on_delete=models.PROTECT)
+    professional = models.ForeignKey(
+        "professionals.ProfessionalProfile", null=True, blank=True, related_name="promotions", on_delete=models.PROTECT
+    )
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="promotions", on_delete=models.PROTECT)
     plan = models.ForeignKey(PromotionPlan, related_name="promotions", on_delete=models.PROTECT)
     # Copied at purchase so later price or length edits never change what was bought.
@@ -59,6 +63,12 @@ class ListingPromotion(UUIDTimeStampedModel):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["listing", "status"], name="promotions_listing_status")]
+        constraints = [
+            models.CheckConstraint(
+                condition=(models.Q(listing__isnull=False, professional__isnull=True) | models.Q(listing__isnull=True, professional__isnull=False)),
+                name="promotions_exactly_one_target",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.listing_id} {self.plan.code} {self.status}"

@@ -1,5 +1,6 @@
 "use client";
 
+import PromotePanel from "@/components/promotion/PromotePanel";
 import { useEffect, useState } from "react";
 
 import ManageBillingButton from "@/components/team/ManageBillingButton";
@@ -58,8 +59,8 @@ export default function ProviderMembership() {
   return (
     <div className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / Membership</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Membership</h1>
+        <span className="font-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / My plan</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">My plan</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">
           Your profile is listed in the NAUTA directory while your monthly membership is paid. It goes live once our team has reviewed and approved it.
         </p>
@@ -120,6 +121,8 @@ export default function ProviderMembership() {
         {membership.status !== "INACTIVE" ? <ManageBillingButton portalEndpoint="/api/v1/provider/membership/portal/" /> : null}
         {error ? <p role="alert" className="font-body-sm text-error">{error}</p> : null}
       </section>
+
+      <PromotePanel mode="profile" returnPath="/dashboard/service-provider/membership/" />
     </div>
   );
 }

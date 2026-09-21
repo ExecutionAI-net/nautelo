@@ -52,6 +52,7 @@ export interface ProfessionalCard {
   service_area: string[];
   categories: CategoryRef[];
   active_service_count: number;
+  is_featured?: boolean;
   url: string;
 }
 

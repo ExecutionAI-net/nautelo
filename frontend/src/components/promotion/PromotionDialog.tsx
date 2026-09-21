@@ -22,6 +22,7 @@ const money = (plan: Plan) => new Intl.NumberFormat("en-GB", { style: "currency"
  * `returnPath` is where Stripe sends the seller back (must be an allowed path on the server).
  */
 export default function PromotionDialog({
+  target = "listing",
   listingId,
   title,
   imageUrl,
@@ -29,7 +30,8 @@ export default function PromotionDialog({
   returnPath,
   onSkip,
 }: {
-  listingId: string;
+  target?: "listing" | "profile";
+  listingId?: string;
   title: string;
   imageUrl?: string | null;
   locale?: Locale;
@@ -72,7 +74,7 @@ export default function PromotionDialog({
     try {
       const { checkout_url } = await apiFetch<{ checkout_url: string }>("/api/v1/promotions/checkout/", {
         method: "POST",
-        body: JSON.stringify({ listing_id: listingId, plan: chosen, return_path: returnPath }),
+        body: JSON.stringify({ target, ...(listingId ? { listing_id: listingId } : {}), plan: chosen, return_path: returnPath }),
       });
       window.location.assign(checkout_url);
     } catch {

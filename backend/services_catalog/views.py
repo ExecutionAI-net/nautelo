@@ -105,7 +105,13 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
             # `display_name` because `display_name` isn't unique either.
             ordering = ("-active_service_count", "display_name", "id")
 
-        return queryset.order_by(*ordering).distinct()
+        from django.db.models import Case, IntegerField, When
+        from django.utils import timezone
+
+        queryset = queryset.annotate(
+            _promo_rank=Case(When(featured_until__gt=timezone.now(), then=0), default=1, output_field=IntegerField())
+        )
+        return queryset.order_by("_promo_rank", *ordering).distinct()
 
 
 class ProfessionalDetailView(LocalizedContextMixin, RetrieveAPIView):
