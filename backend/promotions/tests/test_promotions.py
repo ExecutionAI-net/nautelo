@@ -184,3 +184,39 @@ def test_profile_promotion_needs_a_seat_that_can_edit_the_profile(fake):
     outsider = make_user("nobody@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)
     response = _api(outsider).post(reverse("promotion-checkout"), {"target": "profile", "plan": "week"}, format="json")
     assert response.status_code == 403
+
+
+def _feature(seller, fake):
+    listing = make_private_listing(owner=seller)
+    promotion = _buy(seller, listing)
+    handle_checkout(_paid_session(promotion))
+    _publish(listing)
+    start_waiting(listing)
+    return listing
+
+
+def test_events_count_only_while_featured_and_reach_the_owner_report(seller, fake, monkeypatch):
+    monkeypatch.setattr("listings.permissions.is_feature_enabled", lambda *a, **k: True)
+    listing = _feature(seller, fake)
+    other = make_private_listing(owner=seller, brand=listing.brand, model=listing.model)
+    anon = APIClient()
+    url = reverse("promotion-events")
+    for kind in ("impression", "impression", "click"):
+        assert anon.post(url, {"target": "listing", "id": str(listing.pk), "kind": kind}, format="json").status_code == 204
+    anon.post(url, {"target": "listing", "id": str(other.pk), "kind": "impression"}, format="json")
+
+    report = _api(seller).get(reverse("promotion-stats")).json()
+    assert report["listings"] == {str(listing.pk): {"impressions": 2, "clicks": 1}}
+    body = _api(seller).get(reverse("my-listings")).json()
+    rows = {row["id"]: row for row in body}
+    assert rows[str(listing.pk)]["promo_impressions"] == 2 and rows[str(listing.pk)]["promo_clicks"] == 1
+    assert rows[str(other.pk)]["promo_impressions"] == 0
+
+
+def test_events_after_the_promotion_ended_are_ignored(seller, fake):
+    listing = _feature(seller, fake)
+    listing.featured_until = timezone.now() - timedelta(minutes=1)
+    listing.save(update_fields=["featured_until"])
+    response = APIClient().post(reverse("promotion-events"), {"target": "listing", "id": str(listing.pk), "kind": "impression"}, format="json")
+    assert response.status_code == 204
+    assert _api(seller).get(reverse("promotion-stats")).json()["listings"] == {}

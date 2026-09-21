@@ -231,6 +231,8 @@ export interface MyListingRow {
   beam_m: string;
   engine: string;
   views: number;
+  promo_impressions?: number;
+  promo_clicks?: number;
   image_url: string | null;
 }
 

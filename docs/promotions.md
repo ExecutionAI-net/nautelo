@@ -15,3 +15,13 @@ Broker (Subscription) and professional (Membership) pages are now called "My pla
 - Professionals promote their directory profile (`target: "profile"` in `POST /api/v1/promotions/checkout/`). The clock starts when staff set the profile to ACTIVE. Featured profiles get a badge and lead the directory (`is_featured`, `ProfessionalProfile.featured_until`).
 - Profile promotions use the same plans and prices as vessel promotions; a separate price list would need an audience field on the plan.
 - The professional design set has no My plan screen; the broker one (Subscription) was followed, minus MLS feeds and escrow.
+
+## Impressions and clicks
+
+`PromotionDailyStat` keeps one row per target (listing or professional profile) and UTC day.
+`POST /api/v1/promotions/events/` is an anonymous, throttled beacon (`promo_event`). It counts
+only while the target is featured, so nothing is stored for ordinary listings. `PromoTracker`
+(frontend) sends one impression per session when a featured card is half visible, and every click.
+Owners read totals from `listings/mine` (`promo_impressions`, `promo_clicks`) and
+`GET /api/v1/promotions/stats/` (also the profile totals for professionals); My listings, the fleet
+and My plan show "seen N times".

@@ -47,7 +47,7 @@ class MyListingsView(APIView):
                 Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
             )
             .select_related("brand", "model", "current_public_snapshot")
-            .prefetch_related("media")
+            .prefetch_related("media", "promo_stats")
             .order_by("-updated_at")
         )
         return Response([_row(item) for item in rows])
@@ -89,6 +89,8 @@ def _row(item) -> dict:
         "beam_m": specs.get("beam_m") or "",
         "engine": specs.get("engine_model") or specs.get("engine_type") or "",
         "views": item.view_count_cached,
+        "promo_impressions": sum(stat.impressions for stat in item.promo_stats.all()),
+        "promo_clicks": sum(stat.clicks for stat in item.promo_stats.all()),
         "image_url": _with_url({"storage_key": image.storage_key})["url"] if image else None,
     }
 

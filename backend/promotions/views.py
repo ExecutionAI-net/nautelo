@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser, IsEmailVerified
 
+from .stats import record_event, report_for
 from .checkout import create_profile_promotion_checkout, create_promotion_checkout
 from .models import PromotionPlan
 
@@ -64,3 +65,33 @@ class PromotionCheckoutView(APIView):
                 return_path=values["return_path"],
             )
         return Response({"checkout_url": url}, status=status.HTTP_201_CREATED)
+
+
+class EventSerializer(serializers.Serializer):
+    target = serializers.ChoiceField(choices=["listing", "profile"])
+    id = serializers.UUIDField()
+    kind = serializers.ChoiceField(choices=["impression", "click"])
+
+
+class PromotionEventView(APIView):
+    """POST /api/v1/promotions/events/ - anonymous beacon from the featured strip; counted only while featured."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "promo_event"
+
+    def post(self, request):
+        data = EventSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        record_event(target=data.validated_data["target"], target_id=data.validated_data["id"], kind=data.validated_data["kind"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PromotionStatsView(APIView):
+    """GET /api/v1/promotions/stats/ - the caller's own totals."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser]
+    throttle_scope = "account"
+
+    def get(self, request):
+        return Response(report_for(request.user))

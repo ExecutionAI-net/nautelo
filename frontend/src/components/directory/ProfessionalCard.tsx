@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import PromoTracker from "@/components/promotion/PromoTracker";
+
 import { formatProfessionalLocation, type ProfessionalCard } from "@/lib/api/directory";
 import type { Locale } from "@/lib/i18n/directory";
 
@@ -13,7 +15,7 @@ export default function ProfessionalResultCard({
   // data is Phase 7's ContactAccessService (spec 1, spec 14.2).
   const location = formatProfessionalLocation(professional);
 
-  return (
+  const card = (
     <article className="flex h-full flex-col rounded-xl border border-outline-variant bg-surface-container-lowest p-space-md">
       {professional.is_featured ? <span className="mb-space-xs self-start rounded bg-secondary px-2 py-0.5 font-label-sm uppercase text-on-secondary">Featured</span> : null}
       <h3 className="font-title-lg text-title-lg text-primary">
@@ -46,4 +48,5 @@ export default function ProfessionalResultCard({
       ) : null}
     </article>
   );
+  return professional.is_featured ? <PromoTracker target="profile" id={professional.id}>{card}</PromoTracker> : card;
 }

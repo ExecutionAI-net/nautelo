@@ -107,7 +107,7 @@ function Spec({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ListingCard({ row }: { row: MyListingRow }) {
+export function ListingCard({ row, returnPath = "/dashboard/private-seller/listings/" }: { row: MyListingRow; returnPath?: string }) {
   const [promoting, setPromoting] = useState(false);
   const featuredUntil = row.featured_until ?? null; // the API sends it only while the promotion runs
   const promotable = row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL";
@@ -150,6 +150,11 @@ export function ListingCard({ row }: { row: MyListingRow }) {
           <span className="material-symbols-outlined text-base" aria-hidden="true">visibility</span>
           {row.views.toLocaleString("en")} views
         </p>
+        {row.promo_impressions ? (
+          <p className="font-body-sm text-body-sm text-secondary">
+            Featured: seen {row.promo_impressions.toLocaleString("en")} times, {(row.promo_clicks ?? 0).toLocaleString("en")} clicks
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col justify-center gap-space-xs rounded-lg bg-surface-container-low p-space-md md:w-52">
@@ -175,7 +180,7 @@ export function ListingCard({ row }: { row: MyListingRow }) {
           </button>
         ) : null}
         {promoting ? (
-          <PromotionDialog listingId={row.id} title={row.title} imageUrl={row.image_url} returnPath="/dashboard/private-seller/listings/" onSkip={() => setPromoting(false)} />
+          <PromotionDialog listingId={row.id} title={row.title} imageUrl={row.image_url} returnPath={returnPath} onSkip={() => setPromoting(false)} />
         ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
       </div>
@@ -307,7 +312,7 @@ export default function MyListings({
           </div>
           <ul className="mt-space-md flex flex-col gap-space-md">
             {visible.map((row) => (
-              <ListingCard key={row.id} row={row} />
+              <ListingCard key={row.id} row={row} returnPath={fleet ? "/dashboard/broker/fleet/" : undefined} />
             ))}
           </ul>
         </>
