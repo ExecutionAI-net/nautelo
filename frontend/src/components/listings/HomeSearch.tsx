@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import LocationPicker from "@/components/listings/LocationPicker";
+
 const FIELD =
   "w-full bg-surface-container-low rounded-lg px-space-sm py-2.5 font-body-md text-body-md text-on-surface focus:outline-none placeholder:text-outline";
 const LABEL = "font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider";
@@ -72,23 +74,15 @@ export default function HomeSearch({
           </div>
           <div className="flex flex-col gap-1">
             <label className={LABEL} htmlFor="home-place">Location</label>
-            <select id="home-place" value={location} onChange={(event) => setLocation(event.target.value)} className={`${FIELD} cursor-pointer`}>
-              <option value="">All countries</option>
-              {countries.length > 0 ? (
-                <optgroup label="Countries">
-                  {countries.map((code) => (
-                    <option key={code} value={`country:${code}`}>{countryName(code)}</option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {cities.length > 0 ? (
-                <optgroup label="Cities">
-                  {cities.map((city) => (
-                    <option key={city.id} value={`place:${city.id}`}>{city.name}</option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </select>
+            <LocationPicker
+              id="home-place"
+              options={[
+                ...countries.map((code) => ({ value: `country:${code}`, label: countryName(code), kind: "Country" })),
+                ...cities.map((city) => ({ value: `place:${city.id}`, label: city.name, kind: "City" })),
+              ]}
+              value={location}
+              onChange={setLocation}
+            />
             {location.startsWith("country:") ? <input type="hidden" name="country" value={location.slice(8)} /> : null}
             {location.startsWith("place:") ? <input type="hidden" name="place" value={location.slice(6)} /> : null}
           </div>
