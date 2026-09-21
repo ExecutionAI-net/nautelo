@@ -1,7 +1,9 @@
 "use client";
 
+import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
+import { localizePath } from "@/lib/i18n/localePath";
 import { Suspense, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import AuthShell from "@/components/auth/AuthShell";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,6 +22,7 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const destination = safeNextUrl(searchParams.get("next"));
+  const pageLocale = useLocaleOrDefault();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,7 +30,7 @@ function LoginForm() {
     setError(null);
     try {
       await login(email, password);
-      router.replace(destination);
+      router.replace(localizePath(destination, pageLocale));
     } catch (caught) {
       setError(
         caught instanceof ApiError

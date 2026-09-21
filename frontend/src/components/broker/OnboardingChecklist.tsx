@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import type { EntityStatus } from "@/lib/auth/types";
 

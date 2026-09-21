@@ -7,7 +7,8 @@ import {
 } from "@/lib/api/directory";
 import { fetchBrokers } from "@/lib/api/brokers";
 import { fetchPublishedListings, listingPath } from "@/lib/api/listings";
-import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from "@/lib/i18n/directory";
+import { prefixFor } from "@/lib/i18n/localePath";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,23 @@ async function allBrokerPaths(): Promise<string[]> {
   }
 }
 
+/** Each public page appears once per language, every entry pointing at all the others (and English as the default). */
+function inEveryLanguage(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
+  return entries.flatMap((entry) => {
+    const path = entry.url.slice(PUBLIC_BASE_URL.length);
+    const languages: Record<string, string> = Object.fromEntries(
+      SUPPORTED_LOCALES.map((locale) => [locale, `${PUBLIC_BASE_URL}${prefixFor(locale)}${path}`]),
+    );
+    languages["x-default"] = `${PUBLIC_BASE_URL}${path}`;
+    return SUPPORTED_LOCALES.map((locale) => ({ ...entry, url: languages[locale], alternates: { languages } }));
+  });
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  return inEveryLanguage(await englishSitemap());
+}
+
+async function englishSitemap(): Promise<MetadataRoute.Sitemap> {
   const [categories, professionals, listingPaths, brokerPaths] = await Promise.all([
     fetchServiceCategories(DEFAULT_LOCALE),
     allProfessionals(),

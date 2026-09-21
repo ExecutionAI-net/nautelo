@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 

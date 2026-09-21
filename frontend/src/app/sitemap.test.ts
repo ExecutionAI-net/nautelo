@@ -28,8 +28,17 @@ describe("sitemap", () => {
     for (const page of ["financing", "guides", "pricing", "sell", "contact", "privacy", "terms", "cookies"]) {
       expect(urls.some((u) => u.endsWith(`/${page}/`))).toBe(true);
     }
-    // 4 dynamic entries + 8 static public pages; no service directory URLs.
-    expect(urls).toHaveLength(12);
+    // 4 dynamic entries + 8 static public pages, in three languages; no service directory URLs.
+    expect(urls).toHaveLength(36);
+    expect(urls).toContain("http://127.0.0.1:3020/it/boats/");
+    expect(urls).toContain("http://127.0.0.1:3020/es/boats/a-1/");
     expect(urls.some((u) => u.includes("/services/"))).toBe(false);
+    const entry = (await sitemap()).find((e) => e.url.endsWith("/it/boats/"));
+    expect(entry?.alternates?.languages).toMatchObject({
+      en: "http://127.0.0.1:3020/boats/",
+      it: "http://127.0.0.1:3020/it/boats/",
+      es: "http://127.0.0.1:3020/es/boats/",
+      "x-default": "http://127.0.0.1:3020/boats/",
+    });
   });
 });

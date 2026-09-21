@@ -1,6 +1,6 @@
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import ContactPanel from "@/components/contact/ContactPanel";
@@ -26,7 +26,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     title: professional.display_name,
     description: professional.short_description || undefined,
     // Spec 1: /services/professionals/<professional-slug>/ is the canonical URL.
-    alternates: { canonical: professional.url },
   };
 }
 

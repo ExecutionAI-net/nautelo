@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import PlanCards from "@/components/pricing/PlanCards";
 import { formatPrice } from "@/lib/api/plans";
@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Pricing",
   description: "Membership tiers for brokerages and the listing right for individual sellers on NAUTA.",
-  alternates: { canonical: "/pricing/" },
 };
 
 export default async function PricingPage() {

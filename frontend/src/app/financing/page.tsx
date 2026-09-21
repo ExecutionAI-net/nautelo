@@ -15,7 +15,6 @@ export function generateMetadata(): Metadata {
   return {
     title: tf(DEFAULT_LOCALE, "finance.page.title"),
     description: tf(DEFAULT_LOCALE, "finance.page.intro"),
-    alternates: { canonical: CANONICAL_PATH },
   };
 }
 

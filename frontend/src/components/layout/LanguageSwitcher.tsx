@@ -1,16 +1,18 @@
 "use client";
 
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/directory";
+import { localizePath, splitLocalePath } from "@/lib/i18n/localePath";
 import { useLocale, writeLocaleCookie } from "@/lib/i18n/useLocale";
 
-/** EN / IT / ES pills from the design; stores the choice in a cookie and re-renders server pages. */
+/** EN / IT / ES pills from the design; opens the same page at the chosen language's address and remembers the choice. */
 export default function LanguageSwitcher() {
   const current = useLocale();
 
   function choose(locale: Locale) {
     writeLocaleCookie(locale);
-    // Server pages read the cookie per request and client components on mount; a reload updates both.
-    window.location.reload();
+    // Each language has its own address: go to this same page in the chosen language.
+    const { path } = splitLocalePath(window.location.pathname);
+    window.location.assign(`${localizePath(path, locale)}${window.location.search}${window.location.hash}`);
   }
 
   return (

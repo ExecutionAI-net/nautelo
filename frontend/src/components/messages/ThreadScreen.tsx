@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "@/lib/i18n/useLocale";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useCallback, useEffect, useState } from "react";
 
 import ConversationThread from "@/components/messages/ConversationThread";

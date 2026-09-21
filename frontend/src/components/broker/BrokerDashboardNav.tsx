@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { usePathname } from "next/navigation";
 
 import type { BrokerMembershipSummary, SessionPayload } from "@/lib/auth/types";
