@@ -3,6 +3,7 @@
 import Link from "@/components/layout/LocaleLink";
 
 import AuthShell from "@/components/auth/AuthShell";
+import { useT } from "@/i18n/client";
 import { useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api/client";
@@ -11,6 +12,7 @@ const INPUT =
   "mt-space-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md";
 
 export default function RegisterPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -31,34 +33,34 @@ export default function RegisterPage() {
     } catch (caught) {
       const first =
         caught instanceof ApiError ? Object.values(caught.fields)[0]?.[0]?.message : undefined;
-      setError(first || "Registration failed. Please try again.");
+      setError(first || t("auth.register.failed"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AuthShell tab="register" heading="Create your account">
+    <AuthShell tab="register" heading={t("auth.register.heading")}>
       {done ? (
         <p role="status" className="max-w-sm font-body-md">
-          Account created. Check your inbox for the verification link, then{" "}
+          {t("auth.register.done")}{" "}
           <Link href="/login" className="text-primary underline">
-            sign in
+            {t("auth.register.sign_in")}
           </Link>
           .
         </p>
       ) : (
         <form onSubmit={submit} className="w-full space-y-space-md">
                     <label className="block font-label-md text-label-md">
-            Full name
+            {t("auth.register.full_name")}
             <input className={INPUT} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </label>
           <label className="block font-label-md text-label-md">
-            Email
+            {t("auth.register.email")}
             <input className={INPUT} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
           <label className="block font-label-md text-label-md">
-            Password
+            {t("auth.register.password")}
             <input className={INPUT} type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           {error ? (
@@ -71,22 +73,22 @@ export default function RegisterPage() {
             disabled={busy}
             className="w-full rounded-lg bg-primary p-space-sm font-label-md text-label-md text-on-primary disabled:opacity-50"
           >
-            {busy ? "Creating…" : "Create account"}
+            {busy ? t("auth.register.creating") : t("auth.register.create_account")}
           </button>
           <p className="font-body-sm">
-            Already registered?{" "}
+            {t("auth.register.already_registered")}{" "}
             <Link href="/login" className="text-primary underline">
-              Sign in
+              {t("auth.register.sign_in")}
             </Link>
           </p>
           <p className="font-body-sm text-on-surface-variant">
-            Representing a business?{" "}
+            {t("auth.register.representing_business")}{" "}
             <Link href="/register/professional" className="text-primary underline">
-              Register as a professional
+              {t("auth.register.register_professional")}
             </Link>{" "}
-            or{" "}
+            {t("auth.register.or")}{" "}
             <Link href="/register/broker" className="text-primary underline">
-              as a broker
+              {t("auth.register.as_broker")}
             </Link>
             .
           </p>

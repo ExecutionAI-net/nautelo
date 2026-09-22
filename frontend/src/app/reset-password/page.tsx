@@ -3,12 +3,14 @@
 import Link from "@/components/layout/LocaleLink";
 
 import AuthShell from "@/components/auth/AuthShell";
+import { useT } from "@/i18n/client";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api/client";
 
 function ResetForm() {
+  const t = useT();
   const token = useSearchParams().get("token") ?? "";
   const [password, setPassword] = useState("");
   const [done, setDone] = useState(false);
@@ -26,7 +28,7 @@ function ResetForm() {
     } catch (caught) {
       const fields = caught instanceof ApiError ? caught.fields : {};
       setError(
-        fields.password?.[0]?.message ?? "This reset link is invalid or has expired. Request a new one.",
+        fields.password?.[0]?.message ?? t("auth.reset.expired"),
       );
     }
   }
@@ -34,9 +36,9 @@ function ResetForm() {
   if (done) {
     return (
       <p role="status" className="max-w-sm font-body-md">
-        Your password was changed.{" "}
+        {t("auth.reset.done")}{" "}
         <Link href="/login" className="text-primary underline">
-          Sign in
+          {t("auth.reset.sign_in")}
         </Link>
       </p>
     );
@@ -44,7 +46,7 @@ function ResetForm() {
   return (
     <form onSubmit={submit} className="w-full space-y-space-md">
             <label className="block font-label-md text-label-md">
-        New password
+        {t("auth.reset.new_password")}
         <input
           type="password"
           required
@@ -60,16 +62,17 @@ function ResetForm() {
         </p>
       ) : null}
       <button type="submit" className="w-full rounded-lg bg-primary p-space-sm text-on-primary">
-        Change password
+        {t("auth.reset.change_password")}
       </button>
     </form>
   );
 }
 
 export default function ResetPasswordPage() {
+  const t = useT();
   return (
-    <AuthShell tab="recovery" heading="Choose a new password">
-      <Suspense fallback={<p>Loading…</p>}>
+    <AuthShell tab="recovery" heading={t("auth.reset.heading")}>
+      <Suspense fallback={<p>{t("auth.reset.loading")}</p>}>
         <ResetForm />
       </Suspense>
     </AuthShell>

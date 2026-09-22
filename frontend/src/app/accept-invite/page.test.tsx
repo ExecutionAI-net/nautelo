@@ -15,7 +15,7 @@ describe("AcceptInvitePage", () => {
   it("lets a new address register into the invited role", async () => {
     apiFetch.mockResolvedValueOnce({ organization: "Blue Rigging", org_type: "PROFESSIONAL", role: "MANAGER", email: "n@x.co", account_exists: false });
     render(<AcceptInvitePage />);
-    expect(await screen.findByText("Blue Rigging")).toBeTruthy();
+    expect(await screen.findByText((_, el) => el?.tagName === "P" && (el?.textContent?.includes("Blue Rigging") ?? false))).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Mia" } });
     fireEvent.change(screen.getByLabelText("Choose a password"), { target: { value: "S3cret-pass!" } });
     apiFetch.mockResolvedValueOnce({});

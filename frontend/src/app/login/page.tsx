@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
+import { useT } from "@/i18n/client";
 import { localizePath } from "@/lib/i18n/localePath";
 import { Suspense, useState } from "react";
 import Link from "@/components/layout/LocaleLink";
@@ -16,6 +17,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useSession();
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ function LoginForm() {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : "Sign-in failed. Please try again.",
+          : t("auth.login.failed"),
       );
     } finally {
       setSubmitting(false);
@@ -45,7 +47,7 @@ function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-space-md">
             <label className="block font-label-md text-label-md" htmlFor="email">
-        Email
+        {t("auth.login.email")}
         <input
           id="email"
           name="email"
@@ -58,7 +60,7 @@ function LoginForm() {
         />
       </label>
       <label className="block font-label-md text-label-md" htmlFor="password">
-        Password
+        {t("auth.login.password")}
         <input
           id="password"
           name="password"
@@ -80,17 +82,17 @@ function LoginForm() {
         disabled={submitting}
         className="w-full rounded-lg bg-primary p-space-sm font-label-md text-label-md text-on-primary disabled:opacity-50"
       >
-        {submitting ? "Signing in…" : "Sign in"}
+        {submitting ? t("auth.login.signing_in") : t("auth.login.sign_in")}
       </button>
       <p className="font-body-sm">
         <Link href="/forgot-password" className="text-primary underline">
-          Forgot your password?
+          {t("auth.login.forgot_password")}
         </Link>
       </p>
       <p className="font-body-sm">
-        New here?{" "}
+        {t("auth.login.new_here")}{" "}
         <Link href="/register" className="text-primary underline">
-          Create an account
+          {t("auth.login.create_account")}
         </Link>
       </p>
     </form>
@@ -98,9 +100,10 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  const t = useT();
   return (
-    <AuthShell tab="login" heading="Sign in">
-      <Suspense fallback={<p className="font-body-md">Loading…</p>}>
+    <AuthShell tab="login" heading={t("auth.login.heading")}>
+      <Suspense fallback={<p className="font-body-md">{t("auth.reset.loading")}</p>}>
         <LoginForm />
       </Suspense>
     </AuthShell>
