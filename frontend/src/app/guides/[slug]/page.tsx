@@ -3,6 +3,7 @@ import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import AdSlot from "@/components/content/AdSlot";
+import { getT } from "@/i18n/server";
 import { fetchGuide } from "@/lib/api/contentServer";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function GuidePage({ params }: { params: Params }) {
   if (!guide) {
     notFound();
   }
+  const t = await getT();
   const paragraphs = guide.body.split(/\n{2,}/).filter((part) => part.trim());
 
   return (
@@ -33,7 +35,7 @@ export default async function GuidePage({ params }: { params: Params }) {
       <article className="mx-auto max-w-3xl px-margin-mobile py-space-xl md:px-margin">
         <nav aria-label="Breadcrumb" className="font-body-sm text-on-surface-variant">
           <Link href="/guides/" className="hover:text-primary">
-            Guides
+            {t("guides.detail.breadcrumb")}
           </Link>
           {guide.category ? <span> / {guide.category}</span> : null}
         </nav>
