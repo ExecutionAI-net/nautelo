@@ -13,7 +13,7 @@ BROKER_FEATURE_FLAG_KEYS = [UNIFIED_INQUIRIES_FLAG]
 def _clear_broker_caches():
     """Delete this package's OWN cache keys around every test.
 
-    NEVER `cache.clear()`. Django's RedisCache.clear() is a FLUSHDB, and this
+    Never clear the whole cache. Django's RedisCache whole-cache clear wipes the entire Redis DB, and this
     project's test Redis DB is shared by concurrently running worktrees — which
     is why backend/conftest.py was rewritten to scan and delete only its own
     KEY_PREFIX. The same narrow shape as messaging/tests/conftest.py and

@@ -1,7 +1,7 @@
 """Named-key cache isolation for this package.
 
-The project's cache is a real, shared Redis instance. NEVER call cache.clear()
-here: Django's RedisCache.clear() is a FLUSHDB and would wipe keys owned by
+The project's cache is a real, shared Redis instance. NEVER clear the whole cache
+here: Django's RedisCache whole-cache clear wipes the entire Redis DB and would wipe keys owned by
 other worktrees' concurrently running suites. Delete named keys only — the same
 pattern as entitlements/tests/conftest.py and listings/tests/conftest.py.
 """
