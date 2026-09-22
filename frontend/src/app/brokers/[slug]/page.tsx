@@ -1,3 +1,4 @@
+import { getT } from "@/i18n/server";
 import { placeLabel } from "@/lib/i18n/places";
 import { specialtyLabels } from "@/lib/i18n/specialties";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
@@ -31,6 +32,7 @@ export default async function BrokerPage({ params }: { params: Params }) {
     notFound();
   }
   const locale = await getRequestLocale();
+  const t = await getT();
   const [listings, inquiryConfig] = await Promise.all([
     fetchPublishedListings({ broker: slug }),
     fetchInquiryConfig(),
@@ -104,7 +106,7 @@ export default async function BrokerPage({ params }: { params: Params }) {
         <ul className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
           {(listings?.results ?? []).map((listing) => (
             <li key={listing.id}>
-              <BoatCard locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
+              <BoatCard t={t} locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
             </li>
           ))}
         </ul>

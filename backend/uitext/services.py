@@ -7,6 +7,7 @@ import urllib.request
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .models import LOCALES, TextKey, TextRelease, TextValue, check_text
@@ -31,7 +32,33 @@ def load_source(path: str | Path) -> dict[str, str]:
     return data
 
 
-def sync_source(source: dict[str, str]) -> dict:
+def load_seed(path: str | Path) -> dict[str, dict[str, str]]:
+    """Hand-written translations that came with the code: {"it": {key: text}, "es": {...}}. Missing file = none."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("The seed file must map a language code to {key: text}.")
+    return data
+
+
+def _apply_seed(row: TextKey, seeds: dict[str, dict[str, str]]) -> None:
+    """A new key that already has a hand-written translation in the code starts with it, live, and is not machine-translated."""
+    for locale, texts in seeds.items():
+        text = texts.get(row.key)
+        if locale not in OTHER_LOCALES or not isinstance(text, str) or not text.strip():
+            continue
+        try:
+            check_text(row.source_en, text)
+        except ValidationError:
+            continue
+        TextValue.objects.filter(key=row, locale=locale).update(
+            text=text, published_text=text, origin=TextValue.Origin.HUMAN, stale=False, attempts=0
+        )
+
+
+def sync_source(source: dict[str, str], seeds: dict[str, dict[str, str]] | None = None) -> dict:
     """Make the database match the keys in the code. Returns counts; never overwrites staff-edited text."""
     created = changed = 0
     with transaction.atomic():
@@ -48,6 +75,8 @@ def sync_source(source: dict[str, str]) -> dict:
             else:
                 continue
             _apply_english(row)
+            if seeds and row.pk and not row.values.filter(locale__in=OTHER_LOCALES).exclude(text="").exists():
+                _apply_seed(row, seeds)
         retired = TextKey.objects.filter(is_active=True).exclude(key__in=source.keys()).update(is_active=False)
         if created or changed:
             TextRelease.bump()

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import seed from "@/i18n/seed.json";
 import { interpolate, makeTranslate, SOURCE_TEXT } from "@/i18n";
 
 const KEY = /^[a-z0-9][a-z0-9_.-]*$/;
@@ -36,5 +37,24 @@ describe("makeTranslate", () => {
   it("keeps every source placeholder used by the pages in the source text", () => {
     const found = SOURCE_TEXT["boats.found"].match(PLACEHOLDER);
     expect(found).toEqual(["{count}"]);
+  });
+});
+
+describe("financing copy that ships with the code (spec 2.5: an estimate is never a lender decision)", () => {
+  const FORBIDDEN: Record<string, RegExp> = {
+    en: /(approv|guarante|pre-?qualif|offer|your rate)/i,
+    it: /(approv|garan|offert|il tuo tasso|i tuoi tassi|finanziamento sicuro|esito sicuro)/i,
+    es: /(aprob|aprueb|garant|oferta|tus? (tasas?|tipos?)|financiación segura)/i,
+  };
+  // The one sentence the spec itself mandates contains "offer".
+  const MANDATED = { en: "Not a credit offer.", it: "Non è un'offerta di credito.", es: "No es una oferta de crédito." } as Record<string, string>;
+  const financeKeys = Object.keys(SOURCE_TEXT).filter((key) => /^(finance|listing\.finance)\./.test(key));
+
+  it.each(["en", "it", "es"])("has no promissory wording in %s", (locale) => {
+    const texts = locale === "en" ? SOURCE_TEXT : (seed as Record<string, Record<string, string>>)[locale];
+    for (const key of financeKeys) {
+      const text = (texts[key] ?? "").replace(MANDATED[locale], "");
+      expect(FORBIDDEN[locale].test(text), `${locale} ${key}: ${text}`).toBe(false);
+    }
   });
 });

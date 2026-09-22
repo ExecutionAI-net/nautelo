@@ -11,6 +11,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/ .
 COPY frontend/src/i18n/source.en.json /app/ui_source.en.json
+COPY frontend/src/i18n/seed.json /app/ui_seed.json
 ENV PATH="/app/.venv/bin:$PATH" DJANGO_SETTINGS_MODULE=config.settings.prod
 
 ENV SEMANTIC_CACHE_DIR=/opt/fastembed

@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 
 import PromotionDialog from "@/components/promotion/PromotionDialog";
-import { tPromo } from "@/lib/i18n/promotion";
 import PlacePicker from "@/components/places/PlacePicker";
 import SearchSelect from "@/components/forms/SearchSelect";
 import type { Locale } from "@/lib/i18n/directory";
-import { tSell } from "@/lib/i18n/sell";
+import { useT } from "@/i18n/client";
+import type { Translate } from "@/i18n";
 import { ApiError } from "@/lib/api/client";
 import { fetchEligibility, fetchFormOptions, type Eligibility, type FormOptions } from "@/lib/api/listingForm";
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
@@ -56,12 +56,12 @@ const SPEC_KEYS = [
   "berth",
 ] as const;
 
-function describe(error: unknown, locale: Locale): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiError) {
     const first = Object.values(error.fields)[0]?.[0]?.message;
-    return first || error.message || tSell(locale, "sell.request_failed");
+    return first || error.message || t("sell.request_failed");
   }
-  return tSell(locale, "sell.request_failed");
+  return t("sell.request_failed");
 }
 
 function text(payload: Record<string, unknown>, key: string): string {
@@ -92,7 +92,7 @@ export default function SellListingForm({
   const seedSpecs = (typeof seed.specifications === "object" && seed.specifications !== null
     ? seed.specifications
     : {}) as Record<string, unknown>;
-  const t = (key: string, vars?: Record<string, string | number>) => tSell(locale, key, vars);
+  const t = useT();
   const [brands, setBrands] = useState<TaxonomyItem[]>([]);
   const [models, setModels] = useState<TaxonomyItem[]>([]);
   const [other, setOther] = useState<{ id: string; label: string } | null>(null);
@@ -370,7 +370,7 @@ export default function SellListingForm({
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 3000);
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
@@ -424,7 +424,7 @@ export default function SellListingForm({
     try {
       await uploadAll(listing.id, accepted);
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
@@ -447,7 +447,7 @@ export default function SellListingForm({
     try {
       setMedia(await reorderMedia(listing.id, row.media_type, ids));
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     }
   }
 
@@ -457,7 +457,7 @@ export default function SellListingForm({
       await removeMedia(listing.id, row.id);
       setMedia(await listMedia(listing.id));
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     }
   }
 
@@ -477,7 +477,7 @@ export default function SellListingForm({
       await submitListing(listing.id, withMedia.revision?.version ?? withMedia.version);
       setSubmitted(true);
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
@@ -931,7 +931,7 @@ export default function SellListingForm({
               {error}
             </p>
           ) : null}
-          {promoPaid ? <p role="status" className="font-body-md text-secondary">{tPromo(locale, "promo.paid")}</p> : null}
+          {promoPaid ? <p role="status" className="font-body-md text-secondary">{t("promo.paid")}</p> : null}
           {askPromo && listing ? (
             <PromotionDialog
               listingId={listing.id}

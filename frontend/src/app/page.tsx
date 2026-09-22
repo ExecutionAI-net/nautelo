@@ -107,7 +107,7 @@ export default async function Home() {
 {boats.length > 0 ? (
 <FeaturedSlider label={showingPromoted ? t("home.featured") : t("home.latest")}>
 {boats.map((listing) => (
-<BoatCard key={listing.id} locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
+<BoatCard key={listing.id} t={t} locale={locale} listing={listing} disclaimerId="finance-disclaimer" />
 ))}
 </FeaturedSlider>
 ) : <p className="font-body-md text-on-surface-variant">{t("home.no_boats")}</p>}

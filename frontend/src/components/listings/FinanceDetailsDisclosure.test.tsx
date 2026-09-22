@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
 import type { FinanceQuote } from "@/lib/api/finance-quote";
 import type { Locale } from "@/lib/i18n/directory";
-import { tf } from "@/lib/i18n/finance";
+import type { MessageKey } from "@/i18n";
+import { testT, withMessages } from "@/i18n/testing";
 
 const requestFinanceQuote = vi.fn();
 
@@ -46,19 +47,19 @@ beforeEach(() => {
 });
 
 function showButton(locale: Locale = "en") {
-  return screen.getByRole("button", { name: tf(locale, "finance.details.show") });
+  return screen.getByRole("button", { name: testT(locale)("finance.details.show") });
 }
 
 describe("FinanceDetailsDisclosure", () => {
   it("asks for nothing until it is opened", () => {
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     expect(requestFinanceQuote).not.toHaveBeenCalled();
   });
 
   it("renders server-calculated figures, never client arithmetic", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(screen.getByRole("button", { name: "Show assumptions" }));
 
@@ -73,7 +74,7 @@ describe("FinanceDetailsDisclosure", () => {
 
   it("fetches once even when it is opened and closed repeatedly", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(screen.getByRole("button", { name: "Show assumptions" }));
     await waitFor(() => expect(screen.getByText("€91,800.00")).toBeInTheDocument());
@@ -85,7 +86,7 @@ describe("FinanceDetailsDisclosure", () => {
 
   it("says so when the estimate cannot be calculated", async () => {
     requestFinanceQuote.mockRejectedValue(new Error("boom"));
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(screen.getByRole("button", { name: "Show assumptions" }));
 
@@ -104,7 +105,7 @@ describe("FinanceDetailsDisclosure", () => {
     ["a network failure", new TypeError("Failed to fetch")],
   ])("reports %s without breaking the card", async (_label, failure) => {
     requestFinanceQuote.mockRejectedValue(failure);
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(showButton());
 
@@ -118,7 +119,7 @@ describe("FinanceDetailsDisclosure", () => {
 
   it("retries on the next open after a failure, and clears the message on success", async () => {
     requestFinanceQuote.mockRejectedValueOnce(new Error("boom")).mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(showButton());
     await waitFor(() =>
@@ -144,7 +145,7 @@ describe("FinanceDetailsDisclosure", () => {
         settle = resolve;
       }),
     );
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(showButton());
 
@@ -161,7 +162,7 @@ describe("FinanceDetailsDisclosure", () => {
 
   it("wires the button to the panel it controls", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     const button = showButton();
     expect(button).toHaveAttribute("aria-expanded", "false");
@@ -184,7 +185,7 @@ describe("FinanceDetailsDisclosure", () => {
 
   it("opens and closes from the keyboard alone", async () => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.tab();
     expect(showButton()).toHaveFocus();
@@ -201,19 +202,19 @@ describe("FinanceDetailsDisclosure", () => {
   // shows, and is programmatically tied to the figures it qualifies.
   it.each(LOCALES)("carries the mandated disclaimer with its figures (%s)", async (locale) => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale={locale} listingId="abc" />);
+    render(withMessages(locale, <FinanceDetailsDisclosure locale={locale} listingId="abc" />));
 
     await userEvent.click(showButton(locale));
 
     const rows = await screen.findByTestId("finance-assumptions");
-    const disclaimer = tf(locale, "finance.illustrative_disclaimer");
+    const disclaimer = testT(locale)("finance.illustrative_disclaimer");
     expect(screen.getByText(disclaimer)).toBeInTheDocument();
     expect(rows).toHaveAccessibleDescription(disclaimer);
   });
 
   it.each(LOCALES)("labels every row in %s", async (locale) => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale={locale} listingId="abc" />);
+    render(withMessages(locale, <FinanceDetailsDisclosure locale={locale} listingId="abc" />));
 
     await userEvent.click(showButton(locale));
     await screen.findByTestId("finance-assumptions");
@@ -226,13 +227,13 @@ describe("FinanceDetailsDisclosure", () => {
       "finance.total_installments",
       "finance.total_interest",
     ]) {
-      expect(screen.getByText(tf(locale, key))).toBeInTheDocument();
+      expect(screen.getByText(testT(locale)(key as MessageKey))).toBeInTheDocument();
     }
     expect(
-      screen.getByText(tf(locale, "finance.months", { count: 48 })),
+      screen.getByText(testT(locale)("finance.months", { count: 48 })),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: tf(locale, "finance.details.hide") }),
+      screen.getByRole("button", { name: testT(locale)("finance.details.hide") }),
     ).toBeInTheDocument();
   });
 
@@ -242,7 +243,7 @@ describe("FinanceDetailsDisclosure", () => {
     ["es" as const, "91.800,00 €", "367.200,00 €"],
   ])("formats the figures for %s", async (locale, downPayment, principal) => {
     requestFinanceQuote.mockResolvedValue(QUOTE);
-    render(<FinanceDetailsDisclosure locale={locale} listingId="abc" />);
+    render(withMessages(locale, <FinanceDetailsDisclosure locale={locale} listingId="abc" />));
 
     await userEvent.click(showButton(locale));
     await screen.findByTestId("finance-assumptions");
@@ -287,17 +288,17 @@ describe("FinanceDetailsDisclosure", () => {
       requestFinanceQuote.mockResolvedValue({ ...QUOTE, [field]: hostile });
 
       expect(() =>
-        render(<FinanceDetailsDisclosure locale="en" listingId="abc" />),
+        render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />)),
       ).not.toThrow();
       await userEvent.click(showButton());
       const rows = await screen.findByTestId("finance-assumptions");
 
-      expect(screen.queryByText(tf("en", labelKey))).not.toBeInTheDocument();
+      expect(screen.queryByText(testT("en")(labelKey))).not.toBeInTheDocument();
       expect(within(rows).getByText("48 months")).toBeInTheDocument();
       expect(within(rows).getByText("5.0000%")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Hide assumptions" })).toBeInTheDocument();
       expect(
-        screen.getByText(tf("en", "finance.illustrative_disclaimer")),
+        screen.getByText(testT("en")("finance.illustrative_disclaimer")),
       ).toBeInTheDocument();
     },
   );
@@ -308,7 +309,7 @@ describe("FinanceDetailsDisclosure", () => {
       requestFinanceQuote.mockResolvedValue({ ...QUOTE, currency });
 
       expect(() =>
-        render(<FinanceDetailsDisclosure locale="en" listingId="abc" />),
+        render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />)),
       ).not.toThrow();
       await userEvent.click(showButton());
 
@@ -328,7 +329,7 @@ describe("FinanceDetailsDisclosure", () => {
       requestFinanceQuote.mockResolvedValue({ ...QUOTE, monthly_payment: monthly });
 
       expect(() =>
-        render(<FinanceDetailsDisclosure locale="en" listingId="abc" />),
+        render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />)),
       ).not.toThrow();
       await userEvent.click(showButton());
 
@@ -343,12 +344,12 @@ describe("FinanceDetailsDisclosure", () => {
 
   it.each(LOCALES)("translates that unavailable state too (%s)", async (locale) => {
     requestFinanceQuote.mockResolvedValue({ ...QUOTE, currency: "€" });
-    render(<FinanceDetailsDisclosure locale={locale} listingId="abc" />);
+    render(withMessages(locale, <FinanceDetailsDisclosure locale={locale} listingId="abc" />));
 
     await userEvent.click(showButton(locale));
 
     await waitFor(() =>
-      expect(screen.getByText(tf(locale, "finance.details.error"))).toBeInTheDocument(),
+      expect(screen.getByText(testT(locale)("finance.details.error"))).toBeInTheDocument(),
     );
   });
 
@@ -363,7 +364,7 @@ describe("FinanceDetailsDisclosure", () => {
         settle = resolve;
       }),
     );
-    render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(showButton());
     await userEvent.click(screen.getByRole("button", { name: "Hide assumptions" }));
@@ -388,7 +389,7 @@ describe("FinanceDetailsDisclosure", () => {
         settle = resolve;
       }),
     );
-    const view = render(<FinanceDetailsDisclosure locale="en" listingId="abc" />);
+    const view = render(withMessages("en", <FinanceDetailsDisclosure locale="en" listingId="abc" />));
 
     await userEvent.click(showButton());
     view.unmount();

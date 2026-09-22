@@ -380,6 +380,8 @@ SEMANTIC_CACHE_DIR = env("SEMANTIC_CACHE_DIR", default="")
 # the Docker image carries a copy next to manage.py.
 _UITEXT_IMAGE_COPY = BASE_DIR / "ui_source.en.json"
 UITEXT_SOURCE_FILE = _UITEXT_IMAGE_COPY if _UITEXT_IMAGE_COPY.exists() else BASE_DIR.parent / "frontend" / "src" / "i18n" / "source.en.json"
+_UITEXT_SEED_COPY = BASE_DIR / "ui_seed.json"
+UITEXT_SEED_FILE = _UITEXT_SEED_COPY if _UITEXT_SEED_COPY.exists() else BASE_DIR.parent / "frontend" / "src" / "i18n" / "seed.json"
 # Publishing tells the site to drop its cached text right away (optional; the site's own cache also expires in a minute).
 # The token is derived from the secret both sides already share, so no new secret has to be set anywhere.
 UITEXT_REVALIDATE_URL = env("UITEXT_REVALIDATE_URL", default="http://web:3000/api/revalidate-ui-text/" if env("DEPLOY_ENVIRONMENT", default="") else "")

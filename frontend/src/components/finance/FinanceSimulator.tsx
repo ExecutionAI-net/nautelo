@@ -15,7 +15,8 @@ import {
   type Use,
 } from "@/lib/finance/simulator";
 import type { Locale } from "@/lib/i18n/directory";
-import { tSim } from "@/lib/i18n/simulator";
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
 import { useLocale } from "@/lib/i18n/useLocale";
 
 const THIS_YEAR = new Date().getFullYear();
@@ -62,7 +63,7 @@ function Segmented<T extends string>({
  */
 export default function FinanceSimulator({ compact = false, initialPrice }: { compact?: boolean; initialPrice?: number }) {
   const locale = useLocale();
-  const t = (key: string, vars?: Record<string, string | number>) => tSim(locale, key, vars);
+  const t = useT();
   const money = useMemo(() => new Intl.NumberFormat(LOCALE_TAG[locale], { style: "currency", currency: "EUR", maximumFractionDigits: 0 }), [locale]);
 
   const [rules, setRules] = useState<FinanceRule[] | null>(null);
@@ -234,7 +235,7 @@ export default function FinanceSimulator({ compact = false, initialPrice }: { co
           <summary className="cursor-pointer font-label-md text-secondary">{t("sim.more")}</summary>
           <div className="mt-space-sm grid gap-space-sm sm:grid-cols-2">
             {countries.length > 1 ? (
-              <Segmented label={t("sim.country")} value={country} onChange={setCountry} options={countries.map((code) => ({ value: code, label: t(`sim.${code}`) }))} />
+              <Segmented label={t("sim.country")} value={country} onChange={setCountry} options={countries.map((code) => ({ value: code, label: t(`sim.${code.toLowerCase()}` as MessageKey) }))} />
             ) : null}
             <Segmented
               label={t("sim.condition")}

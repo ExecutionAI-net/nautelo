@@ -6,15 +6,18 @@ import { notFound } from "next/navigation";
 import { fetchProfessionals, fetchServiceCategories, formatProfessionalLocation } from "@/lib/api/directory";
 import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
 
+import { getT } from "@/i18n/server";
+
 export const dynamic = "force-dynamic";
 
 // Spec 1: canonical combined URL.
 const CANONICAL_PATH = "/services/professionals/";
 
-export function generateMetadata(): Metadata {
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
   return {
-    title: t(DEFAULT_LOCALE, "directory.services_professionals.title"),
-    description: t(DEFAULT_LOCALE, "directory.intro"),
+    title: t("directory.services_professionals.title"),
+    description: t("directory.intro"),
   };
 }
 
@@ -62,6 +65,7 @@ export default async function CombinedDirectoryPage({
 }) {
   const params = await searchParams;
   const locale = await getRequestLocale();
+  const t = await getT();
   const filters = {
     q: first(params.q),
     category: first(params.category),
@@ -419,7 +423,7 @@ export default async function CombinedDirectoryPage({
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter-desktop" id="professionalsGrid">
 
 {results.results.length === 0 ? (
-<p className="font-body-md text-on-surface-variant md:col-span-2 lg:col-span-3">{t(locale, "directory.results.empty")}</p>
+<p className="font-body-md text-on-surface-variant md:col-span-2 lg:col-span-3">{t("directory.results.empty")}</p>
 ) : results.results.map((professional, index) => {
 const place = formatProfessionalLocation(professional);
 const photo = DESIGN_PHOTOS[index % DESIGN_PHOTOS.length];
@@ -465,12 +469,12 @@ return (
 })}
 
 {results.previous || results.next ? (
-<nav aria-label={t(locale, "directory.results.heading")} className="flex gap-space-md md:col-span-2 lg:col-span-3">
+<nav aria-label={t("directory.results.heading")} className="flex gap-space-md md:col-span-2 lg:col-span-3">
 {results.previous ? (
-<Link href={pageHref(linkFilters, currentPage - 1)} rel="prev" className={PAGINATION_LINK_CLASS}>{t(locale, "directory.pagination.previous")}</Link>
+<Link href={pageHref(linkFilters, currentPage - 1)} rel="prev" className={PAGINATION_LINK_CLASS}>{t("directory.pagination.previous")}</Link>
 ) : null}
 {results.next ? (
-<Link href={pageHref(linkFilters, currentPage + 1)} rel="next" className={PAGINATION_LINK_CLASS}>{t(locale, "directory.pagination.next")}</Link>
+<Link href={pageHref(linkFilters, currentPage + 1)} rel="next" className={PAGINATION_LINK_CLASS}>{t("directory.pagination.next")}</Link>
 ) : null}
 </nav>
 ) : null}
