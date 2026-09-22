@@ -5,7 +5,7 @@ already carries a root autouse `clear_redis_cache` fixture that deletes every ke
 under this checkout's `KEY_PREFIX` before and after EVERY test in the project —
 including `platform_settings`' feature-flag cache keys, which is the only cached
 state this package touches. (It deletes the checkout's own keys by name rather
-than calling `cache.clear()`, because `RedisCache.clear()` is a FLUSHDB that would
+than clearing the whole cache, because Django's RedisCache whole-cache clear wipes the entire Redis DB and would
 wipe a parallel worktree's suite.) A second, narrower fixture doing the same job
 here would be redundant and would imply the root one cannot be relied on. (Phase
 5's Task 6 made the same consolidation for `services_catalog/tests/`: one fixture,
