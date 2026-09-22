@@ -245,17 +245,7 @@ export async function fetchFinanceDefaults(): Promise<FinanceConfigurationDefaul
   }
 }
 
-/**
- * Spec §18.3's calculator target, exactly:
- * /financing/?listing=<uuid>&price=<server-formatted-price>&currency=EUR
- * The price is the server's own string and exists only as the finance page's
- * immediate display fallback while its authoritative quote loads.
- */
-export function financingHref(listing: PublicListing): string {
-  const search = new URLSearchParams({
-    listing: listing.id,
-    price: listing.price.amount,
-    currency: listing.price.currency,
-  });
-  return `/financing/?${search.toString()}`;
-}
+// Moved to listingLinks.ts (kept out of this file's module graph so a Client
+// Component can use it without pulling in directoryFetch's next/headers
+// dependency) - re-exported here so existing importers keep working.
+export { financingHref } from "@/lib/api/listingLinks";

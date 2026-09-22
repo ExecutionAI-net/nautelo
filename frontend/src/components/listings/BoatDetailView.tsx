@@ -4,7 +4,7 @@ import Link from "@/components/layout/LocaleLink";
 import type { MessageKey, Translate } from "@/i18n";
 import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import type { PublicListing } from "@/lib/api/listings";
-import { financingHref } from "@/lib/api/listings";
+import { financingHref } from "@/lib/api/listingLinks";
 import type { Locale } from "@/lib/i18n/directory";
 import { placeLabel } from "@/lib/i18n/places";
 
