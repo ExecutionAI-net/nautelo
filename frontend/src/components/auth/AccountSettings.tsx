@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "@/components/layout/LocaleLink";
 import { useState } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/session";
+import { resolveLocale, type Locale } from "@/lib/i18n/directory";
+import { localizePath, splitLocalePath } from "@/lib/i18n/localePath";
+import { writeLocaleCookie } from "@/lib/i18n/useLocale";
 
 const LOCALES = [
   { value: "EN", label: "English" },
@@ -13,11 +15,11 @@ const LOCALES = [
 ] as const;
 
 const FIELD = "mt-space-xs w-full rounded-lg bg-surface-container-low p-space-sm font-body-md text-primary focus:outline-none";
-const CARD = "bg-surface-container-lowest rounded-xl shadow-sm p-space-lg flex flex-col gap-space-md";
+const CARD = "bg-surface-container-lowest rounded-2xl shadow-sm p-space-lg flex flex-col gap-space-md";
 
 function Heading({ icon, tile, kicker, title }: { icon: string; tile: string; kicker: string; title: string }) {
   return (
-    <div className="flex items-start gap-space-md">
+    <div className="flex items-start gap-space-md border-b border-surface-container-high pb-space-sm">
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${tile}`}>
         <span className="material-symbols-outlined text-[22px]" aria-hidden="true">{icon}</span>
       </div>
@@ -35,12 +37,15 @@ export default function AccountSettings() {
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [locale, setLocale] = useState<string>(user?.locale ?? "EN");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetStatus, setResetStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   if (!user) return null;
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setStatus("idle");
+    const previousLocale = user!.locale;
     try {
       await apiFetch("/api/v1/account/", {
         method: "PATCH",
@@ -49,8 +54,33 @@ export default function AccountSettings() {
       });
       await reload();
       setStatus("saved");
+      // Saving a new interface language does nothing to what's already on
+      // screen unless we do what LanguageSwitcher does for the nav pills:
+      // remember the choice and reopen this same page under that language's
+      // address, so getRequestLocale() (and every t()) actually picks it up.
+      if (locale !== previousLocale) {
+        const chosen = resolveLocale(locale) as Locale;
+        writeLocaleCookie(chosen);
+        const { path } = splitLocalePath(window.location.pathname);
+        window.location.assign(`${localizePath(path, chosen)}${window.location.search}${window.location.hash}`);
+      }
     } catch {
       setStatus("error");
+    }
+  }
+
+  async function sendResetLink() {
+    setConfirmingReset(false);
+    setResetStatus("sending");
+    try {
+      await apiFetch("/api/v1/auth/password-reset/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user!.email }),
+      });
+      setResetStatus("sent");
+    } catch {
+      setResetStatus("error");
     }
   }
 
@@ -115,9 +145,43 @@ export default function AccountSettings() {
           <section className={CARD}>
             <Heading icon="lock" tile="bg-tertiary-fixed text-on-tertiary-fixed" kicker="Security" title="Password" />
             <p className="font-body-md text-on-surface-variant">Change your password with a secure reset link sent to your email.</p>
-            <Link href="/forgot-password/" className="w-fit rounded-lg bg-surface-container px-space-md py-space-sm font-body-md text-primary hover:bg-surface-container-high">
-              Send reset link
-            </Link>
+            {confirmingReset ? (
+              <div role="dialog" aria-modal="true" aria-label="Send password reset link" className="rounded-lg border border-outline-variant bg-surface-container-low p-space-md">
+                <p className="font-body-md text-on-surface">
+                  Send a password reset link to <strong>{user.email}</strong>?
+                </p>
+                <div className="mt-space-sm flex gap-space-sm">
+                  <button
+                    type="button"
+                    onClick={() => void sendResetLink()}
+                    className="rounded-lg bg-primary px-space-md py-space-sm font-label-md text-label-md text-on-primary"
+                  >
+                    Yes, send it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReset(false)}
+                    className="rounded-lg border border-outline px-space-md py-space-sm font-label-md text-label-md text-on-surface"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingReset(true)}
+                className="w-fit rounded-lg bg-surface-container px-space-md py-space-sm font-body-md text-primary hover:bg-surface-container-high"
+              >
+                Send reset link
+              </button>
+            )}
+            {resetStatus === "sent" ? <p role="status" className="font-body-md text-secondary">Check your email for the reset link.</p> : null}
+            {resetStatus === "error" ? (
+              <p role="alert" className="text-error">
+                The reset link could not be sent.
+              </p>
+            ) : null}
           </section>
         </div>
       </div>
