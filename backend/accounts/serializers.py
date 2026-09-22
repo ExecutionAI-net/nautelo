@@ -53,6 +53,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
             "id",
             "email",
             "full_name",
+            "phone_number",
             "primary_role",
             "locale",
             "email_verified",
@@ -64,7 +65,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
 class AccountUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("full_name", "locale")
+        fields = ("full_name", "phone_number", "locale")
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):

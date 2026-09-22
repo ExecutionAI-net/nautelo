@@ -8,7 +8,7 @@ const reload = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock("@/lib/api/client", () => ({ apiFetch }));
 vi.mock("@/lib/auth/session", () => ({
   useSession: () => ({
-    session: { user: { email: "a@b.c", full_name: "Ann", locale: "EN", email_verified: true } },
+    session: { user: { email: "a@b.c", full_name: "Ann", phone_number: "+34 600 000 000", locale: "EN", email_verified: true } },
     reload,
   }),
 }));
@@ -40,9 +40,19 @@ describe("AccountSettings", () => {
     await waitFor(() => expect(reload).toHaveBeenCalled());
     const [path, init] = apiFetch.mock.calls[0];
     expect(path).toBe("/api/v1/account/");
-    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", locale: "EN" });
+    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", phone_number: "+34 600 000 000", locale: "EN" });
     expect(await screen.findByRole("status")).toBeTruthy();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("saves an edited phone number alongside the other fields", async () => {
+    mockLocation();
+    render(<AccountSettings />);
+    fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "+39 333 123 4567" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    const [, init] = apiFetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", phone_number: "+39 333 123 4567", locale: "EN" });
   });
 
   it("remembers a changed interface language and reopens the same page under its address", async () => {
@@ -52,7 +62,7 @@ describe("AccountSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     const [, init] = apiFetch.mock.calls[0];
-    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", locale: "IT" });
+    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", phone_number: "+34 600 000 000", locale: "IT" });
     expect(document.cookie).toContain("nauta_locale=it");
     expect(assign).toHaveBeenCalledWith("/it/dashboard/account/?tab=security");
   });

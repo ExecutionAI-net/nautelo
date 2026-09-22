@@ -100,6 +100,7 @@ describe("SessionProvider", () => {
           id: "11111111-1111-1111-1111-111111111111",
           email: "seller@example.com",
           full_name: "Sea Seller",
+          phone_number: "",
           primary_role: "PRIVATE_SELLER",
           locale: "EN",
           email_verified: true,
