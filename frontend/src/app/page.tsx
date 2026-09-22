@@ -1,6 +1,7 @@
 import HomeSearch from "@/components/listings/HomeSearch";
 import FinanceSection from "@/components/finance/FinanceSection";
 import FeaturedSlider from "@/components/listings/FeaturedSlider";
+import MaritimeSignalStrip from "@/components/layout/MaritimeSignalStrip";
 import { getT } from "@/i18n/server";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import Link from "@/components/layout/LocaleLink";
@@ -43,7 +44,7 @@ export default async function Home() {
     <main className="w-full bg-surface">
 <div className="flex flex-col w-full">
 
-<section className="relative w-full overflow-hidden bg-surface-container-low pb-space-2xl pt-space-xl">
+<section className="relative w-full overflow-hidden bg-surface-container-low border-b border-outline-variant pb-space-2xl pt-space-xl">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
 <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start">
 
@@ -64,8 +65,8 @@ export default async function Home() {
 
 <div className="lg:col-span-4 w-full h-full flex flex-col justify-start">
 {ad ? (
-<div className="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col">
-<div className="flex items-center justify-between pb-space-xs mb-space-sm">
+<div className="w-full bg-surface-container-lowest rounded-xl p-space-md border border-outline-variant shadow-sm flex flex-col">
+<div className="flex items-center justify-between pb-space-xs mb-space-sm border-b border-outline-variant">
 <span className="font-label-sm text-label-sm text-outline tracking-widest uppercase">{t("home.ad_label")}</span>
 </div>
 <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden mb-space-md group bg-surface-container-high">
@@ -87,6 +88,7 @@ export default async function Home() {
 ) : null}
 </div>
 </div>
+<MaritimeSignalStrip signalLabel={t("home.signal_code")} datumLabel={t("home.datum")} />
 </div>
 </section>
 

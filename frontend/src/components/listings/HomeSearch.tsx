@@ -30,8 +30,13 @@ export default function HomeSearch({ boatTypes, locations = [] }: { boatTypes: s
   const tabClass = (active: boolean) =>
     `px-space-md py-space-xs rounded-md font-label-md text-label-md transition-all ${active ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface"}`;
 
+  const fillPrompt = (example: string) => {
+    const field = document.getElementById("home-query") as HTMLInputElement | null;
+    if (field) field.value = example;
+  };
+
   return (
-    <div className="bg-surface-container-lowest rounded-xl shadow-md p-space-md md:p-space-lg">
+    <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-md p-space-md md:p-space-lg">
       <div role="tablist" aria-label={t("search.mode")} className="mb-space-md inline-flex rounded-lg bg-surface-container-low p-1">
         <button type="button" role="tab" id="tab-standard-btn" aria-selected={tab === "standard"} onClick={() => setTab("standard")} className={tabClass(tab === "standard")}>
           {t("search.standard")}
@@ -92,6 +97,19 @@ export default function HomeSearch({ boatTypes, locations = [] }: { boatTypes: s
             </button>
           </div>
           <p className="font-body-sm text-body-sm text-on-surface-variant">{t("search.describe_hint")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-label-sm text-outline uppercase text-[10px]">{t("search.prompt_ideas")}</span>
+            {[t("search.prompt_example_1"), t("search.prompt_example_2")].map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => fillPrompt(example)}
+                className="px-2.5 py-1 bg-surface-container text-primary rounded text-xs hover:bg-surface-variant text-left transition-colors"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
         </form>
       )}
     </div>
