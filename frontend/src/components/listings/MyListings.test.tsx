@@ -6,7 +6,11 @@ import MyListings from "@/components/listings/MyListings";
 const api = vi.hoisted(() => ({ fetchMyListings: vi.fn() }));
 vi.mock("@/lib/api/sellerListings", () => api);
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 const base = {
@@ -37,7 +41,12 @@ describe("MyListings", () => {
     expect(await screen.findByText("Live boat")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Continue editing" }).getAttribute("href")).toBe("/sell/a/");
     expect(screen.getByRole("link", { name: "Edit listing" }).getAttribute("href")).toBe("/sell/b/");
-    expect(screen.getAllByRole("link", { name: "View public page" })).toHaveLength(1);
+    // The thumbnail is a second, image-wrapping link to the same destination
+    // as the explicit button, for both the published and the draft listing.
+    expect(screen.getAllByRole("link", { name: "View public page" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Preview listing" }).getAttribute("href")).toBe(
+      "/dashboard/listings/a/preview/",
+    );
     expect(screen.getByText("€125,000")).toBeTruthy();
     expect(screen.getByText("12.5 m")).toBeTruthy();
     expect(screen.getByText(/1,420 views/)).toBeTruthy();

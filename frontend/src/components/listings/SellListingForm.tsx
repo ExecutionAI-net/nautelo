@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import Link from "@/components/layout/LocaleLink";
 import PromotionDialog from "@/components/promotion/PromotionDialog";
 import PlacePicker from "@/components/places/PlacePicker";
 import SearchSelect from "@/components/forms/SearchSelect";
@@ -941,7 +942,7 @@ export default function SellListingForm({
           </section>
 
           {listing ? (
-            <div>
+            <div className="flex items-center gap-space-md">
               <button
                 type="button"
                 disabled={busy || media.every((row) => row.status !== "READY")}
@@ -950,6 +951,14 @@ export default function SellListingForm({
               >
                 {t("sell.submit")}
               </button>
+              <Link
+                href={`/dashboard/listings/${listing.id}/preview/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-primary px-space-lg py-space-sm font-body-md text-primary hover:bg-surface-container-low"
+              >
+                {t("sell.preview_link")}
+              </Link>
             </div>
           ) : null}
 
