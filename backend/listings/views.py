@@ -395,15 +395,26 @@ FACETS_CACHE_TTL_SECONDS = 180
 
 
 class PublicListingFacetsView(PublicListingReadView, APIView):
-    """GET /api/v1/listings/facets/ - distinct filter choices for the boat filter panel."""
+    """GET /api/v1/listings/facets/ - distinct filter choices for the boat filter panel.
+
+    With no query params (the home page's first paint), the response is the
+    platform-wide totals and is cached, as before. Called WITH the caller's
+    current filters (the /boats/ page, once a boat_type/price/etc. is
+    active), each facet excludes only its own dimension so a shown count
+    still reflects every other already-active filter — otherwise a city
+    could promise boats that filter combination does not actually have.
+    """
 
     def get(self, request):
-        cached = cache.get(FACETS_CACHE_KEY)
-        if cached is not None:
-            return Response(cached)
-        data = facets(published_listings_queryset())
-        cache.set(FACETS_CACHE_KEY, data, FACETS_CACHE_TTL_SECONDS)
-        return Response(data)
+        params = request.query_params
+        if not params:
+            cached = cache.get(FACETS_CACHE_KEY)
+            if cached is not None:
+                return Response(cached)
+            data = facets(published_listings_queryset())
+            cache.set(FACETS_CACHE_KEY, data, FACETS_CACHE_TTL_SECONDS)
+            return Response(data)
+        return Response(facets(published_listings_queryset(), params))
 
 
 class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):

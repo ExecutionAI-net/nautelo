@@ -44,7 +44,14 @@ def _int(value: str | None) -> int | None:
         return None
 
 
-def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
+def apply_public_filters(queryset: QuerySet, params, *, exclude_dimensions: frozenset[str] = frozenset()) -> QuerySet:
+    """Apply every filter in `params` except the ones named in `exclude_dimensions`.
+
+    `exclude_dimensions` is how `facets()` computes a faceted count: a facet's
+    own dimension (e.g. "location") is left out so its own options never
+    self-restrict, while every OTHER already-active filter still narrows the
+    count. See `facets()` for why this matters.
+    """
     if (params.get("featured") or "").strip() in ("1", "true"):
         from django.utils import timezone
 
@@ -68,7 +75,7 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
         )
 
     brand = (params.get("brand") or "").strip()
-    if brand:
+    if brand and "brand" not in exclude_dimensions:
         queryset = queryset.filter(**{f"{SNAP}brand_name_snapshot__iexact": brand})
 
     model = (params.get("model") or "").strip()
@@ -78,17 +85,18 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
             | Q(**{f"{SNAP}custom_model_name_snapshot__iexact": model})
         )
 
-    country = (params.get("country") or "").strip().upper()
-    if country:
-        queryset = queryset.filter(**{f"{SNAP}location_country": country})
+    if "location" not in exclude_dimensions:
+        country = (params.get("country") or "").strip().upper()
+        if country:
+            queryset = queryset.filter(**{f"{SNAP}location_country": country})
 
-    place = _int(params.get("place"))
-    if place is not None:
-        queryset = queryset.filter(**{f"{SNAP}location_place_id": place})
+        place = _int(params.get("place"))
+        if place is not None:
+            queryset = queryset.filter(**{f"{SNAP}location_place_id": place})
 
-    region = (params.get("region") or "").strip()
-    if region:
-        queryset = queryset.filter(**{f"{SNAP}location_region__iexact": region})
+        region = (params.get("region") or "").strip()
+        if region:
+            queryset = queryset.filter(**{f"{SNAP}location_region__iexact": region})
 
     seller_type = (params.get("seller_type") or "").strip().upper()
     if seller_type in {"PRIVATE", "BROKER"}:
@@ -128,6 +136,8 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
             queryset = queryset.filter(_loa_m__lte=length_max)
 
     for key in ("boat_type", "condition", "fuel_type"):
+        if key in exclude_dimensions:
+            continue
         value = (params.get(key) or "").strip()
         if value:
             queryset = queryset.filter(**{f"{SNAP}specifications__{key}__iexact": value})
@@ -159,14 +169,27 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
     return queryset.order_by(*order)
 
 
-def facets(queryset: QuerySet) -> dict:
-    """Distinct filter choices present in the published catalogue."""
-    rows = queryset.values_list(
-        f"{SNAP}brand_name_snapshot", f"{SNAP}location_country", f"{SNAP}location_region"
-    ).order_by().distinct()
-    brands, countries, regions = set(), set(), set()
-    for brand, country, region in rows:
-        brands.add(brand)
+def facets(queryset: QuerySet, params=None) -> dict:
+    """Distinct filter choices present in the published catalogue.
+
+    `params` is the current search's active filters (if any). Each returned
+    facet excludes only its OWN dimension from those filters before counting:
+    a chosen boat_type still narrows which cities/countries are offered (and
+    their counts), but the location filter itself never hides other location
+    options. Without this, a city's shown count can promise boats that a
+    combination with the already-selected boat_type/price/etc. does not
+    actually have — see the professionals-directory facets in
+    services_catalog/views.py, which this mirrors, for the same bug fixed there.
+    """
+    params = params or {}
+    location_queryset = apply_public_filters(queryset, params, exclude_dimensions=frozenset({"location"}))
+    brand_queryset = apply_public_filters(queryset, params, exclude_dimensions=frozenset({"brand"}))
+
+    brands = set(brand_queryset.values_list(f"{SNAP}brand_name_snapshot", flat=True).order_by().distinct())
+    countries, regions = set(), set()
+    for country, region in (
+        location_queryset.values_list(f"{SNAP}location_country", f"{SNAP}location_region").order_by().distinct()
+    ):
         countries.add(country)
         if region:
             regions.add(region)
@@ -174,7 +197,7 @@ def facets(queryset: QuerySet) -> dict:
 
     cities = {
         pid: name
-        for pid, name in queryset.filter(**{f"{SNAP}location_place_id__isnull": False})
+        for pid, name in location_queryset.filter(**{f"{SNAP}location_place_id__isnull": False})
         .values_list(f"{SNAP}location_place_id", f"{SNAP}location_city")
         .order_by()
         .distinct()
@@ -184,7 +207,7 @@ def facets(queryset: QuerySet) -> dict:
 
     locations = [
         {"country": country, "region": region or "", "place_id": pid, "city": city or "", "count": count}
-        for country, region, pid, city, count in queryset.order_by()
+        for country, region, pid, city, count in location_queryset.order_by()
         .values(f"{SNAP}location_country", f"{SNAP}location_region", f"{SNAP}location_place_id", f"{SNAP}location_city")
         .annotate(n=Count("id"))
         .values_list(f"{SNAP}location_country", f"{SNAP}location_region", f"{SNAP}location_place_id", f"{SNAP}location_city", "n")
