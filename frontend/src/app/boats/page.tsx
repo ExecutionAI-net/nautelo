@@ -117,7 +117,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
     // deployment fault rather than a product state. Let it throw to the error
     // boundary instead of rendering "no boats", which would be a lie.
     fetchPublishedListings({ ...filters, page }),
-    fetchListingFacets(),
+    fetchListingFacets(filters),
   ]);
   if (results === null) {
     throw new Error("GET /api/v1/listings/ is unavailable");

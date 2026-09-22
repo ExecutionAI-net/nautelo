@@ -131,9 +131,18 @@ export interface ListingFacets {
   fuel_types?: string[];
 }
 
-export async function fetchListingFacets(): Promise<ListingFacets> {
+/**
+ * `filters` is the search already in effect (e.g. the /boats/ page's own
+ * query string). Passed through, the backend excludes only each facet's own
+ * dimension (spec: see `facets()` in backend/listings/public_filters.py), so
+ * a city's count still reflects an already-selected boat_type/price/etc.
+ * instead of promising boats that combination does not have. Omitted (the
+ * home page's first paint, with nothing selected yet), the response is the
+ * platform-wide totals.
+ */
+export async function fetchListingFacets(filters?: ListingSearch): Promise<ListingFacets> {
   try {
-    const body = await directoryFetch<ListingFacets>("/api/v1/listings/facets/");
+    const body = await directoryFetch<ListingFacets>(`/api/v1/listings/facets/${listingQuery(filters ?? {})}`);
     return body ?? { brands: [], countries: [], regions: [] };
   } catch {
     return { brands: [], countries: [], regions: [] };
