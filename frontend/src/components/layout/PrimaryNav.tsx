@@ -12,7 +12,6 @@ import NotificationBell from "@/components/layout/NotificationBell";
 import { useSession } from "@/lib/auth/session";
 import type { PermissionKey } from "@/lib/auth/types";
 import { tConversations } from "@/lib/i18n/conversations";
-import { resolveLocale } from "@/lib/i18n/directory";
 
 interface NavLink {
   href: string;
