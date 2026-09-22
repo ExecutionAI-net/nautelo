@@ -65,3 +65,22 @@ def test_directory_searches_filters_and_reports_facets():
     assert [r["slug"] for r in client.get(url, {"specialty": "Superyachts"}).data["results"]] == ["palma-yachts"]
     facets = client.get(url).data["facets"]
     assert facets["countries"] == {"ES": 1, "IT": 1} and facets["specialties"]["Sailing yachts"] == 1
+
+
+def test_place_id_filters_exactly_and_only_geocoded_brokers_reach_the_location_facet():
+    palma = make_broker("Palma Yachts", "palma-yachts")
+    palma.city, palma.country_code, palma.place_geoname_id = "Palma de Mallorca", "ES", 3128760
+    palma.save()
+    # Free text only, never run through the standard place picker - still counts
+    # toward its country, but must not appear as a fake city choice.
+    genoa = make_broker("Genoa Marine", "genoa-marine")
+    genoa.city, genoa.country_code = "Genoa", "IT"
+    genoa.save()
+
+    client = APIClient()
+    url = reverse("public-broker-list")
+    assert [r["slug"] for r in client.get(url, {"place": "3128760"}).data["results"]] == ["palma-yachts"]
+    assert client.get(url, {"place": "999999"}).data["results"] == []
+
+    facets = client.get(url).data["facets"]
+    assert facets["locations"] == [{"country": "ES", "place_id": 3128760, "city": "Palma de Mallorca", "count": 1}]

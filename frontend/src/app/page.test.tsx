@@ -36,16 +36,22 @@ describe("Home", () => {
     const names = Array.from(form.elements).map((el) => (el as HTMLInputElement).name).filter(Boolean);
     expect(names).toEqual(["boat_type", "country", "place", "price_min", "price_max", "length_min", "length_max"]);
     const country = screen.getByLabelText("Country") as HTMLSelectElement;
-    const city = screen.getByLabelText("City") as HTMLSelectElement;
+    const city = screen.getByLabelText("City") as HTMLInputElement;
+    const place = form.elements.namedItem("place") as HTMLInputElement;
     expect(city.disabled).toBe(true);
     expect(Array.from(country.options).map((o) => o.text)).toEqual(["All countries", "Spain (3)", "Italy (2)"]);
     fireEvent.change(country, { target: { value: "ES" } });
     expect(city.disabled).toBe(false);
-    expect(Array.from(city.options).map((o) => o.text)).toEqual(["All cities", "Palma (3)"]);
-    fireEvent.change(city, { target: { value: "6" } });
+    fireEvent.focus(city);
+    expect(screen.getByText("Palma (3)")).toBeTruthy();
+    fireEvent.click(screen.getByText("Palma (3)"));
+    expect(place.value).toBe("6");
+    expect(city.value).toBe("Palma");
     fireEvent.change(country, { target: { value: "IT" } });
+    expect(place.value).toBe("");
     expect(city.value).toBe("");
-    expect(Array.from(city.options).map((o) => o.text)).toEqual(["All cities", "Genoa (2)"]);
+    fireEvent.focus(city);
+    expect(screen.getByText("Genoa (2)")).toBeTruthy();
   });
 
   it("offers a semantic tab that sends the description as mode=semantic", async () => {

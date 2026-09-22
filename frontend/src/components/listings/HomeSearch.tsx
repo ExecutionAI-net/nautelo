@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useT } from "@/i18n/client";
-import LocationFields from "@/components/listings/LocationFields";
+import LocationFacetFilter from "@/components/places/LocationFacetFilter";
 import type { FacetLocation } from "@/lib/api/listings";
 
 const FIELD =
@@ -52,7 +52,7 @@ export default function HomeSearch({ boatTypes, locations = [] }: { boatTypes: s
               ))}
             </select>
           </div>
-          <LocationFields locations={locations} idPrefix="home" labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country") }} />
+          <LocationFacetFilter locations={locations} idPrefix="home" labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country"), searchCity: t("place.search_city") }} />
           <div className="flex flex-col gap-1">
             <span className={LABEL}>{t("search.price_range")}</span>
             <div className="grid grid-cols-2 gap-2">

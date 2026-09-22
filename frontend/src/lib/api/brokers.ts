@@ -18,13 +18,21 @@ export interface PublicBroker {
   specialties: string[];
 }
 
+export interface BrokerLocationFacet {
+  country: string;
+  place_id: number | null;
+  city: string;
+  count: number;
+}
+
 export interface BrokerFacets {
   countries: Record<string, number>;
   specialties: Record<string, number>;
+  locations: BrokerLocationFacet[];
 }
 
 export async function fetchBrokers(
-  params: { page?: string; q?: string; country?: string; specialty?: string } = {},
+  params: { page?: string; q?: string; country?: string; place?: string; specialty?: string } = {},
 ): Promise<(Paginated<PublicBroker> & { facets?: BrokerFacets }) | null> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
