@@ -183,6 +183,7 @@ export interface ProfessionalLocationFacet {
 export interface ProfessionalFacets {
   countries: Record<string, number>;
   locations: ProfessionalLocationFacet[];
+  categories: Record<string, number>;
 }
 
 // Same contract as fetchServiceCategories: null = flag off, an empty `results`

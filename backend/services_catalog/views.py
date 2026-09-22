@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from professionals.enums import ProfessionalProfileStatus
 from professionals.models import ProfessionalProfile
 
-from .models import LegacyDirectoryMapping, ServiceCategory
+from .models import LegacyDirectoryMapping, ProfessionalService, ServiceCategory
 from .pagination import ProfessionalDirectoryPagination
 from .permissions import CombinedDirectoryEnabled
 from .serializers import (
@@ -50,6 +50,69 @@ class ServiceCategoryDetailView(LocalizedContextMixin, RetrieveAPIView):
         return ServiceCategory.objects.filter(is_active=True)
 
 
+def _filtered_professionals(params, *, exclude=frozenset()):
+    """Active professionals matching every current filter except `exclude`d ones.
+
+    A facet's own dimension is always in `exclude` when the facet's counts are
+    computed, so choosing "Full brokerage" narrows Croatia's count to the
+    professionals that actually offer it instead of freezing every country at
+    its grand total, and choosing Croatia narrows the specialization counts to
+    Croatia instead of hiding every other specialization down to whatever is
+    already selected.
+    """
+    queryset = ProfessionalProfile.objects.filter(status=ProfessionalProfileStatus.ACTIVE)
+
+    if "category" not in exclude:
+        category = params.get("category", "").strip()
+        if category:
+            queryset = queryset.filter(
+                services__is_active=True,
+                services__category__slug=category,
+                services__category__is_active=True,
+            )
+
+    if "q" not in exclude:
+        query = params.get("q", "").strip()
+        if query:
+            queryset = queryset.filter(
+                Q(display_name__icontains=query)
+                | Q(short_description__icontains=query)
+                | Q(services__title_en__icontains=query, services__is_active=True)
+            )
+
+    if "location" not in exclude:
+        location = params.get("location", "").strip()
+        if location:
+            queryset = queryset.filter(
+                Q(city__icontains=location)
+                | Q(region__icontains=location)
+                | Q(service_area__contains=[location])
+            )
+
+    if "country" not in exclude:
+        country = params.get("country", "").strip().upper()
+        if country:
+            queryset = queryset.filter(country_code=country)
+
+    if "place" not in exclude:
+        place = params.get("place", "").strip()
+        if place.isdigit():
+            queryset = queryset.filter(place_geoname_id=int(place))
+
+    return queryset
+
+
+def _distinct_professional_ids(queryset):
+    """The queryset's distinct professional ids.
+
+    Filtering by `category` or `q` above joins in `services`, which can repeat
+    a profile once per matching service row; selecting only `pk` and calling
+    `.distinct()` here (rather than on the wider row `_filtered_professionals`
+    returns) is what keeps that join from inflating a facet's counts.
+    """
+    return list(queryset.values_list("pk", flat=True).distinct())
+
+
 class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
     """Combined-directory results (spec §14.1 item 3; spec §29.4 filters)."""
 
@@ -61,7 +124,7 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
     def get_queryset(self):
         params = self.request.query_params
         queryset = (
-            ProfessionalProfile.objects.filter(status=ProfessionalProfileStatus.ACTIVE)
+            _filtered_professionals(params)
             .prefetch_related("services__category")
             .annotate(
                 active_service_count=Count(
@@ -69,38 +132,6 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
                 )
             )
         )
-
-        category = params.get("category", "").strip()
-        if category:
-            queryset = queryset.filter(
-                services__is_active=True,
-                services__category__slug=category,
-                services__category__is_active=True,
-            )
-
-        query = params.get("q", "").strip()
-        if query:
-            queryset = queryset.filter(
-                Q(display_name__icontains=query)
-                | Q(short_description__icontains=query)
-                | Q(services__title_en__icontains=query, services__is_active=True)
-            )
-
-        location = params.get("location", "").strip()
-        if location:
-            queryset = queryset.filter(
-                Q(city__icontains=location)
-                | Q(region__icontains=location)
-                | Q(service_area__contains=[location])
-            )
-
-        country = params.get("country", "").strip().upper()
-        if country:
-            queryset = queryset.filter(country_code=country)
-
-        place = params.get("place", "").strip()
-        if place.isdigit():
-            queryset = queryset.filter(place_geoname_id=int(place))
 
         if params.get("sort", "recommended").strip() == "alphabetical":
             # `display_name` isn't unique, so `id` is appended as a final
@@ -123,21 +154,38 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        everyone = ProfessionalProfile.objects.filter(status=ProfessionalProfileStatus.ACTIVE)
+        params = request.query_params
+
+        location_ids = _distinct_professional_ids(_filtered_professionals(params, exclude={"country", "place"}))
         countries = {}
         # Keyed by place_geoname_id, same precedent as listings' and brokers' own
         # location facets: a profile without a real place (free text only) counts
         # toward its country but is not offered as a city choice.
         locations = {}
-        for code, place_id, city in everyone.values_list("country_code", "place_geoname_id", "city"):
+        for code, place_id, city in ProfessionalProfile.objects.filter(pk__in=location_ids).values_list(
+            "country_code", "place_geoname_id", "city"
+        ):
             if code:
                 countries[code] = countries.get(code, 0) + 1
             if place_id:
                 entry = locations.setdefault(place_id, {"country": code, "place_id": place_id, "city": city, "count": 0})
                 entry["count"] += 1
+
+        category_ids = _distinct_professional_ids(_filtered_professionals(params, exclude={"category"}))
+        categories = {}
+        for slug, _professional_id in (
+            ProfessionalService.objects.filter(
+                is_active=True, category__is_active=True, professional_id__in=category_ids
+            )
+            .values_list("category__slug", "professional_id")
+            .distinct()
+        ):
+            categories[slug] = categories.get(slug, 0) + 1
+
         response.data["facets"] = {
             "countries": countries,
             "locations": sorted(locations.values(), key=lambda row: (row["country"], row["city"])),
+            "categories": categories,
         }
         return response
 

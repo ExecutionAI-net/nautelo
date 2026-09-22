@@ -52,7 +52,7 @@ export default function HomeSearch({ boatTypes, locations = [] }: { boatTypes: s
               ))}
             </select>
           </div>
-          <LocationFacetFilter locations={locations} idPrefix="home" labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country"), searchCity: t("place.search_city") }} />
+          <LocationFacetFilter locations={locations} idPrefix="home" labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country"), searchCity: t("place.search_city"), searchCountry: t("place.search_country") }} />
           <div className="flex flex-col gap-1">
             <span className={LABEL}>{t("search.price_range")}</span>
             <div className="grid grid-cols-2 gap-2">

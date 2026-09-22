@@ -104,6 +104,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                     allCities: t("place.all_cities"),
                     chooseCountry: t("place.choose_country"),
                     searchCity: t("place.search_city"),
+                    searchCountry: t("place.search_country"),
                   }}
                 />
               </div>

@@ -198,6 +198,40 @@ def test_place_id_filters_exactly_and_only_geocoded_professionals_reach_the_loca
 
 
 @pytest.mark.django_db
+def test_country_and_category_facets_respect_each_others_currently_applied_filter():
+    # Reproduces the reported bug: Croatia showed "(7)" next to it even though
+    # only 1 of those 7 professionals actually offers "Full brokerage" -
+    # picking that specialization must narrow the country counts to match.
+    legal = make_service_category(slug="legal-test", name_en="Legal")
+    brokerage = make_service_category(slug="full-brokerage-test", name_en="Full brokerage")
+
+    hr_broker = build_professional("hr-b@example.com", slug="hr-broker", display_name="HR Broker", country_code="HR")
+    make_professional_service(hr_broker, brokerage, title_en="Full brokerage service")
+    for i in range(6):
+        pro = build_professional(f"hr-l{i}@example.com", slug=f"hr-legal-{i}", display_name=f"HR Legal {i}", country_code="HR")
+        make_professional_service(pro, legal, title_en="Legal advice")
+
+    es_broker = build_professional("es-b@example.com", slug="es-broker", display_name="ES Broker", country_code="ES")
+    make_professional_service(es_broker, brokerage, title_en="Full brokerage service")
+
+    client = APIClient()
+    url = "/api/v1/professionals/"
+
+    # Unfiltered: Croatia's grand total is 7, both categories show their own total.
+    facets = client.get(url).data["facets"]
+    assert facets["countries"]["HR"] == 7
+    assert facets["categories"] == {"legal-test": 6, "full-brokerage-test": 2}
+
+    # Selecting a category narrows the COUNTRY counts to that category alone.
+    facets = client.get(url, {"category": "full-brokerage-test"}).data["facets"]
+    assert facets["countries"] == {"HR": 1, "ES": 1}
+
+    # Selecting a country narrows the CATEGORY counts to that country alone.
+    facets = client.get(url, {"country": "HR"}).data["facets"]
+    assert facets["categories"] == {"legal-test": 6, "full-brokerage-test": 1}
+
+
+@pytest.mark.django_db
 def test_recommended_sort_puts_broader_catalogues_first_then_alphabetical():
     legal = make_service_category(slug="legal-test", name_en="Legal")
     insurance = make_service_category(slug="insurance-test", name_en="Insurance")
