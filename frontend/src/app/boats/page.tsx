@@ -8,6 +8,7 @@ import AdSlot from "@/components/content/AdSlot";
 import BoatCard from "@/components/listings/BoatCard";
 import { isFinanceablePrice } from "@/components/listings/money";
 import MobileFilters from "@/components/listings/MobileFilters";
+import SortSelect from "@/components/listings/SortSelect";
 import LocationFields from "@/components/listings/LocationFields";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
@@ -307,18 +308,9 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                 <option value="PRIVATE">{t("boats.f.private")}</option>
               </select>
             </div>
-            <div>
-              <label className={LABEL} htmlFor="f-sort">
-                {t("boats.f.sort")}
-              </label>
-              <select id="f-sort" name="sort" defaultValue={filters.sort ?? "newest"} className={FIELD}>
-                {SORTS.map((sort) => (
-                  <option key={sort.value} value={sort.value}>
-                    {t(sort.key)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Sort lives next to the results count, not here, so it applies the instant it
+                changes; carry the current value through so the other filters don't reset it. */}
+            {filters.sort ? <input type="hidden" name="sort" value={filters.sort} /> : null}
             <button type="submit" className="rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
               {t("boats.apply")}
             </button>
@@ -328,9 +320,18 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
 
         <section aria-label={t("boats.results")}>
           <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
-            <p className="font-title-md text-title-md text-primary">
-              {t("boats.found", { count: results.count ?? results.results.length })}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-space-sm">
+              <p className="font-title-md text-title-md text-primary">
+                {t("boats.found", { count: results.count ?? results.results.length })}
+              </p>
+              <SortSelect
+                action={CANONICAL_PATH}
+                hidden={Object.fromEntries(FILTER_KEYS.filter((key) => key !== "sort" && filters[key]).map((key) => [key, filters[key] as string]))}
+                value={filters.sort ?? "newest"}
+                label={t("boats.f.sort")}
+                options={SORTS.map((sort) => ({ value: sort.value, label: t(sort.key) }))}
+              />
+            </div>
             {active.length > 0 ? (
               <ul className="mt-space-xs flex flex-wrap items-center gap-space-xs" aria-label={t("boats.active_filters")}>
                 {active.map((key) => (
