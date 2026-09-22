@@ -13,6 +13,7 @@ import {
   ApiError,
   apiFetch,
   getAccessToken,
+  hasSessionHint,
   setAccessToken,
   tryRefreshAccessToken,
 } from "@/lib/api/client";
@@ -57,9 +58,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // On a fresh page load the access token is gone (it lives in memory only),
     // but the HttpOnly refresh cookie may still be valid — so trade it for a new
     // access token BEFORE asking for the session, otherwise a signed-in user
-    // would briefly render as a guest.
+    // would briefly render as a guest. A visitor who has never signed in carries
+    // no session hint, so skip the attempt entirely instead of always drawing a
+    // 401 that would just be thrown away.
     async function bootstrap() {
-      if (getAccessToken() === null) {
+      if (getAccessToken() === null && hasSessionHint()) {
         await tryRefreshAccessToken();
       }
       await reload();

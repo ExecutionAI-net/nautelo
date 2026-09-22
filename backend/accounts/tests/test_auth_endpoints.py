@@ -2,7 +2,7 @@ import pytest
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from accounts.cookies import REFRESH_COOKIE_NAME
+from accounts.cookies import REFRESH_COOKIE_NAME, SESSION_HINT_COOKIE_NAME
 from accounts.tests.factories import DEFAULT_TEST_PASSWORD, make_user
 
 LOGIN_URL = "/api/v1/auth/login/"
@@ -57,6 +57,22 @@ def test_login_refresh_cookie_is_marked_secure(api):
         format="json",
     )
     assert response.cookies[REFRESH_COOKIE_NAME]["secure"] is True
+
+
+@pytest.mark.django_db
+def test_login_sets_a_readable_session_hint_alongside_the_refresh_cookie(api):
+    """Unlike the refresh cookie, this one must NOT be HttpOnly and must be
+    readable from any page - the client's whole point in reading it is to
+    decide, before ever calling the API, whether attempting a silent refresh
+    is worth the round trip."""
+    make_user("hint@example.com")
+    response = api.post(
+        LOGIN_URL, {"email": "hint@example.com", "password": DEFAULT_TEST_PASSWORD}, format="json"
+    )
+    hint = response.cookies[SESSION_HINT_COOKIE_NAME]
+    assert hint.value == "1"
+    assert hint["httponly"] == ""
+    assert hint["path"] == "/"
 
 
 @pytest.mark.django_db
@@ -213,6 +229,7 @@ def test_logout_blacklists_the_refresh_token_and_clears_the_cookie(api):
     logout = api.post(LOGOUT_URL, {}, format="json")
     assert logout.status_code == 204
     assert logout.cookies[REFRESH_COOKIE_NAME].value == ""
+    assert logout.cookies[SESSION_HINT_COOKIE_NAME].value == ""
 
     # Replay the SAVED, previously-valid token explicitly. It must be refused
     # because logout blacklisted that specific token, not because it is blank.
