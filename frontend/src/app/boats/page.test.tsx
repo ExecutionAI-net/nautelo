@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import BoatsPage from "@/app/boats/page";
@@ -131,6 +131,28 @@ describe("/boats/", () => {
     );
 
     expect(container.querySelector("#finance-disclaimer")).toBeNull();
+  });
+
+  it("submits the sort control on change instead of waiting for the filters form", async () => {
+    fetchPublishedListings.mockResolvedValue({ count: 1, next: null, previous: null, results: [listing()] });
+    render(
+      await BoatsPage({
+        searchParams: Promise.resolve({ brand: "Lagoon", sort: "price_asc" }),
+      }),
+    );
+
+    const select = screen.getByLabelText("Sort by") as HTMLSelectElement;
+    const form = select.closest("form") as HTMLFormElement;
+    // Its own form, separate from the sidebar's "Apply filters" form, and carrying the
+    // other active filters as hidden fields so changing sort doesn't drop them.
+    expect(form.querySelector('input[name="brand"]')).toHaveValue("Lagoon");
+    expect(form.querySelector('button[type="submit"]')).toBeNull();
+
+    const requestSubmit = vi.fn();
+    form.requestSubmit = requestSubmit;
+    fireEvent.change(select, { target: { value: "price_desc" } });
+
+    expect(requestSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("links to the next page when the API says there is one", async () => {
