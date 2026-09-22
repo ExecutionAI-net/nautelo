@@ -81,7 +81,7 @@ export default async function FinancingPage({
               </ul>
             </div>
 
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-space-lg">
+            <div id="comparison" className="scroll-mt-24 rounded-xl border border-outline-variant bg-surface-container-low p-space-lg">
               <h3 className="font-headline-sm text-headline-sm text-primary">{t("finance.compare.title")}</h3>
               <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("finance.compare.intro")}</p>
               <div className="mt-space-md flex flex-col gap-space-sm">
