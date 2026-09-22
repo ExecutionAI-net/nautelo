@@ -1,17 +1,20 @@
 import Link from "@/components/layout/LocaleLink";
 
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
+
 type Tab = "login" | "register" | "recovery";
 
-const TABS: { key: Tab; label: string; href: string }[] = [
-  { key: "login", label: "Sign in", href: "/login/" },
-  { key: "register", label: "Create account", href: "/register/" },
-  { key: "recovery", label: "Forgot password", href: "/forgot-password/" },
+const TABS: { key: Tab; labelKey: MessageKey; href: string }[] = [
+  { key: "login", labelKey: "auth.tab_login", href: "/login/" },
+  { key: "register", labelKey: "auth.tab_register", href: "/register/" },
+  { key: "recovery", labelKey: "auth.tab_recovery", href: "/forgot-password/" },
 ];
 
-const POINTS = [
-  { title: "Spain and Italy in one place", body: "Private sellers, brokers and nautical professionals across both coasts." },
-  { title: "Every listing is reviewed", body: "Our team checks each listing before it goes live." },
-  { title: "One account for everything", body: "List boats, follow enquiries and manage your services from a single sign-in." },
+const POINTS: { titleKey: MessageKey; bodyKey: MessageKey }[] = [
+  { titleKey: "auth.point1_title", bodyKey: "auth.point1_body" },
+  { titleKey: "auth.point2_title", bodyKey: "auth.point2_body" },
+  { titleKey: "auth.point3_title", bodyKey: "auth.point3_body" },
 ];
 
 export default function AuthShell({
@@ -20,17 +23,18 @@ export default function AuthShell({
   children,
 }: {
   tab: Tab;
-  heading: string;
+  heading: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <main className="w-full bg-surface">
       <header className="bg-surface-container-low py-space-xl">
         <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
-          <span className="font-label-sm uppercase tracking-widest text-secondary">Secure account access</span>
-          <p className="mt-1 font-headline-lg text-headline-lg text-primary">Nauta account</p>
+          <span className="font-label-sm uppercase tracking-widest text-secondary">{t("auth.secure_account_access")}</span>
+          <p className="mt-1 font-headline-lg text-headline-lg text-primary">{t("auth.nauta_account")}</p>
           <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">
-            One account for private sellers, brokers and nautical professionals.
+            {t("auth.one_account_intro")}
           </p>
         </div>
       </header>
@@ -39,11 +43,11 @@ export default function AuthShell({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img alt="" src="/design/c4967d98c7.jpg" className="h-64 w-full object-cover opacity-90" />
           <div className="flex flex-col gap-space-md p-space-lg">
-            <span className="font-label-sm uppercase tracking-widest opacity-70">Mediterranean boat marketplace</span>
+            <span className="font-label-sm uppercase tracking-widest opacity-70">{t("auth.mediterranean_marketplace")}</span>
             {POINTS.map((point) => (
-              <div key={point.title}>
-                <p className="font-title-md text-title-md">{point.title}</p>
-                <p className="font-body-sm opacity-70">{point.body}</p>
+              <div key={point.titleKey}>
+                <p className="font-title-md text-title-md">{t(point.titleKey)}</p>
+                <p className="font-body-sm opacity-70">{t(point.bodyKey)}</p>
               </div>
             ))}
           </div>
@@ -59,7 +63,7 @@ export default function AuthShell({
                   item.key === tab ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             ))}
           </div>
