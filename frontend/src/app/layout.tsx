@@ -47,7 +47,11 @@ export async function generateMetadata(): Promise<Metadata> {
 // new icon is introduced; keep the list alphabetical, as Google Fonts requires.
 const MATERIAL_SYMBOLS_ICONS =
   "3d_rotation,ac_unit,account_balance,add_circle,add_photo_alternate,ads_click,alt_route,analytics,anchor,architecture,arrow_downward,arrow_forward,arrow_outward,arrows_outward,article,assignment,assignment_turned_in,assured_workload,badge,balance,bed,bolt,build,calculate,calendar_today,call,campaign,category,check,check_circle,chevron_right,close,cloud_upload,compare_arrows,delete,description,desktop_windows,directions_boat,dock,domain,draw,east,edit_note,engineering,euro,expand_more,explore,fact_check,file_upload_off,flag,flight,fmd_good,gavel,group,handshake,handyman,headset_mic,home,hub,imagesmode,info,language,library_books,local_gas_station,local_shipping,location_on,lock,lock_open,mail,manage_search,menu,menu_book,menu_open,military_tech,mood,navigation,near_me,north_east,notifications,open_in_new,pace,pause_circle,payments,pending_actions,person,phone_in_talk,photo_camera,picture_as_pdf,pin_drop,policy,precision_manufacturing,price_check,print,public,qr_code_2,real_estate_agent,receipt_long,refresh,rule,rv_hookup,sailing,satellite_alt,schedule,school,search,search_check,security,send,settings,settings_suggest,share,shield,shield_with_heart,shower,south,speed,straighten,support_agent,terminal,timer,trending_up,tune,upload_file,verified,verified_user,videocam,view_in_ar,visibility,watch,water,water_drop";
-const MATERIAL_SYMBOLS_URL = `https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=${MATERIAL_SYMBOLS_ICONS}&display=block`;
+// display=swap (not the default "block"): every icon glyph has a fixed box size in CSS
+// already, so swapping in the real glyph a moment after the fallback renders costs no
+// layout shift, but "block" was making the browser hold the whole page's first paint on
+// this font (Lighthouse's "Font display" and "Render-blocking requests" findings).
+const MATERIAL_SYMBOLS_URL = `https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=${MATERIAL_SYMBOLS_ICONS}&display=swap`;
 
 export default async function RootLayout({
   children,
@@ -57,6 +61,11 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <head>
+        {/* Shaves the connection setup (DNS + TLS) off the critical path for the
+            Material Symbols request below, instead of starting it only once the
+            browser parses the <link> tag. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href={MATERIAL_SYMBOLS_URL}
           rel="stylesheet"

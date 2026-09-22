@@ -360,9 +360,11 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
             </p>
           ) : (
             <ul className="mt-space-lg grid grid-cols-1 gap-space-lg sm:grid-cols-2 xl:grid-cols-3">
-              {results.results.map((listing) => (
+              {results.results.map((listing, index) => (
                 <li key={listing.id}>
-                  <BoatCard t={t} locale={locale} listing={listing} disclaimerId={DISCLAIMER_ID} />
+                  {/* First row (up to xl:grid-cols-3) renders above the fold on first paint —
+                      one of these is usually the page's LCP element. */}
+                  <BoatCard t={t} locale={locale} listing={listing} disclaimerId={DISCLAIMER_ID} priority={index < 3} />
                 </li>
               ))}
             </ul>
