@@ -43,11 +43,18 @@ export default function BoatCard({
   listing,
   disclaimerId,
   t,
+  priority = false,
 }: {
   t: Translate;
   locale: Locale;
   listing: PublicListing;
   disclaimerId: string;
+  /** True for the cards that render above the fold on first paint (e.g. the
+   * first row of /boats/'s grid) so their image is eager and high-priority
+   * instead of lazy — one of them is usually the page's LCP element, and a
+   * lazy-loaded LCP image is exactly what Lighthouse's "LCP request
+   * discovery" audit flags. Every other card stays lazy. */
+  priority?: boolean;
 }) {
   const modelName = listing.custom_model_name || listing.model_name;
   const heading = `${listing.manufacture_year} ${listing.brand_name} ${modelName}`;
@@ -92,7 +99,8 @@ export default function BoatCard({
           <img
             src={primaryImage.url}
             alt={heading}
-            loading="lazy"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
             data-testid="boat-image"
             className="aspect-[16/10] w-full bg-surface-container-high object-cover"
           />

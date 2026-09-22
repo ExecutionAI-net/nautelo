@@ -22,6 +22,22 @@ describe("next.config", () => {
     );
   });
 
+  it("lets the design mockup images cache for a year, since they never change under a given name", async () => {
+    const rules = await nextConfig.headers!();
+    const designRule = rules.find((rule) => rule.source === "/design/:path*");
+
+    expect(designRule?.headers).toEqual(
+      expect.arrayContaining([{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]),
+    );
+  });
+
+  it("allowlists the Cloudflare Web Analytics beacon in the CSP so it stops logging violations", async () => {
+    const rules = await nextConfig.headers!();
+    const csp = rules[0].headers.find((h) => h.key === "Content-Security-Policy")!.value as string;
+
+    expect(csp).toContain("https://static.cloudflareinsights.com");
+  });
+
   it("301-redirects both retired directory URLs and the retired broker services URL", async () => {
     const redirects = await nextConfig.redirects!();
 

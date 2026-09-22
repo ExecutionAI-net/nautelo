@@ -8,9 +8,14 @@ const DEV_EVAL = IS_PRODUCTION ? "" : " 'unsafe-eval'";
 // Local MinIO serves images over plain http; production media is https (S3).
 const DEV_IMG = IS_PRODUCTION ? "" : " http://localhost:* http://127.0.0.1:*";
 
+// Cloudflare injects its Web Analytics beacon on the zone, outside this repo's control;
+// without these two origins it 404s on script-src/connect-src and logs a CSP violation
+// on every page load (a Lighthouse Best Practices finding, not a real bug).
+const CLOUDFLARE_INSIGHTS = "https://static.cloudflareinsights.com";
+
 export const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${DEV_EVAL}`,
+  `script-src 'self' 'unsafe-inline' ${CLOUDFLARE_INSIGHTS}${DEV_EVAL}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   `img-src 'self' data: blob: https:${DEV_IMG}`,
@@ -45,6 +50,14 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=(), payment=()",
           },
         ],
+      },
+      // The design mockup images in public/design/ are content-hashed filenames that
+      // never change under a given name (spec: keep as demo assets until launch), so
+      // they can cache for a year like a build asset. Unlike /_next/static, Next does
+      // not set this for files served straight out of public/ on its own.
+      {
+        source: "/design/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
     ];
   },
