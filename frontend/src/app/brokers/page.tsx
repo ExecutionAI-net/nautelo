@@ -4,6 +4,7 @@ import Link from "@/components/layout/LocaleLink";
 
 import { getT } from "@/i18n/server";
 import { fetchBrokers } from "@/lib/api/brokers";
+import LocationFacetFilter from "@/components/places/LocationFacetFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -33,17 +34,21 @@ function hrefWith(current: Record<string, string>, change: Record<string, string
 export default async function BrokersPage({ searchParams }: { searchParams: SearchParams }) {
   const t = await getT();
   const params = await searchParams;
-  const current = { q: first(params.q), country: first(params.country), specialty: first(params.specialty) };
+  const current = { q: first(params.q), country: first(params.country), place: first(params.place), specialty: first(params.specialty) };
   const page = first(params.page);
   const brokers = await fetchBrokers({ page, ...current });
   if (brokers === null) {
     throw new Error("GET /api/v1/brokers/ is unavailable");
   }
   const countries = Object.entries(brokers.facets?.countries ?? {});
+  const locations = brokers.facets?.locations ?? [];
   const specialties = Object.keys(brokers.facets?.specialties ?? {});
   const countryTotal = countries.reduce((sum, [, n]) => sum + n, 0);
+  const placeLabel = locations.find((row) => String(row.place_id) === current.place)?.city;
   const active = [
-    current.country ? { label: countryName(current.country), clear: hrefWith(current, { country: "", page: "" }) } : null,
+    current.place && placeLabel ? { label: placeLabel, clear: hrefWith(current, { place: "", page: "" }) } : current.country
+      ? { label: countryName(current.country), clear: hrefWith(current, { country: "", place: "", page: "" }) }
+      : null,
     current.specialty ? { label: current.specialty, clear: hrefWith(current, { specialty: "", page: "" }) } : null,
     current.q ? { label: `"${current.q}"`, clear: hrefWith(current, { q: "", page: "" }) } : null,
   ].filter((item): item is { label: string; clear: string } => item !== null);
@@ -83,19 +88,24 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                   className="w-full pl-11 pr-space-md py-3 rounded-lg bg-surface-container-low text-primary font-body-md text-body-md placeholder:text-on-surface-variant focus:bg-surface-container-lowest focus:outline-none transition-colors"
                 />
               </div>
-              <div className="md:col-span-3 relative">
-                <label className="sr-only" htmlFor="location-select">{t("brokers.page.location_filter")}</label>
-                <div className="absolute inset-y-0 left-0 pl-space-md flex items-center pointer-events-none text-secondary">
-                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">location_on</span>
-                </div>
-                <select id="location-select" name="country" defaultValue={current.country} className="w-full appearance-none pl-11 pr-10 py-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none cursor-pointer">
-                  <option value="">{t("brokers.page.all_locations")}</option>
-                  {countries.map(([code, count]) => (
-                    <option key={code} value={code}>
-                      {countryName(code)} ({count})
-                    </option>
-                  ))}
-                </select>
+              <div className="md:col-span-3 grid grid-cols-2 gap-space-xs">
+                <LocationFacetFilter
+                  key={`${current.country}|${current.place}`}
+                  locations={locations}
+                  idPrefix="broker-location"
+                  wrapperClass=""
+                  labelClass="sr-only"
+                  fieldClass="w-full appearance-none px-space-sm py-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  initial={{ country: current.country, place: current.place }}
+                  labels={{
+                    country: t("brokers.page.location_filter"),
+                    allCountries: t("brokers.page.all_locations"),
+                    city: t("place.city"),
+                    allCities: t("place.all_cities"),
+                    chooseCountry: t("place.choose_country"),
+                    searchCity: t("place.search_city"),
+                  }}
+                />
               </div>
               <div className="md:col-span-3 relative">
                 <label className="sr-only" htmlFor="speciality-select">{t("brokers.page.boat_speciality_filter")}</label>

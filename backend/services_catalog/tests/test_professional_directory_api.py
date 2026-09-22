@@ -157,6 +157,47 @@ def test_location_matches_city_region_or_an_exact_service_area_entry():
 
 
 @pytest.mark.django_db
+def test_country_filter_returns_only_professionals_in_that_country():
+    build_professional("es@example.com", slug="es-pro", display_name="ES Pro", country_code="ES")
+    build_professional("it@example.com", slug="it-pro", display_name="IT Pro", country_code="IT")
+
+    response = APIClient().get("/api/v1/professionals/", {"country": "es"})
+
+    assert [r["slug"] for r in response.data["results"]] == ["es-pro"]
+    facets = response.data["facets"]
+    assert facets["countries"] == {"ES": 1, "IT": 1}
+
+
+@pytest.mark.django_db
+def test_place_id_filters_exactly_and_only_geocoded_professionals_reach_the_location_facet():
+    palma = build_professional(
+        "p1@example.com",
+        slug="palma-pro",
+        display_name="Palma Pro",
+        city="Palma de Mallorca",
+        country_code="ES",
+        place_geoname_id=3128760,
+    )
+    # Free text only, never run through the standard place picker - still
+    # counts toward its country, but must not appear as a fake city choice.
+    build_professional(
+        "g1@example.com",
+        slug="genoa-pro",
+        display_name="Genoa Pro",
+        city="Genoa",
+        country_code="IT",
+    )
+
+    client = APIClient()
+    url = "/api/v1/professionals/"
+    assert [r["slug"] for r in client.get(url, {"place": "3128760"}).data["results"]] == ["palma-pro"]
+    assert client.get(url, {"place": "999999"}).data["results"] == []
+
+    facets = client.get(url).data["facets"]
+    assert facets["locations"] == [{"country": "ES", "place_id": 3128760, "city": "Palma de Mallorca", "count": 1}]
+
+
+@pytest.mark.django_db
 def test_recommended_sort_puts_broader_catalogues_first_then_alphabetical():
     legal = make_service_category(slug="legal-test", name_en="Legal")
     insurance = make_service_category(slug="insurance-test", name_en="Insurance")

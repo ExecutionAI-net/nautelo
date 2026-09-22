@@ -9,7 +9,7 @@ import BoatCard from "@/components/listings/BoatCard";
 import { isFinanceablePrice } from "@/components/listings/money";
 import MobileFilters from "@/components/listings/MobileFilters";
 import SortSelect from "@/components/listings/SortSelect";
-import LocationFields from "@/components/listings/LocationFields";
+import LocationFacetFilter from "@/components/places/LocationFacetFilter";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
@@ -242,12 +242,12 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               </label>
               <input id="f-model" name="model" defaultValue={filters.model ?? ""} placeholder={t("boats.f.any_model")} className={FIELD} />
             </div>
-            <LocationFields
+            <LocationFacetFilter
               key={`${filters.country ?? ""}|${filters.place ?? ""}`}
               locations={facets.locations ?? []}
               idPrefix="f"
               labelClass={LABEL}
-              labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country") }}
+              labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country"), searchCity: t("place.search_city") }}
               wrapperClass=""
               initial={{ country: filters.country, place: filters.place }}
             />

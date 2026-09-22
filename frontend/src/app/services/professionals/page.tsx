@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { fetchProfessionals, fetchServiceCategories, formatProfessionalLocation } from "@/lib/api/directory";
 import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
+import LocationFacetFilter from "@/components/places/LocationFacetFilter";
 
 import { getT } from "@/i18n/server";
 
@@ -35,7 +36,7 @@ function first(value: string | string[] | undefined): string | undefined {
 // exists"; the href is rebuilt against this page's own canonical URL, carrying
 // the active filters so paging does not silently reset the search.
 function pageHref(
-  filters: { q?: string; category?: string; location?: string; sort?: string },
+  filters: { q?: string; category?: string; location?: string; country?: string; place?: string; sort?: string },
   page: number,
 ): string {
   const search = new URLSearchParams();
@@ -70,6 +71,8 @@ export default async function CombinedDirectoryPage({
     q: first(params.q),
     category: first(params.category),
     location: first(params.location),
+    country: first(params.country),
+    place: first(params.place),
     sort: first(params.sort),
     page: first(params.page),
   };
@@ -97,8 +100,11 @@ export default async function CombinedDirectoryPage({
     q: filters.q,
     category: filters.category,
     location: filters.location,
+    country: filters.country,
+    place: filters.place,
     sort: filters.sort,
   };
+  const locations = results.facets?.locations ?? [];
 
   return (
     <main className="w-full bg-surface">
@@ -162,10 +168,25 @@ export default async function CombinedDirectoryPage({
 
 <form action="/services/professionals/" method="get" className="bg-surface-container-low p-space-md rounded-xl mb-space-xl">
 {filters.q ? <input type="hidden" name="q" value={filters.q} /> : null}
-<div className="grid grid-cols-1 md:grid-cols-4 gap-space-md items-end">
-<div>
-<label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-space-xs" htmlFor="locationFilter">Port / Region</label>
-<input id="locationFilter" name="location" defaultValue={filters.location ?? ""} placeholder="e.g. Palma, Genoa" className="w-full bg-surface-container-lowest px-space-md py-space-sm rounded text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary" />
+<div className="grid grid-cols-1 md:grid-cols-5 gap-space-md items-end">
+<div className="md:col-span-2 grid grid-cols-2 gap-space-md">
+<LocationFacetFilter
+  key={`${filters.country ?? ""}|${filters.place ?? ""}`}
+  locations={locations}
+  idPrefix="pro-location"
+  wrapperClass=""
+  labelClass="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-space-xs"
+  fieldClass="w-full bg-surface-container-lowest px-space-md py-space-sm rounded text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary disabled:cursor-not-allowed disabled:opacity-50"
+  initial={{ country: filters.country, place: filters.place }}
+  labels={{
+    country: "Country",
+    allCountries: "All countries",
+    city: "Port / Region",
+    allCities: "All cities",
+    chooseCountry: "Choose a country first",
+    searchCity: "Search city…",
+  }}
+/>
 </div>
 <div>
 <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-space-xs" htmlFor="categoryFilter">Specialization</label>

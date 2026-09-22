@@ -166,9 +166,23 @@ export interface ProfessionalSearch {
   q?: string;
   category?: string;
   location?: string;
+  country?: string;
+  place?: string;
   sort?: string;
   page?: string;
   page_size?: string;
+}
+
+export interface ProfessionalLocationFacet {
+  country: string;
+  place_id: number | null;
+  city: string;
+  count: number;
+}
+
+export interface ProfessionalFacets {
+  countries: Record<string, number>;
+  locations: ProfessionalLocationFacet[];
 }
 
 // Same contract as fetchServiceCategories: null = flag off, an empty `results`
@@ -176,8 +190,8 @@ export interface ProfessionalSearch {
 export async function fetchProfessionals(
   search: ProfessionalSearch,
   locale: Locale,
-): Promise<Paginated<ProfessionalCard> | null> {
-  return directoryFetch<Paginated<ProfessionalCard>>(
+): Promise<(Paginated<ProfessionalCard> & { facets?: ProfessionalFacets }) | null> {
+  return directoryFetch<Paginated<ProfessionalCard> & { facets?: ProfessionalFacets }>(
     `/api/v1/professionals/${query({ ...search, locale })}`,
   );
 }

@@ -94,6 +94,14 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
                 | Q(service_area__contains=[location])
             )
 
+        country = params.get("country", "").strip().upper()
+        if country:
+            queryset = queryset.filter(country_code=country)
+
+        place = params.get("place", "").strip()
+        if place.isdigit():
+            queryset = queryset.filter(place_geoname_id=int(place))
+
         if params.get("sort", "recommended").strip() == "alphabetical":
             # `display_name` isn't unique, so `id` is appended as a final
             # tiebreak to keep ordering fully deterministic across page loads.
@@ -112,6 +120,26 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
             _promo_rank=Case(When(featured_until__gt=timezone.now(), then=0), default=1, output_field=IntegerField())
         )
         return queryset.order_by("_promo_rank", *ordering).distinct()
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        everyone = ProfessionalProfile.objects.filter(status=ProfessionalProfileStatus.ACTIVE)
+        countries = {}
+        # Keyed by place_geoname_id, same precedent as listings' and brokers' own
+        # location facets: a profile without a real place (free text only) counts
+        # toward its country but is not offered as a city choice.
+        locations = {}
+        for code, place_id, city in everyone.values_list("country_code", "place_geoname_id", "city"):
+            if code:
+                countries[code] = countries.get(code, 0) + 1
+            if place_id:
+                entry = locations.setdefault(place_id, {"country": code, "place_id": place_id, "city": city, "count": 0})
+                entry["count"] += 1
+        response.data["facets"] = {
+            "countries": countries,
+            "locations": sorted(locations.values(), key=lambda row: (row["country"], row["city"])),
+        }
+        return response
 
 
 class ProfessionalDetailView(LocalizedContextMixin, RetrieveAPIView):
