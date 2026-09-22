@@ -60,6 +60,24 @@ export default async function SellLanding() {
 </div>
 </section>
 
+<section className="w-full bg-surface py-space-xl">
+<div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
+<div className="bg-surface-container-low rounded-xl p-space-md md:p-space-lg flex flex-col sm:flex-row items-center justify-between gap-space-md">
+<div className="flex flex-col gap-space-xs">
+<span className="font-label-sm text-label-sm uppercase text-outline font-semibold tracking-wider">{t("sell.page.advertisement")}</span>
+<span className="font-headline-sm text-headline-sm text-primary">{t("sell.page.baleares_yacht_transport")}</span>
+<p className="font-body-sm text-body-sm text-on-surface-variant max-w-xl">
+            {t("sell.page.insured_logistical_transport_and_skippered_delivery")}
+          </p>
+</div>
+<Link href="/services/professionals/transport-delivery/" className="inline-flex items-center gap-space-xs font-title-md text-title-md text-secondary hover:text-primary transition-colors shrink-0" >
+<span>{t("sell.page.inquire_logistics")}</span>
+<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+</Link>
+</div>
+</div>
+</section>
+
 <section className="w-full bg-surface-container-low py-space-2xl">
 <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
 <div className="max-w-xl mx-auto text-center mb-space-xl">
@@ -167,24 +185,6 @@ export default async function SellLanding() {
 <span className="font-label-sm text-label-sm text-center text-outline">{t("sell.page.connect_with_certified_spanish_and_italian")}</span>
 </div>
 </div>
-</div>
-</div>
-</section>
-
-<section className="w-full bg-surface py-space-xl">
-<div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
-<div className="bg-surface-container-low rounded-xl p-space-md md:p-space-lg flex flex-col sm:flex-row items-center justify-between gap-space-md">
-<div className="flex flex-col gap-space-xs">
-<span className="font-label-sm text-label-sm uppercase text-outline font-semibold tracking-wider">{t("sell.page.advertisement")}</span>
-<span className="font-headline-sm text-headline-sm text-primary">{t("sell.page.baleares_yacht_transport")}</span>
-<p className="font-body-sm text-body-sm text-on-surface-variant max-w-xl">
-            {t("sell.page.insured_logistical_transport_and_skippered_delivery")}
-          </p>
-</div>
-<Link href="/services/professionals/transport-delivery/" className="inline-flex items-center gap-space-xs font-title-md text-title-md text-secondary hover:text-primary transition-colors shrink-0" >
-<span>{t("sell.page.inquire_logistics")}</span>
-<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</Link>
 </div>
 </div>
 </section>
