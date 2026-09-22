@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from django.utils.cache import patch_vary_headers
@@ -385,11 +386,24 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
         return response
 
 
+FACETS_CACHE_KEY = "listings:public_facets"
+# Every visitor gets the same response (no personalization, no locale variance —
+# BOAT_TYPES/FUEL_TYPES are plain enum values); a short TTL trades a few minutes of
+# staleness on newly published brands/locations for skipping facets()'s several
+# distinct/group-by queries on every /boats/ page load.
+FACETS_CACHE_TTL_SECONDS = 180
+
+
 class PublicListingFacetsView(PublicListingReadView, APIView):
     """GET /api/v1/listings/facets/ - distinct filter choices for the boat filter panel."""
 
     def get(self, request):
-        return Response(facets(published_listings_queryset()))
+        cached = cache.get(FACETS_CACHE_KEY)
+        if cached is not None:
+            return Response(cached)
+        data = facets(published_listings_queryset())
+        cache.set(FACETS_CACHE_KEY, data, FACETS_CACHE_TTL_SECONDS)
+        return Response(data)
 
 
 class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):

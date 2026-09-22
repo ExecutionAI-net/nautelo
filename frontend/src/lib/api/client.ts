@@ -2,8 +2,24 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8020";
 
 const REFRESH_PATH = "/api/v1/auth/token/refresh/";
+// Set by the backend (accounts/cookies.py) alongside the HttpOnly refresh cookie,
+// readable on purpose: it lets a fresh page load tell "never signed in" from "may
+// still have a valid refresh cookie" without a network round trip.
+const SESSION_HINT_COOKIE_NAME = "nauta_session_hint";
 
 let accessToken: string | null = null;
+
+/** True only when the backend has evidence this browser might have a live session
+ * (a current or recently-expired refresh cookie). A guest who has never signed in
+ * never gets this cookie, so bootstrap() can skip attempting a silent refresh -
+ * which would otherwise always 401 for them and log a benign-but-noisy console error
+ * on every single page load. */
+export function hasSessionHint(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie
+    .split("; ")
+    .some((entry) => entry.startsWith(`${SESSION_HINT_COOKIE_NAME}=`));
+}
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;

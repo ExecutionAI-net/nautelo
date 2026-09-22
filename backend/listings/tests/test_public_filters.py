@@ -97,6 +97,25 @@ def test_facets_list_distinct_choices(api, catalogue):
     assert sum(row["count"] for row in body["locations"]) == len(api.get(reverse("listing-list")).json()["results"])
 
 
+def test_facets_are_cached_across_requests(api, catalogue):
+    from django.core.cache import cache
+
+    from listings.views import FACETS_CACHE_KEY
+
+    first = api.get(reverse("listing-facets")).json()
+    assert cache.get(FACETS_CACHE_KEY) == first
+
+    # A brand-new brand does not show up until the cache expires — this is the
+    # accepted trade-off (spec: a short TTL, not correctness) that lets the
+    # endpoint skip its distinct/group-by queries on every /boats/ page load.
+    _published(title_en="Brand New", brand_name_snapshot="ZzTop Yachts")
+    assert api.get(reverse("listing-facets")).json() == first
+
+    cache.delete(FACETS_CACHE_KEY)
+    refreshed = api.get(reverse("listing-facets")).json()
+    assert "ZzTop Yachts" in refreshed["brands"]
+
+
 def test_exclude_drops_one_listing_and_ignores_garbage(api, catalogue):
     everything = api.get(reverse("listing-list")).json()["results"]
     dropped = everything[0]["id"]

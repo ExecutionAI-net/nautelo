@@ -49,6 +49,7 @@ function Probe() {
 afterEach(() => {
   // The access token is module state in the API client; reset it between tests.
   setAccessToken(null);
+  document.cookie = "nauta_session_hint=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -89,6 +90,9 @@ describe("SessionProvider", () => {
   });
 
   it("restores an authenticated session from the refresh cookie on reload", async () => {
+    // The backend sets this alongside the HttpOnly refresh cookie; bootstrap()
+    // reads it to decide the silent refresh is even worth attempting.
+    document.cookie = "nauta_session_hint=1; path=/";
     mockSession(
       payload({
         authenticated: true,
@@ -116,6 +120,29 @@ describe("SessionProvider", () => {
       ),
     );
     expect(screen.getByTestId("can-sell")).toHaveTextContent("true");
+  });
+
+  it("never attempts a silent refresh for a visitor with no session hint cookie", async () => {
+    // No `nauta_session_hint` cookie means "never signed in" — attempting the
+    // refresh would always 401 and just log a benign console error.
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(payload()), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SessionProvider>
+        <Probe />
+      </SessionProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("email")).toHaveTextContent("guest"));
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/auth/token/refresh/"),
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/session/"),
+      expect.anything(),
+    );
   });
 
   it("falls back to a guest session when the API is unreachable", async () => {
