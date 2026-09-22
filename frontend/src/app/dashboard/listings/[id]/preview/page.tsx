@@ -23,25 +23,38 @@ export default function ListingPreviewPage() {
   const params = useParams<{ id: string }>();
   const t = useT();
   const locale = useLocale();
-  const [listing, setListing] = useState<PublicListing | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<{ id: string; listing: PublicListing | null; error: string | null }>({
+    id: params.id,
+    listing: null,
+    error: null,
+  });
+
+  // Reset during render (not inside the effect) when the route's id changes,
+  // per React's "adjusting state when a prop changes" pattern — avoids the
+  // cascading-render synchronous setState-in-effect that a plain reset would
+  // otherwise trigger.
+  if (state.id !== params.id) {
+    setState({ id: params.id, listing: null, error: null });
+  }
 
   useEffect(() => {
     let cancelled = false;
-    setListing(null);
-    setError(null);
     fetchListingPreview(params.id)
       .then((row) => {
-        if (!cancelled) setListing(row);
+        if (cancelled) return;
+        setState((current) => (current.id === params.id ? { ...current, listing: row } : current));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : t("boat.preview_error"));
+        const message = err instanceof ApiError ? err.message : t("boat.preview_error");
+        setState((current) => (current.id === params.id ? { ...current, error: message } : current));
       });
     return () => {
       cancelled = true;
     };
   }, [params.id, t]);
+
+  const { listing, error } = state;
 
   return (
     <RequirePermission>
