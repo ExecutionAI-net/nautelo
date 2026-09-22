@@ -67,7 +67,6 @@ export default async function Home() {
 <div className="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col">
 <div className="flex items-center justify-between pb-space-xs mb-space-sm">
 <span className="font-label-sm text-label-sm text-outline tracking-widest uppercase">{t("home.ad_label")}</span>
-<span className="material-symbols-outlined text-outline text-[16px]">info</span>
 </div>
 <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden mb-space-md group bg-surface-container-high">
 {ad.image_url ? (

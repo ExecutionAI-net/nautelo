@@ -59,25 +59,27 @@ GUIDES = [
     },
 ]
 
+# image_url is a demo asset from the frontend's own /public/design/ folder, the same pool the rest of the
+# site uses for placeholder photography (spec: keep fake data until the customer removes it before launch).
 ADS = [
     (AdPlacement.HOME, "Mediterranean Marine Insurance", "Comprehensive Yacht Protection",
      "Cross-border hull, machinery and liability cover for Spanish and Italian territorial waters.",
-     "Request Underwriting Quote"),
+     "Request Underwriting Quote", "/design/2ea59788a7.jpg"),
     (AdPlacement.HOME, "Porto Cervo Marina Services", "Berths & Full Shore Support",
      "Secured deep-water berths, round-the-clock security and VIP concierge on the Sardinian coast.",
-     "Reserve Seasonal Berth"),
+     "Reserve Seasonal Berth", "/design/6105378ad2.jpg"),
     (AdPlacement.BOAT_LIST, "Balearic Hull & Propeller", "Drydock Maintenance & Antifouling Specialists",
      "Copper-coat application, osmosis prevention and hydrodynamic balancing for yachts up to 24 m.",
-     "Reserve Drydock"),
+     "Reserve Drydock", "/design/4380ad7d78.jpg"),
     (AdPlacement.BOAT_DETAIL, "Adriatic Marine Insurance", "Underwriting for Mediterranean vessels",
      "Comprehensive hull, machinery and P&I cover with tailored quotes within 24 hours.",
-     "Request Underwriting Dossier"),
+     "Request Underwriting Dossier", "/design/018863299d.jpg"),
     (AdPlacement.GUIDES, "NaviTech Marine", "Radar, Sonar & Marine Electronics",
      "Solid-state deep-water sonar, radar and NMEA 2000 multi-station integration.",
-     "Discover Electronics Suites"),
+     "Discover Electronics Suites", "/design/1b4bad5160.jpg"),
     (AdPlacement.DIRECTORY, "Tirreno Marine Chronometers", "Atelier for offshore navigation timepieces",
      "Precision maritime timepieces engineered for offshore navigation between Genoa, Palma and Porto Cervo.",
-     "Discover Atelier"),
+     "Discover Atelier", "/design/22fe9bf3e3.jpg"),
 ]
 
 
@@ -89,10 +91,17 @@ class Command(BaseCommand):
             GuideArticle.objects.update_or_create(
                 slug=row["slug"], defaults={**row, "status": GuideStatus.PUBLISHED}
             )
-        for placement, sponsor, headline, body, cta in ADS:
+        for placement, sponsor, headline, body, cta, image_url in ADS:
             Advertisement.objects.update_or_create(
                 placement=placement,
                 headline=headline,
-                defaults={"sponsor": sponsor, "body": body, "cta_label": cta, "cta_url": "https://example.com/", "is_active": True},
+                defaults={
+                    "sponsor": sponsor,
+                    "body": body,
+                    "cta_label": cta,
+                    "cta_url": "https://example.com/",
+                    "image_url": image_url,
+                    "is_active": True,
+                },
             )
         self.stdout.write(self.style.SUCCESS(f"{len(GUIDES)} guides and {len(ADS)} ads ready."))
