@@ -136,6 +136,7 @@ export default function SellListingForm({
   const [listing, setListing] = useState<WorkflowListing | null>(initial ?? null);
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [pending, setPending] = useState<{ file: File; url: string }[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -437,18 +438,32 @@ export default function SellListingForm({
     });
   }
 
-  async function move(row: MediaRow, delta: number) {
+  async function reorderTo(row: MediaRow, toPosition: number) {
     if (!listing) return;
     const ids = media.filter((item) => item.media_type === row.media_type).map((item) => item.id);
     const from = ids.indexOf(row.id);
-    const to = from + delta;
-    if (to < 0 || to >= ids.length) return;
-    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    if (from === -1 || toPosition < 0 || toPosition >= ids.length || toPosition === from) return;
+    ids.splice(toPosition, 0, ids.splice(from, 1)[0]);
     try {
       setMedia(await reorderMedia(listing.id, row.media_type, ids));
     } catch (caught) {
       setError(describe(caught, t));
     }
+  }
+
+  async function move(row: MediaRow, delta: number) {
+    const siblings = media.filter((item) => item.media_type === row.media_type);
+    await reorderTo(row, siblings.indexOf(row) + delta);
+  }
+
+  function dropOnto(targetRow: MediaRow) {
+    const draggedId = dragId;
+    setDragId(null);
+    if (!draggedId || draggedId === targetRow.id) return;
+    const dragged = media.find((item) => item.id === draggedId);
+    if (!dragged || dragged.media_type !== targetRow.media_type) return;
+    const siblings = media.filter((item) => item.media_type === targetRow.media_type);
+    void reorderTo(dragged, siblings.indexOf(targetRow));
   }
 
   async function remove(row: MediaRow) {
@@ -860,7 +875,19 @@ export default function SellListingForm({
                 const siblings = media.filter((item) => item.media_type === row.media_type);
                 const position = siblings.indexOf(row);
                 return (
-                  <li key={row.id} className="overflow-hidden rounded-lg bg-surface-container-low">
+                  <li
+                    key={row.id}
+                    data-testid={`media-${row.id}`}
+                    draggable
+                    onDragStart={() => setDragId(row.id)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      dropOnto(row);
+                    }}
+                    onDragEnd={() => setDragId(null)}
+                    className={`overflow-hidden rounded-lg bg-surface-container-low cursor-grab active:cursor-grabbing ${dragId === row.id ? "opacity-50" : ""}`}
+                  >
                     <div className="relative aspect-[4/3] bg-primary-container">
                       {row.preview_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
