@@ -1,3 +1,4 @@
+import { getT } from "@/i18n/server";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
 import Link from "@/components/layout/LocaleLink";
@@ -9,7 +10,7 @@ import {
   fetchProfessionals,
   fetchServiceCategory,
 } from "@/lib/api/directory";
-import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
+import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export default async function ServiceCategoryPage({
   params: Params;
   searchParams: SearchParams;
 }) {
+  const t = await getT();
   const { categorySlug } = await params;
   const locale = await getRequestLocale();
   const category = await fetchServiceCategory(categorySlug, locale);
@@ -88,7 +90,7 @@ export default async function ServiceCategoryPage({
           href={`/services/professionals/?category=${encodeURIComponent(category.slug)}`}
           className="font-body-md text-secondary underline"
         >
-          {t(locale, "category.browse_professionals")}
+          {t("category.browse_professionals")}
         </Link>
       </p>
 
@@ -97,11 +99,11 @@ export default async function ServiceCategoryPage({
           id="category-results-heading"
           className="font-title-lg text-title-lg text-primary"
         >
-          {t(locale, "directory.results.heading")}
+          {t("directory.results.heading")}
         </h2>
         {results.results.length === 0 ? (
           <p className="mt-space-md font-body-md text-on-surface-variant">
-            {t(locale, "directory.results.empty")}
+            {t("directory.results.empty")}
           </p>
         ) : (
           <ul className="mt-space-md grid grid-cols-1 gap-space-md sm:grid-cols-2 lg:grid-cols-4">
@@ -115,7 +117,7 @@ export default async function ServiceCategoryPage({
 
         {results.previous || results.next ? (
           <nav
-            aria-label={t(locale, "directory.results.heading")}
+            aria-label={t("directory.results.heading")}
             className="mt-space-lg flex gap-space-md"
           >
             {results.previous ? (
@@ -124,12 +126,12 @@ export default async function ServiceCategoryPage({
                 rel="prev"
                 className={PAGINATION_LINK_CLASS}
               >
-                {t(locale, "directory.pagination.previous")}
+                {t("directory.pagination.previous")}
               </Link>
             ) : null}
             {results.next ? (
               <Link href={pageHref(currentPage + 1)} rel="next" className={PAGINATION_LINK_CLASS}>
-                {t(locale, "directory.pagination.next")}
+                {t("directory.pagination.next")}
               </Link>
             ) : null}
           </nav>

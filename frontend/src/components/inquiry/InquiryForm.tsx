@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
 // THE shared inquiry form (spec 15.1: "Component name should be equivalent to
 // InquiryForm; do not create broker-, professional- and listing-specific
 // copies"). It is context-agnostic on purpose: Phases 19 and 20 mount this same
@@ -24,7 +26,7 @@ import {
   readDraftToken,
   storeDraftToken,
 } from "@/lib/inquiry/draft-storage";
-import { formatInquiryMessage, tInquiry } from "@/lib/i18n/inquiry";
+import { formatInquiryMessage } from "@/lib/i18n/inquiry";
 import type { Locale } from "@/lib/i18n/directory";
 import { useSession } from "@/lib/auth/session";
 import { localizePath } from "@/lib/i18n/localePath";
@@ -54,6 +56,7 @@ const FIELD_CLASS =
   "mt-space-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md";
 
 export default function InquiryForm({ context, config, locale }: InquiryFormProps) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const { session, loading } = useSession();
@@ -75,7 +78,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   );
 
   const defaultSubject = formatInquiryMessage(
-    tInquiry(locale, "inquiry.subject_default"),
+    t("inquiry.subject_default"),
     { context: contextRef.label },
   );
 
@@ -105,9 +108,9 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
           return fieldMessages.join(" ");
         }
         const key = ERROR_MESSAGE_KEYS[caught.code];
-        if (key) return tInquiry(locale, key);
+        if (key) return t(key as MessageKey);
       }
-      return tInquiry(locale, "inquiry.error.generic");
+      return t("inquiry.error.generic");
     },
     [locale],
   );
@@ -137,7 +140,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
         setPhone(draft.phone);
         setSubject(draft.subject || defaultSubject);
         setMessage(draft.message);
-        setNotice(tInquiry(locale, "inquiry.draft_restored"));
+        setNotice(t("inquiry.draft_restored"));
       } catch (caught) {
         setError(messageFor(caught));
       } finally {
@@ -191,11 +194,11 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
       return;
     }
     if (!isVerified) {
-      setError(tInquiry(locale, "inquiry.verify_email_first"));
+      setError(t("inquiry.verify_email_first"));
       return;
     }
     if (!privacyConsent) {
-      setError(tInquiry(locale, "inquiry.error.consent_required"));
+      setError(t("inquiry.error.consent_required"));
       return;
     }
 
@@ -241,7 +244,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   }
 
   const consentLabel = formatInquiryMessage(
-    tInquiry(locale, "inquiry.privacy_consent"),
+    t("inquiry.privacy_consent"),
     { version: config.privacy_policy_version },
   );
 
@@ -251,12 +254,12 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
         id="inquiry-heading"
         className="font-title-lg text-title-lg text-primary"
       >
-        {tInquiry(locale, "inquiry.heading")}
+        {t("inquiry.heading")}
       </h2>
 
       <form onSubmit={handleSubmit} className="mt-space-md space-y-space-md" noValidate>
         <label className="block font-label-md text-label-md" htmlFor="inquiry-full-name">
-          {tInquiry(locale, "inquiry.full_name")}
+          {t("inquiry.full_name")}
           <input
             id="inquiry-full-name"
             name="full_name"
@@ -272,7 +275,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
         {isSignedIn ? (
           <>
             <label className="block font-label-md text-label-md" htmlFor="inquiry-email">
-            {tInquiry(locale, "inquiry.email")}
+            {t("inquiry.email")}
             <input
               id="inquiry-email"
               name="email"
@@ -290,16 +293,16 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
               account screen. Recorded in Known Limitations. `GET|PATCH
               /api/v1/account/` (Phase 3) already exists behind it. */}
           <p className="font-body-sm text-on-surface-variant">
-            {tInquiry(locale, "inquiry.email_hint")}
+            {t("inquiry.email_hint")}
           </p>
   
             </>
         ) : (
-          <p className="font-body-sm text-on-surface-variant">{tInquiry(locale, "inquiry.guest_hint")}</p>
+          <p className="font-body-sm text-on-surface-variant">{t("inquiry.guest_hint")}</p>
         )}
 
         <label className="block font-label-md text-label-md" htmlFor="inquiry-phone">
-          {tInquiry(locale, "inquiry.phone")}
+          {t("inquiry.phone")}
           <input
             id="inquiry-phone"
             name="phone"
@@ -313,11 +316,11 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
           />
         </label>
         <p id="inquiry-phone-hint" className="font-body-sm text-on-surface-variant">
-          {tInquiry(locale, "inquiry.phone_hint")}
+          {t("inquiry.phone_hint")}
         </p>
 
         <label className="block font-label-md text-label-md" htmlFor="inquiry-subject">
-          {tInquiry(locale, "inquiry.subject")}
+          {t("inquiry.subject")}
           <input
             id="inquiry-subject"
             name="subject"
@@ -330,7 +333,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
         </label>
 
         <label className="block font-label-md text-label-md" htmlFor="inquiry-message">
-          {tInquiry(locale, "inquiry.message")}
+          {t("inquiry.message")}
           <textarea
             id="inquiry-message"
             name="message"
@@ -377,7 +380,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
             checked={marketingConsent}
             onChange={(event) => setMarketingConsent(event.target.checked)}
           />
-          {tInquiry(locale, "inquiry.marketing_consent")}
+          {t("inquiry.marketing_consent")}
         </label>
 
         {error ? (
@@ -387,7 +390,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
         ) : null}
         {sent || notice ? (
           <p role="status" className="font-body-sm text-primary">
-            {sent ? tInquiry(locale, "inquiry.sent") : notice}
+            {sent ? t("inquiry.sent") : notice}
           </p>
         ) : null}
 
@@ -397,10 +400,10 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
           className="w-full rounded-lg bg-primary p-space-sm font-label-md text-label-md text-on-primary disabled:opacity-50"
         >
           {busy
-            ? tInquiry(locale, "inquiry.sending")
+            ? t("inquiry.sending")
             : isSignedIn
-              ? tInquiry(locale, "inquiry.send")
-              : tInquiry(locale, "inquiry.sign_in_to_send")}
+              ? t("inquiry.send")
+              : t("inquiry.sign_in_to_send")}
         </button>
       </form>
     </section>

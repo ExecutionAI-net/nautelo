@@ -12,7 +12,7 @@ import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listing
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
 import { fetchPublishedListingBySlug, fetchPublishedListings, financingHref, listingPath } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
-import { tf } from "@/lib/i18n/finance";
+
 import { placeLabel } from "@/lib/i18n/places";
 
 export const dynamic = "force-dynamic";
@@ -109,7 +109,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
       <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-lg md:px-margin lg:px-margin-desktop">
         <nav aria-label={t("boat.breadcrumb")} className="font-body-sm text-on-surface-variant">
           <Link href="/boats/" className="hover:text-primary">
-            {tf(locale, "boats.title")}
+            {t("boats.title")}
           </Link>
           <span aria-hidden="true"> / </span>
           <Link href={`/boats/?brand=${encodeURIComponent(listing.brand_name)}`} className="hover:text-primary">
@@ -182,16 +182,16 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
               <div>
                 <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.marine_financing")}</p>
                 <p className="font-title-lg text-title-lg text-primary">
-                  {tf(locale, "finance.estimated_payment")} {monthly}
-                  {tf(locale, "finance.per_month")}
+                  {t("finance.estimated_payment")} {monthly}
+                  {t("finance.per_month")}
                 </p>
-                <p className="font-body-sm text-on-surface-variant">{tf(locale, "finance.illustrative_disclaimer")}</p>
+                <p className="font-body-sm text-on-surface-variant">{t("finance.illustrative_disclaimer")}</p>
               </div>
               <a
                 href={financingHref(listing)}
                 className="inline-flex items-center justify-center rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary"
               >
-                {tf(locale, "finance.calculate")}
+                {t("finance.calculate")}
               </a>
             </div>
           ) : null}
@@ -228,7 +228,7 @@ export default async function BoatDetailPage({ params }: { params: Params }) {
             <ul className="grid grid-cols-1 gap-space-lg sm:grid-cols-2 lg:grid-cols-4">
               {others.map((item) => (
                 <li key={item.id}>
-                  <BoatCard locale={locale} listing={item} disclaimerId={`finance-disclaimer-${item.id}`} />
+                  <BoatCard t={t} locale={locale} listing={item} disclaimerId={`finance-disclaimer-${item.id}`} />
                 </li>
               ))}
             </ul>

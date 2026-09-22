@@ -1,19 +1,21 @@
 import Link from "@/components/layout/LocaleLink";
 
 import type { ServiceCategory } from "@/lib/api/directory";
-import { type Locale, t } from "@/lib/i18n/directory";
+import type { Translate } from "@/i18n";
+import type { Locale } from "@/lib/i18n/directory";
 
 export default function CategoryGrid({
-  locale,
+  t,
   categories,
 }: {
   locale: Locale;
+  t: Translate;
   categories: ServiceCategory[];
 }) {
   if (categories.length === 0) {
     return (
       <p className="font-body-md text-on-surface-variant">
-        {t(locale, "directory.categories.empty")}
+        {t("directory.categories.empty")}
       </p>
     );
   }

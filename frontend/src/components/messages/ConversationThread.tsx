@@ -1,10 +1,10 @@
 "use client";
 
+import { useT } from "@/i18n/client";
 import ReplyComposer from "@/components/messages/ReplyComposer";
 import type { ConversationRow, MessageRow } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
 import type { Locale } from "@/lib/i18n/directory";
-import { tInquiry } from "@/lib/i18n/inquiry";
 
 interface Props {
   locale: Locale;
@@ -25,6 +25,7 @@ export default function ConversationThread({
   onSend,
   onToggleArchive,
 }: Props) {
+  const t = useT();
   const isOpen = conversation.status === "OPEN";
   const archived = conversation.status === "ARCHIVED";
   // Ruling 5: only the recipient side may file, because spec 11.8 gives
@@ -101,7 +102,7 @@ export default function ConversationThread({
                       : message.sender.is_you
                         ? tConversations(locale, "messages.thread.you")
                         : message.sender.display_name.trim() ||
-                          tInquiry(locale, "inquiry.sender_unnamed")}
+                          t("inquiry.sender_unnamed")}
                   </span>
                   <span aria-hidden="true">{" · "}</span>
                   <time dateTime={message.created_at}>

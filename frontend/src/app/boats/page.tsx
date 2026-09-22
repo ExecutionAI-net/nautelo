@@ -11,7 +11,7 @@ import MobileFilters from "@/components/listings/MobileFilters";
 import LocationFields from "@/components/listings/LocationFields";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
-import { tf } from "@/lib/i18n/finance";
+
 
 export const dynamic = "force-dynamic";
 
@@ -61,10 +61,11 @@ const FILTER_KEYS = [
   "sort",
 ] as const;
 
-export function generateMetadata(): Metadata {
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
   return {
-    title: tf(DEFAULT_LOCALE, "boats.title"),
-    description: tf(DEFAULT_LOCALE, "boats.intro"),
+    title: t("boats.title"),
+    description: t("boats.intro"),
   };
 }
 
@@ -154,8 +155,8 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
         <div className="mx-auto flex max-w-[1440px] flex-col gap-space-md px-margin-mobile md:px-margin lg:flex-row lg:items-end lg:justify-between lg:px-margin-desktop">
           <div>
             <span className="font-label-sm uppercase tracking-widest text-secondary">{t("boats.eyebrow")}</span>
-            <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{tf(locale, "boats.title")}</h1>
-            <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{tf(locale, "boats.intro")}</p>
+            <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t("boats.title")}</h1>
+            <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{t("boats.intro")}</p>
           </div>
           <form action={CANONICAL_PATH} method="get" role="search" className="flex w-full gap-space-sm lg:max-w-xl">
             {FILTER_KEYS.filter((key) => key !== "q" && key !== "query" && key !== "mode" && filters[key]).map((key) => (
@@ -354,13 +355,13 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
 
           {results.results.length === 0 ? (
             <p className="mt-space-xl font-body-md text-on-surface-variant">
-              {active.length > 0 ? t("boats.none_match") : tf(locale, "boats.empty")}
+              {active.length > 0 ? t("boats.none_match") : t("boats.empty")}
             </p>
           ) : (
             <ul className="mt-space-lg grid grid-cols-1 gap-space-lg sm:grid-cols-2 xl:grid-cols-3">
               {results.results.map((listing) => (
                 <li key={listing.id}>
-                  <BoatCard locale={locale} listing={listing} disclaimerId={DISCLAIMER_ID} />
+                  <BoatCard t={t} locale={locale} listing={listing} disclaimerId={DISCLAIMER_ID} />
                 </li>
               ))}
             </ul>
@@ -375,25 +376,25 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               both wrong. */}
           {showsFinance ? (
             <p id={DISCLAIMER_ID} className="mt-space-lg font-body-sm text-on-surface-variant">
-              * {tf(locale, "finance.illustrative_disclaimer")}
+              * {t("finance.illustrative_disclaimer")}
             </p>
           ) : null}
 
           {previousPage || nextPage ? (
             <nav
               className="mt-space-lg flex items-center justify-between rounded-xl bg-surface-container-lowest p-space-md shadow-sm"
-              aria-label={tf(locale, "boats.title")}
+              aria-label={t("boats.title")}
             >
               {previousPage ? (
                 <Link href={hrefFor(filters, previousPage)} rel="prev">
-                  {tf(locale, "boats.previous")}
+                  {t("boats.previous")}
                 </Link>
               ) : (
                 <span />
               )}
               {nextPage ? (
                 <Link href={hrefFor(filters, nextPage)} rel="next">
-                  {tf(locale, "boats.next")}
+                  {t("boats.next")}
                 </Link>
               ) : null}
             </nav>

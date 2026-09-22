@@ -1,3 +1,4 @@
+import { testT } from "@/i18n/testing";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +12,7 @@ const categories = [
 describe("DirectorySearchForm", () => {
   it("submits as a GET to the canonical directory URL so filters stay shareable", () => {
     const { container } = render(
-      <DirectorySearchForm locale="en" categories={categories} current={{}} />,
+      <DirectorySearchForm t={testT("en")} locale="en" categories={categories} current={{}} />,
     );
     const form = container.querySelector("form")!;
 
@@ -21,8 +22,7 @@ describe("DirectorySearchForm", () => {
 
   it("reflects the current filter values back into the controls", () => {
     render(
-      <DirectorySearchForm
-        locale="en"
+      <DirectorySearchForm t={testT("en")} locale="en"
         categories={categories}
         current={{ q: "survey", category: "legal", location: "Livorno", sort: "alphabetical" }}
       />,
@@ -35,7 +35,7 @@ describe("DirectorySearchForm", () => {
   });
 
   it("offers an all-categories option built from real records", () => {
-    render(<DirectorySearchForm locale="en" categories={categories} current={{}} />);
+    render(<DirectorySearchForm t={testT("en")} locale="en" categories={categories} current={{}} />);
 
     expect(screen.getByRole("option", { name: "All categories" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Insurance" })).toBeInTheDocument();

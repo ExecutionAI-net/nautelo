@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 import type { Locale } from "@/lib/i18n/directory";
-import { tPromo } from "@/lib/i18n/promotion";
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
 
 interface Plan {
   code: string;
@@ -38,7 +39,7 @@ export default function PromotionDialog({
   returnPath: string;
   onSkip: () => void;
 }) {
-  const t = (key: string, vars?: Record<string, string | number>) => tPromo(locale, key, vars);
+  const t = useT();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [chosen, setChosen] = useState("");
   const [busy, setBusy] = useState(false);
@@ -118,7 +119,7 @@ export default function PromotionDialog({
           {["promo.point1", "promo.point2", "promo.point3"].map((key) => (
             <li key={key} className="flex gap-space-xs">
               <span aria-hidden="true" className="text-secondary">✓</span>
-              {t(key)}
+              {t(key as MessageKey)}
             </li>
           ))}
         </ul>

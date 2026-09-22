@@ -1,5 +1,6 @@
 import type { CategoryRef } from "@/lib/api/directory";
-import { type Locale, t } from "@/lib/i18n/directory";
+import type { Translate } from "@/i18n";
+import type { Locale } from "@/lib/i18n/directory";
 
 export interface DirectoryFilters {
   q?: string;
@@ -9,11 +10,12 @@ export interface DirectoryFilters {
 }
 
 export default function DirectorySearchForm({
-  locale,
+  t,
   categories,
   current,
 }: {
   locale: Locale;
+  t: Translate;
   categories: CategoryRef[];
   current: DirectoryFilters;
 }) {
@@ -27,7 +29,7 @@ export default function DirectorySearchForm({
       className="grid grid-cols-1 gap-space-sm md:grid-cols-5"
     >
       <label className="flex flex-col gap-space-xs font-body-sm text-on-surface-variant md:col-span-2">
-        {t(locale, "directory.search.text")}
+        {t("directory.search.text")}
         <input
           type="search"
           name="q"
@@ -36,13 +38,13 @@ export default function DirectorySearchForm({
         />
       </label>
       <label className="flex flex-col gap-space-xs font-body-sm text-on-surface-variant">
-        {t(locale, "directory.search.category")}
+        {t("directory.search.category")}
         <select
           name="category"
           defaultValue={current.category ?? ""}
           className="rounded-lg border border-outline-variant bg-surface px-space-sm py-space-xs font-body-md text-on-surface"
         >
-          <option value="">{t(locale, "directory.search.category.all")}</option>
+          <option value="">{t("directory.search.category.all")}</option>
           {categories.map((category) => (
             <option key={category.slug} value={category.slug}>
               {category.name}
@@ -51,7 +53,7 @@ export default function DirectorySearchForm({
         </select>
       </label>
       <label className="flex flex-col gap-space-xs font-body-sm text-on-surface-variant">
-        {t(locale, "directory.search.location")}
+        {t("directory.search.location")}
         <input
           type="text"
           name="location"
@@ -60,21 +62,21 @@ export default function DirectorySearchForm({
         />
       </label>
       <label className="flex flex-col gap-space-xs font-body-sm text-on-surface-variant">
-        {t(locale, "directory.search.sort")}
+        {t("directory.search.sort")}
         <select
           name="sort"
           defaultValue={current.sort ?? "recommended"}
           className="rounded-lg border border-outline-variant bg-surface px-space-sm py-space-xs font-body-md text-on-surface"
         >
-          <option value="recommended">{t(locale, "directory.sort.recommended")}</option>
-          <option value="alphabetical">{t(locale, "directory.sort.alphabetical")}</option>
+          <option value="recommended">{t("directory.sort.recommended")}</option>
+          <option value="alphabetical">{t("directory.sort.alphabetical")}</option>
         </select>
       </label>
       <button
         type="submit"
         className="rounded-lg bg-primary px-space-md py-space-sm font-label-md text-label-md text-on-primary md:col-span-5 md:justify-self-start"
       >
-        {t(locale, "directory.search.submit")}
+        {t("directory.search.submit")}
       </button>
     </form>
   );

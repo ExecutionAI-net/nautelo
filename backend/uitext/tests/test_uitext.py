@@ -152,3 +152,14 @@ def test_admin_lists_texts_and_publishes(admin_client):
     assert admin_client.get(reverse("admin:uitext_textkey_publish"), follow=True).status_code == 200
     assert services.bundle("it")["boats.title"] == "Barche in vendita"
     assert admin_client.get(reverse("admin:uitext_textkey_changelist") + "?state=pending").status_code == 200
+
+
+def test_seed_gives_new_keys_a_live_hand_written_translation_and_skips_bad_ones():
+    seeds = {"it": {"boats.title": "Barche in vendita", "boats.count": "{numero} barche"}, "es": {"boats.title": "Barcos en venta"}}
+    services.sync_source(SOURCE, seeds)
+    it = TextValue.objects.get(key__key="boats.title", locale="it")
+    assert (it.text, it.published_text, it.origin, it.stale) == ("Barche in vendita", "Barche in vendita", "HUMAN", False)
+    assert TextValue.objects.get(key__key="boats.title", locale="es").text == "Barcos en venta"
+    bad = TextValue.objects.get(key__key="boats.count", locale="it")  # wrong placeholder: left for the machine
+    assert bad.text == "" and bad.origin == "MACHINE" and bad.stale
+    assert TextValue.objects.get(key__key="boats.count", locale="es").stale

@@ -1,3 +1,4 @@
+import type { Translate } from "@/i18n";
 import { tPromo } from "@/lib/i18n/promotion";
 import Link from "@/components/layout/LocaleLink";
 
@@ -41,7 +42,9 @@ export default function BoatCard({
   locale,
   listing,
   disclaimerId,
+  t,
 }: {
+  t: Translate;
   locale: Locale;
   listing: PublicListing;
   disclaimerId: string;
@@ -70,7 +73,7 @@ export default function BoatCard({
   const specLine = [
     String(listing.manufacture_year),
     specs.loa_m ? `${specs.loa_m} m` : "",
-    specs.cabins ? tf(locale, String(specs.cabins) === "1" ? "listing.cabin" : "listing.cabins", { count: String(specs.cabins) }) : "",
+    specs.cabins ? t(String(specs.cabins) === "1" ? "listing.cabin" : "listing.cabins", { count: String(specs.cabins) }) : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -81,7 +84,7 @@ export default function BoatCard({
       <div className="relative">
         {listing.is_featured ? (
           <span className="absolute right-3 top-3 z-10 rounded bg-secondary px-2 py-0.5 font-label-sm uppercase text-on-secondary">
-            {tPromo(locale, "promo.badge")}
+            {t("promo.badge")}
           </span>
         ) : null}
         {primaryImage?.url ? (
@@ -104,7 +107,7 @@ export default function BoatCard({
           <div className="absolute left-3 top-3 flex gap-1 font-label-sm text-label-sm uppercase">
             {condition ? (
               <span className="rounded bg-primary/80 px-2 py-0.5 text-on-primary backdrop-blur">
-                {tf(locale, `listing.condition.${condition}`)}
+                {t(`listing.condition.${condition}`)}
               </span>
             ) : null}
             {boatType ? <span className="rounded bg-surface-container-lowest/90 px-2 py-0.5 text-primary backdrop-blur">{boatType}</span> : null}
@@ -129,9 +132,9 @@ export default function BoatCard({
             labelled image rather than a bare span with a label. */}
         <span
           role="img"
-          title={tf(locale, "listing.views_label", { count: exactViews })}
+          title={t("listing.views_label", { count: exactViews })}
           className="inline-flex items-center gap-space-xs"
-          aria-label={tf(locale, "listing.views_label", { count: exactViews })}
+          aria-label={t("listing.views_label", { count: exactViews })}
         >
           <svg
             aria-hidden="true"
@@ -165,7 +168,7 @@ export default function BoatCard({
       <div className="mt-space-sm flex flex-wrap items-end justify-between gap-x-space-md gap-y-space-xs">
         {price ? (
           <div>
-            <span className="block font-label-sm text-label-sm uppercase text-outline">{tf(locale, "listing.asking_price")}</span>
+            <span className="block font-label-sm text-label-sm uppercase text-outline">{t("listing.asking_price")}</span>
             <p className="font-spec-num text-headline-sm font-semibold text-primary">{price}</p>
           </div>
         ) : null}
@@ -178,13 +181,13 @@ export default function BoatCard({
             aria-describedby={disclaimerId}
             className="text-right font-body-sm text-on-surface-variant"
           >
-            <span className="block">{tf(locale, "finance.estimated_payment")}</span>
+            <span className="block">{t("finance.estimated_payment")}</span>
             <span className="font-title-sm text-title-sm text-on-surface">
-              {`${monthly}${tf(locale, "finance.per_month")}`}
+              {`${monthly}${t("finance.per_month")}`}
               <sup>
                 {/* WCAG 2.4.4: "*" is not a link purpose, so the mark stays
                     visible and the announced name is the translated sentence. */}
-                <a href={`#${disclaimerId}`} aria-label={tf(locale, "finance.disclaimer_link")}>
+                <a href={`#${disclaimerId}`} aria-label={t("finance.disclaimer_link")}>
                   *
                 </a>
               </sup>
@@ -201,7 +204,7 @@ export default function BoatCard({
             target="_blank"
             rel="noopener noreferrer"
           >
-            {tf(locale, "finance.calculate")}
+            {t("finance.calculate")}
             <span aria-hidden="true">→</span>
           </a>
           <FinanceDetailsDisclosure locale={locale} listingId={listing.id} />
