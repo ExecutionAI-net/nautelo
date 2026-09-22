@@ -105,6 +105,7 @@ export default async function CombinedDirectoryPage({
     sort: filters.sort,
   };
   const locations = results.facets?.locations ?? [];
+  const categoryCounts = results.facets?.categories ?? {};
 
   return (
     <main className="w-full bg-surface">
@@ -193,7 +194,7 @@ export default async function CombinedDirectoryPage({
 <select id="categoryFilter" name="category" defaultValue={filters.category ?? ""} className="w-full bg-surface-container-lowest px-space-md py-space-sm rounded text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary">
 <option value="">All Specializations</option>
 {categories.map((category) => (
-<option key={category.slug} value={category.slug}>{category.name}</option>
+<option key={category.slug} value={category.slug}>{category.name} ({categoryCounts[category.slug] ?? 0})</option>
 ))}
 </select>
 </div>

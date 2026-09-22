@@ -247,7 +247,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
               locations={facets.locations ?? []}
               idPrefix="f"
               labelClass={LABEL}
-              labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country"), searchCity: t("place.search_city") }}
+              labels={{ country: t("place.country"), allCountries: t("place.all_countries"), city: t("place.city"), allCities: t("place.all_cities"), chooseCountry: t("place.choose_country"), searchCity: t("place.search_city"), searchCountry: t("place.search_country") }}
               wrapperClass=""
               initial={{ country: filters.country, place: filters.place }}
             />
