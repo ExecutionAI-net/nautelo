@@ -115,12 +115,17 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
   const location = [row.city, row.country].filter(Boolean).join(", ");
   const heading = [row.year, row.title].filter(Boolean).join(" ");
   const published = row.status === "PUBLISHED" && row.slug;
+  const viewHref = published ? `/boats/${row.slug}/` : `/dashboard/listings/${row.id}/preview/`;
   return (
     <li className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm md:flex-row">
-      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-lg bg-surface-container-high md:w-72">
+      <Link
+        href={viewHref}
+        aria-label={published ? "View public page" : "Preview listing"}
+        className="group relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-lg bg-surface-container-high md:w-72"
+      >
         {row.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- owner-signed media URL
-          <img src={row.image_url} alt={row.title} className="h-full w-full object-cover" />
+          <img src={row.image_url} alt={row.title} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
         ) : null}
         <span className="absolute left-2 top-2 rounded bg-surface-container-lowest/90 px-2 py-0.5 font-label-sm text-label-sm text-primary">
           {STATUS_LABEL[row.status] ?? row.status}
@@ -131,7 +136,10 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
             {location}
           </span>
         ) : null}
-      </div>
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/0 font-label-md text-label-md text-on-primary opacity-0 transition-all group-hover:bg-primary/40 group-hover:opacity-100">
+          {published ? "View public page" : "Preview"}
+        </span>
+      </Link>
 
       <div className="flex min-w-0 flex-1 flex-col gap-space-sm">
         {row.boat_type ? (

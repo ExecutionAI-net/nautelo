@@ -33,7 +33,12 @@ from .views import (
     StaffRevisionDecisionView,
 )
 
-from .owner_views import ListingWorkflowDetailView, MyListingsSummaryView, MyListingsView
+from .owner_views import (
+    ListingPreviewView,
+    ListingWorkflowDetailView,
+    MyListingsSummaryView,
+    MyListingsView,
+)
 
 urlpatterns = [
     path("valuation/", ValuationView.as_view(), name="valuation"),
@@ -45,6 +50,11 @@ urlpatterns = [
         "listings/<uuid:listing_id>/workflow/",
         ListingWorkflowDetailView.as_view(),
         name="listing-workflow-detail",
+    ),
+    path(
+        "listings/<uuid:listing_id>/preview/",
+        ListingPreviewView.as_view(),
+        name="listing-preview",
     ),
     path("listings/drafts/", ListingDraftCreateView.as_view(), name="listing-draft-create"),
     path(

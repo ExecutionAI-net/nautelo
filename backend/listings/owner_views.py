@@ -18,7 +18,7 @@ from .drafts import open_revision_for
 from .enums import ListingStatus
 from .models import BoatListing
 from .permissions import ListingWorkflowEnabled
-from .serializers import ListingWorkflowSerializer, _with_url
+from .serializers import ListingPreviewSerializer, ListingWorkflowSerializer, _with_url
 
 
 def _title(listing) -> str:
@@ -135,3 +135,24 @@ class ListingWorkflowDetailView(APIView):
         listing = get_object_or_404(BoatListing, pk=listing_id)
         self.check_object_permissions(request, listing)
         return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingPreviewView(APIView):
+    """GET /api/v1/listings/<id>/preview/ - the owner's own listing rendered in
+    the exact shape a buyer will eventually see, built from the current draft
+    rather than the approved snapshot (see ListingPreviewSerializer). Backs the
+    "Preview" link in the sell form and the dashboard card thumbnail for a
+    listing that isn't published yet."""
+
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        ListingWorkflowEnabled,
+        IsOwnerOrBrokerEditor,
+    ]
+    throttle_scope = "listing_workflow"
+
+    def get(self, request, listing_id):
+        listing = get_object_or_404(BoatListing, pk=listing_id)
+        self.check_object_permissions(request, listing)
+        return Response(ListingPreviewSerializer().to_representation(listing))

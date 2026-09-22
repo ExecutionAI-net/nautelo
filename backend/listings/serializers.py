@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import serializers
@@ -9,6 +11,7 @@ from .drafts import open_revision_for
 from .payloads import (
     FROZEN_SPECIFICATION_KEYS,
     IMMUTABLE_FIELD_NAMES,
+    SPECIFICATIONS_SCHEMA_VERSION,
     is_frozen_after_submission,
     is_locked_for_owner,
 )
@@ -260,6 +263,101 @@ class PublicListingSerializer(serializers.Serializer):
             "finance": FinanceQuoteService.card_block(
                 listing, policy=self.finance_policy()
             ),
+        }
+
+
+class ListingPreviewSerializer(serializers.Serializer):
+    """The owner's own listing, in PublicListingSerializer's exact SHAPE, but
+    built from the current open revision's draft payload — falling back to the
+    approved snapshot for any field the draft has not touched — rather than
+    only ever from `current_public_snapshot`.
+
+    Deliberately NOT a subclass of PublicListingSerializer and never fed a row
+    from anywhere but `ListingPreviewView`: PublicListingSerializer's own
+    docstring is explicit that it "must only ever be fed rows from
+    published_listings_queryset()", precisely so a pending edit — including
+    broker finance settings (spec §36.1) — can never leak onto the real public
+    path. This is that same shape, deliberately walled off, for the one screen
+    where showing the pending edit IS the point: the owner's own preview
+    (never reachable except through IsOwnerOrBrokerEditor).
+
+    The finance block is always `{"visible": False}` here: FinanceQuoteService
+    reconciles against the live global configuration for a *committed* price,
+    and a draft price is, by definition, not committed yet.
+    """
+
+    def to_representation(self, listing):
+        from .snapshots import build_media_manifest
+
+        revision = open_revision_for(listing)
+        payload = dict((revision.payload if revision else None) or {})
+        snapshot = listing.current_public_snapshot
+
+        def field(key, snapshot_attr, default=""):
+            return payload[key] if key in payload else getattr(snapshot, snapshot_attr, default) if snapshot else default
+
+        specifications = payload.get("specifications")
+        if specifications is None:
+            specifications = snapshot.specifications if snapshot else {}
+        price = payload.get("price")
+        if price is None:
+            price = snapshot.price if snapshot else None
+        media_ids = payload.get("media_ids")
+        media_manifest = (
+            build_media_manifest(listing, media_ids)
+            if media_ids is not None
+            else (snapshot.media_manifest if snapshot else [])
+        )
+        return {
+            "id": str(listing.pk),
+            # A draft has no slug yet (spec: assigned once, at first
+            # publication) — the preview route is id-keyed, never slug-keyed.
+            "slug": listing.slug,
+            "seller_type": listing.seller_type,
+            "broker": (
+                {"id": str(listing.broker_id), "name": listing.broker.name, "slug": listing.broker.slug}
+                if listing.broker_id
+                else None
+            ),
+            "snapshot_version": snapshot.version if snapshot else None,
+            "published_at": listing.published_at,
+            "is_featured": bool(listing.featured_until and listing.featured_until > timezone.now()),
+            "expires_at": listing.expires_at,
+            "brand_name": listing.brand.name,
+            "model_name": listing.model.name,
+            "custom_model_name": listing.custom_model_name,
+            "manufacture_year": listing.manufacture_year,
+            "title": {
+                "en": field("title_en", "title_en"),
+                "it": field("title_it", "title_it"),
+                "es": field("title_es", "title_es"),
+            },
+            "description": {
+                "en": field("description_en", "description_en"),
+                "it": field("description_it", "description_it"),
+                "es": field("description_es", "description_es"),
+            },
+            "specifications": specifications,
+            "specifications_schema_version": (
+                snapshot.specifications_schema_version if snapshot else SPECIFICATIONS_SCHEMA_VERSION
+            ),
+            "location": {
+                "country": field("location_country", "location_country"),
+                "region": field("location_region", "location_region"),
+                "city": field("location_city", "location_city"),
+                "place_id": (
+                    payload["location_place_id"]
+                    if "location_place_id" in payload
+                    else (snapshot.location_place_id if snapshot else None)
+                ),
+            },
+            "price": {
+                "amount": f"{Decimal(price):f}" if price is not None else "0.00",
+                "currency": field("currency", "currency", listing.currency),
+            },
+            "media": [_with_url(item) for item in media_manifest],
+            "view_count": listing.view_count_cached,
+            "finance": {"visible": False},
         }
 
 

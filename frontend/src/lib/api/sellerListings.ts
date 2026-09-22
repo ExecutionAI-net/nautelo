@@ -1,5 +1,6 @@
 // Seller-side listing workflow (spec 20, 24, 30.1). Browser-only, authenticated.
 import { apiFetch } from "@/lib/api/client";
+import type { PublicListing } from "@/lib/api/listings";
 import { sha256HexSync } from "@/lib/sha256";
 
 export interface TaxonomyItem {
@@ -253,4 +254,14 @@ export function fetchMyListingsSummary() {
 
 export function fetchWorkflowListing(id: string) {
   return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(id)}/workflow/`);
+}
+
+/**
+ * The owner's own listing, in the exact shape a buyer will eventually see
+ * (`PublicListing`), built from the current draft rather than the approved
+ * snapshot — backend/listings/serializers.py's `ListingPreviewSerializer`.
+ * Requires owning (or holding broker edit rights on) the listing.
+ */
+export function fetchListingPreview(id: string) {
+  return apiFetch<PublicListing>(`/api/v1/listings/${encodeURIComponent(id)}/preview/`);
 }
