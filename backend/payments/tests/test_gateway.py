@@ -10,6 +10,7 @@ from payments.errors import PaymentGatewayUnavailable, ProductNotAvailable
 from payments.gateway import (
     CheckoutSessionResult,
     PriceSnapshot,
+    ProductWithPrice,
     StripeApiGateway,
     StripeGateway,
     StripeUnavailable,
@@ -20,7 +21,7 @@ from payments.tests.fakes import FakeStripeGateway
 
 def test_the_fake_and_the_real_gateway_have_identical_signatures():
     """A drifted fake is a test suite that proves nothing about production."""
-    for name in ("create_checkout_session", "retrieve_price"):
+    for name in ("create_checkout_session", "retrieve_price", "list_active_products_with_prices"):
         real = inspect.signature(getattr(StripeApiGateway, name))
         fake = inspect.signature(getattr(FakeStripeGateway, name))
         # Names and kinds only: the fake carries no annotations.
@@ -156,3 +157,83 @@ def test_an_error_may_carry_meta_but_never_a_secret():
     error = ProductNotAvailable(product_code="INDIVIDUAL_LISTING_RIGHT")
 
     assert error.meta == {"product_code": "INDIVIDUAL_LISTING_RIGHT"}
+
+
+class _FakePrice:
+    def __init__(self, id, unit_amount, currency):
+        self.id = id
+        self.unit_amount = unit_amount
+        self.currency = currency
+
+
+class _FakeProduct:
+    def __init__(self, id, name, default_price):
+        self.id = id
+        self.name = name
+        self.default_price = default_price
+
+
+class _FakePage:
+    def __init__(self, items):
+        self._items = items
+
+    def auto_paging_iter(self):
+        return iter(self._items)
+
+
+def test_list_active_products_with_prices_reads_the_expanded_default_price(monkeypatch):
+    products = _FakePage(
+        [
+            _FakeProduct("prod_a", "Boutique Broker", _FakePrice("price_a", 29900, "eur")),
+            # No default price configured on the product: skipped, not guessed.
+            _FakeProduct("prod_b", "No Price Yet", None),
+            # Stripe did not expand it (a bare id string): also skipped.
+            _FakeProduct("prod_c", "Not Expanded", "price_c"),
+        ]
+    )
+
+    class _FakeClient:
+        def __init__(self, api_key, **kwargs):
+            self.v1 = self
+
+        @property
+        def products(self):
+            return self
+
+        def list(self, params):
+            assert params == {"active": True, "expand": ["data.default_price"], "limit": 100}
+            return products
+
+    monkeypatch.setattr(stripe, "StripeClient", _FakeClient)
+    gateway = StripeApiGateway(api_key="sk_test_unit")
+
+    result = gateway.list_active_products_with_prices()
+
+    assert result == [
+        ProductWithPrice(
+            product_id="prod_a",
+            product_name="Boutique Broker",
+            price_id="price_a",
+            unit_amount=29900,
+            currency="eur",
+        )
+    ]
+
+
+def test_list_active_products_with_prices_translates_a_stripe_error(monkeypatch):
+    class _FakeClient:
+        def __init__(self, api_key, **kwargs):
+            self.v1 = self
+
+        @property
+        def products(self):
+            return self
+
+        def list(self, params):
+            raise stripe.StripeError("boom")
+
+    monkeypatch.setattr(stripe, "StripeClient", _FakeClient)
+    gateway = StripeApiGateway(api_key="sk_test_unit")
+
+    with pytest.raises(StripeUnavailable):
+        gateway.list_active_products_with_prices()
