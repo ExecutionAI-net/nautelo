@@ -120,6 +120,36 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "IT": "L abbonamento non e attivo, quindi il profilo non e piu pubblicato. Paga per riattivarlo.",
     "ES": "La membresia no esta activa, asi que tu perfil ya no se muestra. Paga para reactivarlo."
   },
+  "notification.broker_trial_started.title": {
+    "EN": "Your free trial has started",
+    "IT": "La tua prova gratuita e iniziata",
+    "ES": "Tu prueba gratuita ha empezado"
+  },
+  "notification.broker_trial_started.body": {
+    "EN": "Your brokerage plan is set. Staff approval is what puts your brokerage live.",
+    "IT": "Il piano della tua agenzia e attivo. L approvazione dello staff pubblica la tua agenzia.",
+    "ES": "El plan de tu agencia esta activo. La aprobacion del personal publica tu agencia."
+  },
+  "notification.broker_payment_failed.title": {
+    "EN": "Payment not received",
+    "IT": "Pagamento non ricevuto",
+    "ES": "Pago no recibido"
+  },
+  "notification.broker_payment_failed.body": {
+    "EN": "We could not collect your brokerage subscription. Pay within 24 hours to keep your brokerage online.",
+    "IT": "Non abbiamo potuto incassare l abbonamento della tua agenzia. Paga entro 24 ore per mantenerla online.",
+    "ES": "No pudimos cobrar la suscripcion de tu agencia. Paga en 24 horas para mantenerla en linea."
+  },
+  "notification.broker_suspended.title": {
+    "EN": "Your brokerage is suspended",
+    "IT": "La tua agenzia e sospesa",
+    "ES": "Tu agencia esta suspendida"
+  },
+  "notification.broker_suspended.body": {
+    "EN": "The subscription is not active, so your vessels are offline. Pay to bring them back.",
+    "IT": "L abbonamento non e attivo, quindi le tue imbarcazioni sono offline. Paga per riattivarle.",
+    "ES": "La suscripcion no esta activa, asi que tus embarcaciones estan fuera de linea. Paga para reactivarlas."
+  },
   "notification.payment_fulfilled.title": {
     "EN": "Your purchase is ready",
     "IT": "Il tuo acquisto e pronto",
