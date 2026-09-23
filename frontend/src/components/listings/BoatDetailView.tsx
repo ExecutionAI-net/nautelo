@@ -127,7 +127,7 @@ export function BoatDetailView({ listing, locale, t, headerExtra, asideExtra }: 
                   add: t("boats.compare.add"),
                   added: t("boats.compare.added"),
                   remove: t("boats.compare.remove_from_compare"),
-                  open: (count) => t("boats.compare.open", { count }),
+                  open: t("boats.compare.open", { count: "{count}" }),
                   full: t("boats.compare.full", { max: 4 }),
                 }}
               />

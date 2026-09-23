@@ -8,7 +8,7 @@ const LABELS = {
   add: "Add to compare",
   added: "Added",
   remove: "Remove from compare",
-  open: (count: number) => `Compare ${count} boats`,
+  open: "Compare {count} boats",
   full: "Full",
 };
 const ID = "3f1d2c4e-0000-4000-8000-00000000000a";

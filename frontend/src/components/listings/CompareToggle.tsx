@@ -9,8 +9,10 @@ export interface CompareToggleLabels {
   add: string;
   added: string;
   remove: string;
-  /** "Compare {count} boats" with the placeholder already filled by the caller. */
-  open: (count: number) => string;
+  /** "Compare {count} boats": a template, not a function - this component is a client
+   * component and the boat page is a server component, and a function cannot cross that
+   * boundary (the whole page failed with a 500 when it did). */
+  open: string;
   full: string;
 }
 
@@ -45,7 +47,7 @@ export default function CompareToggle({ listingId, labels }: { listingId: string
       </button>
       {ids.length > 0 ? (
         <Link href={comparePath(ids)} className="font-label-md text-primary underline-offset-2 hover:underline">
-          {labels.open(ids.length)}
+          {labels.open.replace("{count}", String(ids.length))}
         </Link>
       ) : null}
       {included ? (
