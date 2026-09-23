@@ -194,6 +194,10 @@ def test_a_broker_listing_notifies_readers_and_emails_the_organization_once(
         ["leads@phase6-svc-brokers.example"]
     ]
     conversation = Conversation.objects.get()
+    # Team members are sent to their broker seat, not the sender's page.
+    assert set(Notification.objects.values_list("target_url", flat=True)) == {
+        f"/dashboard/broker/messages/{conversation.pk}/"
+    }
     assert conversation.conversation_type == ConversationType.LISTING_INQUIRY
     assert conversation.broker_id == broker.pk
     assert conversation.listing_id == listing.pk
