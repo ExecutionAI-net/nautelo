@@ -163,7 +163,7 @@ Toplam: **20 bulgu (F)**, **18 kullanılabilirlik notu (U)**. Öncelikli olanlar
 | F7 | ✅ #476 | Promosyon durumu sunucudan (`promotion` bloğu) |
 | F12 | ✅ #476 | Purchases: sipariş + promosyon + abonelikler tek defterde |
 | F10 | ✅ #476 | Marka/model adı, spec başına satır, fotoğraf küçük resimleri |
-| F18 | ✅ #476 (kısmen) | Dashboard menüleri, auth başlıkları, kapalı liste spec değerleri çevrildi; paket adları ve değerleme sonucu metni açık |
+| F18 | ✅ #476 + #479 | Dashboard menüleri, auth başlıkları, kapalı liste spec değerleri (#476); paket adları, paket seçici ve değerleme sonucu metni (#479) |
 | F1 | ✅ #476 | Deploy'da `sync_ui_text` eski "Nauta" metinlerini temizler; iletişim sayfasındaki sahte telefon/e-postalar kaldırıldı (gerçek bilgiler gerekli) |
 | F16 | ✅ #476 | `storage_key`/`checksum_sha256` herkese açık API'den çıkarıldı |
 | F2, F3, F4, F5, F6, F8, F20 | ✅ #477 | |
