@@ -60,9 +60,9 @@ const SIM: Record<string, Entry> = {
   "sim.reverse.count": { en: "{count} boats listed", it: "{count} barche in vendita", es: "{count} barcos publicados" },
   "sim.cta": { en: "Ask for a financing study", it: "Richiedi uno studio di finanziamento", es: "Solicitar estudio de financiación" },
   "sim.disclaimer": {
-    en: "Indicative estimate, not an offer. Rates and terms are decided by the lender. Domestic operations only. Nauta does not lend money.",
-    it: "Stima indicativa, non un'offerta. Tassi e condizioni sono decisi dal finanziatore. Solo operazioni nazionali. Nauta non presta denaro.",
-    es: "Estimación orientativa, no una oferta. Los tipos y plazos los decide la entidad. Solo operaciones nacionales. Nauta no presta dinero.",
+    en: "Indicative estimate, not an offer. Rates and terms are decided by the lender. Domestic operations only. Nautelo does not lend money.",
+    it: "Stima indicativa, non un'offerta. Tassi e condizioni sono decisi dal finanziatore. Solo operazioni nazionali. Nautelo non presta denaro.",
+    es: "Estimación orientativa, no una oferta. Los tipos y plazos los decide la entidad. Solo operaciones nacionales. Nautelo no presta dinero.",
   },
   "sim.unavailable": { en: "The simulator is not available right now.", it: "Il simulatore non è disponibile al momento.", es: "El simulador no está disponible ahora." },
   "sim.no_rule": { en: "No financing rule covers this combination yet.", it: "Nessuna regola copre ancora questa combinazione.", es: "Ninguna regla cubre todavía esta combinación." },

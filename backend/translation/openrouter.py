@@ -42,7 +42,7 @@ def _request(path: str, *, body: dict | None = None, timeout: int = TIMEOUT_SECO
     if key:
         headers["Authorization"] = f"Bearer {key}"
         headers["HTTP-Referer"] = getattr(settings, "PUBLIC_BASE_URL", "") or "https://nautelo.com"
-        headers["X-Title"] = "Nauta"
+        headers["X-Title"] = "Nautelo"
     request = urllib.request.Request(_base() + path, data=data, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed https host

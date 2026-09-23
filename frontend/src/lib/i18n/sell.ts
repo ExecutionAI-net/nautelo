@@ -137,9 +137,9 @@ const SELL: Record<string, Entry> = {
   "sell.translation_health": { en: "Catalog translation health", it: "Stato delle traduzioni", es: "Estado de las traducciones" },
   "sell.master": { en: "Master", it: "Originale", es: "Original" },
   "sell.preview_note": {
-    en: "Vessels listed on Nauta are reviewed before publication. AI translations keep the nautical terminology.",
-    it: "Le imbarcazioni su Nauta sono controllate prima della pubblicazione. Le traduzioni IA mantengono la terminologia nautica.",
-    es: "Las embarcaciones en Nauta se revisan antes de publicarse. Las traducciones con IA conservan la terminologia nautica.",
+    en: "Vessels listed on Nautelo are reviewed before publication. AI translations keep the nautical terminology.",
+    it: "Le imbarcazioni su Nautelo sono controllate prima della pubblicazione. Le traduzioni IA mantengono la terminologia nautica.",
+    es: "Las embarcaciones en Nautelo se revisan antes de publicarse. Las traducciones con IA conservan la terminologia nautica.",
   },
   "sell.media_free_note": {
     en: "A free listing includes {images} photo and no video. A paid listing includes up to {paid_images} photos and {paid_videos} video.",
@@ -168,9 +168,9 @@ const SELL: Record<string, Entry> = {
   "sell.cabins": { en: "Cabins", it: "Cabine", es: "Camarotes" },
   "sell.bathrooms": { en: "Bathrooms", it: "Bagni", es: "Baños" },
   "sell.contact_note": {
-    en: "Buyers contact you through Nauta messaging. Your email and phone number are never published.",
-    it: "Gli acquirenti ti contattano tramite i messaggi di Nauta. Email e telefono non vengono mai pubblicati.",
-    es: "Los compradores te contactan mediante la mensajería de Nauta. Tu correo y teléfono nunca se publican.",
+    en: "Buyers contact you through Nautelo messaging. Your email and phone number are never published.",
+    it: "Gli acquirenti ti contattano tramite i messaggi di Nautelo. Email e telefono non vengono mai pubblicati.",
+    es: "Los compradores te contactan mediante la mensajería de Nautelo. Tu correo y teléfono nunca se publican.",
   },
   "sell.preview": { en: "Marketplace card preview", it: "Anteprima della scheda", es: "Vista previa de la tarjeta" },
   "sell.asking_price": { en: "Asking price", it: "Prezzo richiesto", es: "Precio de venta" },

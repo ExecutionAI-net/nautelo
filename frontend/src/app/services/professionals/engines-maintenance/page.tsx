@@ -112,7 +112,7 @@ export default async function EnginesMaintenance() {
               The Mediterranean and Tyrrhenian basins present some of the most aggressive marine operational environments on earth. Elevated water temperatures and heightened salinity levels accelerate galvanic electrolysis, scale calcification inside raw water heat exchangers, and biological fouling on running gear. Operating high-output marine diesel engines under sustained cruising RPM without strict preventative calibration guarantees premature failure and exorbitant downtime.
             </p>
 <p>
-              Nauta coordinates certified naval master technicians and authorized engine specialists who understand these exact regional realities. From systematic descaling of charge-air coolers and turbocharger intercoolers using non-destructive biochemical flushes to micrometer-level drive shaft realignment and Volvo Penta IPS / Cummins Zeus pod recalibrations, every intervention is performed to original equipment manufacturer (OEM) tolerances.
+              Nautelo coordinates certified naval master technicians and authorized engine specialists who understand these exact regional realities. From systematic descaling of charge-air coolers and turbocharger intercoolers using non-destructive biochemical flushes to micrometer-level drive shaft realignment and Volvo Penta IPS / Cummins Zeus pod recalibrations, every intervention is performed to original equipment manufacturer (OEM) tolerances.
             </p>
 <p>
               {t("svc_engines.our_engineers_ensure_that_logbooks_are")}

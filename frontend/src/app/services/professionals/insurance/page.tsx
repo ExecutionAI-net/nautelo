@@ -690,7 +690,7 @@ export default async function YachtInsurance() {
 <span className="material-symbols-outlined text-secondary transition-transform duration-300 group-open:rotate-180">expand_more</span>
 </summary>
 <div className="pt-space-sm font-body-md text-body-md text-on-surface-variant leading-relaxed">
-            Actual Cash Value (ACV) settles losses based on the vessel&apos;s depreciated worth at the exact second of loss, taking into account age, engine hours, and market downturns. In contrast, an Agreed Fixed Value (Valor Convenido) policy guarantees that the hull valuation stated in your schedule will be paid out entirely in a total loss without any deductions for market fluctuation or age depreciation. Nauta structures agreed value policies backed by accredited marine survey certificates.
+            Actual Cash Value (ACV) settles losses based on the vessel&apos;s depreciated worth at the exact second of loss, taking into account age, engine hours, and market downturns. In contrast, an Agreed Fixed Value (Valor Convenido) policy guarantees that the hull valuation stated in your schedule will be paid out entirely in a total loss without any deductions for market fluctuation or age depreciation. Nautelo structures agreed value policies backed by accredited marine survey certificates.
           </div>
 </details>
 
@@ -710,7 +710,7 @@ export default async function YachtInsurance() {
 <span className="material-symbols-outlined text-secondary transition-transform duration-300 group-open:rotate-180">expand_more</span>
 </summary>
 <div className="pt-space-sm font-body-md text-body-md text-on-surface-variant leading-relaxed">
-            When bound through Nauta&apos;s Mediterranean underwriting partners, policies encompass an expansive geographical navigation limit (typically Gibraltar to the Ionian Sea, including the Spanish archipelagos, Ligurian coastline, Corsica, and Sardinia). Coverage, salvage liabilities, and P&amp;I guarantees remain completely intact as you traverse Spanish, French, and Italian jurisdictions without notifying the insurer for each passage.
+            When bound through Nautelo&apos;s Mediterranean underwriting partners, policies encompass an expansive geographical navigation limit (typically Gibraltar to the Ionian Sea, including the Spanish archipelagos, Ligurian coastline, Corsica, and Sardinia). Coverage, salvage liabilities, and P&amp;I guarantees remain completely intact as you traverse Spanish, French, and Italian jurisdictions without notifying the insurer for each passage.
           </div>
 </details>
 

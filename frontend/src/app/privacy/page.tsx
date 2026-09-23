@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <LegalPage
       title="Privacy notice"
       updated="2026-09"
-      intro="This notice explains which personal data Nauta processes when you browse boats, contact sellers, brokers and professionals, or publish listings, and why."
+      intro="This notice explains which personal data Nautelo processes when you browse boats, contact sellers, brokers and professionals, or publish listings, and why."
       sections={[
         {
           heading: "Data we process",
