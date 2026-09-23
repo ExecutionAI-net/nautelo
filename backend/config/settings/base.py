@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "entitlements",
     "messaging",
     "notifications",
+    "emailing",
     "platform_settings",
     "payments",
     "content",
@@ -362,6 +363,12 @@ CORS_ALLOW_CREDENTIALS = True
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+
+# ZeptoMail (emailing.backend.ZeptoMailBackend): point EMAIL_BACKEND at that
+# class to send through it. Empty by default so a deployment that hasn't set
+# up ZeptoMail yet fails loudly at send time rather than silently dropping mail.
+ZEPTOMAIL_API_KEY = env("ZEPTOMAIL_API_KEY", default="")
+ZEPTOMAIL_API_URL = env("ZEPTOMAIL_API_URL", default="https://api.zeptomail.eu/v1.1/email")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
