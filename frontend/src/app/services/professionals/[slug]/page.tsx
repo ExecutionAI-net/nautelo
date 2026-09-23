@@ -9,6 +9,7 @@ import InquiryForm from "@/components/inquiry/InquiryForm";
 import ProfileMonogram from "@/components/directory/ProfileMonogram";
 import { fetchProfessional, formatProfessionalLocation } from "@/lib/api/directory";
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
+import { formatPrice } from "@/lib/api/plans";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +138,11 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                     </h3>
                     <p className="mt-space-xs font-body-sm text-on-surface-variant">
                       {service.category.name}
+                    </p>
+                    <p className="mt-space-xs font-body-sm font-semibold text-primary">
+                      {service.price_from
+                        ? `${t("professional.services.price_from")} ${formatPrice(service.price_from, "EUR")}${service.pricing_note ? ` ${service.pricing_note}` : ""}`
+                        : t("professional.services.quote_on_request")}
                     </p>
                     {service.description ? (
                       <p className="mt-space-sm font-body-md text-on-surface">

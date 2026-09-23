@@ -69,6 +69,8 @@ export interface ProfessionalService {
   description: string;
   service_area: string[];
   category: CategoryRef;
+  price_from: string | null;
+  pricing_note: string;
 }
 
 export interface RelatedProfessional {
