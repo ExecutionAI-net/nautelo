@@ -123,10 +123,15 @@ def _activate(subscription, *, period_end=None, now=None):
     subscription.save()
 
     profile = subscription.profile
-    # A new profile stays DRAFT/PENDING until staff approve it; payment only
-    # brings back a profile that a lapse took offline.
-    comes_online = was_offline and profile.status == ProfessionalProfileStatus.SUSPENDED
-    if profile.status != ProfessionalProfileStatus.ACTIVE and comes_online:
+    # Payment is what puts a profile live - a brand-new profile's first
+    # payment (DRAFT/PENDING) or a lapsed one paying again (SUSPENDED because
+    # its own subscription had gone offline) both go ACTIVE here. The one
+    # exception: a profile a staff member suspended while its subscription
+    # kept renewing normally (`not was_offline`) is a policy decision, not a
+    # billing state, and a routine recurring payment must not silently
+    # override it.
+    staff_suspended = profile.status == ProfessionalProfileStatus.SUSPENDED and not was_offline
+    if profile.status != ProfessionalProfileStatus.ACTIVE and not staff_suspended:
         profile.status = ProfessionalProfileStatus.ACTIVE
         profile.save(update_fields=["status", "updated_at"])
         _notify(profile, NotificationType.PROFESSIONAL_ACTIVATED, f"{subscription.pk}:active:{now.date()}")

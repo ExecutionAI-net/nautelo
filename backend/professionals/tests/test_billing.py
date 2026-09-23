@@ -62,14 +62,15 @@ def _invoice_event(event_type, profile, invoice_id="in_1"):
 
 
 @pytest.mark.django_db
-def test_first_payment_starts_the_subscription_but_staff_still_approve_the_profile(profile):
+def test_first_payment_activates_both_the_subscription_and_the_profile(profile):
     assert handle_checkout_session_paid(_session(profile)) == WebhookResult.FULFILLED
 
     profile.refresh_from_db()
     subscription = ProfessionalSubscription.objects.get(profile=profile)
-    assert profile.status == ProfessionalProfileStatus.PENDING
+    assert profile.status == ProfessionalProfileStatus.ACTIVE
     assert subscription.status == SubscriptionStatus.ACTIVE
     assert subscription.stripe_subscription_id == "sub_1"
+    assert Notification.objects.filter(recipient=profile.owner_user, notification_type="professional.activated").exists()
 
 
 @pytest.mark.django_db
