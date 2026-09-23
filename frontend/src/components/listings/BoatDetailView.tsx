@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import Link from "@/components/layout/LocaleLink";
+import CompareToggle from "@/components/listings/CompareToggle";
 import type { MessageKey, Translate } from "@/i18n";
 import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import type { PublicListing } from "@/lib/api/listings";
@@ -112,6 +113,18 @@ export function BoatDetailView({ listing, locale, t, headerExtra, asideExtra }: 
             <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.asking_price")}</p>
             {price ? <p className="font-spec-num text-headline-lg font-semibold text-primary">{price}</p> : null}
             {headerExtra ? <div className="mt-space-xs">{headerExtra}</div> : null}
+            <div className="mt-space-xs">
+              <CompareToggle
+                listingId={listing.id}
+                labels={{
+                  add: t("boats.compare.add"),
+                  added: t("boats.compare.added"),
+                  remove: t("boats.compare.remove_from_compare"),
+                  open: (count) => t("boats.compare.open", { count }),
+                  full: t("boats.compare.full", { max: 4 }),
+                }}
+              />
+            </div>
           </div>
         </div>
 
