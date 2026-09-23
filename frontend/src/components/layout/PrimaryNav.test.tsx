@@ -48,6 +48,7 @@ function mockSession(
           id: "1",
           email: "nav@example.com",
           full_name: "Nav User",
+          phone_number: "",
           primary_role: "PRIVATE_SELLER",
           locale: localeCode,
           email_verified: true,

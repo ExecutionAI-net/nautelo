@@ -35,6 +35,7 @@ export default function AccountSettings() {
   const { session, reload } = useSession();
   const user = session?.user;
   const [fullName, setFullName] = useState(user?.full_name ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone_number ?? "");
   const [locale, setLocale] = useState<string>(user?.locale ?? "EN");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -50,7 +51,7 @@ export default function AccountSettings() {
       await apiFetch("/api/v1/account/", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ full_name: fullName, locale }),
+        body: JSON.stringify({ full_name: fullName, phone_number: phoneNumber, locale }),
       });
       await reload();
       setStatus("saved");
@@ -99,6 +100,16 @@ export default function AccountSettings() {
             <label className="font-label-sm uppercase text-on-surface-variant">
               Full name
               <input className={FIELD} value={fullName} onChange={(event) => setFullName(event.target.value)} />
+            </label>
+            <label className="font-label-sm uppercase text-on-surface-variant">
+              Phone number
+              <input
+                className={FIELD}
+                type="tel"
+                value={phoneNumber}
+                onChange={(event) => setPhoneNumber(event.target.value)}
+                placeholder="+34 600 000 000"
+              />
             </label>
             <div>
               <span className="font-label-sm uppercase text-on-surface-variant">Email</span>
