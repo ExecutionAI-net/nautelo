@@ -245,3 +245,61 @@ def test_membership_status_endpoint(profile):
     assert response.status_code == 200
     assert response.data["status"] == "INACTIVE"
     assert response.data["profile_status"] == "PENDING"
+
+
+def _stripe_subscription_event(profile, **extra):
+    payload = {
+        "id": "sub_1",
+        "status": "trialing",
+        "cancel_at_period_end": False,
+        "metadata": {"kind": "professional_membership", "professional_id": str(profile.pk), "trial": "1"},
+        "items": {"data": [{"current_period_end": int((timezone.now() + timedelta(days=30)).timestamp())}]},
+    }
+    payload.update(extra)
+    return {"id": "evt_upd", "type": "customer.subscription.updated", "data": {"object": payload}}
+
+
+@pytest.mark.django_db
+def test_a_trial_invoice_arriving_before_the_checkout_event_opens_the_trial_not_a_paid_period(profile):
+    ProfessionalPlan.objects.create(slug="t", name="T", monthly_price=49, trial_days=30, is_active=True, stripe_price_id="price_1")
+    invoice = _invoice_event("invoice.paid", profile)
+    invoice["data"]["object"]["amount_paid"] = 0
+    invoice["data"]["object"]["parent"]["subscription_details"]["metadata"]["trial"] = "1"
+
+    assert HANDLERS["invoice.paid"](invoice) == WebhookResult.FULFILLED
+    sub = ProfessionalSubscription.objects.get(profile=profile)
+    assert sub.status == SubscriptionStatus.TRIALING and sub.trial_used_at is not None
+    first_trial_end = sub.trial_ends_at
+
+    session = _session(profile, payment_status="no_payment_required")
+    session["data"]["object"]["metadata"]["trial"] = "1"
+    assert handle_checkout_session_paid(session) == WebhookResult.FULFILLED
+    sub.refresh_from_db()
+    assert (sub.status, sub.trial_ends_at) == (SubscriptionStatus.TRIALING, first_trial_end)
+
+
+@pytest.mark.django_db
+def test_a_zero_total_checkout_reported_as_paid_is_still_a_trial(profile):
+    ProfessionalPlan.objects.create(slug="t", name="T", monthly_price=49, trial_days=30, is_active=True, stripe_price_id="price_1")
+    session = _session(profile, payment_status="paid", amount_total=0)
+    session["data"]["object"]["metadata"]["trial"] = "1"
+
+    assert handle_checkout_session_paid(session) == WebhookResult.FULFILLED
+    sub = ProfessionalSubscription.objects.get(profile=profile)
+    assert sub.status == SubscriptionStatus.TRIALING and sub.trial_used_at is not None
+
+
+@pytest.mark.django_db
+def test_a_portal_cancellation_is_mirrored_and_can_be_reversed(profile):
+    handle_checkout_session_paid(_session(profile))
+    api = APIClient()
+    api.force_authenticate(profile.owner_user)
+    url = reverse("provider-membership")
+
+    event = _stripe_subscription_event(profile, status="active", cancel_at_period_end=True)
+    assert HANDLERS["customer.subscription.updated"](event) == WebhookResult.FULFILLED
+    assert api.get(url).data["cancel_at_period_end"] is True
+    assert ProfessionalSubscription.objects.get(profile=profile).status == SubscriptionStatus.ACTIVE
+
+    HANDLERS["customer.subscription.updated"](_stripe_subscription_event(profile, status="active"))
+    assert api.get(url).data["cancel_at_period_end"] is False

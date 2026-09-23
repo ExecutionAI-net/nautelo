@@ -410,6 +410,7 @@ HANDLERS.update(
         "invoice.paid": _membership("handle_invoice_paid"),
         "invoice.payment_failed": _membership("handle_invoice_payment_failed"),
         "customer.subscription.deleted": _membership("handle_subscription_deleted"),
+        "customer.subscription.updated": _membership("handle_subscription_updated"),
         "checkout.session.completed": handle_checkout_session_paid,
         "checkout.session.async_payment_succeeded": handle_checkout_session_paid,
         "checkout.session.async_payment_failed": handle_checkout_session_failed,

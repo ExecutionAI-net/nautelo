@@ -267,6 +267,7 @@ class BrokerSubscriptionView(BrokerTeamBaseView):
                 "trial_available": trial_available(broker),
                 "trial_days": plan.trial_days if plan else 0,
                 "past_due_since": subscription.past_due_since if subscription else None,
+                "cancel_at_period_end": bool(subscription and subscription.cancel_at_period_end),
                 "plan": (
                     {"name": plan.name, "monthly_price": str(plan.monthly_price), "currency": plan.currency}
                     if plan
