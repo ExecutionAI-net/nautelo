@@ -229,8 +229,8 @@ function KpiCard({ label, value, note, icon, accent, onClick }: { label: string;
 }
 
 export default function MyListings({
-  eyebrow = "Bespoke maritime portfolio",
-  heading = "My vessel listings",
+  eyebrow = "Seller area / My listings",
+  heading = "My listings",
   createHref = "/sell/create/",
   createLabel = "Create new listing",
   fleet = false,

@@ -89,8 +89,8 @@ export default function AccountSettings() {
   return (
     <form onSubmit={save} className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Your account</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Account</h1>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Seller area / My account</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">My account</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">Your personal details, language and sign-in security.</p>
       </div>
 

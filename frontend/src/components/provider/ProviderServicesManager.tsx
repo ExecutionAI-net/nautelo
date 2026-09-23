@@ -64,8 +64,8 @@ export default function ProviderServicesManager() {
   return (
     <div className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Service catalogue</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Your services</h1>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / Services</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Services</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">
           {services.filter((service) => service.is_active).length} active of {services.length} services shown to buyers.
         </p>

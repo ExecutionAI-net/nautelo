@@ -60,6 +60,13 @@ function toDraft(profile: ProviderProfile): Draft {
   return { ...profile, place_id: profile.place_id ?? null, website_url: profile.website_url ?? "", service_area: profile.service_area };
 }
 
+const PROFILE_STATUS: Record<string, string> = {
+  DRAFT: "Draft (not in the directory yet)",
+  PENDING: "Waiting for staff review",
+  ACTIVE: "Active (listed in the directory)",
+  SUSPENDED: "Suspended",
+};
+
 export default function ProviderProfileForm() {
   const [profile, setProfile] = useState<ProviderProfile | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -130,9 +137,11 @@ export default function ProviderProfileForm() {
         <UnpaidNotice status={profile?.status} />
       </div>
       <div className="sm:col-span-2">
-        <h1 className="font-headline-lg text-headline-lg text-primary">Company profile</h1>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / Profile</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Profile</h1>
         <p className="font-body-md text-on-surface-variant">
-          Status: <strong>{profile?.status ?? "Not created yet"}</strong>
+          This is what customers see in the directory. Status:{" "}
+          <strong>{profile?.status ? PROFILE_STATUS[profile.status] ?? profile.status : "Not created yet"}</strong>
           {profile?.status === "DRAFT" ? " - submit it for review to appear in the directory." : ""}
         </p>
         {profile?.status === "DRAFT" ? <CompletenessChecklist completeness={profile.completeness} servicesHref="/dashboard/service-provider/services/" /> : null}
