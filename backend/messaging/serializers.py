@@ -47,9 +47,7 @@ class InquirySubmissionSerializer(serializers.Serializer):
         trim_whitespace=True,
     )
     email = serializers.EmailField()
-    phone = serializers.CharField(
-        required=False, allow_blank=True, max_length=PHONE_MAX_LENGTH
-    )
+    phone = serializers.CharField(max_length=PHONE_MAX_LENGTH)
     subject = serializers.CharField(
         min_length=SUBJECT_MIN_LENGTH,
         max_length=SUBJECT_MAX_LENGTH,
@@ -75,8 +73,6 @@ class InquirySubmissionSerializer(serializers.Serializer):
         )
 
     def validate_phone(self, value):
-        if not value:
-            return ""
         normalized = _PHONE_NOISE.sub("", value)
         if not E164_PATTERN.match(normalized):
             raise serializers.ValidationError(
