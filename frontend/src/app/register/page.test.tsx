@@ -29,7 +29,17 @@ describe("RegisterPage", () => {
       password: "S3cret-pass!",
       full_name: "",
       phone_number: "+34 600 000 000",
+      newsletter_opt_in: false,
     });
+  });
+
+  it("posts newsletter_opt_in true when the checkbox is checked", async () => {
+    apiFetch.mockResolvedValue({});
+    render(<RegisterPage />);
+    fireEvent.click(screen.getByLabelText("Send me occasional updates from NAUTA."));
+    fill();
+    await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body).newsletter_opt_in).toBe(true);
   });
 
   it("requires a phone number before it can submit", () => {

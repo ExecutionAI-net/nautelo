@@ -24,7 +24,22 @@ describe("OrganizationRegisterForm", () => {
     fillCommon();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
-    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toMatchObject({ org_type: "PROFESSIONAL", organization_name: "Blue Rigging", email: "m@b.co" });
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toMatchObject({
+      org_type: "PROFESSIONAL",
+      organization_name: "Blue Rigging",
+      email: "m@b.co",
+      newsletter_opt_in: false,
+    });
+  });
+
+  it("posts newsletter_opt_in true when the owner checks it", async () => {
+    apiFetch.mockResolvedValue({});
+    render(<OrganizationRegisterForm orgType="PROFESSIONAL" />);
+    fillCommon();
+    fireEvent.click(screen.getByLabelText("Send me occasional updates from NAUTA."));
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body).newsletter_opt_in).toBe(true);
   });
 
   it("makes a broker pick a plan", async () => {

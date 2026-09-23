@@ -28,6 +28,7 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [country, setCountry] = useState("ES");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -58,6 +59,7 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
           email,
           password,
           phone,
+          newsletter_opt_in: newsletterOptIn,
           country_code: country,
           plan,
         }),
@@ -134,6 +136,10 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
               ))}
             </fieldset>
           ) : null}
+          <label className="flex items-start gap-space-xs font-body-sm">
+            <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
+            {t("auth.org_register.newsletter")}
+          </label>
           {error ? (
             <p role="alert" className="font-body-sm text-error">
               {error}

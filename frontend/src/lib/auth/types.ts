@@ -39,6 +39,7 @@ export interface SessionUser {
   email: string;
   full_name: string;
   phone_number: string;
+  newsletter_opt_in: boolean;
   primary_role: UserRole;
   locale: LocaleCode;
   email_verified: boolean;

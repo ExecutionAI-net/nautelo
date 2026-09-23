@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -28,7 +29,13 @@ export default function RegisterPage() {
     try {
       await apiFetch("/api/v1/auth/register/", {
         method: "POST",
-        body: JSON.stringify({ email, password, full_name: fullName, phone_number: phoneNumber }),
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: fullName,
+          phone_number: phoneNumber,
+          newsletter_opt_in: newsletterOptIn,
+        }),
       });
       setDone(true);
     } catch (caught) {
@@ -67,6 +74,10 @@ export default function RegisterPage() {
           <label className="block font-label-md text-label-md">
             {t("auth.register.password")}
             <input className={INPUT} type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label className="flex items-start gap-space-xs font-body-sm">
+            <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
+            {t("auth.register.newsletter")}
           </label>
           {error ? (
             <p role="alert" className="font-body-sm text-error">

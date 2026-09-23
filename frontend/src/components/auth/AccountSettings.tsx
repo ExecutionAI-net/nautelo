@@ -36,6 +36,7 @@ export default function AccountSettings() {
   const user = session?.user;
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phone_number ?? "");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(user?.newsletter_opt_in ?? false);
   const [locale, setLocale] = useState<string>(user?.locale ?? "EN");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -51,7 +52,7 @@ export default function AccountSettings() {
       await apiFetch("/api/v1/account/", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ full_name: fullName, phone_number: phoneNumber, locale }),
+        body: JSON.stringify({ full_name: fullName, phone_number: phoneNumber, newsletter_opt_in: newsletterOptIn, locale }),
       });
       await reload();
       setStatus("saved");
@@ -110,6 +111,14 @@ export default function AccountSettings() {
                 onChange={(event) => setPhoneNumber(event.target.value)}
                 placeholder="+34 600 000 000"
               />
+            </label>
+            <label className="flex items-start gap-space-xs font-body-sm text-on-surface">
+              <input
+                type="checkbox"
+                checked={newsletterOptIn}
+                onChange={(event) => setNewsletterOptIn(event.target.checked)}
+              />
+              Send me occasional updates from NAUTA.
             </label>
             <div>
               <span className="font-label-sm uppercase text-on-surface-variant">Email</span>

@@ -17,6 +17,7 @@ class RegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, max_length=128)
     full_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
     phone_number = serializers.CharField(max_length=32)
+    newsletter_opt_in = serializers.BooleanField(required=False, default=False)
     locale = serializers.ChoiceField(choices=Locale.choices, required=False, default=Locale.EN)
     primary_role = serializers.ChoiceField(
         choices=[(role.value, role.label) for role in SELF_SERVICE_ROLES],
@@ -59,6 +60,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
             "email",
             "full_name",
             "phone_number",
+            "newsletter_opt_in",
             "primary_role",
             "locale",
             "email_verified",
@@ -70,7 +72,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
 class AccountUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("full_name", "phone_number", "locale")
+        fields = ("full_name", "phone_number", "newsletter_opt_in", "locale")
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):

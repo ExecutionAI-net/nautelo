@@ -32,6 +32,7 @@ def test_professional_registration_creates_owner_org_and_seat(django_capture_on_
     user = User.objects.get(email="mia@blue-rigging.example")
     assert user.primary_role == UserRole.PROFESSIONAL and not user.is_email_verified
     assert user.phone_number == "+34600000000"
+    assert user.newsletter_opt_in is False
     profile = ProfessionalProfile.objects.get(owner_user=user)
     assert (profile.status, profile.country_code, profile.display_name) == ("DRAFT", "ES", "Blue Rigging")
     seat = ProfessionalMembership.objects.get(user=user)
@@ -50,6 +51,14 @@ def test_broker_registration_needs_an_active_plan_and_seats_the_owner():
     broker = BrokerOrganization.objects.get(name="Blue Rigging")
     assert (user.primary_role, broker.status, broker.plan) == (UserRole.BROKER, "DRAFT", plan)
     assert BrokerMembership.objects.get(user=user, broker=broker).role == "ADMIN"
+
+
+def test_the_owner_can_opt_into_the_newsletter():
+    plan = BrokerPlan.objects.filter(is_active=True).first() or BrokerPlan.objects.create(
+        slug="starter-y", name="Starter", monthly_price=99
+    )
+    assert _post(org_type="BROKER", plan=plan.slug, newsletter_opt_in=True).status_code == 201
+    assert User.objects.get(email="mia@blue-rigging.example").newsletter_opt_in is True
 
 
 def test_duplicate_email_and_bad_role_are_refused():

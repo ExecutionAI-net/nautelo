@@ -25,6 +25,7 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(write_only=True, max_length=128)
     phone = serializers.CharField(max_length=32)
+    newsletter_opt_in = serializers.BooleanField(required=False, default=False)
     country_code = serializers.CharField(max_length=2, min_length=2)
     plan = serializers.SlugField(required=False, allow_blank=True, default="")
     locale = serializers.ChoiceField(choices=Locale.choices, required=False, default=Locale.EN)
@@ -83,6 +84,7 @@ def register_organization(data: dict) -> User:
         password=data["password"],
         full_name=data["full_name"],
         phone_number=data["phone"],
+        newsletter_opt_in=data["newsletter_opt_in"],
         locale=data["locale"],
         primary_role=org_type,
     )

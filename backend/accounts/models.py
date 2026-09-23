@@ -53,6 +53,10 @@ class User(UUIDTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     # organization's own public_phone (BrokerOrganization/ProfessionalProfile) -
     # this one is private to the account, editable from Account Settings.
     phone_number = models.CharField(max_length=32, blank=True, default="")
+    # Marketing opt-in, tracked as an explicit yes/no on the account (not
+    # inferred from any one inquiry's own "send me updates" checkbox), so it
+    # can be set at signup and changed later from Account Settings.
+    newsletter_opt_in = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(
         default=False, help_text="Can sign in to the Django admin site."
