@@ -87,7 +87,7 @@ export default function StaffOverview({ pending }: { pending: number | null }) {
               <span className="text-outline-variant">/</span>
               <span>Marketplace Moderation</span>
             </div>
-            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Nauta Staff Dashboard</h1>
+            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Nautelo Staff Dashboard</h1>
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
               Review vessel listings and revisions, and jump to every staff module: users, brokers, service providers, leads, subscriptions and advertising.
             </p>

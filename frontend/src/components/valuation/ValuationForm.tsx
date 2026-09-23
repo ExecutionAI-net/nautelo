@@ -91,7 +91,7 @@ export default function ValuationForm() {
               </p>
               <p className="font-body-md text-on-surface-variant">Typical: {money(result.mid)}</p>
               <p className="mt-space-sm font-body-sm">
-                Based on {result.comparables} comparable listings on Nauta. {result.confidence ? CONFIDENCE_TEXT[result.confidence] : null}
+                Based on {result.comparables} comparable listings on Nautelo. {result.confidence ? CONFIDENCE_TEXT[result.confidence] : null}
               </p>
             </>
           ) : (

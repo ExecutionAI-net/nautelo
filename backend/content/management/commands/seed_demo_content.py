@@ -15,7 +15,7 @@ GUIDES = [
         "category": "Legal & Tax",
         "excerpt": "How to deregister a vessel in one registry and register it in the other without losing months.",
         "hero_image_url": "/design/ce28c27afe.jpg",
-        "author_name": "Nauta editorial team",
+        "author_name": "Nautelo editorial team",
         "body": (
             "Moving a boat between the Spanish and Italian registries is a two-sided process: the old flag must "
             "release the vessel before the new one can register it.\n\n"
@@ -32,7 +32,7 @@ GUIDES = [
         "category": "Maintenance",
         "excerpt": "A practical checklist for getting your boat ready for the season.",
         "hero_image_url": "/design/68be5c8e30.jpg",
-        "author_name": "Nauta editorial team",
+        "author_name": "Nautelo editorial team",
         "body": (
             "Begin with the hull: inspect antifouling, anodes and through-hull fittings while the boat is still "
             "ashore.\n\n"
@@ -48,7 +48,7 @@ GUIDES = [
         "category": "Buyer's Guide",
         "excerpt": "The tests that separate a good purchase from an expensive surprise.",
         "hero_image_url": "/design/83d5b58468.jpg",
-        "author_name": "Nauta editorial team",
+        "author_name": "Nautelo editorial team",
         "body": (
             "A sea trial should last long enough to bring the engines to operating temperature and reach full "
             "throttle.\n\n"

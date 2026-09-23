@@ -10,12 +10,12 @@ export default function TermsPage() {
     <LegalPage
       title="Terms of use"
       updated="2026-09"
-      intro="These terms govern your use of the Nauta marketplace for boats and nautical services."
+      intro="These terms govern your use of the Nautelo marketplace for boats and nautical services."
       sections={[
         {
           heading: "The marketplace",
           paragraphs: [
-            "Nauta connects buyers with sellers, brokers and service professionals. We are not a party to a sale or a service contract and we do not guarantee any listing, price or professional.",
+            "Nautelo connects buyers with sellers, brokers and service professionals. We are not a party to a sale or a service contract and we do not guarantee any listing, price or professional.",
           ],
         },
         {
@@ -39,7 +39,7 @@ export default function TermsPage() {
         },
         {
           heading: "Liability",
-          paragraphs: ["The platform is provided as is. To the extent the law allows, Nauta is not liable for losses arising from transactions between users."],
+          paragraphs: ["The platform is provided as is. To the extent the law allows, Nautelo is not liable for losses arising from transactions between users."],
         },
       ]}
     />

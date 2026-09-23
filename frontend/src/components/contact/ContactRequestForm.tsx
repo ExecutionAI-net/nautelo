@@ -162,7 +162,7 @@ export default function ContactRequestForm({ mode = "contact", start = {} }: { m
       <label className="flex items-start gap-space-sm font-body-sm text-on-surface-variant">
         <input name="consent" type="checkbox" required className="mt-1" />
         <span>
-          I agree to the <Link href="/privacy/" className="text-secondary underline">Privacy Policy</Link> and that Nauta may contact me about this request.
+          I agree to the <Link href="/privacy/" className="text-secondary underline">Privacy Policy</Link> and that Nautelo may contact me about this request.
         </span>
       </label>
       {error ? <p role="alert" className="font-body-sm text-error">{error}</p> : null}

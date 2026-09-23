@@ -10,9 +10,9 @@ const PROMO: Record<string, Entry> = {
     es: "Pon tu barco delante de más compradores",
   },
   "promo.lead": {
-    en: "Featured boats appear on the Nauta home page and are shown first to people who are looking.",
-    it: "Le barche in evidenza compaiono nella home di Nauta e vengono mostrate per prime a chi cerca.",
-    es: "Los barcos destacados aparecen en la página de inicio de Nauta y se muestran primero a quien busca.",
+    en: "Featured boats appear on the Nautelo home page and are shown first to people who are looking.",
+    it: "Le barche in evidenza compaiono nella home di Nautelo e vengono mostrate per prime a chi cerca.",
+    es: "Los barcos destacados aparecen en la página de inicio de Nautelo y se muestran primero a quien busca.",
   },
   "promo.point1": {
     en: "A place on the home page, in the moving Featured strip",

@@ -633,7 +633,7 @@ export default async function TransportDelivery() {
 <span className="material-symbols-outlined text-secondary chevron transition-transform text-[20px]">expand_more</span>
 </button>
 <div className="p-space-md pt-0 font-body-md text-body-md text-on-surface-variant leading-relaxed">
-            Every Nauta operation is backed by comprehensive transit insurance underwritten by leading marine syndicates (Lloyd’s and Generali Marine). For sea passages, our skipper carries professional liability with policy extensions covering accidental hull damage, salvage, and third-party liabilities up to €15,000,000. For overland haulage, comprehensive CMR and specialized cargo insurance covers full replacement value during crane loading, highway transport, and offloading.
+            Every Nautelo operation is backed by comprehensive transit insurance underwritten by leading marine syndicates (Lloyd’s and Generali Marine). For sea passages, our skipper carries professional liability with policy extensions covering accidental hull damage, salvage, and third-party liabilities up to €15,000,000. For overland haulage, comprehensive CMR and specialized cargo insurance covers full replacement value during crane loading, highway transport, and offloading.
           </div>
 </div>
 

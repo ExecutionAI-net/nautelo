@@ -10,7 +10,7 @@ export default function CookiesPage() {
     <LegalPage
       title="Cookie notice"
       updated="2026-09"
-      intro="Nauta uses only the cookies it needs to keep you signed in and to protect your account."
+      intro="Nautelo uses only the cookies it needs to keep you signed in and to protect your account."
       sections={[
         {
           heading: "Essential cookies",
