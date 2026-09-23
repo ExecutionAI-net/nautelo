@@ -6,10 +6,32 @@ Celery task over a template nobody has migrated/seeded yet in some
 environment.
 """
 
+from django.conf import settings
 from django.template import Context, Template
 
 from .layout import wrap_in_layout
 from .models import EmailTemplate
+
+#: Stand-in values the staff editor's preview/test-send uses for a template's
+#: declared variables (models.TEMPLATE_KEYS) - realistic enough to judge the
+#: design without a real user/token in hand. An undeclared variable falls
+#: back to a bracketed placeholder so a typo in the HTML is visible, not silent.
+SAMPLE_VALUES = {
+    "name": "Alex Morgan",
+    "url": f"{settings.PUBLIC_BASE_URL}/example-link",
+    "org": "Blue Marine Brokers",
+}
+
+
+def sample_context(variables) -> dict:
+    return {var: SAMPLE_VALUES.get(var, f"[{var}]") for var in variables}
+
+
+def render_preview(subject_template: str, html_template: str, context: dict) -> tuple[str, str]:
+    rendered_context = Context(context)
+    subject = Template(subject_template).render(rendered_context)
+    body = Template(html_template).render(rendered_context)
+    return subject, wrap_in_layout(body)
 
 
 def render_email(key: str, locale: str, context: dict) -> tuple[str, str] | None:
@@ -19,7 +41,4 @@ def render_email(key: str, locale: str, context: dict) -> tuple[str, str] | None
     )
     if row is None:
         return None
-    rendered_context = Context(context)
-    subject = Template(row.subject).render(rendered_context)
-    body = Template(row.html_body).render(rendered_context)
-    return subject, wrap_in_layout(body)
+    return render_preview(row.subject, row.html_body, context)

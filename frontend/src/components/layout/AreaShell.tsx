@@ -55,6 +55,7 @@ const AREAS = {
       { href: "/dashboard/staff/taxonomy/", label: "Taxonomy" },
       { href: "/dashboard/staff/advertising/", label: "Advertising" },
       { href: "/dashboard/staff/content/", label: "Content" },
+      { href: "/dashboard/staff/email-templates/", label: "Email templates" },
       { href: "/dashboard/staff/reports/", label: "Reports" },
       { href: "/dashboard/staff/settings/", label: "Settings" },
     ] as Tab[],
@@ -67,7 +68,7 @@ const GROUPS: Record<string, [string, string[]][]> = {
   seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account"]]],
   broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan"]]],
   provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan"]]],
-  staff: [["Moderation", ["Moderation", "Boats", "Contact grants"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Purchases", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content"]], ["System", ["Reports", "Settings"]]],
+  staff: [["Moderation", ["Moderation", "Boats", "Contact grants"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Purchases", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content", "Email templates"]], ["System", ["Reports", "Settings"]]],
 };
 
 function menuGroups(area: string, tabs: Tab[]): MenuGroup[] {
