@@ -9,6 +9,13 @@ import {
   type EntitlementRow,
 } from "@/lib/api/staffEntitlements";
 
+/** "PAID_LISTING" -> "Paid listing": the ledger is read by people, the enum by the API. */
+function words(value: string | null | undefined): string {
+  if (!value) return "—";
+  const text = value.toLowerCase().replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export default function EntitlementLedger() {
   const [userFilter, setUserFilter] = useState("");
   const [rows, setRows] = useState<EntitlementRow[] | null>(null);
@@ -123,9 +130,9 @@ export default function EntitlementLedger() {
                     )}
                   </td>
                   <td className="py-3.5 px-4 text-on-surface-variant">{row.listing_label || (row.listing_id ? <span className="font-spec-num">{row.listing_id}</span> : "—")}</td>
-                  <td className="py-3.5 px-4">{row.entitlement_type}</td>
-                  <td className="py-3.5 px-4">{row.source}</td>
-                  <td className="py-3.5 px-4">{row.state}</td>
+                  <td className="py-3.5 px-4">{words(row.entitlement_type)}</td>
+                  <td className="py-3.5 px-4">{words(row.source)}</td>
+                  <td className="py-3.5 px-4">{words(row.state)}</td>
                   <td className="py-3.5 px-4">
                     <div className="flex justify-end gap-space-sm">
                       {row.state === "AVAILABLE" ? (
