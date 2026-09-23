@@ -5,15 +5,31 @@ import { useEffect, useState } from "react";
 
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import NotificationBell from "@/components/layout/NotificationBell";
+import { SOURCE_TEXT, type MessageKey } from "@/i18n";
+import { useT } from "@/i18n/client";
 import { useSession } from "@/lib/auth/session";
 import { useLocale } from "@/lib/i18n/useLocale";
 
 export type MenuGroup = { title: string; items: { href: string; label: string }[] };
 
+function dashKey(prefix: string, label: string): string {
+  return `${prefix}${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")}`;
+}
+
 /** Left menu of every dashboard: Home button, accordion groups, account actions. */
 export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow: string; groups: MenuGroup[]; active: string }) {
   const { session, logout } = useSession();
   const locale = useLocale();
+  const t = useT();
+  // AreaShell names tabs and groups in English; show them in the visitor's language when a key exists.
+  const label = (prefix: string, text: string) => {
+    const key = dashKey(prefix, text);
+    return key in SOURCE_TEXT ? t(key as MessageKey) : text;
+  };
+  const areaLabel = label("nav.dash.area.", eyebrow);
   const activeGroup = groups.find((group) => group.items.some((item) => item.href === active))?.title;
   const [open, setOpen] = useState<Record<string, boolean>>(() => (activeGroup ? { [activeGroup]: true } : { [groups[0]?.title ?? ""]: true }));
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -40,7 +56,7 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
   const name = session?.user?.full_name || session?.user?.email || "";
 
   return (
-    <aside aria-label={`${eyebrow} menu`} className={`w-full shrink-0 bg-surface-container-lowest shadow-sm lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto ${collapsed ? "lg:w-14" : "lg:w-72"}`}>
+    <aside aria-label={t("nav.dash.menu", { area: areaLabel })} className={`w-full shrink-0 bg-surface-container-lowest shadow-sm lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto ${collapsed ? "lg:w-14" : "lg:w-72"}`}>
       <div className={`flex items-center justify-between gap-space-sm p-space-md ${collapsed ? "lg:flex-col lg:p-space-xs" : ""}`}>
         <button
           type="button"
@@ -57,7 +73,7 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
           className="inline-flex items-center gap-1 rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container"
         >
           <span className="material-symbols-outlined text-base" aria-hidden="true">home</span>
-          <span className={collapsed ? "lg:sr-only" : ""}>Home</span>
+          <span className={collapsed ? "lg:sr-only" : ""}>{t("nav.dash.home")}</span>
         </Link>
         <div className="flex items-center gap-space-sm">
           <NotificationBell locale={locale} />
@@ -74,8 +90,8 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
       </div>
 
       <div id="dashboard-menu" className={`${mobileOpen ? "block" : "hidden"} ${collapsed ? "lg:hidden" : "lg:block"}`}>
-        <p className="px-space-md font-label-sm text-label-sm uppercase tracking-widest text-secondary">{eyebrow}</p>
-        <nav aria-label={`${eyebrow} sections`} className="mt-space-xs px-space-sm pb-space-md">
+        <p className="px-space-md font-label-sm text-label-sm uppercase tracking-widest text-secondary">{areaLabel}</p>
+        <nav aria-label={t("nav.dash.sections", { area: areaLabel })} className="mt-space-xs px-space-sm pb-space-md">
           {groups.map((group) => {
             const expanded = open[group.title] === true;
             const panel = `menu-${group.title.replace(/\W+/g, "-").toLowerCase()}`;
@@ -88,7 +104,7 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
                   onClick={() => setOpen((state) => ({ ...state, [group.title]: !expanded }))}
                   className="flex w-full items-center justify-between rounded-lg px-space-sm py-space-sm font-title-sm text-title-sm text-primary hover:bg-surface-container"
                 >
-                  {group.title}
+                  {label("nav.dash.group.", group.title)}
                   <span aria-hidden="true" className={`transition-transform ${expanded ? "rotate-180" : ""}`}>▾</span>
                 </button>
                 {expanded ? (
@@ -102,7 +118,7 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
                             item.href === active ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                           }`}
                         >
-                          {item.label}
+                          {label("nav.dash.", item.label)}
                         </Link>
                       </li>
                     ))}
@@ -117,7 +133,7 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
           <LanguageSwitcher />
           {name ? <p className="truncate font-body-sm text-on-surface-variant">{name}</p> : null}
           <button type="button" onClick={() => void logout()} className="w-fit font-label-md text-primary underline">
-            Sign out
+            {t("nav.sign_out")}
           </button>
         </div>
       </div>

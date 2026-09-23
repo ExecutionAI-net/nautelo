@@ -9,6 +9,7 @@ import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listing
 import { financingHref, listingPath, type ListingFinance, type PublicListing } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
 import { placeLabel } from "@/lib/i18n/places";
+import { specValueLabel } from "@/lib/i18n/specValues";
 import { formatCount, formatViewCount, tf } from "@/lib/i18n/finance";
 
 type EligibleFinance = Extract<ListingFinance, { visible: true }>;
@@ -76,7 +77,7 @@ export default function BoatCard({
   const href = listingPath(listing);
   const specs = listing.specifications;
   const condition = specs.condition === "new" ? "new" : specs.condition === "used" ? "used" : null;
-  const boatType = typeof specs.boat_type === "string" ? specs.boat_type : "";
+  const boatType = typeof specs.boat_type === "string" ? specValueLabel(t, specs.boat_type) : "";
   const specLine = [
     String(listing.manufacture_year),
     specs.loa_m ? `${specs.loa_m} m` : "",

@@ -8,6 +8,7 @@ import type { PublicListing } from "@/lib/api/listings";
 import { financingHref } from "@/lib/api/listingLinks";
 import type { Locale } from "@/lib/i18n/directory";
 import { placeLabel } from "@/lib/i18n/places";
+import { specValueLabel } from "@/lib/i18n/specValues";
 
 // The boat's own words for each stored spec, in the order a buyer reads them. Unknown keys still show, tidied.
 const SPEC_ORDER: [string, MessageKey][] = [
@@ -33,7 +34,13 @@ const SPEC_ORDER: [string, MessageKey][] = [
 
 export function readableSpecs(specifications: Record<string, unknown>, t: Translate): { key: string; label: string; value: string }[] {
   const shown = (value: unknown) =>
-    value === true ? t("boat.yes") : value === false ? t("boat.no") : typeof value === "string" ? value.charAt(0).toUpperCase() + value.slice(1) : String(value);
+    value === true
+      ? t("boat.yes")
+      : value === false
+        ? t("boat.no")
+        : typeof value === "string"
+          ? specValueLabel(t, value).replace(/^./, (c) => c.toUpperCase())
+          : String(value);
   const known = new Set(SPEC_ORDER.map(([key]) => key));
   const rows: { key: string; label: string; value: string }[] = [];
   const seenLabels = new Set<string>();
