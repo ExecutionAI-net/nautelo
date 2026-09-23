@@ -11,7 +11,7 @@ how the platform looks/charges", as opposed to moderation actions.
 
 from django.conf import settings
 from django.core.mail import send_mail
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -131,11 +131,23 @@ class StaffEmailTemplateTestSendView(APIView):
         subject, html = render_preview(
             request.data.get("subject") or "", request.data.get("html_body") or "", sample_context(variables)
         )
-        send_mail(
-            subject=f"[Preview] {subject}",
-            message="This is a staff preview send. Open it in an HTML-capable mail client to see the design.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[request.user.email],
-            html_message=html,
-        )
+        try:
+            send_mail(
+                subject=f"[Preview] {subject}",
+                message="This is a staff preview send. Open it in an HTML-capable mail client to see the design.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[request.user.email],
+                html_message=html,
+            )
+        except Exception as exc:  # noqa: BLE001 - surface the provider's reason to the staffer
+            # A rejected send is the staffer's problem to act on (unverified
+            # sender domain, bad token...), not a server fault: hand the
+            # provider's explanation back instead of a blank 500.
+            raise EmailDeliveryFailed(str(exc)) from exc
         return Response({"sent_to": request.user.email})
+
+
+class EmailDeliveryFailed(APIException):
+    status_code = 502
+    default_code = "email_delivery_failed"
+    default_detail = "The email provider rejected the message."

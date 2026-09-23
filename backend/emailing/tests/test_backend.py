@@ -108,3 +108,19 @@ def test_a_failed_request_raises_when_not_fail_silently(monkeypatch):
 
     with pytest.raises(requests.RequestException):
         ZeptoMailBackend(fail_silently=False).send_messages([_message()])
+
+
+def test_an_error_status_raises_with_the_provider_body_and_logs_it(monkeypatch, caplog):
+    from emailing.backend import ZeptoMailError
+
+    class _Rejected(_FakeResponse):
+        text = '{"error":{"code":"TM_4001","message":"Sender domain not verified"}}'
+
+    monkeypatch.setattr("emailing.backend.requests.post", lambda *a, **k: _Rejected(status_code=400))
+
+    with pytest.raises(ZeptoMailError) as excinfo:
+        ZeptoMailBackend(fail_silently=False).send_messages([_message()])
+
+    assert excinfo.value.status_code == 400
+    assert "Sender domain not verified" in str(excinfo.value)
+    assert "Sender domain not verified" in caplog.text

@@ -143,3 +143,22 @@ def test_test_send_emails_only_the_requesting_staffer(api, staff_admin):
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [staff_admin.email]
     assert "Alex Morgan" in mail.outbox[0].alternatives[0][0]
+
+
+def test_test_send_reports_a_provider_rejection_as_502(api, staff_admin, monkeypatch):
+    api.force_authenticate(staff_admin)
+
+    def rejected(**kwargs):
+        raise RuntimeError("ZeptoMail responded 401: invalid token")
+
+    monkeypatch.setattr("emailing.staff_views.send_mail", rejected)
+
+    response = api.post(
+        f"{detail_url('password_reset', 'EN')}test-send/",
+        {"subject": "Reset", "html_body": "<p>Hi</p>"},
+        format="json",
+    )
+
+    assert response.status_code == 502
+    assert response.data["error"]["code"] == "email_delivery_failed"
+    assert "invalid token" in response.data["error"]["message"]
