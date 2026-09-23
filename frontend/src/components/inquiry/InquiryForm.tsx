@@ -115,14 +115,15 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
     [locale],
   );
 
-  // Prefill the name from the profile once the session resolves, without
-  // clobbering something the person has already typed (spec 15.1: "prefilled
-  // from profile", not "locked to profile").
+  // Prefill the name and phone from the profile once the session resolves,
+  // without clobbering something the person has already typed (spec 15.1:
+  // "prefilled from profile", not "locked to profile") - both stay editable.
   const prefilled = useRef(false);
   useEffect(() => {
     if (prefilled.current || !user) return;
     prefilled.current = true;
     setFullName((current) => current || user.full_name);
+    setPhone((current) => current || user.phone_number || "");
   }, [user]);
 
   // Spec 15.2's return half: restore the saved draft once, after the person is
@@ -390,7 +391,7 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
         ) : null}
         {sent || notice ? (
           <p role="status" className="font-body-sm text-primary">
-            {sent ? t("inquiry.sent") : notice}
+            {sent ? formatInquiryMessage(t("inquiry.sent"), { context: contextRef.label }) : notice}
           </p>
         ) : null}
 

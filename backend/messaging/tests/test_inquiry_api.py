@@ -346,13 +346,27 @@ def test_a_non_e164_phone_is_a_field_error(api, asker, professional):
     assert "phone" in response.data["error"]["fields"]
 
 
-def test_an_omitted_phone_is_accepted(api, asker, professional):
+def test_an_omitted_phone_is_a_field_error(api, asker, professional):
+    """A caller can always be phoned back: phone is required (unlike the
+    old, now-superseded "optional" behaviour)."""
     api.force_authenticate(asker)
     payload = _body(professional.pk, asker.email)
     payload.pop("phone")
     response = api.post(reverse("inquiry-create"), payload, format="json")
-    assert response.status_code == 201
-    assert Message.objects.get().sender_phone_snapshot == ""
+    assert response.status_code == 400
+    assert "phone" in response.data["error"]["fields"]
+    assert Conversation.objects.count() == 0
+
+
+def test_a_blank_phone_is_a_field_error(api, asker, professional):
+    api.force_authenticate(asker)
+    response = api.post(
+        reverse("inquiry-create"),
+        _body(professional.pk, asker.email, phone=""),
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "phone" in response.data["error"]["fields"]
 
 
 def test_the_throttle_returns_429_rate_limited_with_retry_information(
