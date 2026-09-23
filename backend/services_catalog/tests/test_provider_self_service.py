@@ -94,3 +94,43 @@ def test_unverified_owner_can_read_but_not_change_the_profile():
 def test_country_outside_the_supported_markets_is_refused():
     response = client_for(email="fr@example.com").post(reverse("provider-profile"), {**PROFILE, "country_code": "FR"}, format="json")
     assert response.status_code == 400
+
+
+def test_category_can_be_set_on_create_and_changed_later():
+    from services_catalog.models import ProfessionalService
+
+    rigging = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-y")
+    valeting = ServiceCategory.objects.create(name_en="Valeting", slug="valeting-y")
+    api = client_for()
+
+    created = api.post(reverse("provider-profile"), {**PROFILE, "category": rigging.slug}, format="json")
+    assert created.status_code == 201
+    assert created.json()["category"] == rigging.slug
+    profile = ProfessionalProfile.objects.get()
+    assert ProfessionalService.objects.get(professional=profile).category == rigging
+
+    changed = api.patch(reverse("provider-profile"), {"category": valeting.slug}, format="json")
+    assert changed.status_code == 200
+    assert changed.json()["category"] == valeting.slug
+    # The dropdown changes the existing primary service's category in place
+    # rather than adding a second one.
+    assert ProfessionalService.objects.filter(professional=profile).count() == 1
+    assert ProfessionalService.objects.get(professional=profile).category == valeting
+
+
+def test_an_inactive_or_unknown_category_is_refused():
+    ServiceCategory.objects.create(name_en="Hidden", slug="hidden-y", is_active=False)
+    api = client_for()
+    response = api.post(reverse("provider-profile"), {**PROFILE, "category": "hidden-y"}, format="json")
+    assert response.status_code == 400
+    response = api.post(reverse("provider-profile"), {**PROFILE, "category": "does-not-exist"}, format="json")
+    assert response.status_code == 400
+
+
+def test_category_is_read_from_the_manually_added_service_when_no_dropdown_value_was_sent():
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-z")
+    api = client_for()
+    api.post(reverse("provider-profile"), PROFILE, format="json")
+    assert api.get(reverse("provider-profile")).json()["category"] == ""
+    api.post(reverse("provider-service-list"), {"category": str(category.id), "title_en": "Mast"}, format="json")
+    assert api.get(reverse("provider-profile")).json()["category"] == category.slug

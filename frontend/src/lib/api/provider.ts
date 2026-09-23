@@ -16,6 +16,7 @@ export interface ProviderProfile {
   country_code: string;
   place_id?: number | null;
   service_area: string[];
+  category: string;
   status: "DRAFT" | "PENDING" | "ACTIVE" | "SUSPENDED";
   completeness?: { percent: number; missing: string[] };
   logo_url?: string | null;
