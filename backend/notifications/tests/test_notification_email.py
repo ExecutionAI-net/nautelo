@@ -359,11 +359,21 @@ def test_a_failed_send_logs_neither_the_address_nor_the_message(caplog, monkeypa
 
 
 @override_settings(PUBLIC_BASE_URL="https://nauta.test")
-def test_a_generic_notification_carries_html_when_a_template_exists():
+def test_a_generic_notification_carries_html_when_a_template_exists(monkeypatch):
+    """The mapped key is monkeypatched to an unseeded one: every real key in
+    TEMPLATE_KEY_BY_TYPE now has EN/IT/ES rows from
+    emailing/migrations/0003_seed_phase4_templates, and creating another row
+    under a real key would collide with a seeded one (UniqueConstraint on
+    key+locale)."""
     from emailing.models import EmailTemplate
 
+    monkeypatch.setitem(
+        tasks.TEMPLATE_KEY_BY_TYPE,
+        NotificationType.LISTING_APPROVED,
+        "p_test_generic_template",
+    )
     EmailTemplate.objects.create(
-        key="listing_approved",
+        key="p_test_generic_template",
         locale="EN",
         subject="Your listing is live",
         html_body="<p>See it at {{ url }}</p>",
@@ -389,13 +399,16 @@ def test_a_generic_notification_carries_html_when_a_template_exists():
     assert "https://nauta.test/dashboard/listings/abc/" in html
 
 
-def test_a_generic_notification_without_a_template_sends_plain_text_only():
+def test_a_notification_type_absent_from_the_template_map_sends_plain_text_only():
+    """LISTING_INITIAL_SUBMITTED has no entry in TEMPLATE_KEY_BY_TYPE (spec 27.1's
+    staff-only moderation events aren't user-facing templates), so this exercises
+    the `template_key is None` branch regardless of what's seeded in the DB."""
     recipient = make_user(email="notpl@phase6.example", locale=Locale.EN)
     notification = create_notification(
         recipient=recipient,
-        notification_type=NotificationType.LISTING_APPROVED,
-        title_key="notification.listing_approved.title",
-        body_key="notification.listing_approved.body",
+        notification_type=NotificationType.LISTING_INITIAL_SUBMITTED,
+        title_key="notification.listing_initial_submitted.title",
+        body_key="notification.listing_initial_submitted.body",
         target_url="/dashboard/listings/xyz/",
         email_to="notpl-office@phase6.example",
     )
