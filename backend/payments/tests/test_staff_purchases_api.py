@@ -131,3 +131,43 @@ def test_purchases_cannot_be_created_or_mutated_from_this_endpoint(api_client, s
     api_client.force_authenticate(user=staff_admin)
 
     assert api_client.post(LIST_URL, {}, format="json").status_code == 405
+
+
+@pytest.mark.django_db
+def test_promotions_and_subscriptions_appear_in_the_same_ledger_as_orders(api_client, staff_admin):
+    from brokers.models import BrokerPlan, BrokerSubscription
+    from brokers.tests.factories import make_broker, make_membership
+    from listings.tests.factories import make_private_listing
+    from promotions.models import ListingPromotion, PromotionPlan
+
+    product = listing_right_product()
+    buyer = make_payments_seller("p14-ledger@example.com")
+    make_order(user=buyer, product=product, status=PaymentOrderStatus.PAID, stripe_payment_intent_id="pi_order")
+    listing = make_private_listing(owner=buyer)
+    plan = PromotionPlan.objects.create(code="qa-ledger-week", name_en="Featured week", days=7, price="149.00")
+    ListingPromotion.objects.create(
+        listing=listing, user=buyer, plan=plan, days=7, amount="149.00", status="PAID", stripe_payment_intent_id="pi_promo"
+    )
+    broker_plan = BrokerPlan.objects.create(
+        slug="qa-ledger-plan", name="Marina", monthly_price=99, trial_days=0, stripe_product_id="prod_l", stripe_price_id="price_l"
+    )
+    broker = make_broker(name="Ledger Brokers", slug="ledger-brokers", plan=broker_plan)
+    owner = make_user("p14-broker-owner@example.com", role=UserRole.BROKER, verified=True)
+    make_membership(owner, broker, role="ADMIN", can_manage_team=True)
+    BrokerSubscription.objects.create(broker=broker, status="ACTIVE", stripe_subscription_id="sub_ledger")
+    api_client.force_authenticate(user=staff_admin)
+
+    rows = api_client.get(LIST_URL).data["results"]
+
+    by_kind = {row["kind"]: row for row in rows}
+    assert set(by_kind) == {"Order", "Promotion", "Broker subscription"}
+    assert by_kind["Promotion"]["amount_display"] == "149.00 EUR"
+    assert by_kind["Promotion"]["stripe_payment_intent_id"] == "pi_promo"
+    assert "Featured week" in by_kind["Promotion"]["product_name"]
+    assert by_kind["Broker subscription"]["user_email"] == "p14-broker-owner@example.com"
+    assert by_kind["Broker subscription"]["detail"] == "Ledger Brokers"
+    assert by_kind["Broker subscription"]["amount_display"] == "99.00 EUR/month"
+
+    only_promotions = api_client.get(LIST_URL, {"kind": "Promotion"}).data
+    assert only_promotions["count"] == 1
+    assert api_client.get(LIST_URL, {"q": "ledger brokers"}).data["count"] == 1
