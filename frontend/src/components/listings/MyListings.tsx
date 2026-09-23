@@ -11,13 +11,13 @@ type Filter = "all" | "active" | "review" | "drafts";
 
 const FILTERS: { key: Filter; label: string; statuses: string[] }[] = [
   { key: "all", label: "All", statuses: [] },
-  { key: "active", label: "Active", statuses: ["PUBLISHED"] },
+  { key: "active", label: "Published", statuses: ["PUBLISHED"] },
   { key: "review", label: "In review", statuses: ["PENDING_APPROVAL"] },
   { key: "drafts", label: "Drafts", statuses: ["DRAFT"] },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-  PUBLISHED: "Publicly live",
+  PUBLISHED: "Published",
   PENDING_APPROVAL: "In review",
   DRAFT: "Draft",
   EXPIRED: "Expired",
@@ -173,7 +173,7 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
           </Link>
         ) : null}
         <Link
-          href={`/sell/${row.id}/`}
+          href={row.seller_type === "BROKER" ? `/dashboard/broker/fleet/${row.id}/` : `/sell/${row.id}/`}
           className={`rounded-lg px-space-md py-space-sm text-center font-body-md ${published ? "bg-surface-container-lowest text-primary" : "bg-primary text-on-primary hover:bg-primary-container"}`}
         >
           {row.status === "DRAFT" ? "Continue editing" : "Edit listing"}
@@ -206,9 +206,13 @@ interface Props {
   fleet?: boolean;
 }
 
-function KpiCard({ label, value, note, icon, accent }: { label: string; value: string; note: string; icon: string; accent: string }) {
+function KpiCard({ label, value, note, icon, accent, onClick }: { label: string; value: string; note: string; icon: string; accent: string; onClick?: () => void }) {
   return (
-    <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden hover:shadow-md transition-shadow">
+    <button
+      type="button"
+      onClick={onClick}
+      className="bg-surface-container-lowest p-5 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden hover:shadow-md transition-shadow text-left"
+    >
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <span className="font-label-sm uppercase tracking-wider text-outline">{label}</span>
@@ -220,7 +224,7 @@ function KpiCard({ label, value, note, icon, accent }: { label: string; value: s
       </div>
       <div className="mt-4 pt-3 text-body-sm text-outline">{note}</div>
       <div className={`absolute bottom-0 left-0 right-0 h-1 ${accent}`} />
-    </div>
+    </button>
   );
 }
 
@@ -302,18 +306,19 @@ export default function MyListings({
 
       {fleet && rows ? (
         <div className="mt-space-lg grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <KpiCard label="Managed vessels" value={String(rows.length)} note={`${counts.active} published`} icon="directions_boat" accent="bg-secondary" />
+          <KpiCard label="Vessels" value={String(rows.length)} note={`${counts.active} published`} icon="directions_boat" accent="bg-secondary" onClick={() => setFilter("all")} />
           <KpiCard
-            label="Published fleet value"
-            value={new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(
+            label="Published value"
+            value={new Intl.NumberFormat("en", { style: "currency", currency: "EUR", notation: "compact", maximumFractionDigits: 1 }).format(
               rows.filter((row) => row.status === "PUBLISHED").reduce((sum, row) => sum + (Number(row.price) || 0), 0),
             )}
-            note="Asking prices, published vessels"
+            note="Asking prices of the published vessels"
             icon="euro"
             accent="bg-secondary-fixed-dim"
+            onClick={() => setFilter("active")}
           />
-          <KpiCard label="In review" value={String(counts.review)} note="Awaiting staff approval" icon="assignment_turned_in" accent="bg-tertiary-fixed-dim" />
-          <KpiCard label="Drafts" value={String(counts.drafts)} note="Not yet submitted" icon="edit_note" accent="bg-outline-variant" />
+          <KpiCard label="In review" value={String(counts.review)} note="Waiting for staff approval" icon="assignment_turned_in" accent="bg-tertiary-fixed-dim" onClick={() => setFilter("review")} />
+          <KpiCard label="Drafts" value={String(counts.drafts)} note="Not yet submitted" icon="edit_note" accent="bg-outline-variant" onClick={() => setFilter("drafts")} />
         </div>
       ) : null}
 

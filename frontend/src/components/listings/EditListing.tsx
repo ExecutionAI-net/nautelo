@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
 import SellListingForm from "@/components/listings/SellListingForm";
 import { useSession } from "@/lib/auth/session";
 import { resolveLocale } from "@/lib/i18n/directory";
@@ -28,5 +29,7 @@ export default function EditListing({ listingId }: { listingId: string }) {
 
   if (failed) return <p role="alert">This listing could not be opened.</p>;
   if (!listing) return <p className="text-on-surface-variant">Loading…</p>;
-  return <SellListingForm initial={listing} locale={resolveLocale(session?.user?.locale)} />;
+  // A brokerage vessel keeps its broker-only fields (financing estimate, fleet links) while being edited.
+  const brokerId = listing.seller_type === "BROKER" ? primaryBrokerMembership(session)?.broker_id : undefined;
+  return <SellListingForm initial={listing} brokerId={brokerId} locale={resolveLocale(session?.user?.locale)} />;
 }

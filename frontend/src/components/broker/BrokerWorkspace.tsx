@@ -58,7 +58,27 @@ const SUBMIT_REASONS: Record<string, string> = {
 };
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
-const LABEL = "font-label-sm uppercase text-on-surface-variant";
+const LABEL = "flex flex-col gap-1 font-label-md text-on-surface";
+
+// brokers/enums.py ROLE_DEFAULT_CAPABILITIES, in words.
+const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", MANAGER: "Manager", AGENT: "Agent", VIEWER: "Viewer" };
+const ROLE_HELP: [string, string][] = [
+  ["Admin", "Everything: listings, messages, team and billing. The owner is always an admin."],
+  ["Manager", "Edits listings and answers messages; cannot change the team."],
+  ["Agent", "Edits listings only."],
+  ["Viewer", "Read-only access to the dashboard."],
+];
+
+function accessText(member: Member): string {
+  const parts = [
+    member.can_edit_listings && "edit listings",
+    member.can_manage_team && "manage the team",
+    member.can_read_messages && "read messages",
+  ].filter(Boolean) as string[];
+  if (parts.length === 0) return "Read only";
+  const text = parts.join(", ");
+  return `Can ${text.charAt(0)}${text.slice(1)}`;
+}
 const CARD = "rounded-xl bg-surface-container-lowest p-space-lg shadow-sm";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -103,7 +123,7 @@ export function BrokerTeam() {
     <div className="flex flex-col gap-space-lg">
       <div className="flex flex-wrap items-end justify-between gap-space-md">
         <div>
-          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Team</span>
+          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage / Team</span>
           <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Team</h1>
         </div>
         <div className="bg-surface-container-lowest px-space-md py-space-xs rounded-xl shadow-sm flex items-center gap-space-md">
@@ -113,6 +133,17 @@ export function BrokerTeam() {
           </div>
         </div>
       </div>
+      <details className="rounded-lg bg-surface-container-low p-space-sm">
+        <summary className="cursor-pointer font-label-md text-primary">What the roles mean</summary>
+        <dl className="mt-space-xs grid gap-space-xs sm:grid-cols-2 font-body-sm">
+          {ROLE_HELP.map(([role, help]) => (
+            <div key={role}>
+              <dt className="font-semibold text-on-surface">{role}</dt>
+              <dd className="text-on-surface-variant">{help}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
       {message ? (
         <p role="status" className="font-body-md">
           {message}
@@ -145,10 +176,10 @@ export function BrokerTeam() {
                     </div>
                   </td>
                   <td className="py-3.5 px-4 whitespace-nowrap">
-                    <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">{member.role}</span>
+                    <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">{ROLE_LABEL[member.role] ?? member.role}</span>
                   </td>
                   <td className="py-3.5 px-4 text-on-surface-variant">
-                    {[member.can_edit_listings && "Listings", member.can_manage_team && "Team", member.can_read_messages && "Messages"].filter(Boolean).join(" - ") || "Read only"}
+                    {accessText(member)}
                   </td>
                   <td className="py-3.5 px-4 whitespace-nowrap">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-label-sm font-medium ${member.is_active ? "bg-emerald-50 text-emerald-800" : "bg-surface-container text-on-surface-variant"}`}>
@@ -161,7 +192,9 @@ export function BrokerTeam() {
                     <button
                       type="button"
                       className="text-secondary hover:text-primary font-title-md text-body-sm px-2 py-1"
-                      onClick={() =>
+                      onClick={() => {
+                        const name = member.user_full_name || member.user_email;
+                        if (member.is_active && !window.confirm(`Deactivate ${name}? They lose access to this brokerage until reactivated.`)) return;
                         void run(
                           () =>
                             apiFetch(`/api/v1/brokers/${brokerId}/members/${member.id}/`, {
@@ -170,8 +203,8 @@ export function BrokerTeam() {
                               body: JSON.stringify({ is_active: !member.is_active }),
                             }),
                           "Member updated.",
-                        )
-                      }
+                        );
+                      }}
                     >
                       {member.is_active ? "Deactivate" : "Reactivate"}
                     </button>
@@ -252,9 +285,19 @@ export function BrokerProfileForm() {
       }}
     >
       <div className="sm:col-span-2">
-        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / Company profile</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Brokerage profile</h1>
-        <p className="mt-space-xs font-body-md text-on-surface-variant">This is what buyers see on your public broker page.</p>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage / Profile</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Profile</h1>
+        <p className="mt-space-xs font-body-md text-on-surface-variant">
+          This is what buyers see on your public broker page.
+          {form.status === "ACTIVE" && form.slug ? (
+            <>
+              {" "}
+              <a href={`/brokers/${form.slug}/`} className="text-primary underline" target="_blank" rel="noreferrer">
+                View public page
+              </a>
+            </>
+          ) : null}
+        </p>
         {form.status === "DRAFT" ? <CompletenessChecklist completeness={form.completeness} /> : null}
         {message ? (
           <p role="status" className="mt-space-sm font-body-md">
@@ -344,7 +387,7 @@ export function BrokerProfileForm() {
   );
 }
 
-function UsageGauge({ icon, label, used, limit, unit, bar }: { icon: string; label: string; used: number; limit: number | null; unit: string; bar: string }) {
+function UsageGauge({ icon, label, used, limit, bar }: { icon: string; label: string; used: number; limit: number | null; bar: string }) {
   const percent = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   return (
     <div className="bg-surface-container-low p-space-md rounded-lg flex flex-col gap-space-sm">
@@ -354,7 +397,7 @@ function UsageGauge({ icon, label, used, limit, unit, bar }: { icon: string; lab
           {label}
         </span>
         <span className="font-spec-num text-spec-num text-primary font-semibold">
-          {used} <span className="text-on-surface-variant font-normal">{limit === null ? "used - no limit" : `/ ${limit} used`}</span>
+          {used} <span className="text-on-surface-variant font-normal">{limit === null ? "used, no limit" : `of ${limit}`}</span>
         </span>
       </div>
       {limit !== null ? (
@@ -362,10 +405,7 @@ function UsageGauge({ icon, label, used, limit, unit, bar }: { icon: string; lab
           <div className="w-full bg-surface-container-highest rounded-full h-2.5 overflow-hidden">
             <div className={`${bar} h-full rounded-full transition-all duration-500`} style={{ width: `${percent}%` }} />
           </div>
-          <div className="flex justify-between items-center font-label-sm text-on-surface-variant">
-            <span>{percent}% {unit === "seats" ? "allocation" : "capacity utilized"}</span>
-            <span className="text-primary font-medium">{Math.max(limit - used, 0)} {unit} remaining</span>
-          </div>
+          <p className="font-label-sm text-on-surface-variant">{Math.max(limit - used, 0)} free</p>
         </>
       ) : null}
     </div>
@@ -388,25 +428,16 @@ export function BrokerSubscription() {
   return (
     <div className="flex flex-col gap-space-xl">
       <div>
-        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage CRM / My plan</span>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage / My plan</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">My plan</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">Your tier sets how many active listings and team seats your brokerage has and how its profile is placed in the directory.</p>
       </div>
 
       <BrokerBilling brokerId={brokerId} />
 
-      <PromotePanel mode="listings" returnPath="/dashboard/broker/subscription/" />
-
       <section className="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg relative overflow-hidden">
         <div className="flex flex-wrap items-center gap-space-sm">
-          <span className="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm tracking-wide uppercase font-semibold">Assigned plan</span>
-          {profile ? (
-            <span className="px-space-sm py-0.5 rounded-full bg-surface-container-low text-on-surface font-label-sm flex items-center gap-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-secondary" />
-              Brokerage {profile.status.toLowerCase()}
-              {profile.renews_at ? ` - Renews ${profile.renews_at}` : ""}
-            </span>
-          ) : null}
+          <span className="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm tracking-wide uppercase font-semibold">Your plan</span>
         </div>
         {plan ? (
           <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-space-sm">
@@ -420,22 +451,24 @@ export function BrokerSubscription() {
             </div>
           </div>
         ) : (
-          <p className="font-body-md text-on-surface-variant">No plan is assigned to your brokerage yet, so no limits apply. Choose a tier below and contact the platform team.</p>
+          <p className="font-body-md text-on-surface-variant">No plan is assigned to your brokerage yet, so no limits apply. Choose a plan below and contact the platform team.</p>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
-          <UsageGauge icon="sailing" label="Active Vessel Listings" used={profile?.listings_used ?? 0} limit={plan ? plan.listing_limit : null} unit="slots" bar="bg-secondary" />
-          <UsageGauge icon="group" label="Team Seats" used={profile?.seats_used ?? 0} limit={plan ? plan.seat_limit : null} unit="seats" bar="bg-primary" />
+          <UsageGauge icon="sailing" label="Published vessels" used={profile?.listings_used ?? 0} limit={plan ? plan.listing_limit : null} bar="bg-secondary" />
+          <UsageGauge icon="group" label="Team seats" used={profile?.seats_used ?? 0} limit={plan ? plan.seat_limit : null} bar="bg-primary" />
         </div>
       </section>
 
       <section className="flex flex-col gap-space-lg">
         <div className="flex flex-col gap-space-xs">
-          <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Commercial capacity selection</span>
-          <h2 className="font-headline-md text-headline-md text-primary">Scalable Membership Tiers</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant">You subscribe to your assigned plan above with the free trial. To move to another tier, request it and our team will switch your plan.</p>
+          <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Plans</span>
+          <h2 className="font-headline-md text-headline-md text-primary">Other plans</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant">To move to another plan, request it and our team switches your brokerage over.</p>
         </div>
-        <PlanCards plans={plans} currentSlug={plan?.slug} ctaLabel="Request this tier" />
+        <PlanCards plans={plans} currentSlug={plan?.slug} ctaLabel="Request this plan" />
       </section>
+
+      <PromotePanel mode="listings" returnPath="/dashboard/broker/subscription/" />
     </div>
   );
 }
