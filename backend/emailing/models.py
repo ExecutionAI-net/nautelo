@@ -21,6 +21,20 @@ from common.models import UUIDTimeStampedModel
 TEMPLATE_KEYS = (
     ("email_verification", "Email verification", ("name", "url")),
     ("password_reset", "Password reset", ("name", "url")),
+    ("new_message", "New message received", ("sender", "context", "excerpt", "url")),
+    ("listing_approved", "Listing approved", ("url",)),
+    ("listing_changes_requested", "Listing: changes requested", ("url",)),
+    ("listing_rejected", "Listing rejected", ("url",)),
+    ("listing_expiring", "Listing expiring soon", ("url",)),
+    ("listing_expired", "Listing expired", ("url",)),
+    ("broker_trial_started", "Broker trial started", ("url",)),
+    ("broker_payment_failed", "Broker payment failed", ("url",)),
+    ("broker_suspended", "Broker suspended", ("url",)),
+    ("payment_fulfilled", "Purchase fulfilled", ("url",)),
+    ("professional_activated", "Professional membership active", ("url",)),
+    ("professional_payment_failed", "Professional payment failed", ("url",)),
+    ("professional_deactivated", "Professional profile deactivated", ("url",)),
+    ("payment_fulfillment_failed", "Payment fulfillment failed", ("url",)),
 )
 
 TEMPLATE_KEY_CHOICES = tuple((key, label) for key, label, _variables in TEMPLATE_KEYS)
