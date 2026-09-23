@@ -91,6 +91,7 @@ def create_profile_promotion_checkout(
 
 
 def _open_checkout(user, promotion, metadata, return_path, product_name, gateway) -> str:
+    from payments.checkout import checkout_locale
     from payments.gateway import StripeUnavailable, default_gateway
 
     base = settings.PUBLIC_BASE_URL.rstrip("/")
@@ -113,6 +114,7 @@ def _open_checkout(user, promotion, metadata, return_path, product_name, gateway
         "success_url": _url("success"),
         "cancel_url": _url("cancelled"),
         "client_reference_id": str(promotion.pk),
+        "locale": checkout_locale(user),
         "customer_email": user.email,
         "metadata": metadata,
         "payment_intent_data": {"metadata": metadata},

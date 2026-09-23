@@ -48,7 +48,7 @@ def _url(outcome: str) -> str:
     return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{SUBSCRIPTION_PATH}?{urlencode({'checkout': outcome})}"
 
 
-def create_subscription_checkout(*, broker, customer_email: str = "", gateway=None) -> str:
+def create_subscription_checkout(*, broker, customer_email: str = "", locale: str = "en", gateway=None) -> str:
     from payments.gateway import StripeUnavailable, default_gateway
 
     plan = broker.plan
@@ -63,6 +63,7 @@ def create_subscription_checkout(*, broker, customer_email: str = "", gateway=No
         "success_url": _url("success"),
         "cancel_url": _url("cancelled"),
         "client_reference_id": str(broker.pk),
+        "locale": locale,
         "metadata": metadata,
         "subscription_data": subscription_data,
     }

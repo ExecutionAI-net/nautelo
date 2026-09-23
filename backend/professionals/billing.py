@@ -46,6 +46,7 @@ def _url(outcome: str) -> str:
 
 
 def create_membership_checkout(*, profile, gateway=None) -> str:
+    from payments.checkout import checkout_locale
     from payments.gateway import StripeUnavailable, default_gateway
 
     plan = get_plan()
@@ -63,6 +64,7 @@ def create_membership_checkout(*, profile, gateway=None) -> str:
         "success_url": _url("success"),
         "cancel_url": _url("cancelled"),
         "client_reference_id": str(profile.pk),
+        "locale": checkout_locale(profile.owner_user),
         "metadata": metadata,
         "subscription_data": subscription_data,
     }

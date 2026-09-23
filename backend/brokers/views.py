@@ -278,9 +278,14 @@ class BrokerSubscriptionView(BrokerTeamBaseView):
 
     def post(self, request, broker_id):
         from brokers.billing import create_subscription_checkout
+        from payments.checkout import checkout_locale
 
         return Response(
-            {"checkout_url": create_subscription_checkout(broker=self.get_broker(), customer_email=request.user.email)},
+            {
+                "checkout_url": create_subscription_checkout(
+                    broker=self.get_broker(), customer_email=request.user.email, locale=checkout_locale(request.user)
+                )
+            },
             status=status.HTTP_201_CREATED,
         )
 
