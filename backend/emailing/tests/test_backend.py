@@ -49,6 +49,25 @@ def test_sends_one_request_per_message_and_reports_the_count(settings, monkeypat
     assert "htmlbody" not in payload
 
 
+def test_a_raw_key_without_the_scheme_prefix_gets_it_added(settings, monkeypatch):
+    """ZeptoMail's API 401s without the "Zoho-enczapikey" scheme prefix on the
+    token. The console's own copy button includes it, but a secret stored as
+    just the raw token (the more natural thing to put in an env var) must
+    still work."""
+    settings.ZEPTOMAIL_API_KEY = "raw-token-without-prefix"
+    calls = []
+
+    def fake_post(url, json, headers, timeout):
+        calls.append(headers)
+        return _FakeResponse(200)
+
+    monkeypatch.setattr("emailing.backend.requests.post", fake_post)
+
+    ZeptoMailBackend().send_messages([_message()])
+
+    assert calls[0]["Authorization"] == "Zoho-enczapikey raw-token-without-prefix"
+
+
 def test_attaches_the_html_alternative_when_present(monkeypatch):
     captured = {}
 

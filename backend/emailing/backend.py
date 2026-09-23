@@ -43,12 +43,19 @@ class ZeptoMailBackend(BaseEmailBackend):
         if message.bcc:
             payload["bcc"] = [{"email_address": {"address": address}} for address in message.bcc]
 
+        api_key = settings.ZEPTOMAIL_API_KEY
+        # ZeptoMail's API requires this exact scheme prefix on the token. The
+        # console's own copy button includes it, so a key pasted from there
+        # already has it - but the value stored in an env var/secret manager
+        # commonly holds just the raw token, which 401s without this.
+        authorization = api_key if api_key.startswith("Zoho-enczapikey") else f"Zoho-enczapikey {api_key}"
+
         try:
             response = requests.post(
                 settings.ZEPTOMAIL_API_URL,
                 json=payload,
                 headers={
-                    "Authorization": settings.ZEPTOMAIL_API_KEY,
+                    "Authorization": authorization,
                     "Content-Type": "application/json",
                 },
                 timeout=10,
