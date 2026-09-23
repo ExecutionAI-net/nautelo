@@ -21,6 +21,7 @@ export default function StaffBrokersPage() {
           ]}
           statusOptions={["DRAFT", "PENDING", "ACTIVE", "SUSPENDED"]}
         statusActionsBase="/api/v1/staff/brokers/"
+        reviewLink={{ key: "id", base: "/dashboard/staff/brokers/", label: "Manage broker" }}
         />
       </RequirePermission>
     </AreaShell>
