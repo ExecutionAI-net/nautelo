@@ -150,3 +150,29 @@ Toplam: **20 bulgu (F)**, **18 kullanılabilirlik notu (U)**. Öncelikli olanlar
 4. F15 (adaptive pricing) – Stripe ayarı, kod değişikliği gerektirmez.
 5. F7, F12, F10, F18 ve marka artıkları (F1).
 6. UX notları (U1–U18) tek bir "polish" PR'ında toplanabilir.
+
+## 8. Düzeltme durumu (2026-09-24 sabahı)
+
+Üç PR ile kapatıldı: #476 (yüksek/orta öncelikli bulgular), #477 (düşük öncelik + ilk UX maddeleri), #478 (kalan UX maddeleri). Her düzeltme kendi commit'inde; yerel test paketleri (backend pytest, frontend vitest/eslint/tsc) her PR öncesi tamamen yeşil.
+
+| Madde | Durum | Not |
+|---|---|---|
+| F13, F14 | ✅ #476 | Deneme kaydı, `cancel_at_period_end` alanı + `customer.subscription.updated` |
+| F19 | ✅ #476 | `published_payload` ile form yayınlı içerikten dolar |
+| F17 | ✅ #476 | Gerçek karşılaştırma sayfası (`/boats/compare/?ids=`) + "Add to compare" |
+| F7 | ✅ #476 | Promosyon durumu sunucudan (`promotion` bloğu) |
+| F12 | ✅ #476 | Purchases: sipariş + promosyon + abonelikler tek defterde |
+| F10 | ✅ #476 | Marka/model adı, spec başına satır, fotoğraf küçük resimleri |
+| F18 | ✅ #476 (kısmen) | Dashboard menüleri, auth başlıkları, kapalı liste spec değerleri çevrildi; paket adları ve değerleme sonucu metni açık |
+| F1 | ✅ #476 | Deploy'da `sync_ui_text` eski "Nauta" metinlerini temizler; iletişim sayfasındaki sahte telefon/e-postalar kaldırıldı (gerçek bilgiler gerekli) |
+| F16 | ✅ #476 | `storage_key`/`checksum_sha256` herkese açık API'den çıkarıldı |
+| F2, F3, F4, F5, F6, F8, F20 | ✅ #477 | |
+| F11 | ✅ #477 (kısmen) | Entitlement ve Boats tabloları okunur; contact-grants bilerek yalnızca ID gösteriyor (spec/test ile sabit) |
+| U1, U2, U3, U9, U10, U13, U17 | ✅ #477 | |
+| U6, U7, U11, U15, U16, U18 | ✅ #478 | + broker dizini uzmanlık etiketleri, admin `BoatListing.__str__` |
+| U5 | ✅ #478 | Checkout artık hesabın dilinde açılıyor |
+| F15 | ⏳ Stripe panosu | Adaptive pricing kod dışı: Stripe Dashboard → Settings → Adaptive pricing kapatılmalı |
+| U8, seed broker tekrarları | ⏳ veri | Demo/seed verisi temizliği; kod değişikliği değil |
+| U12 | ⏳ karar | Leads yalnızca ilan sorgularını listeliyor; broker profil sorguları Messages'ta (tasarım) |
+| U14 | ➖ | Honeypot alanı kodda zaten ekran dışı (`left:-9999px`, aria-hidden); tekrar üretilemedi |
+| N1 (staff test-send) | ✅ #477 | Sonuç butonun yanında, sağlayıcı sebebi gösteriliyor; posta ulaşmıyorsa staff@nautelo.com gerçek bir kutu mu kontrol edilmeli |
