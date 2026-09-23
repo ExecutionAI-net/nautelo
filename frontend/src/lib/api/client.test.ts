@@ -8,6 +8,30 @@ afterEach(() => {
   vi.resetModules();
 });
 
+describe("apiFetch empty-body responses", () => {
+  it("resolves (does not throw) for a 202 with an empty body, e.g. password-reset", async () => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiFetch } = await import("@/lib/api/client");
+
+    await expect(
+      apiFetch("/api/v1/auth/password-reset/", { method: "POST" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still parses a body on an ordinary 200 response", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiFetch } = await import("@/lib/api/client");
+
+    await expect(apiFetch("/api/v1/whatever/")).resolves.toEqual({ ok: true });
+  });
+});
+
 describe("tryRefreshAccessToken same-tab de-duplication", () => {
   it("fires exactly one network request for concurrent callers, and does not let a losing response null out the winning token", async () => {
     // Simulates ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION: a second,
