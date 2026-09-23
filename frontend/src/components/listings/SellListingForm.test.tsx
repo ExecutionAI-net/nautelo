@@ -95,4 +95,21 @@ describe("SellListingForm", () => {
     expect(fetchWorkflowListing).toHaveBeenCalledWith("L1");
     window.history.replaceState(null, "", "/");
   });
+
+  it("labels a saved brand and model by name instead of a placeholder", () => {
+    vi.mocked(listMedia).mockResolvedValue([]);
+    render(
+      <SellListingForm
+        initial={{
+          ...WORKFLOW_LISTING,
+          brand_name: "Fairline",
+          model_name: "Targa 34",
+          revision: { id: "R1", version: 1, state: "DRAFT", payload: { brand_id: "b1", model_id: "m1" } },
+        }}
+      />,
+    );
+    expect(screen.getByText("Fairline")).toBeTruthy();
+    expect(screen.getByText("Targa 34")).toBeTruthy();
+    expect(screen.queryByText("Current brand")).toBeNull();
+  });
 });

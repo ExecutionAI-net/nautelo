@@ -19,6 +19,10 @@ export interface WorkflowListing {
   seller_type: string;
   version: number;
   revision: { id: string; version: number; state: string; payload: Record<string, unknown> } | null;
+  /** Display names for the ids in the payload (the brand/model comboboxes only know the current search). */
+  brand_name?: string;
+  model_name?: string;
+  custom_model_name?: string;
   /** The live content when nothing is being edited yet (published listings). */
   published_payload?: Record<string, unknown> | null;
   /** Server-verified promotion state (spec: the paid flag never comes from the return URL). */
