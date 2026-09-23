@@ -59,6 +59,15 @@ def on_initial_submitted(sender, revision, **kwargs):
         NotificationType.LISTING_INITIAL_SUBMITTED,
         f"{revision.listing_id}:{revision.revision_number}",
     )
+    submitter = _submitter(revision)
+    if submitter is not None:
+        notify(
+            submitter,
+            NotificationType.LISTING_SUBMISSION_RECEIVED,
+            target_url=_listings_url(revision.listing),
+            payload=_revision_payload(revision),
+            dedupe_key=f"{revision.pk}:submission_received",
+        )
 
 
 @receiver(listing_revision_submitted)

@@ -30,6 +30,16 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "IT": "Un annuncio usa il modello Altro e richiede una decisione.",
     "ES": "Un anuncio usa el modelo Otro y requiere una decision."
   },
+  "notification.listing_submission_received.title": {
+    "EN": "Your listing was submitted",
+    "IT": "Il tuo annuncio e stato inviato",
+    "ES": "Tu anuncio fue enviado"
+  },
+  "notification.listing_submission_received.body": {
+    "EN": "Your listing was received and is awaiting staff review.",
+    "IT": "Il tuo annuncio e stato ricevuto ed e in attesa di revisione.",
+    "ES": "Tu anuncio fue recibido y esta pendiente de revision."
+  },
   "notification.listing_approved.title": {
     "EN": "Your listing was approved",
     "IT": "Il tuo annuncio e stato approvato",

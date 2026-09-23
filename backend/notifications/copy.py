@@ -25,6 +25,10 @@ TEXT = {
         _t("New boat model to map", "Nuovo modello da mappare", "Nuevo modelo por asignar"),
         _t("A listing uses the Other model and needs a taxonomy decision.", "Un annuncio usa il modello Altro e richiede una decisione.", "Un anuncio usa el modelo Otro y requiere una decision."),
     ),
+    NotificationType.LISTING_SUBMISSION_RECEIVED: (
+        _t("Your listing was submitted", "Il tuo annuncio e stato inviato", "Tu anuncio fue enviado"),
+        _t("Your listing was received and is awaiting staff review.", "Il tuo annuncio e stato ricevuto ed e in attesa di revisione.", "Tu anuncio fue recibido y esta pendiente de revision."),
+    ),
     NotificationType.LISTING_APPROVED: (
         _t("Your listing was approved", "Il tuo annuncio e stato approvato", "Tu anuncio fue aprobado"),
         _t("Your listing is now public on Nautelo.", "Il tuo annuncio e ora pubblico su Nautelo.", "Tu anuncio ya es publico en Nautelo."),

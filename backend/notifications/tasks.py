@@ -29,6 +29,7 @@ from notifications.models import Notification, NotificationDelivery
 #: never gets an HTML version - the plain-text body below still sends.
 TEMPLATE_KEY_BY_TYPE = {
     NotificationType.INQUIRY_RECEIVED: "new_message",
+    NotificationType.LISTING_SUBMISSION_RECEIVED: "listing_submission_received",
     NotificationType.LISTING_APPROVED: "listing_approved",
     NotificationType.LISTING_CHANGES_REQUESTED: "listing_changes_requested",
     NotificationType.LISTING_REJECTED: "listing_rejected",
