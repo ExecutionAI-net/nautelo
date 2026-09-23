@@ -27,9 +27,13 @@ interface Props {
   filter: ConversationFilter;
   /** When set, the thread opens beside the list (two-pane inbox from lg up). */
   selectedId?: string;
+  /** Small label above the heading; defaults to the seat's console name. */
+  eyebrow?: string;
+  /** Replaces the listing-oriented intro (the professional's requests page is about services). */
+  intro?: string;
 }
 
-export default function MessagesScreen({ brokerId, basePath, filter, selectedId }: Props) {
+export default function MessagesScreen({ brokerId, basePath, filter, selectedId, eyebrow, intro }: Props) {
   const { session, loading } = useSession();
   const [result, setResult] = useState<{
     key: string;
@@ -95,14 +99,14 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId 
   return (
     <section aria-labelledby="messages-title">
       <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">
-        {brokerId ? "Brokerage CRM" : "Owner console"}
+        {eyebrow ?? (brokerId ? "Brokerage CRM" : "Your messages")}
       </span>
       <h1 id="messages-title" className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">
         {tConversations(locale, "messages.title")}
       </h1>
       {selectedId ? null : (
         <p className="mt-space-sm font-body-md text-on-surface-variant">
-          {tConversations(locale, "messages.intro")}
+          {intro ?? tConversations(locale, "messages.intro")}
         </p>
       )}
       <div className={selectedId ? "mt-space-lg grid items-start gap-space-md lg:grid-cols-12" : undefined}>
