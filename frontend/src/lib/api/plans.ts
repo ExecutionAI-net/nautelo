@@ -47,9 +47,9 @@ export interface Pricing {
   individual_products: IndividualProduct[];
 }
 
-/** Browser (dashboard). */
-export function fetchPricingClient(): Promise<Pricing> {
-  return apiFetch<Pricing>("/api/v1/pricing/");
+/** Browser (dashboard). Package and product names come back in `locale` (English when omitted). */
+export function fetchPricingClient(locale = "en"): Promise<Pricing> {
+  return apiFetch<Pricing>(`/api/v1/pricing/?locale=${encodeURIComponent(locale)}`);
 }
 
 export interface ServiceCategoryOption {

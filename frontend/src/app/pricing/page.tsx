@@ -87,11 +87,14 @@ export default async function PricingPage() {
                     <ul className="flex flex-col gap-space-sm text-body-md text-on-surface">
                       <li className="flex items-center gap-space-sm">
                         <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
-                        <span>Online for {pkg.publication_days} days</span>
+                        <span>{t("pricing.page.online_for_days", { days: pkg.publication_days })}</span>
                       </li>
                       <li className="flex items-center gap-space-sm">
                         <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
-                        <span>Up to {pkg.image_limit} photos{pkg.video_limit ? ` and ${pkg.video_limit} video` : ""}</span>
+                        <span>
+                          {t("pricing.page.up_to_photos", { count: pkg.image_limit })}
+                          {pkg.video_limit ? ` ${t("pricing.page.and_video", { count: pkg.video_limit })}` : ""}
+                        </span>
                       </li>
                       <li className="flex items-center gap-space-sm">
                         <span className="material-symbols-outlined text-secondary text-[18px]" aria-hidden="true">check</span>
