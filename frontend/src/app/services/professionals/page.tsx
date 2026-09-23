@@ -163,7 +163,7 @@ export default async function CombinedDirectoryPage({
 <h2 className="font-headline-lg text-headline-lg text-primary tracking-tight">Find a professional</h2>
 </div>
 <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
-        Contact surveyors, lawyers and other specialists directly. NAUTA does not take a commission on their work.
+        Contact surveyors, lawyers and other specialists directly. Nautelo does not take a commission on their work.
       </p>
 </div>
 
@@ -329,7 +329,7 @@ return (
           Are you a nautical service provider or marine surveyor in the Mediterranean?
         </h2>
 <p className="font-body-lg text-body-lg text-surface-container-highest leading-relaxed">
-          List your firm in the NAUTA professional index. Connect directly with yacht purchasers, skippers, and private boat owners across Spain, Italy, and coastal yacht havens with complete independence.
+          List your firm in the Nautelo professional index. Connect directly with yacht purchasers, skippers, and private boat owners across Spain, Italy, and coastal yacht havens with complete independence.
         </p>
 <div className="pt-space-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-space-md">
 <Link href="/register/" className="inline-flex items-center justify-center gap-space-xs px-space-xl py-space-md bg-secondary-container text-on-secondary-container hover:bg-secondary-fixed rounded font-title-md text-title-md transition-colors shadow-sm" >
@@ -348,7 +348,7 @@ return (
 <section className="w-full max-w-7xl mx-auto px-margin-mobile lg:px-margin-desktop pb-space-lg">
 <div className="bg-surface-container-low rounded-lg p-space-md text-center">
 <p className="font-body-sm text-body-sm text-on-surface-variant max-w-4xl mx-auto leading-relaxed">
-        NAUTA is an independent discovery marketplace. All services shown are provided directly by independent professionals, and all identities and examples are fictional demonstration content.
+        Nautelo is an independent discovery marketplace. All services shown are provided directly by independent professionals, and all identities and examples are fictional demonstration content.
       </p>
 </div>
 </section>

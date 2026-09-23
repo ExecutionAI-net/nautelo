@@ -36,7 +36,7 @@ describe("RegisterPage", () => {
   it("posts newsletter_opt_in true when the checkbox is checked", async () => {
     apiFetch.mockResolvedValue({});
     render(<RegisterPage />);
-    fireEvent.click(screen.getByLabelText("Send me occasional updates from NAUTA."));
+    fireEvent.click(screen.getByLabelText("Send me occasional updates from Nautelo."));
     fill();
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
     expect(JSON.parse(apiFetch.mock.calls[0][1].body).newsletter_opt_in).toBe(true);

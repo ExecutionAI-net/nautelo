@@ -21,7 +21,7 @@ export default async function HealthPage() {
     <main className="min-h-screen flex items-center justify-center bg-background p-8">
       <div className="max-w-md w-full rounded-xl border border-outline-variant p-6 shadow-sm bg-surface-container-lowest">
         <h1 className="font-headline-md text-headline-md text-primary mb-4">
-          NAUTA backend status
+          Nautelo backend status
         </h1>
         {error ? (
           <p className="text-error font-body-md">

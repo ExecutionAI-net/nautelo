@@ -41,7 +41,7 @@ def translate_pending() -> dict:
     source = {value.key.key: value.key.source_en for value in batch}
     system = (
         "You translate the interface text of a boat marketplace for Spain and Italy. Translate from English into "
-        "Italian (it) and Spanish (es). Natural, short, friendly. Keep brand names (NAUTA), numbers, units, currency "
+        "Italian (it) and Spanish (es). Natural, short, friendly. Keep brand names (Nautelo), numbers, units, currency "
         "symbols and every {placeholder} exactly as written. Do not add HTML or markdown. "
         'Reply with ONLY a JSON object: {"<key>": {"it": "...", "es": "..."}} with one entry for every key given.'
     )

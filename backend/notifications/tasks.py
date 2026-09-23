@@ -25,37 +25,37 @@ from notifications.models import Notification, NotificationDelivery
 logger = logging.getLogger(__name__)
 
 SUBJECTS = {
-    "EN": "New message on NAUTA",
-    "IT": "Nuovo messaggio su NAUTA",
-    "ES": "Nuevo mensaje en NAUTA",
+    "EN": "New message on Nautelo",
+    "IT": "Nuovo messaggio su Nautelo",
+    "ES": "Nuevo mensaje en Nautelo",
 }
 # Used when the sender's account carries no name. Never their email address:
 # messaging._reply_display_name deliberately stores "" rather than letting
 # User.get_full_name()'s `full_name or email` fallback leak an address into a
 # message another party reads. Per-locale, not a concatenated literal (spec 37).
 SENDER_FALLBACK = {
-    "EN": "A NAUTA user",
-    "IT": "Un utente NAUTA",
-    "ES": "Un usuario de NAUTA",
+    "EN": "A Nautelo user",
+    "IT": "Un utente Nautelo",
+    "ES": "Un usuario de Nautelo",
 }
 BODIES = {
     "EN": (
-        "{sender} sent you a message about {context} on NAUTA.\n\n"
+        "{sender} sent you a message about {context} on Nautelo.\n\n"
         "{excerpt}\n\n"
-        "Read and reply on NAUTA:\n{url}\n\n"
-        "Reply through NAUTA so the conversation stays on the platform."
+        "Read and reply on Nautelo:\n{url}\n\n"
+        "Reply through Nautelo so the conversation stays on the platform."
     ),
     "IT": (
-        "{sender} ti ha inviato un messaggio su {context} tramite NAUTA.\n\n"
+        "{sender} ti ha inviato un messaggio su {context} tramite Nautelo.\n\n"
         "{excerpt}\n\n"
-        "Leggi e rispondi su NAUTA:\n{url}\n\n"
-        "Rispondi tramite NAUTA per mantenere la conversazione sulla piattaforma."
+        "Leggi e rispondi su Nautelo:\n{url}\n\n"
+        "Rispondi tramite Nautelo per mantenere la conversazione sulla piattaforma."
     ),
     "ES": (
-        "{sender} te ha enviado un mensaje sobre {context} en NAUTA.\n\n"
+        "{sender} te ha enviado un mensaje sobre {context} en Nautelo.\n\n"
         "{excerpt}\n\n"
-        "Lee y responde en NAUTA:\n{url}\n\n"
-        "Responde a traves de NAUTA para mantener la conversacion en la plataforma."
+        "Lee y responde en Nautelo:\n{url}\n\n"
+        "Responde a traves de Nautelo para mantener la conversacion en la plataforma."
     ),
 }
 

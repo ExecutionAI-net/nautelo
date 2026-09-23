@@ -118,7 +118,7 @@ export default function AccountSettings() {
                 checked={newsletterOptIn}
                 onChange={(event) => setNewsletterOptIn(event.target.checked)}
               />
-              Send me occasional updates from NAUTA.
+              Send me occasional updates from Nautelo.
             </label>
             <div>
               <span className="font-label-sm uppercase text-on-surface-variant">Email</span>

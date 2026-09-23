@@ -67,7 +67,7 @@ describe("AccountSettings", () => {
   it("lets a user opt into or out of the newsletter later", async () => {
     mockLocation();
     render(<AccountSettings />);
-    fireEvent.click(screen.getByLabelText("Send me occasional updates from NAUTA."));
+    fireEvent.click(screen.getByLabelText("Send me occasional updates from Nautelo."));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     const [, init] = apiFetch.mock.calls[0];

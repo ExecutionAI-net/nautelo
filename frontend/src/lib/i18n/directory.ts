@@ -110,9 +110,9 @@ export const DIRECTORY_MESSAGES: Record<string, Translations> = {
   "professional.status.active": {
     // Spec 14.2: short verified/profile status language that does not imply a
     // government certification. Backed by a real field (status === ACTIVE).
-    en: "Listed NAUTA profile, reviewed by NAUTA staff. NAUTA is not a licensing body and does not certify qualifications.",
-    it: "Profilo NAUTA pubblicato, verificato dallo staff NAUTA. NAUTA non è un ente di rilascio di licenze e non certifica qualifiche.",
-    es: "Perfil NAUTA publicado, revisado por el equipo de NAUTA. NAUTA no es un organismo de licencias y no certifica cualificaciones.",
+    en: "Listed Nautelo profile, reviewed by Nautelo staff. Nautelo is not a licensing body and does not certify qualifications.",
+    it: "Profilo Nautelo pubblicato, verificato dallo staff Nautelo. Nautelo non è un ente di rilascio di licenze e non certifica qualifiche.",
+    es: "Perfil Nautelo publicado, revisado por el equipo de Nautelo. Nautelo no es un organismo de licencias y no certifica cualificaciones.",
   },
   "category.browse_professionals": {
     en: "Browse professionals in this category",
