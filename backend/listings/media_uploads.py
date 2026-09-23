@@ -6,6 +6,7 @@ listing, and counts EVERY non-rejected row including UPLOADING reservations
 """
 
 import uuid
+from datetime import timedelta
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
@@ -287,6 +288,38 @@ def reorder_media(*, listing: BoatListing, media_type: str, ordered_ids: list) -
             ListingMedia.objects.filter(pk=pk).update(sort_order=base + offset)
         for index, pk in enumerate(wanted):
             ListingMedia.objects.filter(pk=pk).update(sort_order=index)
+
+
+# A row is in SCANNING/PROCESSING only while its worker task is queued or running.
+# Longer than this and the task was lost (a worker restarted mid-deploy, the scanner
+# outage exhausted the task's retries); the sweep queues it again.
+STUCK_AFTER = timedelta(minutes=15)
+# Past this the file is not going to be processed: free the slot with a reason the
+# seller can act on instead of leaving the photo "scanning" forever.
+GIVE_UP_AFTER = timedelta(hours=6)
+
+
+def requeue_stuck_media(*, now=None) -> dict:
+    """Self-heal the pipeline: re-queue lost SCANNING/PROCESSING rows, reject the hopeless ones."""
+    from .tasks import process_listing_media
+
+    now = now or timezone.now()
+    stuck = ListingMedia.objects.filter(
+        status__in=(MediaStatus.SCANNING, MediaStatus.PROCESSING), updated_at__lt=now - STUCK_AFTER
+    )
+    rejected = 0
+    requeued = 0
+    for media in list(stuck):
+        if media.updated_at < now - GIVE_UP_AFTER:
+            reject_media(media, "The file could not be processed. Please upload it again.")
+            rejected += 1
+            continue
+        # process_media works only on SCANNING rows and the scan is idempotent, so start over;
+        # the touch keeps the next sweep from queueing the same row again while this run is pending.
+        ListingMedia.objects.filter(pk=media.pk).update(status=MediaStatus.SCANNING, updated_at=now)
+        process_listing_media.delay(str(media.pk))
+        requeued += 1
+    return {"requeued": requeued, "rejected": rejected}
 
 
 def cleanup_stale_uploads(*, now=None) -> int:

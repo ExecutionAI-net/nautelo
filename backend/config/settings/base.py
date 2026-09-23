@@ -149,6 +149,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "listings.tasks.cleanup_stale_media_uploads",
         "schedule": crontab(minute=10),
     },
+    "requeue-stuck-media": {
+        "task": "listings.tasks.requeue_stuck_media",
+        "schedule": crontab(minute="*/10"),
+    },
     "translate-site-text": {
         "task": "uitext.tasks.translate_pending_ui_text",
         "schedule": crontab(minute="*/10"),

@@ -12,7 +12,7 @@ from entitlements.enums import EntitlementSource, EntitlementType
 from entitlements.tests.factories import make_entitlement, make_private_seller
 from listings import media_storage
 from listings.enums import MediaStatus, MediaType
-from listings.media_uploads import cleanup_stale_uploads, process_media
+from listings.media_uploads import cleanup_stale_uploads, process_media, requeue_stuck_media
 from listings.models import ListingMedia
 from listings.tests.factories import (
     make_brand,
@@ -280,6 +280,35 @@ def test_stale_uploading_reservations_are_cleaned_after_an_hour(client, seller):
     assert cleanup_stale_uploads(now=timezone.now() + timedelta(hours=2)) == 1
     media.refresh_from_db()
     assert media.status == MediaStatus.REJECTED
+    assert intent(client, listing).status_code == 201
+
+
+def test_a_scan_whose_task_was_lost_is_queued_again_and_finally_given_up(client, seller, fake_storage, monkeypatch):
+    """A worker restart mid-deploy drops the queued task and leaves the row SCANNING forever.
+    The maintenance sweep re-queues it after a quarter of an hour and frees the slot after six."""
+    listing = make_private_listing(owner=seller)
+    from listings import tasks
+
+    # The queue swallows the task, as it does when the worker restarts before running it.
+    queued: list[str] = []
+    monkeypatch.setattr(tasks.process_listing_media, "delay", lambda media_id: queued.append(media_id))
+    media_id, _ = upload_and_complete(client, listing, fake_storage, png(1920, 1080))
+    media = ListingMedia.objects.get(pk=media_id)
+    assert media.status == MediaStatus.SCANNING
+    queued.clear()
+
+    now = timezone.now()
+    assert requeue_stuck_media(now=now + timedelta(minutes=5)) == {"requeued": 0, "rejected": 0}
+    assert requeue_stuck_media(now=now + timedelta(minutes=20)) == {"requeued": 1, "rejected": 0}
+    assert queued == [str(media_id)]
+    # The re-queued row was touched, so the very next sweep leaves it alone.
+    assert requeue_stuck_media(now=now + timedelta(minutes=21)) == {"requeued": 0, "rejected": 0}
+
+    ListingMedia.objects.filter(pk=media_id).update(updated_at=now - timedelta(hours=7))
+    assert requeue_stuck_media(now=now) == {"requeued": 0, "rejected": 1}
+    media.refresh_from_db()
+    assert media.status == MediaStatus.REJECTED
+    assert "upload it again" in media.rejection_reason
     assert intent(client, listing).status_code == 201
 
 

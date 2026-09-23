@@ -14,6 +14,7 @@ from .expiry import send_expiry_reminders as _send_expiry_reminders
 from .media_scan import ScannerUnavailable
 from .media_uploads import cleanup_stale_uploads as _cleanup_stale_uploads
 from .media_uploads import process_media as _process_media
+from .media_uploads import requeue_stuck_media as _requeue_stuck_media
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,14 @@ def send_listing_expiry_reminders() -> dict:
 def process_listing_media(media_id: str) -> str | None:
     media = _process_media(media_id)
     return media.status if media is not None else None
+
+
+@shared_task(queue="maintenance")
+def requeue_stuck_media() -> dict:
+    counts = _requeue_stuck_media()
+    if counts["requeued"] or counts["rejected"]:
+        logger.warning("stuck media sweep", extra=counts)
+    return counts
 
 
 @shared_task(queue="maintenance")
