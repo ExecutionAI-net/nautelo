@@ -54,11 +54,16 @@ def test_a_staff_moderator_cannot_list_purchases(api_client, staff_moderator):
 
 @pytest.mark.django_db
 def test_a_staff_admin_sees_every_order_with_its_detail(api_client, staff_admin):
+    from entitlements.enums import EntitlementType
+    from entitlements.tests.factories import make_entitlement
+
     product = listing_right_product()
     buyer = make_payments_seller("p14-buyer@example.com")
+    right = make_entitlement(user=buyer, entitlement_type=EntitlementType.PAID_LISTING)
     make_order(
         user=buyer, product=product, status=PaymentOrderStatus.FULFILLED,
         stripe_checkout_session_id="cs_test_1", stripe_payment_intent_id="pi_test_1",
+        fulfilled_entitlement=right,
     )
     api_client.force_authenticate(user=staff_admin)
 
