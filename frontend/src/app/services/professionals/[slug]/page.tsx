@@ -131,8 +131,13 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                 {professional.services.map((service) => (
                   <li
                     key={service.id}
-                    className="rounded-xl border border-outline-variant p-space-md"
+                    className="flex gap-space-md rounded-xl border border-outline-variant p-space-md"
                   >
+                    {service.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
+                      <img alt="" src={service.photo_url} className="h-20 w-28 shrink-0 rounded-lg object-cover" />
+                    ) : null}
+                    <div>
                     <h3 className="font-title-lg text-title-lg text-on-surface">
                       {service.title}
                     </h3>
@@ -149,6 +154,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                         {service.description}
                       </p>
                     ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>

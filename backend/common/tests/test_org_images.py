@@ -120,6 +120,55 @@ def test_a_viewer_cannot_change_images():
     assert client.post(reverse("provider-image-intent"), {"kind": "logo", "mime_type": "image/png", "size": 10}, format="json").status_code == 403
 
 
+def test_a_service_photo_is_scoped_to_its_own_owner_and_kind(storage):
+    from services_catalog.models import ProfessionalService
+    from services_catalog.tests.factories import make_professional_service, make_service_category
+
+    api, profile = _pro()
+    category = make_service_category(slug="rigging-photo")
+    service = make_professional_service(profile, category, title_en="Rig inspection")
+    other_profile = make_professional(make_user("o2@pro.example", role=UserRole.PROFESSIONAL, verified=True), slug="other-marine-co")
+    other_service = make_professional_service(other_profile, category, title_en="Other's service")
+
+    urls = (
+        reverse("provider-service-image-intent", args=[service.pk]),
+        reverse("provider-service-image-complete", args=[service.pk]),
+    )
+    key, res = _upload(api, storage, *urls, kind="photo", data=_png(400, 300))
+    assert res.status_code == 200
+    assert res.json()["photo_url"] == f"https://cdn.test/{key}"
+    service.refresh_from_db()
+    assert service.photo_key == key
+
+    # A kind this owner has no field for is refused before it ever reaches
+    # replace_key(), rather than raising an AttributeError.
+    bad_kind = api.post(urls[0], {"kind": "logo", "mime_type": "image/png", "size": 10}, format="json")
+    assert bad_kind.status_code == 400 and "invalid_kind" in str(bad_kind.json())
+
+    # Another provider's service id is invisible to this owner, and this
+    # owner's own service id is invisible to the other provider.
+    assert api.post(
+        reverse("provider-service-image-intent", args=[other_service.pk]),
+        {"kind": "photo", "mime_type": "image/png", "size": 10},
+        format="json",
+    ).status_code == 404
+    outsider = APIClient()
+    outsider.force_authenticate(other_profile.owner_user)
+    assert outsider.post(
+        reverse("provider-service-image-intent", args=[service.pk]),
+        {"kind": "photo", "mime_type": "image/png", "size": 10},
+        format="json",
+    ).status_code == 404
+
+    assert ProfessionalService.objects.get(pk=other_service.pk).photo_key == ""
+
+
+def test_a_broker_or_professional_logo_endpoint_refuses_the_photo_kind(storage):
+    api, _ = _pro()
+    refused = api.post(reverse("provider-image-intent"), {"kind": "photo", "mime_type": "image/png", "size": 10}, format="json")
+    assert refused.status_code == 400 and "invalid_kind" in str(refused.json())
+
+
 def test_broker_cover_upload_shows_on_the_public_page(storage):
     admin = make_user("a@br.example", role=UserRole.BROKER, verified=True)
     broker = make_broker()

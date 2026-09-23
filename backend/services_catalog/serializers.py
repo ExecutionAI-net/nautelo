@@ -134,16 +134,22 @@ class ProfessionalServiceSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfessionalService
-        fields = ["id", "title", "description", "service_area", "category", "price_from", "pricing_note"]
+        fields = ["id", "title", "description", "service_area", "category", "price_from", "pricing_note", "photo_url"]
 
     def get_title(self, obj) -> str:
         return localized(obj, "title", self.context["locale"])
 
     def get_description(self, obj) -> str:
         return localized(obj, "description", self.context["locale"])
+
+    def get_photo_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.photo_key)
 
     def get_category(self, obj) -> dict:
         return {
