@@ -12,12 +12,14 @@ export default function StaffProvidersPage() {
           title="Providers"
           eyebrow="Staff / Providers"
           endpoint="/api/v1/staff/providers/"
+          searchPlaceholder="Search by name, owner e-mail or city"
           columns={[
-            { key: "display_name", label: "Name" },
+            { key: "display_name", label: "Name", sortable: true },
             { key: "status", label: "Status" },
             { key: "owner_email", label: "Owner" },
-            { key: "city", label: "City" },
+            { key: "city", label: "City", sortable: true },
             { key: "country_code", label: "Country" },
+            { key: "created_at", label: "Registered", sortable: true },
           ]}
           statusOptions={["DRAFT", "PENDING", "ACTIVE", "SUSPENDED"]}
         statusActionsBase="/api/v1/staff/providers/"

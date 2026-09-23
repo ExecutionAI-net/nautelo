@@ -62,7 +62,7 @@ export default function StaffReports() {
     { title: "Registered users", value: report.users, delta: growth(report.new_users_30d, report.new_users_prev_30d), note: `${report.new_users_30d} joined in the last 30 days`, icon: "group" },
     { title: "Boat listings", value: report.listings, delta: `+${report.new_listings_30d} / 30d`, note: `${report.listings_by_status.PUBLISHED ?? 0} published`, icon: "anchor" },
     { title: "Conversations", value: report.conversations, delta: `+${report.new_conversations_30d} / 30d`, note: "Buyer enquiries and messages", icon: "mail" },
-    { title: "Entitlements", value: report.entitlements, delta: `${report.brokers} brokers`, note: `${report.providers} service providers`, icon: "verified_user" },
+    { title: "Directory", value: report.brokers + report.providers, delta: `${report.brokers} brokers`, note: `${report.providers} service providers`, icon: "storefront" },
   ];
 
   const maxBar = Math.max(1, ...report.monthly.flatMap((m) => [m.users, m.listings, m.conversations]));

@@ -60,3 +60,13 @@ Aşağıdaki tablo düzeltmeler ilerledikçe güncellenir.
 
 | # | Durum | Not |
 |---|-------|-----|
+| S1, S2, S3, S4, S6, S7, S8, S9, S10, S11 | ✅ | Batch A: menü/ad birliği, Contact requests menüde, zil menüsü, sekme başlığı, dil seçici gizli |
+| S12, S13, S14, S15, S16, S17, S18, S19, S21 | ✅ | Batch B: sıralanabilir sütunlar (`?ordering=`), okunur etiketler, tarih biçimi, tek durum rozeti, onay penceresi, panel kaydırma, arama ipuçları, sıfır çipler soluk |
+| S22 | ✅ | Users sayfasında "What the roles mean" açıklaması |
+| S23 | ✅ | Plan değişikliğinde onay; yenileme kontrolleri yalnız planı olan satırda; "Broker plans" |
+| S24 | ✅ | Stripe id'leri detay paneline taşındı |
+| S25 | ✅ | Entitlement defteri e-posta ile filtreler ve e-posta ile hak tanır |
+| S26 | ✅ (kısmen) | "Length overall / Hull length", fiyat biçimli; "Back to queue" zaten vardı; önizleme bağlantısı yok |
+| S28 | ✅ | Taksonomi: başlık önce, Other-model kuyruğu altta |
+| S32 | ✅ | Reports: "Directory" kartı (broker + provider) |
+

@@ -19,9 +19,10 @@ export interface EntitlementRow {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-export function fetchEntitlements(filters: { user?: string; state?: string }) {
+export function fetchEntitlements(filters: { user?: string; email?: string; state?: string }) {
   const search = new URLSearchParams();
   if (filters.user) search.set("user", filters.user);
+  if (filters.email) search.set("email", filters.email);
   if (filters.state) search.set("state", filters.state);
   const query = search.toString();
   return apiFetch<{ results: EntitlementRow[] }>(
@@ -30,7 +31,8 @@ export function fetchEntitlements(filters: { user?: string; state?: string }) {
 }
 
 export function grantEntitlement(body: {
-  user_id: string;
+  user_id?: string;
+  user_email?: string;
   entitlement_type: string;
   reason: string;
 }) {

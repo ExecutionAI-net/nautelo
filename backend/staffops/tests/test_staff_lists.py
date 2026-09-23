@@ -147,3 +147,23 @@ def test_boat_rows_carry_the_submitted_revision_a_moderator_can_decide(staff_api
     # A moderator reads a heading and a formatted price, not a bare decimal.
     assert rows[str(draft.pk)]["title"] == f"{draft.manufacture_year} {draft.brand.name} {draft.model.name}"
     assert rows[str(draft.pk)]["price_display"].endswith(f" {draft.currency}")
+
+
+def test_lists_sort_by_a_whitelisted_column_and_ignore_the_rest(staff_api):
+    make_user(email="a-first@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
+    make_user(email="z-last@example.com", role=UserRole.PRIVATE_SELLER, verified=False)
+    ascending = [row["email"] for row in staff_api.get(reverse("staff-user-list"), {"ordering": "email", "q": "example.com"}).json()["results"]]
+    descending = [row["email"] for row in staff_api.get(reverse("staff-user-list"), {"ordering": "-email", "q": "example.com"}).json()["results"]]
+    assert ascending.index("a-first@example.com") < ascending.index("z-last@example.com")
+    assert descending.index("z-last@example.com") < descending.index("a-first@example.com")
+    # An unknown column keeps the default order instead of erroring.
+    assert staff_api.get(reverse("staff-user-list"), {"ordering": "password"}).status_code == 200
+
+
+def test_user_rows_carry_one_account_state_word(staff_api):
+    make_user(email="unverified@example.com", role=UserRole.PRIVATE_SELLER, verified=False)
+    frozen = make_user(email="frozen@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
+    frozen.is_active = False
+    frozen.save(update_fields=["is_active"])
+    rows = {row["email"]: row["account_state"] for row in staff_api.get(reverse("staff-user-list"), {"q": "example.com"}).json()["results"]}
+    assert rows["unverified@example.com"] == "UNVERIFIED" and rows["frozen@example.com"] == "SUSPENDED" and rows["ops-staff@example.com"] == "ACTIVE"

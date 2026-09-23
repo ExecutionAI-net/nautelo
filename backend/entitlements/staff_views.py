@@ -67,6 +67,8 @@ class StaffEntitlementListView(_Base):
         params = request.query_params
         if params.get("user"):
             rows = rows.filter(user_id=params["user"])
+        if params.get("email"):
+            rows = rows.filter(user__email__icontains=params["email"].strip())
         if params.get("type"):
             rows = rows.filter(entitlement_type=params["type"])
         if params.get("state"):
@@ -77,14 +79,17 @@ class StaffEntitlementListView(_Base):
 
 
 class StaffEntitlementGrantView(_Base):
-    """POST /api/v1/staff/entitlements/grants/ {user_id, entitlement_type, reason, valid_days?}"""
+    """POST /api/v1/staff/entitlements/grants/ {user_id | user_email, entitlement_type, reason, valid_days?}"""
 
     def post(self, request):
         data = request.data
         kind = data.get("entitlement_type", EntitlementType.PAID_LISTING)
         if kind not in GRANTABLE:
             raise ValidationError({"entitlement_type": "Not a grantable type."})
-        user = get_object_or_404(get_user_model(), pk=data.get("user_id"))
+        if data.get("user_email"):
+            user = get_object_or_404(get_user_model(), email__iexact=str(data["user_email"]).strip())
+        else:
+            user = get_object_or_404(get_user_model(), pk=data.get("user_id"))
         entitlement = grant_listing_right(
             user=user,
             actor=request.user,
