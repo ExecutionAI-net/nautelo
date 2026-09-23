@@ -43,7 +43,7 @@ class _OrgImageBase(APIView):
 
     def _check_kind(self, kind):
         if kind not in self.allowed_kinds:
-            raise ValidationError({"kind": ["invalid_kind"]})
+            raise serializers.ValidationError({"kind": ["invalid_kind"]})
 
 
 class _Intent(_OrgImageBase):
