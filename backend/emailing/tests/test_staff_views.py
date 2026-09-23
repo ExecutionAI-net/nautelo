@@ -145,7 +145,7 @@ def test_test_send_emails_only_the_requesting_staffer(api, staff_admin):
     assert "Alex Morgan" in mail.outbox[0].alternatives[0][0]
 
 
-def test_test_send_reports_a_provider_rejection_as_502(api, staff_admin, monkeypatch):
+def test_test_send_reports_a_provider_rejection_as_400(api, staff_admin, monkeypatch):
     api.force_authenticate(staff_admin)
 
     def rejected(**kwargs):
@@ -159,6 +159,6 @@ def test_test_send_reports_a_provider_rejection_as_502(api, staff_admin, monkeyp
         format="json",
     )
 
-    assert response.status_code == 502
+    assert response.status_code == 400
     assert response.data["error"]["code"] == "email_delivery_failed"
     assert "invalid token" in response.data["error"]["message"]

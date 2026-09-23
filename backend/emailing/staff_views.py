@@ -148,6 +148,8 @@ class StaffEmailTemplateTestSendView(APIView):
 
 
 class EmailDeliveryFailed(APIException):
-    status_code = 502
+    # Not 502: Cloudflare replaces an origin 502/503/504 with its own error
+    # page, which would hide the provider's reason from the staffer.
+    status_code = 400
     default_code = "email_delivery_failed"
     default_detail = "The email provider rejected the message."
