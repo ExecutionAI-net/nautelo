@@ -95,13 +95,13 @@ def test_put_creates_a_new_locale_row_and_stamps_the_editor(api, staff_admin):
 
 
 def test_put_updates_an_existing_row_in_place(api, staff_admin):
-    EmailTemplate.objects.create(key="password_reset", locale="EN", subject="old", html_body="<p>old</p>")
+    EmailTemplate.objects.create(key="password_reset", locale="IT", subject="old", html_body="<p>old</p>")
     api.force_authenticate(staff_admin)
 
-    api.put(detail_url("password_reset", "EN"), {"subject": "new", "html_body": "<p>new</p>"}, format="json")
+    api.put(detail_url("password_reset", "IT"), {"subject": "new", "html_body": "<p>new</p>"}, format="json")
 
-    assert EmailTemplate.objects.filter(key="password_reset", locale="EN").count() == 1
-    assert EmailTemplate.objects.get(key="password_reset", locale="EN").subject == "new"
+    assert EmailTemplate.objects.filter(key="password_reset", locale="IT").count() == 1
+    assert EmailTemplate.objects.get(key="password_reset", locale="IT").subject == "new"
 
 
 def test_put_rejects_a_blank_subject_or_body(api, staff_admin):
@@ -117,7 +117,7 @@ def test_preview_substitutes_sample_data_and_does_not_touch_the_database(api, st
     api.force_authenticate(staff_admin)
 
     response = api.post(
-        f"{detail_url('password_reset', 'EN')}preview/",
+        f"{detail_url('password_reset', 'IT')}preview/",
         {"subject": "Reset for {{ name }}", "html_body": "<p>Go to {{ url }}</p>"},
         format="json",
     )
@@ -126,7 +126,7 @@ def test_preview_substitutes_sample_data_and_does_not_touch_the_database(api, st
     assert response.data["subject"] == "Reset for Alex Morgan"
     assert "Go to " in response.data["html"]
     assert "Alex Morgan" not in response.data["html"]
-    assert not EmailTemplate.objects.filter(key="password_reset", locale="EN").exists()
+    assert not EmailTemplate.objects.filter(key="password_reset", locale="IT").exists()
 
 
 def test_test_send_emails_only_the_requesting_staffer(api, staff_admin):

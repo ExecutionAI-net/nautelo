@@ -42,6 +42,7 @@ class StaffEmailTemplateListView(APIView):
     request per cell."""
 
     permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
 
     def get(self, request):
         rows = {(row.key, row.locale): row for row in EmailTemplate.objects.all()}
@@ -66,6 +67,7 @@ class StaffEmailTemplateDetailView(APIView):
     rather than needing a separate "create" endpoint."""
 
     permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
 
     def get(self, request, key, locale):
         label, variables = _template_meta(key)
@@ -104,6 +106,7 @@ class StaffEmailTemplatePreviewView(APIView):
     editor's preview pane reflects the draft, not the last saved version."""
 
     permission_classes = [IsAuthenticated, IsActiveUser, IsStaffAdmin]
+    throttle_scope = "staff_moderation"
 
     def post(self, request, key, locale):
         _, variables = _template_meta(key)
