@@ -61,7 +61,7 @@ describe("OrganizationRegisterForm", () => {
     render(<OrganizationRegisterForm orgType="PROFESSIONAL" />);
     fillCommon();
     await pickCategory();
-    fireEvent.click(screen.getByLabelText("Send me occasional updates from NAUTA."));
+    fireEvent.click(screen.getByLabelText("Send me occasional updates from Nautelo."));
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
     const registerCall = apiFetch.mock.calls.find(([url]) => url.includes("register/organization"));

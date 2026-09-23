@@ -62,13 +62,13 @@ def test_the_email_is_localized_by_recipient_locale_with_an_en_fallback():
     notification = _notify(italian, email_to="it-office@phase6.example")
     mail.outbox.clear()
     send_notification_email(str(notification.pk), "it-office@phase6.example")
-    assert mail.outbox[0].subject == "Nuovo messaggio su NAUTA"
+    assert mail.outbox[0].subject == "Nuovo messaggio su Nautelo"
 
     english = make_user(email="en@phase6.example", locale=Locale.EN)
     notification = _notify(english, email_to="en-office@phase6.example")
     mail.outbox.clear()
     send_notification_email(str(notification.pk), "en-office@phase6.example")
-    assert mail.outbox[0].subject == "New message on NAUTA"
+    assert mail.outbox[0].subject == "New message on Nautelo"
 
 
 def test_a_successful_send_marks_the_delivery_row_sent():
@@ -173,7 +173,7 @@ def test_the_spanish_email_is_rendered_in_spanish():
     send_notification_email(str(notification.pk), "es-office@phase6.example")
 
     sent = mail.outbox[0]
-    assert sent.subject == "Nuevo mensaje en NAUTA"
+    assert sent.subject == "Nuevo mensaje en Nautelo"
     assert sent.body.startswith("Ada Rossi te ha enviado un mensaje")
     assert "https://nauta.test/dashboard/messages/abc/" in sent.body
 
@@ -195,7 +195,7 @@ def test_a_sender_without_a_name_falls_back_to_a_localized_placeholder():
 
     send_notification_email(str(notification.pk), "noname-office@phase6.example")
 
-    assert mail.outbox[0].body.startswith("Un utente NAUTA")
+    assert mail.outbox[0].body.startswith("Un utente Nautelo")
 
 
 def test_an_unknown_locale_falls_back_to_english():
@@ -207,7 +207,7 @@ def test_an_unknown_locale_falls_back_to_english():
 
     send_notification_email(str(notification.pk), "xx-office@phase6.example")
 
-    assert mail.outbox[0].subject == "New message on NAUTA"
+    assert mail.outbox[0].subject == "New message on Nautelo"
 
 
 # ---------------------------------------------------------------------------

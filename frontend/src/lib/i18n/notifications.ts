@@ -36,9 +36,9 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "ES": "Tu anuncio fue aprobado"
   },
   "notification.listing_approved.body": {
-    "EN": "Your listing is now public on NAUTA.",
-    "IT": "Il tuo annuncio e ora pubblico su NAUTA.",
-    "ES": "Tu anuncio ya es publico en NAUTA."
+    "EN": "Your listing is now public on Nautelo.",
+    "IT": "Il tuo annuncio e ora pubblico su Nautelo.",
+    "ES": "Tu anuncio ya es publico en Nautelo."
   },
   "notification.listing_changes_requested.title": {
     "EN": "Changes requested on your listing",
@@ -76,9 +76,9 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "ES": "Tu anuncio ha caducado"
   },
   "notification.listing_expired.body": {
-    "EN": "It is no longer public on NAUTA.",
-    "IT": "Non e piu pubblico su NAUTA.",
-    "ES": "Ya no es publico en NAUTA."
+    "EN": "It is no longer public on Nautelo.",
+    "IT": "Non e piu pubblico su Nautelo.",
+    "ES": "Ya no es publico en Nautelo."
   },
   "notification.professional_activated.title": {
     "EN": "Your professional profile is live",
@@ -86,9 +86,9 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "ES": "Tu perfil profesional esta activo"
   },
   "notification.professional_activated.body": {
-    "EN": "Your payment was received. Your profile is now listed on NAUTA.",
-    "IT": "Pagamento ricevuto. Il tuo profilo e ora pubblicato su NAUTA.",
-    "ES": "Pago recibido. Tu perfil ya esta publicado en NAUTA."
+    "EN": "Your payment was received. Your profile is now listed on Nautelo.",
+    "IT": "Pagamento ricevuto. Il tuo profilo e ora pubblicato su Nautelo.",
+    "ES": "Pago recibido. Tu perfil ya esta publicado en Nautelo."
   },
   "notification.professional_payment_failed.title": {
     "EN": "Payment not received",

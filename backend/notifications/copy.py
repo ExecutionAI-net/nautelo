@@ -27,7 +27,7 @@ TEXT = {
     ),
     NotificationType.LISTING_APPROVED: (
         _t("Your listing was approved", "Il tuo annuncio e stato approvato", "Tu anuncio fue aprobado"),
-        _t("Your listing is now public on NAUTA.", "Il tuo annuncio e ora pubblico su NAUTA.", "Tu anuncio ya es publico en NAUTA."),
+        _t("Your listing is now public on Nautelo.", "Il tuo annuncio e ora pubblico su Nautelo.", "Tu anuncio ya es publico en Nautelo."),
     ),
     NotificationType.LISTING_CHANGES_REQUESTED: (
         _t("Changes requested on your listing", "Modifiche richieste al tuo annuncio", "Cambios solicitados en tu anuncio"),
@@ -43,11 +43,11 @@ TEXT = {
     ),
     NotificationType.LISTING_EXPIRED: (
         _t("Your listing has expired", "Il tuo annuncio e scaduto", "Tu anuncio ha caducado"),
-        _t("It is no longer public on NAUTA.", "Non e piu pubblico su NAUTA.", "Ya no es publico en NAUTA."),
+        _t("It is no longer public on Nautelo.", "Non e piu pubblico su Nautelo.", "Ya no es publico en Nautelo."),
     ),
     NotificationType.PROFESSIONAL_ACTIVATED: (
         _t("Your professional profile is live", "Il tuo profilo professionale e attivo", "Tu perfil profesional esta activo"),
-        _t("Your payment was received. Your profile is now listed on NAUTA.", "Pagamento ricevuto. Il tuo profilo e ora pubblicato su NAUTA.", "Pago recibido. Tu perfil ya esta publicado en NAUTA."),
+        _t("Your payment was received. Your profile is now listed on Nautelo.", "Pagamento ricevuto. Il tuo profilo e ora pubblicato su Nautelo.", "Pago recibido. Tu perfil ya esta publicado en Nautelo."),
     ),
     NotificationType.PROFESSIONAL_PAYMENT_FAILED: (
         _t("Payment not received", "Pagamento non ricevuto", "Pago no recibido"),

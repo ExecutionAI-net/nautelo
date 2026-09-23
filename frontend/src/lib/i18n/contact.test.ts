@@ -19,7 +19,7 @@ describe("CONTACT_MESSAGES", () => {
 
   it("uses spec 16's locked explanation copy verbatim in English", () => {
     expect(tContact("en", "contact.locked_explanation")).toBe(
-      "Send a message through NAUTA to unlock business contact details.",
+      "Send a message through Nautelo to unlock business contact details.",
     );
   });
 

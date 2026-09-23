@@ -10,14 +10,14 @@ from emailing.services import render_email
 logger = logging.getLogger(__name__)
 
 SUBJECTS = {
-    "EN": "Confirm your NAUTA email address",
-    "IT": "Conferma il tuo indirizzo email NAUTA",
-    "ES": "Confirma tu direccion de correo NAUTA",
+    "EN": "Confirm your Nautelo email address",
+    "IT": "Conferma il tuo indirizzo email Nautelo",
+    "ES": "Confirma tu direccion de correo Nautelo",
 }
 BODIES = {
-    "EN": "Hello {name},\n\nConfirm your NAUTA account by opening:\n{url}\n\nThis link expires in 24 hours.",
-    "IT": "Ciao {name},\n\nConferma il tuo account NAUTA aprendo:\n{url}\n\nIl link scade tra 24 ore.",
-    "ES": "Hola {name},\n\nConfirma tu cuenta NAUTA abriendo:\n{url}\n\nEl enlace caduca en 24 horas.",
+    "EN": "Hello {name},\n\nConfirm your Nautelo account by opening:\n{url}\n\nThis link expires in 24 hours.",
+    "IT": "Ciao {name},\n\nConferma il tuo account Nautelo aprendo:\n{url}\n\nIl link scade tra 24 ore.",
+    "ES": "Hola {name},\n\nConfirma tu cuenta Nautelo abriendo:\n{url}\n\nEl enlace caduca en 24 horas.",
 }
 
 
@@ -43,9 +43,9 @@ def send_email_verification_email(user_id: str, raw_token: str) -> None:
 
 
 RESET_SUBJECTS = {
-    "EN": "Reset your NAUTA password",
-    "IT": "Reimposta la tua password NAUTA",
-    "ES": "Restablece tu contrasena NAUTA",
+    "EN": "Reset your Nautelo password",
+    "IT": "Reimposta la tua password Nautelo",
+    "ES": "Restablece tu contrasena Nautelo",
 }
 RESET_BODIES = {
     "EN": "Hello {name},\n\nChoose a new password by opening:\n{url}\n\nThis link expires in 1 hour. If you did not ask for it, ignore this email.",
@@ -73,14 +73,14 @@ def send_password_reset_email(user_id: str, raw_token: str) -> None:
 
 
 INVITE_SUBJECTS = {
-    "EN": "You have been invited to join {org} on NAUTA",
-    "IT": "Sei stato invitato a unirti a {org} su NAUTA",
-    "ES": "Has sido invitado a unirte a {org} en NAUTA",
+    "EN": "You have been invited to join {org} on Nautelo",
+    "IT": "Sei stato invitato a unirti a {org} su Nautelo",
+    "ES": "Has sido invitado a unirte a {org} en Nautelo",
 }
 INVITE_BODIES = {
-    "EN": "Hello,\n\n{inviter} invited you to join {org} on NAUTA as {role}.\nAccept the invitation:\n{url}\n\nThe link expires in 7 days.",
-    "IT": "Ciao,\n\n{inviter} ti ha invitato a unirti a {org} su NAUTA come {role}.\nAccetta l'invito:\n{url}\n\nIl link scade tra 7 giorni.",
-    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en NAUTA como {role}.\nAcepta la invitacion:\n{url}\n\nEl enlace caduca en 7 dias.",
+    "EN": "Hello,\n\n{inviter} invited you to join {org} on Nautelo as {role}.\nAccept the invitation:\n{url}\n\nThe link expires in 7 days.",
+    "IT": "Ciao,\n\n{inviter} ti ha invitato a unirti a {org} su Nautelo come {role}.\nAccetta l'invito:\n{url}\n\nIl link scade tra 7 giorni.",
+    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en Nautelo como {role}.\nAcepta la invitacion:\n{url}\n\nEl enlace caduca en 7 dias.",
 }
 
 

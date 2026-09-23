@@ -97,7 +97,7 @@ describe("InquiryForm", () => {
       screen.getByLabelText("I accept the privacy policy (version 2026-09)."),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Send me occasional updates from NAUTA."),
+      screen.getByLabelText("Send me occasional updates from Nautelo."),
     ).toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe("InquiryForm", () => {
     sessionValue = signedIn();
     renderForm();
     expect(
-      screen.getByLabelText("Send me occasional updates from NAUTA."),
+      screen.getByLabelText("Send me occasional updates from Nautelo."),
     ).not.toBeChecked();
     expect(
       screen.getByLabelText("I accept the privacy policy (version 2026-09)."),

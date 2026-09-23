@@ -97,8 +97,9 @@ export default function PrimaryNav() {
       aria-label={t("nav.aria")}
       className="sticky top-0 z-50 flex min-h-20 flex-wrap items-center gap-x-space-lg gap-y-space-xs py-space-xs bg-surface-container-lowest px-margin-mobile shadow-[0_1px_8px_rgba(0,0,0,0.04)] md:px-margin lg:px-margin-desktop"
     >
-      <Link href="/" className="font-title-lg text-title-lg uppercase tracking-tight text-primary">
-        NAUTA
+      <Link href="/" className="flex items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static /public asset, no next/image usage anywhere else in this codebase yet */}
+        <img src="/brand/logo-horizontal.svg" alt="Nautelo" className="h-10 w-auto md:h-12" />
       </Link>
       <ul className="order-last flex w-full flex-wrap items-center gap-x-space-md xl:order-none xl:w-auto xl:flex-1 xl:gap-x-space-lg">
         {visible.map((link) => (

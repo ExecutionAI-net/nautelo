@@ -37,7 +37,7 @@ export async function generateMetadata(): Promise<Metadata> {
   languages["x-default"] = `${SITE_URL}${path}`;
   return {
     metadataBase: new URL(SITE_URL),
-    title: { default: "NAUTA", template: "%s · NAUTA" },
+    title: { default: "Nautelo", template: "%s · Nautelo" },
     description: "Yacht and boat marketplace for Spain and Italy",
     alternates: { canonical: `${SITE_URL}${prefixFor(locale)}${path}`, languages },
   };

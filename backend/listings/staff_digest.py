@@ -49,7 +49,7 @@ def send_staff_digest() -> int:
     sent = 0
     for user in digest_recipients():
         send_mail(
-            "NAUTA moderation digest",
+            "Nautelo moderation digest",
             body,
             settings.DEFAULT_FROM_EMAIL,
             [user.email],

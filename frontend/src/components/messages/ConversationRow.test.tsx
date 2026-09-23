@@ -64,7 +64,7 @@ describe("ConversationRowCard", () => {
         href="/x/"
       />,
     );
-    expect(screen.getByText("A NAUTA user")).toBeInTheDocument();
+    expect(screen.getByText("A Nautelo user")).toBeInTheDocument();
   });
 
   it("hides the unread badge at zero rather than showing '0 unread'", () => {

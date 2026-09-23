@@ -64,7 +64,7 @@ describe("ContactPanel", () => {
     expect(screen.getByText("+34 ••• ••• ••2")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Send a message through NAUTA to unlock business contact details.",
+        "Send a message through Nautelo to unlock business contact details.",
       ),
     ).toBeInTheDocument();
   });
@@ -167,7 +167,7 @@ describe("ContactPanel", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Send a message through NAUTA to unlock business contact details.",
+        "Send a message through Nautelo to unlock business contact details.",
       ),
     ).not.toBeInTheDocument();
   });

@@ -62,7 +62,7 @@ export default function ProviderMembership() {
         <span className="font-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / My plan</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">My plan</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">
-          Your profile is listed in the NAUTA directory while your monthly membership is paid. It goes live the moment your payment is confirmed.
+          Your profile is listed in the Nautelo directory while your monthly membership is paid. It goes live the moment your payment is confirmed.
         </p>
       </div>
 

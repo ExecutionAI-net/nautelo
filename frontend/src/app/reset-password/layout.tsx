@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Choose a new password",
-  description: "Set a new password for your NAUTA account.",
+  description: "Set a new password for your Nautelo account.",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {

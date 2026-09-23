@@ -4,13 +4,18 @@ place that defines "what a Nautelo email looks like" - a staff-authored
 template's `html_body` is only ever the content between the hero and the
 footer.
 
-No logo/photo assets exist in the repo yet (checked before writing this), so
-the header and hero are typography and CSS gradients against the product's
-own brand tokens (tailwind.config.ts: primary #001520, secondary #00696e),
-not images - this also renders reliably in clients that block remote images
-by default. Swapping in a real logo/hero photo later only means adding an
-<img> here.
+The header uses the real brand logo (frontend/public/brand/logo-horizontal.png
+- a PNG, not the .svg sibling, because inline/remote SVG has poor support in
+Outlook and other email clients; the PNG is a Stitch-rendered flat export of
+the same artwork). It is referenced by absolute URL built from
+PUBLIC_BASE_URL, the same settings constant every other outbound link (the
+verify-email/reset-password URLs) already uses, since Next.js serves
+frontend/public/* at that origin. The hero band below it stays typography and
+a CSS gradient against the product's own brand tokens (tailwind.config.ts) -
+no yacht photo asset exists yet to put there.
 """
+
+from django.conf import settings
 
 BRAND_NAVY = "#001520"
 BRAND_TEAL = "#00696e"
@@ -21,6 +26,7 @@ SUPPORT_EMAIL = "support@nautelo.com"
 
 
 def wrap_in_layout(inner_html: str) -> str:
+    logo_url = f"{settings.PUBLIC_BASE_URL}/brand/logo-horizontal.png"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,13 +39,8 @@ def wrap_in_layout(inner_html: str) -> str:
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
 
-<tr><td style="padding:24px 32px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;color:{BRAND_NAVY};">Nautelo</td>
-<td align="right" style="font-size:12px;color:#5f6b6c;">Your trusted yacht marketplace</td>
-</tr>
-</table>
+<tr><td style="padding:24px 32px;" align="center">
+<img src="{logo_url}" alt="Nautelo" width="280" style="display:block;max-width:280px;width:100%;height:auto;">
 </td></tr>
 
 <tr><td style="background:linear-gradient(135deg,{BRAND_NAVY},{BRAND_TEAL});padding:36px 32px;">
