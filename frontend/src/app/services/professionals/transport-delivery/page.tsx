@@ -74,7 +74,7 @@ export default async function TransportDelivery() {
 
 <div className="lg:col-span-5 relative">
 <div className="relative rounded-xl overflow-hidden shadow-xl bg-surface-container-low">
-<img alt="" className="w-full h-[420px] object-cover" src="/design/b97589331d.jpg"/>
+<img alt="" className="w-full h-[420px] object-cover" src="/design/b97589331d.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent"></div>
 
 <div className="absolute bottom-4 left-4 right-4 bg-surface-container-lowest/95 backdrop-blur-sm p-space-sm rounded-lg shadow-md flex items-center gap-3">
@@ -686,7 +686,7 @@ export default async function TransportDelivery() {
 
 <Link href="/services/professionals/" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
 <div className="h-48 overflow-hidden bg-surface-container-low">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/50977b2590.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/50977b2590.webp"/>
 </div>
 <div className="p-space-md flex-1 flex flex-col justify-between">
 <div>
@@ -705,7 +705,7 @@ export default async function TransportDelivery() {
 
 <Link href="/services/professionals/" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
 <div className="h-48 overflow-hidden bg-surface-container-low">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c0a1e49c37.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c0a1e49c37.webp"/>
 </div>
 <div className="p-space-md flex-1 flex flex-col justify-between">
 <div>
@@ -724,7 +724,7 @@ export default async function TransportDelivery() {
 
 <Link href="/services/professionals/" className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col" >
 <div className="h-48 overflow-hidden bg-surface-container-low">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/54f3bbf12d.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/54f3bbf12d.webp"/>
 </div>
 <div className="p-space-md flex-1 flex flex-col justify-between">
 <div>

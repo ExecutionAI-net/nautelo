@@ -73,7 +73,7 @@ export default async function YachtInsurance() {
 
 <div className="lg:col-span-5">
 <div className="relative rounded-xl overflow-hidden shadow-lg bg-surface-container-highest aspect-[4/3] group">
-<img alt="" className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" src="/design/f006531086.jpg"/>
+<img alt="" className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" src="/design/f006531086.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent"></div>
 <div className="absolute bottom-0 left-0 right-0 p-space-md flex flex-col gap-1">
 <div className="inline-flex items-center gap-1.5 bg-surface-container-lowest/90 backdrop-blur-md px-2.5 py-1 rounded-full w-fit">

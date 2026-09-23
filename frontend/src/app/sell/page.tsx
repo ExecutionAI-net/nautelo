@@ -39,19 +39,19 @@ export default async function SellLanding() {
 
 <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter mt-space-xl">
 <div className="relative h-48 md:h-56 rounded-xl overflow-hidden shadow-sm">
-<img alt="" fetchPriority="high" className="w-full h-full object-cover" src="/design/2ea59788a7.jpg"/>
+<img alt="" fetchPriority="high" className="w-full h-full object-cover" src="/design/2ea59788a7.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-md">
 <span className="font-label-md text-label-md text-on-primary tracking-wide">{t("sell.page.sell_it_yourself")}</span>
 </div>
 </div>
 <div className="relative h-48 md:h-56 rounded-xl overflow-hidden shadow-sm">
-<img alt="" className="w-full h-full object-cover" src="/design/6105378ad2.jpg"/>
+<img alt="" className="w-full h-full object-cover" src="/design/6105378ad2.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-md">
 <span className="font-label-md text-label-md text-on-primary tracking-wide">{t("sell.page.or_let_a_broker_do_it")}</span>
 </div>
 </div>
 <div className="relative h-48 md:h-56 rounded-xl overflow-hidden shadow-sm">
-<img alt="" className="w-full h-full object-cover" src="/design/4380ad7d78.jpg"/>
+<img alt="" className="w-full h-full object-cover" src="/design/4380ad7d78.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-md">
 <span className="font-label-md text-label-md text-on-primary tracking-wide">{t("sell.page.buyers_in_spain_italy_and_beyond")}</span>
 </div>

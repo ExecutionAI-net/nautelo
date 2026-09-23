@@ -74,7 +74,7 @@ export default async function FullBrokerage() {
 
 <div className="lg:col-span-5 relative">
 <div className="relative overflow-hidden rounded-2xl shadow-xl bg-surface-container-high aspect-[4/3] w-full">
-<img alt="" className="w-full h-full object-cover" src="/design/d196cba470.jpg"/>
+<img alt="" className="w-full h-full object-cover" src="/design/d196cba470.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/70 via-transparent to-transparent"></div>
 <div className="absolute bottom-4 left-4 right-4 bg-surface-container-lowest/95 backdrop-blur p-space-sm rounded-lg shadow-md flex items-center justify-between">
 <div className="flex items-center gap-space-xs">

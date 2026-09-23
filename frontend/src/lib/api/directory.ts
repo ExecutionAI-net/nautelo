@@ -116,8 +116,15 @@ export interface Paginated<T> {
   results: T[];
 }
 
-export async function directoryFetch<T>(path: string): Promise<T | null> {
-  const clientIp = await forwardedClientIp();
+export interface DirectoryFetchOptions {
+  /** Seconds a public, non-personalised read may be served from the server cache (home page sections). */
+  revalidate?: number;
+}
+
+export async function directoryFetch<T>(path: string, options: DirectoryFetchOptions = {}): Promise<T | null> {
+  // A cached read is the same for every visitor, so it carries no per-visitor header
+  // (the header would split the cache into one entry per address).
+  const clientIp = options.revalidate ? null : await forwardedClientIp();
   const response = await fetch(`${DIRECTORY_API_BASE_URL}${path}`, {
     headers: {
       Accept: "application/json",
@@ -125,8 +132,8 @@ export async function directoryFetch<T>(path: string): Promise<T | null> {
       ...(clientIp ? { "X-Internal-Client-IP": clientIp } : {}),
     },
     // Directory content is staff-edited and provider-edited; never serve a
-    // stale grid from the build cache.
-    cache: "no-store",
+    // stale grid from the build cache, unless the caller asked for a short-lived cache.
+    ...(options.revalidate ? { next: { revalidate: options.revalidate } } : { cache: "no-store" as const }),
   });
 
   if (response.status === 404) {

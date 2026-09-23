@@ -74,7 +74,7 @@ export default async function EnginesMaintenance() {
 
 <div className="lg:col-span-5 relative">
 <div className="relative rounded-xl overflow-hidden shadow-xl bg-primary">
-<img alt="" className="w-full h-[460px] object-cover mix-blend-luminosity opacity-95 hover:opacity-100 transition-opacity" src="/design/4190704a8a.jpg"/>
+<img alt="" className="w-full h-[460px] object-cover mix-blend-luminosity opacity-95 hover:opacity-100 transition-opacity" src="/design/4190704a8a.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/30 to-transparent"></div>
 <div className="absolute bottom-0 left-0 right-0 p-space-md flex flex-col gap-space-xs text-on-primary">
 <div className="inline-flex items-center gap-space-xs bg-surface-container-lowest/20 backdrop-blur-md px-3 py-1 rounded-full w-fit">
@@ -781,7 +781,7 @@ export default async function EnginesMaintenance() {
 
 <Link href="/services/professionals/" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div className="relative h-52 bg-primary overflow-hidden">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c5d7c9c3a7.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c5d7c9c3a7.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
 <div className="absolute bottom-3 left-4 text-on-primary">
 <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary-fixed font-semibold">{t("svc_engines.logistics")}</span>
@@ -801,7 +801,7 @@ export default async function EnginesMaintenance() {
 
 <Link href="/services/professionals/" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div className="relative h-52 bg-primary overflow-hidden">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/87e9f1fad5.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/87e9f1fad5.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
 <div className="absolute bottom-3 left-4 text-on-primary">
 <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary-fixed font-semibold">{t("svc_engines.risk_protection")}</span>
@@ -821,7 +821,7 @@ export default async function EnginesMaintenance() {
 
 <Link href="/services/professionals/" className="group bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between" >
 <div className="relative h-52 bg-primary overflow-hidden">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c7c7a91759.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/design/c7c7a91759.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
 <div className="absolute bottom-3 left-4 text-on-primary">
 <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary-fixed font-semibold">{t("svc_engines.maritime_jurisprudence")}</span>

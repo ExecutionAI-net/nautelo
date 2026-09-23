@@ -2,7 +2,7 @@
 // GET /api/v1/listings/<id>/), plus the one POST the finance surfaces make.
 // Server-rendered pages call the fetch helpers; client components call
 // requestFinanceQuote through the browser client.
-import { directoryFetch, type Paginated } from "@/lib/api/directory";
+import { directoryFetch, type Paginated, type DirectoryFetchOptions } from "@/lib/api/directory";
 import {
   requestFinanceQuote,
   type AssumptionField,
@@ -138,9 +138,9 @@ export interface ListingFacets {
  * home page's first paint, with nothing selected yet), the response is the
  * platform-wide totals.
  */
-export async function fetchListingFacets(filters?: ListingSearch): Promise<ListingFacets> {
+export async function fetchListingFacets(filters?: ListingSearch, options: DirectoryFetchOptions = {}): Promise<ListingFacets> {
   try {
-    const body = await directoryFetch<ListingFacets>(`/api/v1/listings/facets/${listingQuery(filters ?? {})}`);
+    const body = await directoryFetch<ListingFacets>(`/api/v1/listings/facets/${listingQuery(filters ?? {})}`, options);
     return body ?? { brands: [], countries: [], regions: [] };
   } catch {
     return { brands: [], countries: [], regions: [] };
@@ -172,9 +172,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // page. Callers decide what null means.
 export async function fetchPublishedListings(
   params: ListingSearch = {},
+  options: DirectoryFetchOptions = {},
 ): Promise<Paginated<PublicListing> | null> {
   const path = `/api/v1/listings/${listingQuery(params)}`;
-  const body = await directoryFetch<unknown>(path);
+  const body = await directoryFetch<unknown>(path, options);
   if (body === null) {
     return null;
   }

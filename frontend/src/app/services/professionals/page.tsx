@@ -57,7 +57,7 @@ function pageHref(
 const PAGINATION_LINK_CLASS =
   "rounded-lg border border-outline-variant px-space-md py-space-sm font-label-md text-label-md text-primary";
 
-const DESIGN_PHOTOS = ["/design/e4d0158cd3.jpg", "/design/6e536ead8f.jpg", "/design/018863299d.jpg", "/design/1b4bad5160.jpg", "/design/22fe9bf3e3.jpg", "/design/24fcaabe59.jpg"];
+const DESIGN_PHOTOS = ["/design/e4d0158cd3.webp", "/design/6e536ead8f.webp", "/design/018863299d.webp", "/design/1b4bad5160.webp", "/design/22fe9bf3e3.webp", "/design/24fcaabe59.webp"];
 
 export default async function CombinedDirectoryPage({
   searchParams,

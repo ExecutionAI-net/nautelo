@@ -1,6 +1,6 @@
 // Server-side public reads of guides and ads (imports next/headers through directoryFetch; never import from a client component).
 import type { AdPlacement, GuideDetail, GuideSummary, PublicAd } from "@/lib/api/content";
-import { directoryFetch, type Paginated } from "@/lib/api/directory";
+import { directoryFetch, type Paginated, type DirectoryFetchOptions } from "@/lib/api/directory";
 
 export async function fetchGuides(params: { page?: string; category?: string } = {}): Promise<Paginated<GuideSummary> & { categories?: string[] }> {
   const search = new URLSearchParams();
@@ -24,9 +24,9 @@ export async function fetchGuide(slug: string): Promise<GuideDetail | null> {
 }
 
 /** Active ads for one placement. An ad outage must never break the page, so any failure is an empty list. */
-export async function fetchAds(placement: AdPlacement): Promise<PublicAd[]> {
+export async function fetchAds(placement: AdPlacement, options: DirectoryFetchOptions = {}): Promise<PublicAd[]> {
   try {
-    return (await directoryFetch<PublicAd[]>(`/api/v1/ads/?placement=${placement}`)) ?? [];
+    return (await directoryFetch<PublicAd[]>(`/api/v1/ads/?placement=${placement}`, options)) ?? [];
   } catch {
     return [];
   }
