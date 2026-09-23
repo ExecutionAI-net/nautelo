@@ -460,7 +460,7 @@
   "promo.skip": "Skip, continue without promotion",
   "promo.secure": "Secure payment with Stripe.",
   "promo.error": "Payment could not be opened. You can skip this and promote later.",
-  "promo.paid": "Promotion paid. It starts as soon as your listing goes live.",
+  "promo.paid": "Promotion paid. It starts as soon as your listing goes live - submit the listing for review below to get there.",
   "promo.later": "Promote",
   "nav.services_professionals": "Services / Professionals",
   "directory.services_professionals.title": "Nautical Services & Professionals",
