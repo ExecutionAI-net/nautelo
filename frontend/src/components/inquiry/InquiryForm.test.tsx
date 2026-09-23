@@ -197,7 +197,7 @@ describe("InquiryForm", () => {
       company_website: "",
     });
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your message has been forwarded to Phase6 Pro. They will get back to you as soon as possible. Thank you.",
+      "Your message about Phase6 Pro has been sent. You will get a reply as soon as possible. Thank you.",
     );
   });
 
