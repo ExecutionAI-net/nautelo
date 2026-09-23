@@ -3,6 +3,10 @@ import ContactRequestForm from "@/components/contact/ContactRequestForm";
 import type { Metadata } from "next";
 import Link from "@/components/layout/LocaleLink";
 
+// The team's real channels; every form on the site also lands in this mailbox (contactdesk.tasks).
+const CONTACT_EMAIL = "info@nautelo.com";
+const CONTACT_PHONE = "+39 392 0618739";
+
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT();
   return { title: t("contact.meta_title"), description: t("contact.meta_description") };
@@ -102,9 +106,9 @@ export default async function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">{t("contact.page.palma_de_mallorca_barcelona_hubs")}</div>
 </div>
 </div>
-<Link href="#contact-form" className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1" >
-                      {t("contact.page.use_the_form")}
-                    </Link>
+<a href={`tel:${CONTACT_PHONE.replace(/\s+/g, "")}`} className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1">
+                      {CONTACT_PHONE}
+                    </a>
 </div>
 <div className="flex items-center justify-between p-2.5 rounded bg-surface-container-low hover:bg-surface-container transition-colors">
 <div className="flex items-center gap-2.5">
@@ -114,9 +118,9 @@ export default async function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">{t("contact.page.genoa_liguria_naples_hubs")}</div>
 </div>
 </div>
-<Link href="#contact-form" className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1" >
-                      {t("contact.page.use_the_form")}
-                    </Link>
+<a href={`tel:${CONTACT_PHONE.replace(/\s+/g, "")}`} className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1">
+                      {CONTACT_PHONE}
+                    </a>
 </div>
 <div className="flex items-center justify-between p-2.5 rounded bg-surface-container-low hover:bg-surface-container transition-colors">
 <div className="flex items-center gap-2.5">
@@ -126,9 +130,9 @@ export default async function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">{t("contact.page.cross_border_flag_transfers")}</div>
 </div>
 </div>
-<Link href="#contact-form" className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1" >
-                      {t("contact.page.use_the_form")}
-                    </Link>
+<a href={`tel:${CONTACT_PHONE.replace(/\s+/g, "")}`} className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1">
+                      {CONTACT_PHONE}
+                    </a>
 </div>
 </div>
 </div>
@@ -136,27 +140,27 @@ export default async function ContactPage() {
 <div className="pt-2">
 <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-2">{t("contact.page.dedicated_department_emails")}</div>
 <div className="grid grid-cols-1 gap-2">
-<Link href="#contact-form" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group">
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">mail</span>
 <span className="font-body-md text-body-md text-primary">{t("contact.page.general_support_listings")}</span>
 </div>
-<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{t("contact.page.use_the_form")}</span>
-</Link>
-<Link href="#contact-form" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{CONTACT_EMAIL}</span>
+</a>
+<a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group">
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">domain</span>
 <span className="font-body-md text-body-md text-primary">{t("contact.page.broker_yard_verification")}</span>
 </div>
-<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{t("contact.page.use_the_form")}</span>
-</Link>
-<Link href="#contact-form" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{CONTACT_EMAIL}</span>
+</a>
+<a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group">
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">gavel</span>
 <span className="font-body-md text-body-md text-primary">{t("contact.page.legal_tax_desk")}</span>
 </div>
-<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{t("contact.page.use_the_form")}</span>
-</Link>
+<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{CONTACT_EMAIL}</span>
+</a>
 </div>
 </div>
 

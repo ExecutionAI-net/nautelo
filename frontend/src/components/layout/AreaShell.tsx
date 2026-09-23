@@ -51,6 +51,7 @@ const AREAS = {
       { href: "/dashboard/staff/providers/", label: "Providers" },
       { href: "/dashboard/staff/leads/", label: "Leads" },
       { href: "/dashboard/staff/service-requests/", label: "Service requests" },
+      { href: "/dashboard/staff/contact-requests/", label: "Contact requests" },
       { href: "/dashboard/staff/subscriptions/", label: "Subscriptions" },
       { href: "/dashboard/staff/purchases/", label: "Purchases" },
       { href: "/dashboard/staff/entitlements/", label: "Entitlements" },

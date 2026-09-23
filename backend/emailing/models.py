@@ -36,6 +36,11 @@ TEMPLATE_KEYS = (
     ("professional_payment_failed", "Professional payment failed", ("url",)),
     ("professional_deactivated", "Professional profile deactivated", ("url",)),
     ("payment_fulfillment_failed", "Payment fulfillment failed", ("url",)),
+    (
+        "contact_request_received",
+        "Contact request received (team mailbox)",
+        ("reference", "topic", "name", "email", "phone", "language", "message", "details", "url"),
+    ),
 )
 
 TEMPLATE_KEY_CHOICES = tuple((key, label) for key, label, _variables in TEMPLATE_KEYS)

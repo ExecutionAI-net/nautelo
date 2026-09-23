@@ -363,6 +363,8 @@ CORS_ALLOW_CREDENTIALS = True
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+# Where every public form (contact page, financing study) is announced to the team.
+CONTACT_NOTIFY_EMAIL = env("CONTACT_NOTIFY_EMAIL", default="info@nautelo.com")
 
 # ZeptoMail (emailing.backend.ZeptoMailBackend): point EMAIL_BACKEND at that
 # class to send through it. Empty by default so a deployment that hasn't set
