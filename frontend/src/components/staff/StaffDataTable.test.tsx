@@ -40,7 +40,7 @@ describe("StaffDataTable", () => {
           { key: "slug", label: "Slug", panelOnly: true },
         ]}
         statusOptions={["PENDING_APPROVAL", "PUBLISHED"]}
-        publicLink={{ key: "slug", base: "/boats/", label: "Open public page", when: (row) => row.status === "PUBLISHED" }}
+        publicLink={{ key: "slug", base: "/boats/", label: "Open public page", whenStatus: "PUBLISHED" }}
       />,
     );
     expect((await screen.findAllByText("Pending approval")).length).toBeGreaterThan(0);

@@ -41,8 +41,9 @@ interface Props {
   statusOptions?: string[];
   /** When the row carries this key, the details panel links to `base + value` (e.g. the revision review screen). */
   reviewLink?: { key: string; base: string; label: string };
-  /** A link to the public page of the row, shown when `when(row)` holds (default: always, if the key has a value). */
-  publicLink?: { key: string; base: string; label: string; when?: (row: Record<string, unknown>) => boolean };
+  /** A link to the public page of the row, shown when the row's `status` is `whenStatus` (default: always, if the key
+   * has a value). A status string, not a predicate: the pages are server components and cannot pass functions here. */
+  publicLink?: { key: string; base: string; label: string; whenStatus?: string };
   groups?: ChipGroup[];
   /** Base path such as /api/v1/staff/providers/; enables Activate/Suspend in the side panel. */
   statusActionsBase?: string;
@@ -237,7 +238,7 @@ export default function StaffDataTable({
   const tableColumns = columns.filter((column) => !column.panelOnly);
   const [primary, secondary, ...rest] = tableColumns;
   const panelColumns = columns.filter((column) => column !== primary && column !== secondary);
-  const showPublic = selected && publicLink && typeof selected[publicLink.key] === "string" && selected[publicLink.key] && (publicLink.when ? publicLink.when(selected) : true);
+  const showPublic = selected && publicLink && typeof selected[publicLink.key] === "string" && selected[publicLink.key] && (publicLink.whenStatus ? selected.status === publicLink.whenStatus : true);
 
   function header(column: Column) {
     if (!column.sortable) return column.label;

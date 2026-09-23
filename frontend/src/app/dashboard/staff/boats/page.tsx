@@ -28,7 +28,7 @@ export default function StaffBoatsPage() {
             { key: "published_at", label: "Published", panelOnly: true },
           ]}
           reviewLink={{ key: "pending_revision_id", base: "/dashboard/staff/revisions/", label: "Review and decide" }}
-          publicLink={{ key: "slug", base: "/boats/", label: "Open public page", when: (row) => row.status === "PUBLISHED" }}
+          publicLink={{ key: "slug", base: "/boats/", label: "Open public page", whenStatus: "PUBLISHED" }}
           statusOptions={["DRAFT", "PENDING_APPROVAL", "PUBLISHED", "REJECTED", "SUSPENDED", "EXPIRED", "ARCHIVED"]}
         />
       </RequirePermission>
