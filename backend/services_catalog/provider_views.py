@@ -184,6 +184,12 @@ class ProviderProfileView(APIView):
 
 class ProviderServiceSerializer(serializers.ModelSerializer):
     category_slug = serializers.SlugRelatedField(source="category", slug_field="slug", read_only=True)
+    photo_url = serializers.SerializerMethodField()
+
+    def get_photo_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.photo_key)
 
     def validate_title_en(self, value):
         return plain_text(value)
@@ -195,7 +201,7 @@ class ProviderServiceSerializer(serializers.ModelSerializer):
         model = ProfessionalService
         fields = (
             "id", "category", "category_slug", "title_en", "description_en", "service_area",
-            "price_from", "pricing_note", "is_active",
+            "price_from", "pricing_note", "photo_url", "is_active",
         )
 
 

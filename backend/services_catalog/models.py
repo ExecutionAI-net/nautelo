@@ -78,6 +78,9 @@ class ProfessionalService(UUIDTimeStampedModel):
     # case the public page shows "Quote on request").
     price_from = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     pricing_note = models.CharField(max_length=120, blank=True, default="")
+    # Storage key for the service card photo (common.org_images "photo" kind);
+    # never a URL - resolved to one at read time like logo_key/cover_key.
+    photo_key = models.CharField(max_length=300, blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     class Meta:

@@ -71,6 +71,7 @@ export interface ProfessionalService {
   category: CategoryRef;
   price_from: string | null;
   pricing_note: string;
+  photo_url: string | null;
 }
 
 export interface RelatedProfessional {

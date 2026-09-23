@@ -34,6 +34,7 @@ export interface ProviderService {
   service_area: string[];
   price_from: string | null;
   pricing_note: string;
+  photo_url: string | null;
   is_active: boolean;
 }
 

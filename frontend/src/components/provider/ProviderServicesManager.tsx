@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api/client";
 import { formatPrice } from "@/lib/api/plans";
+import ServicePhotoUpload from "@/components/provider/ServicePhotoUpload";
 import {
   createProviderService,
   deleteProviderService,
@@ -78,6 +79,7 @@ export default function ProviderServicesManager() {
           <table className="w-full text-left text-body-sm">
             <thead className="bg-surface-container-low text-on-surface-variant font-label-sm uppercase tracking-wider">
               <tr>
+                <th className="py-3 px-4">Photo</th>
                 <th className="py-3 px-4">Service</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Price</th>
@@ -88,6 +90,15 @@ export default function ProviderServicesManager() {
             <tbody className="divide-y divide-surface-container">
               {services.map((service) => (
                 <tr key={service.id} className="hover:bg-surface-container-low/50 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <ServicePhotoUpload
+                      serviceId={service.id}
+                      currentUrl={service.photo_url}
+                      onUploaded={(photo_url) =>
+                        setServices((current) => current.map((row) => (row.id === service.id ? { ...row, photo_url } : row)))
+                      }
+                    />
+                  </td>
                   <td className="py-3.5 px-4 font-title-md text-primary font-semibold">{service.title_en}</td>
                   <td className="py-3.5 px-4 whitespace-nowrap">
                     <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">{service.category_slug}</span>
@@ -119,7 +130,7 @@ export default function ProviderServicesManager() {
               ))}
               {services.length === 0 ? (
                 <tr>
-                  <td className="py-space-md px-4 text-on-surface-variant" colSpan={5}>No services yet.</td>
+                  <td className="py-space-md px-4 text-on-surface-variant" colSpan={6}>No services yet.</td>
                 </tr>
               ) : null}
             </tbody>

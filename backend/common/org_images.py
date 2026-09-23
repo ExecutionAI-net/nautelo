@@ -17,9 +17,9 @@ from listings.media_policy import RejectedMedia
 from listings.media_sanitize import sanitize_image
 
 MAX_BYTES = 5 * 1024 * 1024
-MIN_SIZE = {"logo": (128, 128), "cover": (600, 200)}
+MIN_SIZE = {"logo": (128, 128), "cover": (600, 200), "photo": (300, 200)}
 EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-KINDS = ("logo", "cover")
+KINDS = ("logo", "cover", "photo")
 
 
 def key_prefix(owner_type: str, owner_id) -> str:
