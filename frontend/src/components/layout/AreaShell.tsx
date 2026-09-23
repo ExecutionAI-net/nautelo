@@ -13,6 +13,7 @@ const AREAS = {
       { href: "/dashboard/private-seller/messages/", label: "Enquiries & messages" },
       { href: "/dashboard/private-seller/services/", label: "Services" },
       { href: "/dashboard/private-seller/account/", label: "My account" },
+      { href: "/dashboard/private-seller/notifications/", label: "Notifications" },
     ] as Tab[],
   },
   broker: {
@@ -25,6 +26,7 @@ const AREAS = {
       { href: "/dashboard/broker/team/", label: "Team" },
       { href: "/dashboard/broker/profile/", label: "Profile" },
       { href: "/dashboard/broker/subscription/", label: "My plan" },
+      { href: "/dashboard/broker/notifications/", label: "Notifications" },
     ] as Tab[],
   },
   provider: {
@@ -36,6 +38,7 @@ const AREAS = {
       { href: "/dashboard/service-provider/profile/", label: "Profile" },
       { href: "/dashboard/service-provider/team/", label: "Team" },
       { href: "/dashboard/service-provider/membership/", label: "My plan" },
+      { href: "/dashboard/service-provider/notifications/", label: "Notifications" },
     ] as Tab[],
   },
   staff: {
@@ -65,9 +68,9 @@ const AREAS = {
 
 // Menu sections per area; each entry names a tab above by its label.
 const GROUPS: Record<string, [string, string[]][]> = {
-  seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account"]]],
-  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan"]]],
-  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan"]]],
+  seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account", "Notifications"]]],
+  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan", "Notifications"]]],
+  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan", "Notifications"]]],
   staff: [["Moderation", ["Moderation", "Boats", "Contact grants"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Purchases", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content", "Email templates"]], ["System", ["Reports", "Settings"]]],
 };
 
