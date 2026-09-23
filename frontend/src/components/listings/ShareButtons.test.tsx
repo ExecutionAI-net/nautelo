@@ -12,6 +12,22 @@ describe("ShareButtons", () => {
     );
   });
 
+  it("shares only the canonical URL on Facebook", () => {
+    render(<ShareButtons url="https://x.test/boats/a-1/" locale="en" />);
+    const link = screen.getByRole("link", { name: "Share on Facebook" });
+    expect(link.getAttribute("href")).toBe(
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://x.test/boats/a-1/")}`,
+    );
+  });
+
+  it("shares only the canonical URL on LinkedIn", () => {
+    render(<ShareButtons url="https://x.test/boats/a-1/" locale="en" />);
+    const link = screen.getByRole("link", { name: "Share on LinkedIn" });
+    expect(link.getAttribute("href")).toBe(
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent("https://x.test/boats/a-1/")}`,
+    );
+  });
+
   it("copies the link and announces it", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

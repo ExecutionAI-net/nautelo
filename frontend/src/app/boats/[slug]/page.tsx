@@ -24,9 +24,28 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!listing) {
     return { title: (await getT())("boat.meta_title") };
   }
+  const title = listing.title[DEFAULT_LOCALE] || `${listing.brand_name} ${listing.model_name}`;
+  const description = listing.description[DEFAULT_LOCALE]?.slice(0, 160) || undefined;
+  const canonicalUrl = `${SITE_URL}${listingPath(listing) ?? `/boats/${slug}/`}`;
+  // Spec §29.7: sharing to WhatsApp/Facebook/LinkedIn must show the
+  // listing's own photo, not a generic fallback - that requires an
+  // og:image, which Next only emits from this openGraph/twitter block.
+  const primaryImage = listing.media.find((item) => item.media_type === "IMAGE");
   return {
-    title: listing.title[DEFAULT_LOCALE] || `${listing.brand_name} ${listing.model_name}`,
-    description: listing.description[DEFAULT_LOCALE]?.slice(0, 160) || undefined,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      images: primaryImage?.url ? [{ url: primaryImage.url }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: primaryImage?.url ? [primaryImage.url] : undefined,
+    },
   };
 }
 
