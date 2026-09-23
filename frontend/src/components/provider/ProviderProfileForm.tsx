@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import OrgLocationFields from "@/components/places/OrgLocationFields";
+import ServiceAreaPicker from "@/components/places/ServiceAreaPicker";
 import CompletenessChecklist from "@/components/team/CompletenessChecklist";
 import OrgImageUpload from "@/components/team/OrgImageUpload";
 import UnpaidNotice from "@/components/provider/UnpaidNotice";
@@ -35,7 +36,7 @@ interface Draft {
   region: string;
   country_code: string;
   place_id: number | null;
-  service_area: string;
+  service_area: string[];
   category: string;
 }
 
@@ -51,12 +52,12 @@ const EMPTY: Draft = {
   region: "",
   country_code: "",
   place_id: null,
-  service_area: "",
+  service_area: [],
   category: "",
 };
 
 function toDraft(profile: ProviderProfile): Draft {
-  return { ...profile, place_id: profile.place_id ?? null, website_url: profile.website_url ?? "", service_area: profile.service_area.join(", ") };
+  return { ...profile, place_id: profile.place_id ?? null, website_url: profile.website_url ?? "", service_area: profile.service_area };
 }
 
 export default function ProviderProfileForm() {
@@ -85,7 +86,6 @@ export default function ProviderProfileForm() {
     return {
       ...draft,
       website_url: draft.website_url.trim() || null,
-      service_area: draft.service_area.split(",").map((item) => item.trim()).filter(Boolean),
       ...(submit ? { submit: true } : {}),
     };
   }
@@ -111,7 +111,10 @@ export default function ProviderProfileForm() {
     }
   }
 
-  const set = (key: keyof Draft) => (event: { target: { value: string } }) => setDraft({ ...draft, [key]: event.target.value });
+  const set =
+    (key: keyof Omit<Draft, "service_area" | "place_id">) =>
+    (event: { target: { value: string } }) =>
+      setDraft({ ...draft, [key]: event.target.value });
 
   if (!loaded) return <p className="font-body-md text-on-surface-variant">Loading...</p>;
 
@@ -175,10 +178,10 @@ export default function ProviderProfileForm() {
         Postal code
         <input className={FIELD} value={draft.postal_code} onChange={set("postal_code")} />
       </label>
-      <label className={`${LABEL} sm:col-span-2`}>
-        Service area (comma separated)
-        <input className={FIELD} value={draft.service_area} onChange={set("service_area")} />
-      </label>
+      <div className={`${LABEL} sm:col-span-2 flex flex-col gap-1`}>
+        Service area
+        <ServiceAreaPicker value={draft.service_area} onChange={(service_area) => setDraft({ ...draft, service_area })} />
+      </div>
       <label className={`${LABEL} sm:col-span-2`}>
         Short description
         <input className={FIELD} maxLength={300} value={draft.short_description} onChange={set("short_description")} />
