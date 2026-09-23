@@ -161,10 +161,26 @@ async function performRefresh(): Promise<boolean> {
   return true;
 }
 
+// After a failed silent refresh, do not retry it on every request: the hint
+// cookie can outlive the refresh token, and the first 401 handles it anyway.
+const SILENT_REFRESH_RETRY_MS = 60_000;
+let silentRefreshBlockedUntil = 0;
+
+/** A fresh page load has no access token in memory but may hold a live refresh
+ * cookie. Refreshing first spares a guaranteed 401 (and its console error) on
+ * the very first authenticated request of every full page load. */
+async function refreshBeforeFirstRequest(path: string): Promise<void> {
+  if (accessToken !== null || path === REFRESH_PATH || !hasSessionHint()) return;
+  if (Date.now() < silentRefreshBlockedUntil) return;
+  const refreshed = await tryRefreshAccessToken();
+  if (!refreshed) silentRefreshBlockedUntil = Date.now() + SILENT_REFRESH_RETRY_MS;
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  await refreshBeforeFirstRequest(path);
   let response = await rawFetch(path, init);
 
   if (response.status === 401 && path !== REFRESH_PATH) {

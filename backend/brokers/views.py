@@ -280,7 +280,7 @@ class BrokerSubscriptionView(BrokerTeamBaseView):
         from brokers.billing import create_subscription_checkout
 
         return Response(
-            {"checkout_url": create_subscription_checkout(broker=self.get_broker())},
+            {"checkout_url": create_subscription_checkout(broker=self.get_broker(), customer_email=request.user.email)},
             status=status.HTTP_201_CREATED,
         )
 

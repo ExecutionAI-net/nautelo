@@ -30,6 +30,12 @@ export default function DashboardSidebar({ eyebrow, groups, active }: { eyebrow:
     return key in SOURCE_TEXT ? t(key as MessageKey) : text;
   };
   const areaLabel = label("nav.dash.area.", eyebrow);
+  const activeLabel = groups.flatMap((group) => group.items).find((item) => item.href === active)?.label;
+  // Every dashboard page shares one layout, so the tab title is set here: "My listings - Seller area - Nautelo".
+  useEffect(() => {
+    const parts = [activeLabel ? label("nav.dash.", activeLabel) : "", areaLabel, "Nautelo"].filter(Boolean);
+    document.title = parts.join(" \u00b7 ");
+  });
   const activeGroup = groups.find((group) => group.items.some((item) => item.href === active))?.title;
   const [open, setOpen] = useState<Record<string, boolean>>(() => (activeGroup ? { [activeGroup]: true } : { [groups[0]?.title ?? ""]: true }));
   const [mobileOpen, setMobileOpen] = useState(false);

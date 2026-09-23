@@ -21,6 +21,7 @@ import type {
   LoginResponse,
   PermissionKey,
   SessionPayload,
+  SessionUser,
 } from "@/lib/auth/types";
 
 interface SessionContextValue {
@@ -28,7 +29,7 @@ interface SessionContextValue {
   loading: boolean;
   error: string | null;
   can: (permission: PermissionKey) => boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<SessionUser>;
   logout: () => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -78,6 +79,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       });
       setAccessToken(response.access);
       await reload();
+      return response.user;
     },
     [reload],
   );

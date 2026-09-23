@@ -236,13 +236,27 @@ class BoatRowSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source="owner_user.email", read_only=True, default=None)
     broker_name = serializers.CharField(source="broker.name", read_only=True, default=None)
     pending_revision_id = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    price_display = serializers.SerializerMethodField()
 
     class Meta:
         model = BoatListing
         fields = (
-            "id", "slug", "status", "seller_type", "brand_name", "manufacture_year", "price", "currency",
-            "owner_email", "broker_name", "published_at", "created_at", "pending_revision_id",
+            "id", "slug", "status", "seller_type", "title", "brand_name", "manufacture_year", "price", "currency",
+            "price_display", "owner_email", "broker_name", "published_at", "created_at", "pending_revision_id",
         )
+
+    def get_title(self, listing) -> str:
+        """The published title, else the year/brand/model heading a buyer would see."""
+        snapshot = listing.current_public_snapshot if listing.current_public_snapshot_id else None
+        if snapshot is not None and snapshot.title_en:
+            return snapshot.title_en
+        return f"{listing.manufacture_year} {listing.brand.name} {listing.custom_model_name or listing.model.name}"
+
+    def get_price_display(self, listing) -> str:
+        if listing.price is None:
+            return ""
+        return f"{listing.price:,.0f} {listing.currency}"
 
     def get_pending_revision_id(self, listing):
         """The submitted revision a moderator can approve, or None (prefetched by the list view)."""
@@ -253,10 +267,10 @@ class BoatRowSerializer(serializers.ModelSerializer):
 class StaffBoatListView(StaffListView):
     facet_field = "status"
     serializer_class = BoatRowSerializer
-    search_fields = ("brand__name", "owner_user__email", "broker__name", "slug")
+    search_fields = ("brand__name", "model__name", "owner_user__email", "broker__name", "slug")
     status_field = "status"
     queryset = (
-        BoatListing.objects.select_related("brand", "owner_user", "broker")
+        BoatListing.objects.select_related("brand", "model", "owner_user", "broker", "current_public_snapshot")
         .prefetch_related(
             Prefetch(
                 "revisions",

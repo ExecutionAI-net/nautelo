@@ -58,6 +58,11 @@ class ListingWorkflowSerializer(serializers.Serializer):
             "status": listing.status,
             "seller_type": listing.seller_type,
             "version": listing.version,
+            # Display names for the ids in the payload: the form's brand/model
+            # comboboxes only know the options of the current search.
+            "brand_name": listing.brand.name,
+            "model_name": listing.model.name,
+            "custom_model_name": listing.custom_model_name,
             "published_at": listing.published_at,
             "expires_at": listing.expires_at,
             "current_public_snapshot_version": (

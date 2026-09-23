@@ -113,7 +113,8 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
   const promotable = row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL";
   const price = money(row);
   const location = [row.city, row.country].filter(Boolean).join(", ");
-  const heading = [row.year, row.title].filter(Boolean).join(" ");
+  // Sellers often put the year in the title themselves; do not print it twice.
+  const heading = row.year && !row.title.includes(String(row.year)) ? `${row.year} ${row.title}` : row.title;
   const published = row.status === "PUBLISHED" && row.slug;
   const viewHref = published ? `/boats/${row.slug}/` : `/dashboard/listings/${row.id}/preview/`;
   return (
@@ -233,6 +234,20 @@ export default function MyListings({
   const [rows, setRows] = useState<MyListingRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
+  const [checkout, setCheckout] = useState<"success" | "cancelled" | null>(null);
+
+  useEffect(() => {
+    // Stripe sends the buyer back here with ?checkout=success|cancelled (payments/checkout.py).
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("checkout");
+    if (outcome !== "success" && outcome !== "cancelled") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
+    setCheckout(outcome);
+    params.delete("checkout");
+    params.delete("order");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -265,6 +280,16 @@ export default function MyListings({
 
   return (
     <section>
+      {checkout ? (
+        <p
+          role="status"
+          className={`mb-space-md rounded-lg p-space-sm font-body-md ${checkout === "success" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
+        >
+          {checkout === "success"
+            ? "Payment received. Your paid listing is ready: create a new listing or renew one below."
+            : "Checkout cancelled. Nothing was charged."}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-space-md">
         <div>
           <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">{eyebrow}</span>

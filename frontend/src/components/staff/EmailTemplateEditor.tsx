@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ApiError } from "@/lib/api/client";
 import { staffEmailTemplates, type EmailLocale, type EmailTemplateDetail } from "@/lib/api/emailTemplates";
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
@@ -56,9 +57,10 @@ export default function EmailTemplateEditor({ templateKey, locale }: { templateK
     setMessage(null);
     try {
       const result = await staffEmailTemplates.testSend(templateKey, locale, { subject, html_body: htmlBody });
-      setMessage(`Test email sent to ${result.sent_to}.`);
-    } catch {
-      setMessage("The test email could not be sent - check the template for a typo.");
+      setMessage(`Test email sent to ${result.sent_to}. If it does not arrive, check the address exists and the provider's sent log.`);
+    } catch (caught) {
+      // The API relays the provider's reason (unverified sender, bad token...): show it rather than guessing.
+      setMessage(caught instanceof ApiError && caught.message ? `The test email could not be sent: ${caught.message}` : "The test email could not be sent - check the template for a typo.");
     }
   }
 
@@ -78,11 +80,6 @@ export default function EmailTemplateEditor({ templateKey, locale }: { templateK
         <p className="font-body-lg text-body-lg text-on-surface-variant">
           Variables available in this template: {detail.variables.map((name) => `{{ ${name} }}`).join(", ")}. Preview and test-send use sample values, never a real user&apos;s data.
         </p>
-        {message ? (
-          <p role="status" className="font-body-md text-primary">
-            {message}
-          </p>
-        ) : null}
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-space-lg items-start">
@@ -110,6 +107,11 @@ export default function EmailTemplateEditor({ templateKey, locale }: { templateK
             <button type="button" onClick={() => void sendTest()} className="rounded-lg bg-surface-container px-4 py-2.5 font-body-md text-primary font-medium">
               Send test to myself
             </button>
+            {message ? (
+              <p role="status" className="basis-full font-body-md text-primary">
+                {message}
+              </p>
+            ) : null}
           </div>
         </div>
 

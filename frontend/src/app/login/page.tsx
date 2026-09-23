@@ -10,7 +10,8 @@ import AuthShell from "@/components/auth/AuthShell";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
-import { safeNextUrl } from "@/lib/auth/next-url";
+import { dashboardHomeFor } from "@/lib/auth/home";
+import { isSafeNextUrl, safeNextUrl } from "@/lib/auth/next-url";
 import { useSession } from "@/lib/auth/session";
 
 function LoginForm() {
@@ -31,8 +32,10 @@ function LoginForm() {
     setSubmitting(true);
     setError(null);
     try {
-      await login(email, password);
-      router.replace(localizePath(destination, pageLocale));
+      const user = await login(email, password);
+      // No explicit ?next=: go to the account's own dashboard, not the home page.
+      const target = isSafeNextUrl(searchParams.get("next")) ? destination : dashboardHomeFor(user);
+      router.replace(localizePath(target, pageLocale));
     } catch (caught) {
       setError(
         caught instanceof ApiError

@@ -214,3 +214,36 @@ describe("tryRefreshAccessToken cross-tab coordination", () => {
     }
   });
 });
+
+describe("apiFetch silent refresh on a fresh page load", () => {
+  it("refreshes first when a session hint cookie exists, so the request never draws a 401", async () => {
+    document.cookie = "nauta_session_hint=1; path=/";
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      calls.push(url);
+      if (url === REFRESH_URL) {
+        return new Response(JSON.stringify({ access: "fresh" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiFetch } = await import("@/lib/api/client");
+    await apiFetch("/api/v1/auth/me/");
+    await apiFetch("/api/v1/notifications/");
+
+    expect(calls[0]).toBe(REFRESH_URL);
+    expect(calls.filter((url) => url === REFRESH_URL)).toHaveLength(1);
+    document.cookie = "nauta_session_hint=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+  });
+
+  it("does not attempt a refresh for a visitor without the hint", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiFetch } = await import("@/lib/api/client");
+    await apiFetch("/api/v1/listings/");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

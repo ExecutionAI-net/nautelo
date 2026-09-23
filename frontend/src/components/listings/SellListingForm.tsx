@@ -12,6 +12,7 @@ import type { Translate } from "@/i18n";
 import { ApiError } from "@/lib/api/client";
 import { fetchEligibility, fetchFormOptions, type Eligibility, type FormOptions } from "@/lib/api/listingForm";
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
+import { safeMoney } from "@/components/listings/money";
 import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
@@ -101,6 +102,14 @@ export default function SellListingForm({
   const [brandQuery, setBrandQuery] = useState("");
   const [brandId, setBrandId] = useState(text(seed, "brand_id"));
   const [modelId, setModelId] = useState(text(seed, "model_id"));
+  // Names for chosen ids, so a locked or previously saved brand/model reads as
+  // its name instead of a placeholder. Seeded from the listing, then from picks.
+  const [names, setNames] = useState<Record<string, string>>(() => {
+    const known: Record<string, string> = {};
+    if (initial?.brand_name && text(seed, "brand_id")) known[text(seed, "brand_id")] = initial.brand_name;
+    if (initial?.model_name && text(seed, "model_id")) known[text(seed, "model_id")] = initial.custom_model_name || initial.model_name;
+    return known;
+  });
   const [customModel, setCustomModel] = useState(text(seed, "custom_model_name"));
   const [year, setYear] = useState(text(seed, "manufacture_year"));
   const [lang, setLang] = useState<Lang>("en");
@@ -519,9 +528,26 @@ export default function SellListingForm({
 
   if (submitted) {
     return (
-      <p role="status" className="font-body-md">
-        {t("sell.submitted")}
-      </p>
+      <div role="status" className="flex max-w-2xl flex-col gap-space-sm rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
+        <p className="font-title-md text-title-md text-primary">{t("sell.submitted")}</p>
+        <p className="font-body-md text-on-surface-variant">{t("sell.submitted_next")}</p>
+        <div className="flex flex-wrap gap-space-sm">
+          <Link
+            href={brokerId ? "/dashboard/broker/fleet/" : "/dashboard/private-seller/listings/"}
+            className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container"
+          >
+            {brokerId ? t("nav.fleet") : t("nav.my_listings")}
+          </Link>
+          {listing ? (
+            <Link
+              href={`/dashboard/listings/${listing.id}/preview/`}
+              className="rounded-lg border border-primary px-space-lg py-space-sm font-body-md text-primary hover:bg-surface-container-low"
+            >
+              {t("sell.preview_link")}
+            </Link>
+          ) : null}
+        </div>
+      </div>
     );
   }
 
@@ -549,6 +575,8 @@ export default function SellListingForm({
       emptyText={t("sell.no_results")}
     />
   );
+  // The card preview shows the price the way the marketplace will ("€189,000"), not the raw input.
+  const previewPrice = price ? (safeMoney(locale, price.trim(), "EUR") ?? `€ ${price}`) : "—";
   const blocked = eligibility !== null && !eligibility.can_start_listing && !listing;
 
   const steps = [
@@ -662,9 +690,11 @@ export default function SellListingForm({
                     setBrandId(value);
                     setModelId("");
                     setModelQuery("");
+                    const picked = brands.find((b) => b.id === value);
+                    if (picked) setNames((known) => ({ ...known, [value]: picked.name }));
                   }}
                   onSearch={setBrandQuery}
-                  selectedLabel={t("sell.current_brand")}
+                  selectedLabel={names[brandId] ?? t("sell.current_brand")}
                   placeholder={t("sell.select")}
                   searchPlaceholder={t("sell.search")}
                   emptyText={t("sell.no_results")}
@@ -676,9 +706,13 @@ export default function SellListingForm({
                   labelClassName={LABEL}
                   value={modelId}
                   options={[...models.map((m) => ({ value: m.id, label: m.name })), ...(other ? [{ value: other.id, label: other.label }] : [])]}
-                  onChange={setModelId}
+                  onChange={(value) => {
+                    setModelId(value);
+                    const picked = models.find((m) => m.id === value)?.name ?? (other && other.id === value ? other.label : undefined);
+                    if (picked) setNames((known) => ({ ...known, [value]: picked }));
+                  }}
                   onSearch={setModelQuery}
-                  selectedLabel={t("sell.current_brand")}
+                  selectedLabel={names[modelId] ?? t("sell.current_model")}
                   placeholder={t("sell.select")}
                   searchPlaceholder={t("sell.search")}
                   emptyText={t("sell.no_results")}
@@ -979,6 +1013,11 @@ export default function SellListingForm({
               </Link>
             </div>
           ) : null}
+          {listing && media.every((row) => row.status !== "READY") ? (
+            <p className="font-body-sm text-on-surface-variant">
+              {media.length === 0 && pending.length === 0 ? t("sell.submit_needs_photo") : t("sell.submit_wait_media")}
+            </p>
+          ) : null}
 
           {error ? (
             <p role="alert" className="text-error">
@@ -1032,7 +1071,7 @@ export default function SellListingForm({
               </p>
               <div className="mt-space-md pt-space-sm">
                 <span className="block font-label-sm text-label-sm uppercase text-outline">{t("sell.asking_price")}</span>
-                <span className="font-spec-num text-lg font-semibold text-primary">{price ? `€ ${price}` : "—"}</span>
+                <span className="font-spec-num text-lg font-semibold text-primary">{previewPrice}</span>
               </div>
               <div className="mt-space-lg rounded-lg bg-surface-container p-space-sm">
                 <span className="mb-1 block font-label-sm text-label-sm uppercase text-on-surface-variant">{t("sell.translation_health")}</span>

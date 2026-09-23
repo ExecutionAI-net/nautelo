@@ -267,7 +267,7 @@
   "boats.next": "Next",
   "inquiry.email": "Email",
   "inquiry.send": "Send message",
-  "inquiry.sent": "Your message has been forwarded to {context}. They will get back to you as soon as possible. Thank you.",
+  "inquiry.sent": "Your message about {context} has been sent. You will get a reply as soon as possible. Thank you.",
   "inquiry.heading": "Send a message",
   "inquiry.full_name": "Full name",
   "inquiry.guest_hint": "You will be asked to sign in or create a free account before the message is sent. What you write here is kept for you.",
@@ -2046,5 +2046,9 @@
   "auth.meta.forgot.description": "Get a link to choose a new password.",
   "auth.meta.reset.title": "Choose a new password",
   "auth.meta.reset.description": "Set a new password for your Nautelo account.",
-  "contact.page.use_the_form": "Use the contact form"
+  "contact.page.use_the_form": "Use the contact form",
+  "sell.current_model": "Current model",
+  "sell.submit_needs_photo": "Add at least one photo to submit your listing for review.",
+  "sell.submit_wait_media": "Your photos are still being processed; you can submit as soon as one is ready.",
+  "sell.submitted_next": "Our team reviews new listings within one business day. You will get an email and a notification here as soon as it is approved or if anything needs changing."
 }
