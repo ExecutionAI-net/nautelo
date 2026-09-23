@@ -27,10 +27,12 @@ def entitlement_row(e: UserEntitlement) -> dict:
     return {
         "id": str(e.pk),
         "user_id": str(e.user_id),
+        "user_email": e.user.email,
         "entitlement_type": e.entitlement_type,
         "source": e.source,
         "state": e.state,
         "listing_id": str(e.listing_id) if e.listing_id else None,
+        "listing_label": _listing_label(e.listing) if e.listing_id else "",
         "valid_from": e.valid_from,
         "valid_until": e.valid_until,
         "consumed_at": e.consumed_at,
@@ -40,6 +42,10 @@ def entitlement_row(e: UserEntitlement) -> dict:
         # Reference only: staff cannot edit the order from here (spec 26.3).
         "payment_order_id": str(e.source_payment_id) if e.source_payment_id else None,
     }
+
+
+def _listing_label(listing) -> str:
+    return f"{listing.manufacture_year} {listing.brand.name} {listing.custom_model_name or listing.model.name}"
 
 
 class _Base(APIView):
@@ -57,7 +63,7 @@ class StaffEntitlementListView(_Base):
     """GET /api/v1/staff/entitlements/?user=&type=&state="""
 
     def get(self, request):
-        rows = UserEntitlement.objects.all()
+        rows = UserEntitlement.objects.select_related("user", "listing", "listing__brand", "listing__model")
         params = request.query_params
         if params.get("user"):
             rows = rows.filter(user_id=params["user"])

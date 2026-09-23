@@ -104,6 +104,7 @@ export default function EntitlementLedger() {
             <thead className="bg-surface-container-low text-on-surface-variant font-label-sm uppercase tracking-wider">
               <tr>
                 <th scope="col" className="py-3 px-4">User</th>
+                <th scope="col" className="py-3 px-4">Listing</th>
                 <th scope="col" className="py-3 px-4">Type</th>
                 <th scope="col" className="py-3 px-4">Source</th>
                 <th scope="col" className="py-3 px-4">State</th>
@@ -113,7 +114,14 @@ export default function EntitlementLedger() {
             <tbody className="divide-y divide-surface-container">
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-surface-container-low/50 transition-colors">
-                  <td className="py-3.5 px-4 font-spec-num text-primary">{row.user_id}</td>
+                  <td className="py-3.5 px-4 text-primary">
+                    {row.user_email ? (
+                      <span title={row.user_id}>{row.user_email}</span>
+                    ) : (
+                      <span className="font-spec-num">{row.user_id}</span>
+                    )}
+                  </td>
+                  <td className="py-3.5 px-4 text-on-surface-variant">{row.listing_label || (row.listing_id ? <span className="font-spec-num">{row.listing_id}</span> : "—")}</td>
                   <td className="py-3.5 px-4">{row.entitlement_type}</td>
                   <td className="py-3.5 px-4">{row.source}</td>
                   <td className="py-3.5 px-4">{row.state}</td>

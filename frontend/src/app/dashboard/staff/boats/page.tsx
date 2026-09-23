@@ -13,11 +13,12 @@ export default function StaffBoatsPage() {
           eyebrow="Staff Admin / Listings"
           endpoint="/api/v1/staff/boats/"
           columns={[
+            { key: "title", label: "Listing" },
             { key: "brand_name", label: "Brand" },
             { key: "manufacture_year", label: "Year" },
             { key: "status", label: "Status" },
             { key: "seller_type", label: "Seller type" },
-            { key: "price", label: "Price" },
+            { key: "price_display", label: "Price" },
             { key: "owner_email", label: "Owner" },
             { key: "broker_name", label: "Broker" },
           ]}

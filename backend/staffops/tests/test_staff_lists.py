@@ -144,3 +144,6 @@ def test_boat_rows_carry_the_submitted_revision_a_moderator_can_decide(staff_api
     rows = {row["id"]: row for row in staff_api.get(reverse("staff-boat-list")).json()["results"]}
     assert rows[str(pending.pk)]["pending_revision_id"] == str(revision.pk)
     assert rows[str(draft.pk)]["pending_revision_id"] is None
+    # A moderator reads a heading and a formatted price, not a bare decimal.
+    assert rows[str(draft.pk)]["title"] == f"{draft.manufacture_year} {draft.brand.name} {draft.model.name}"
+    assert rows[str(draft.pk)]["price_display"].endswith(f" {draft.currency}")

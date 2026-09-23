@@ -4,10 +4,12 @@ import { apiFetch } from "@/lib/api/client";
 export interface EntitlementRow {
   id: string;
   user_id: string;
+  user_email?: string;
   entitlement_type: string;
   source: string;
   state: string;
   listing_id: string | null;
+  listing_label?: string;
   valid_until: string | null;
   consumed_at: string | null;
   revoked_at: string | null;
