@@ -251,7 +251,8 @@ export default function StaffDataTable({
         className={`inline-flex items-center gap-0.5 uppercase hover:text-primary ${dir ? "text-primary" : ""}`}
       >
         {column.label}
-        <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+        {/* normal-case: the header is uppercase, and an uppercased ligature name renders as text ("UNFOLD_MORE"). */}
+        <span className="material-symbols-outlined text-[16px] normal-case tracking-normal" aria-hidden="true">
           {dir === "asc" ? "arrow_upward" : dir === "desc" ? "arrow_downward" : "unfold_more"}
         </span>
       </button>
