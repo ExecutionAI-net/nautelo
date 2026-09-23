@@ -37,6 +37,8 @@ interface Props {
   groups?: ChipGroup[];
   /** Base path such as /api/v1/staff/providers/; enables Activate/Suspend in the side panel. */
   statusActionsBase?: string;
+  /** Base path such as /api/v1/staff/contact-grants/; posts {reason} to `${base}${id}/revoke/` for a row whose status is ACTIVE. One-way: no un-revoke. */
+  revokeAction?: { base: string; label?: string; reasonPlaceholder?: string };
   /** Total-card label, e.g. "Total registered users". */
   totalLabel?: string;
 }
@@ -78,7 +80,7 @@ function rowState(row: Record<string, unknown>): string | null {
 
 const CHIP = "px-3 py-1 rounded font-label-md";
 
-export default function StaffDataTable({ title, eyebrow, description, endpoint, columns, statusOptions, groups, statusActionsBase, totalLabel, reviewLink }: Props) {
+export default function StaffDataTable({ title, eyebrow, description, endpoint, columns, statusOptions, groups, statusActionsBase, revokeAction, totalLabel, reviewLink }: Props) {
   const chipGroups: ChipGroup[] = groups ?? (statusOptions ? [{ param: "status", label: "Status", options: statusOptions.map((value) => ({ value, label: value })), facets: true }] : []);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -86,6 +88,7 @@ export default function StaffDataTable({ title, eyebrow, description, endpoint, 
   const [data, setData] = useState<Page | null>(null);
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState(false);
+  const [reason, setReason] = useState("");
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page) });
@@ -113,10 +116,31 @@ export default function StaffDataTable({ title, eyebrow, description, endpoint, 
     }
   }
 
+  async function revoke(id: unknown) {
+    if (!revokeAction || !reason.trim()) return;
+    try {
+      await apiFetch(`${revokeAction.base}${String(id)}/revoke/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      setSelected(null);
+      setReason("");
+      await load();
+    } catch {
+      setError(true);
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial and filter-driven fetch
     void load();
   }, [load]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear a stale reason when the panel switches rows
+    setReason("");
+  }, [selected]);
 
   const facets = data?.facets ?? {};
   const facetTotal = Object.values(facets).reduce((sum, n) => sum + n, 0);
@@ -329,6 +353,30 @@ export default function StaffDataTable({ title, eyebrow, description, endpoint, 
                     Suspend
                   </button>
                 ) : null}
+              </div>
+            ) : null}
+            {revokeAction && state === "ACTIVE" ? (
+              <div className="flex flex-col gap-space-sm">
+                <label className="font-label-sm uppercase text-on-surface-variant" htmlFor="revoke-reason">
+                  Reason for revoking
+                </label>
+                <textarea
+                  id="revoke-reason"
+                  className="w-full rounded bg-surface p-space-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-low"
+                  rows={3}
+                  placeholder={revokeAction.reasonPlaceholder ?? "Required - shown in the audit log"}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={!reason.trim()}
+                  className="w-full bg-error-container text-error hover:bg-error hover:text-white disabled:opacity-50 font-title-md text-body-sm py-2.5 rounded transition-colors flex items-center justify-center gap-1"
+                  onClick={() => void revoke(selected.id)}
+                >
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">block</span>
+                  {revokeAction.label ?? "Revoke access"}
+                </button>
               </div>
             ) : null}
           </aside>
