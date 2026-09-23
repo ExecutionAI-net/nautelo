@@ -150,20 +150,50 @@ def queue_rows(*, tab: str, seller_type: str | None = None, ordering: str = "old
     return [revision_row(item, now=now) for item in rows], counts
 
 
+def _taxonomy_name(model_class, value):
+    """A moderator reads "Fairline", not a UUID: resolve a brand/model id."""
+    if not value:
+        return value
+    row = model_class.objects.filter(pk=value).first()
+    return row.name if row is not None else value
+
+
+def _readable(field: str, value):
+    from taxonomy.models import BoatBrand, BoatModel
+
+    if field == "brand_id":
+        return _taxonomy_name(BoatBrand, value)
+    if field == "model_id":
+        return _taxonomy_name(BoatModel, value)
+    return value
+
+
 def _diff(before: dict, after: dict) -> list[dict]:
+    """One row per changed field. `specifications` is flattened to one row per
+    changed key (specifications.cabins) so the moderator sees what moved
+    instead of two JSON blobs; brand/model ids are shown by name."""
     changes = []
     for field in sorted(set(before) | set(after)):
         if field == "media_ids":
             continue
+        if field == "specifications":
+            old, new = before.get(field) or {}, after.get(field) or {}
+            for key in sorted(set(old) | set(new)):
+                if old.get(key) != new.get(key):
+                    changes.append({"field": f"specifications.{key}", "before": old.get(key), "after": new.get(key)})
+            continue
         if before.get(field) != after.get(field):
             changes.append(
-                {"field": field, "before": before.get(field), "after": after.get(field)}
+                {"field": field, "before": _readable(field, before.get(field)), "after": _readable(field, after.get(field))}
             )
     return changes
 
 
-def _media_facts(ids) -> list[dict]:
-    rows = ListingMedia.objects.filter(pk__in=ids)
+def _media_facts(ids, *, change: str = "") -> list[dict]:
+    from .serializers import _with_url
+
+    ids = [str(i) for i in ids]
+    rows = {str(m.pk): m for m in ListingMedia.objects.filter(pk__in=ids)}
     return [
         {
             "id": str(m.pk),
@@ -172,8 +202,12 @@ def _media_facts(ids) -> list[dict]:
             "mime_type": m.mime_type,
             "width": m.width,
             "height": m.height,
+            "sort_order": m.sort_order,
+            "change": change,
+            # Thumbnails for the moderator: what they approve is what buyers see.
+            "url": _with_url({"storage_key": m.storage_key})["url"],
         }
-        for m in rows
+        for m in (rows[i] for i in ids if i in rows)
     ]
 
 
@@ -208,9 +242,13 @@ def revision_detail(revision) -> dict:
         "listing_version": listing.version,
         "diff": _diff(before, after),
         "media_diff": {
-            "added": _media_facts([i for i in after_ids if i not in before_ids]),
-            "removed": _media_facts([i for i in before_ids if i not in after_ids]),
+            "added": _media_facts([i for i in after_ids if i not in before_ids], change="added"),
+            "removed": _media_facts([i for i in before_ids if i not in after_ids], change="removed"),
             "kept": len([i for i in after_ids if i in before_ids]),
+            # The proposed gallery in order, each item tagged added/kept.
+            "proposed": [
+                {**item, "change": "kept" if item["id"] in before_ids else "added"} for item in _media_facts(after_ids)
+            ],
         },
         "warnings": warnings,
         # Summary only: type, source and dates. No payment order, no card data.

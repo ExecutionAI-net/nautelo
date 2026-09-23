@@ -29,11 +29,23 @@ export interface QueueResponse {
   results: QueueRow[];
 }
 
+export interface RevisionMedia {
+  id: string;
+  media_type: "IMAGE" | "VIDEO";
+  status: string;
+  mime_type: string;
+  width: number | null;
+  height: number | null;
+  sort_order?: number;
+  change?: "added" | "removed" | "kept" | "";
+  url?: string | null;
+}
+
 export interface RevisionDetail extends QueueRow {
   state: string;
   version: number;
   diff: { field: string; before: unknown; after: unknown }[];
-  media_diff: { added: unknown[]; removed: unknown[]; kept: number };
+  media_diff: { added: RevisionMedia[]; removed: RevisionMedia[]; kept: number; proposed?: RevisionMedia[] };
   warnings: { code: string; [key: string]: unknown }[];
   audit_trail: { at: string; action: string; actor_type: string }[];
 }
