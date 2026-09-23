@@ -12,6 +12,7 @@ import type { Translate } from "@/i18n";
 import { ApiError } from "@/lib/api/client";
 import { fetchEligibility, fetchFormOptions, type Eligibility, type FormOptions } from "@/lib/api/listingForm";
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
+import { safeMoney } from "@/components/listings/money";
 import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
@@ -574,6 +575,8 @@ export default function SellListingForm({
       emptyText={t("sell.no_results")}
     />
   );
+  // The card preview shows the price the way the marketplace will ("€189,000"), not the raw input.
+  const previewPrice = price ? (safeMoney(locale, price.trim(), "EUR") ?? `€ ${price}`) : "—";
   const blocked = eligibility !== null && !eligibility.can_start_listing && !listing;
 
   const steps = [
@@ -1068,7 +1071,7 @@ export default function SellListingForm({
               </p>
               <div className="mt-space-md pt-space-sm">
                 <span className="block font-label-sm text-label-sm uppercase text-outline">{t("sell.asking_price")}</span>
-                <span className="font-spec-num text-lg font-semibold text-primary">{price ? `€ ${price}` : "—"}</span>
+                <span className="font-spec-num text-lg font-semibold text-primary">{previewPrice}</span>
               </div>
               <div className="mt-space-lg rounded-lg bg-surface-container p-space-sm">
                 <span className="mb-1 block font-label-sm text-label-sm uppercase text-on-surface-variant">{t("sell.translation_health")}</span>
