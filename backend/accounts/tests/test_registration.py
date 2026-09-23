@@ -38,8 +38,25 @@ def test_registration_creates_an_unverified_active_buyer(api):
     assert user.primary_role == UserRole.PRIVATE_SELLER
     assert user.locale == Locale.EN
     assert user.phone_number == VALID_PHONE
+    assert user.newsletter_opt_in is False  # optional, defaults to opted out
     assert response.data["email"] == "new.user@example.com"
     assert "password" not in response.data
+
+
+@pytest.mark.django_db
+def test_registration_can_opt_into_the_newsletter(api):
+    response = api.post(
+        REGISTER_URL,
+        {
+            "email": "subscriber@example.com",
+            "password": VALID_PASSWORD,
+            "phone_number": VALID_PHONE,
+            "newsletter_opt_in": True,
+        },
+        format="json",
+    )
+    assert response.status_code == 201
+    assert User.objects.get(email="subscriber@example.com").newsletter_opt_in is True
 
 
 @pytest.mark.django_db

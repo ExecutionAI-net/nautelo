@@ -71,6 +71,7 @@ class RegisterView(APIView):
             password=data["password"],
             full_name=data["full_name"],
             phone_number=data["phone_number"],
+            newsletter_opt_in=data["newsletter_opt_in"],
             locale=data["locale"],
             primary_role=data["primary_role"],
         )
