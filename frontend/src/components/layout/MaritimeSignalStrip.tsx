@@ -78,7 +78,7 @@ const FLAGS: { letter: string; render: React.ReactNode }[] = [
 
 export default function MaritimeSignalStrip({ signalLabel, datumLabel }: { signalLabel: string; datumLabel: string }) {
   return (
-    <div className="mt-space-lg w-full bg-surface-container-lowest/80 backdrop-blur-sm rounded-xl border border-outline-variant px-space-lg py-space-sm shadow-sm flex flex-col sm:flex-row items-center justify-between gap-space-md">
+    <div className="mt-space-lg hidden w-full bg-surface-container-lowest/80 backdrop-blur-sm rounded-xl border border-outline-variant px-space-lg py-space-sm shadow-sm sm:flex sm:flex-row items-center justify-between gap-space-md">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#c5a059]" />
