@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import OrgLocationFields from "@/components/places/OrgLocationFields";
 import CompletenessChecklist from "@/components/team/CompletenessChecklist";
 import OrgImageUpload from "@/components/team/OrgImageUpload";
+import UnpaidNotice from "@/components/provider/UnpaidNotice";
 import { ApiError } from "@/lib/api/client";
 import {
   createProviderProfile,
@@ -117,6 +118,9 @@ export default function ProviderProfileForm() {
         void save(false);
       }}
     >
+      <div className="sm:col-span-2">
+        <UnpaidNotice status={profile?.status} />
+      </div>
       <div className="sm:col-span-2">
         <h1 className="font-headline-lg text-headline-lg text-primary">Company profile</h1>
         <p className="font-body-md text-on-surface-variant">
