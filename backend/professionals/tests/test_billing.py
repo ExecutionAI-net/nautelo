@@ -218,6 +218,22 @@ def test_checkout_endpoint_needs_an_active_plan_then_opens_a_subscription_sessio
     assert url and params["mode"] == "subscription"
     assert params["line_items"] == [{"price": "price_x", "quantity": 1}]
     assert params["subscription_data"]["metadata"]["professional_id"] == str(profile.pk)
+    assert params["customer_email"] == profile.owner_user.email
+
+
+@pytest.mark.django_db
+def test_checkout_reuses_the_existing_stripe_customer_instead_of_an_email(profile):
+    from payments.tests.fakes import FakeStripeGateway
+
+    ProfessionalPlan.objects.update(is_active=True, stripe_product_id="prod_x", stripe_price_id="price_x")
+    ProfessionalSubscription.objects.create(profile=profile, stripe_customer_id="cus_existing")
+    gateway = FakeStripeGateway()
+
+    billing.create_membership_checkout(profile=profile, gateway=gateway)
+
+    params = gateway.created[0]["params"]
+    assert params["customer"] == "cus_existing"
+    assert "customer_email" not in params
 
 
 @pytest.mark.django_db
