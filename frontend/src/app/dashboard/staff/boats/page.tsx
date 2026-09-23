@@ -10,7 +10,7 @@ export default function StaffBoatsPage() {
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
           title="Boats"
-          eyebrow="Staff Admin / Listings"
+          eyebrow="Staff / Boats"
           endpoint="/api/v1/staff/boats/"
           columns={[
             { key: "title", label: "Listing" },

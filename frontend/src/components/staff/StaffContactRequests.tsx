@@ -109,7 +109,7 @@ export default function StaffContactRequests() {
   return (
     <div className="flex flex-col gap-space-xl">
       <div className="flex flex-col gap-space-xs max-w-3xl">
-        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold bg-surface-container px-2.5 py-1 rounded self-start">Staff Admin / Contact desk</span>
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold bg-surface-container px-2.5 py-1 rounded self-start">Staff / Contact requests</span>
         <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Contact requests</h1>
         <p className="font-body-lg text-body-lg text-on-surface-variant">Everything sent through the contact page and the financing study form. Note what was done so the team does not answer twice.</p>
       </div>

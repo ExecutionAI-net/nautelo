@@ -76,9 +76,9 @@ export default function GuidesAdmin() {
       <section className="flex flex-col gap-space-xs max-w-3xl">
         <div className="inline-flex items-center gap-2">
           <span className="w-2.5 h-2.5 bg-secondary rounded-full" />
-          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Editorial Workspace</span>
+          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Content</span>
         </div>
-        <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Editorial CMS &amp; Knowledge Base</h1>
+        <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Content</h1>
         <p className="font-body-lg text-body-lg text-on-surface-variant">Author, publish and retire the guides shown on the public Guides pages.</p>
         {message ? (
           <p role="status" className="font-body-md text-primary">

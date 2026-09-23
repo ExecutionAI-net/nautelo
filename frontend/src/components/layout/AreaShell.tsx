@@ -44,7 +44,7 @@ const AREAS = {
   staff: {
     eyebrow: "Staff area",
     tabs: [
-      { href: "/dashboard/staff/", label: "Moderation" },
+      { href: "/dashboard/staff/", label: "Dashboard" },
       { href: "/dashboard/staff/boats/", label: "Boats" },
       { href: "/dashboard/staff/users/", label: "Users" },
       { href: "/dashboard/staff/brokers/", label: "Brokers" },
@@ -72,7 +72,14 @@ const GROUPS: Record<string, [string, string[]][]> = {
   seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account", "Notifications"]]],
   broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan", "Notifications"]]],
   provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan", "Notifications"]]],
-  staff: [["Moderation", ["Moderation", "Boats", "Contact grants"]], ["People", ["Users", "Brokers", "Providers"]], ["Sales", ["Leads", "Service requests", "Subscriptions", "Purchases", "Entitlements"]], ["Content", ["Taxonomy", "Advertising", "Content", "Email templates"]], ["System", ["Reports", "Settings"]]],
+  staff: [
+    ["Overview", ["Dashboard"]],
+    ["Moderation", ["Boats", "Contact grants"]],
+    ["People", ["Users", "Brokers", "Providers"]],
+    ["Sales", ["Leads", "Service requests", "Contact requests", "Subscriptions", "Purchases", "Entitlements"]],
+    ["Content", ["Taxonomy", "Advertising", "Content", "Email templates"]],
+    ["System", ["Reports", "Settings"]],
+  ],
 };
 
 function menuGroups(area: string, tabs: Tab[]): MenuGroup[] {
@@ -96,7 +103,7 @@ export default function AreaShell({
   const config = AREAS[area];
   return (
     <div className="flex w-full flex-col bg-surface lg:min-h-screen lg:flex-row">
-      <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} />
+      <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} languageSwitcher={area !== "staff"} />
       <main className="min-w-0 flex-1">
         <div className="mx-auto max-w-[1200px] px-margin-mobile py-space-xl md:px-margin">
           <VerifyEmailBanner />

@@ -77,9 +77,9 @@ export default function AdsAdmin() {
     <div className="flex flex-col gap-space-xl">
       <div className="flex flex-col gap-space-xs max-w-3xl">
         <span className="w-fit px-2.5 py-1 rounded bg-secondary/10 text-secondary font-label-sm text-label-sm uppercase tracking-wider font-semibold">
-          Commercial media network - Sponsorship desk
+          Staff / Advertising
         </span>
-        <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Advertisements &amp; Brand Sponsorship</h1>
+        <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Advertising</h1>
         <p className="font-body-lg text-body-lg text-on-surface-variant mt-1">
           Configure, pause and review the sponsored placements shown across the marketplace. Every creative is labelled as an advertisement.
         </p>

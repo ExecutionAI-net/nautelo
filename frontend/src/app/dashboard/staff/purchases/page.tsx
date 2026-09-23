@@ -10,7 +10,7 @@ export default function StaffPurchasesPage() {
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
           title="Purchases"
-          eyebrow="Staff Admin / Billing"
+          eyebrow="Staff / Purchases"
           description="Every purchase on the platform in one ledger: one-time orders (listing packages, media upgrades), listing and profile promotions, and broker/professional subscriptions, with Stripe identifiers for support lookups. Read-only: payment status is never edited manually, it follows Stripe. For subscriptions the identifier columns hold the Stripe customer and subscription ids."
           totalLabel="Total purchases"
           endpoint="/api/v1/staff/purchases/"

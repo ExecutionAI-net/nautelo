@@ -87,8 +87,8 @@ export default function StaffReports() {
         <div className="absolute -right-20 -top-24 w-96 h-96 rounded-full bg-secondary/5 blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
           <div className="max-w-3xl flex flex-col gap-space-xs">
-            <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-bold">Staff Admin / Analytics</span>
-            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Marketplace Analytics</h1>
+            <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-bold">Staff / Reports</span>
+            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Reports</h1>
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
               Supervise registrations, listing inventory, enquiry volume and account health across the platform.
             </p>

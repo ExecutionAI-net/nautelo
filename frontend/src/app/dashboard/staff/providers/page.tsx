@@ -9,8 +9,8 @@ export default function StaffProvidersPage() {
     <AreaShell area="staff" active="/dashboard/staff/providers/">
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
-          title="Service providers"
-          eyebrow="Staff Admin / Directory"
+          title="Providers"
+          eyebrow="Staff / Providers"
           endpoint="/api/v1/staff/providers/"
           columns={[
             { key: "display_name", label: "Name" },

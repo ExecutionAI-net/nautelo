@@ -71,7 +71,7 @@ export default function ModerationQueue({ onCounts }: { onCounts?: (pending: num
 
   return (
     <section>
-      <span className="font-label-sm uppercase tracking-widest text-secondary">Moderation / Registry control</span>
+      <span className="font-label-sm uppercase tracking-widest text-secondary">Staff / Moderation</span>
       <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">Moderation queue</h1>
       {counts ? (
         <dl className="mt-space-md grid grid-cols-2 gap-space-md lg:grid-cols-5" aria-label="Queue totals">

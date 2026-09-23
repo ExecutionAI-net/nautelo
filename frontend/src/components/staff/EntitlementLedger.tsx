@@ -51,7 +51,7 @@ export default function EntitlementLedger() {
   return (
     <section className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Sales</span>
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Entitlements</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Entitlement ledger</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">Listing rights and media upgrades: grant, revoke and restore with an audited reason.</p>
       </div>

@@ -17,9 +17,9 @@ export default function SettingsScreen() {
       <div className="flex flex-col gap-space-xs max-w-3xl bg-surface-container-lowest p-space-xl rounded-xl shadow-sm">
         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded bg-secondary-fixed/50 text-on-secondary-fixed font-label-sm text-label-sm tracking-widest uppercase font-semibold">
           <span className="material-symbols-outlined text-[14px]" aria-hidden="true">tune</span>
-          Platform Settings
+          Staff / Settings
         </span>
-        <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Platform Configuration</h1>
+        <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Settings</h1>
         <p className="font-body-md text-body-md text-on-surface-variant">
           Listing rules, media allowances and product pricing. Every change is validated and audited.
         </p>

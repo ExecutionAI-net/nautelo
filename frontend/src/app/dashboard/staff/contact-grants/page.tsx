@@ -9,8 +9,8 @@ export default function StaffContactGrantsPage() {
     <AreaShell area="staff" active="/dashboard/staff/contact-grants/">
       <RequirePermission permission="approve_listings_and_revisions">
         <StaffDataTable
-          title="Contact access grants"
-          eyebrow="Staff Moderation / Messaging"
+          title="Contact grants"
+          eyebrow="Staff / Contact grants"
           description="Every grant that unlocked a broker or professional's contact details for a viewer. IDs only, by design - cross-reference the viewer, broker or professional on their own staff page. Revoking is one-way and requires a reason for the audit log."
           totalLabel="Total grants"
           endpoint="/api/v1/staff/contact-grants/"

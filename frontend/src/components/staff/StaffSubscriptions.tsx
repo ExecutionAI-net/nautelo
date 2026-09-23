@@ -62,8 +62,8 @@ export default function StaffSubscriptions() {
   return (
     <section className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Billing</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Subscription Tiers &amp; Billing Oversight</h1>
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Subscriptions</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Subscriptions</h1>
         <p className="mt-space-xs max-w-3xl font-body-md text-on-surface-variant">
           Membership tiers, what each brokerage is subscribed to, and how much of its listing and seat allowance it uses.
         </p>

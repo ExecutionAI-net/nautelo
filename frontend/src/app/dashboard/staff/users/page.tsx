@@ -9,8 +9,8 @@ export default function StaffUsersPage() {
     <AreaShell area="staff" active="/dashboard/staff/users/">
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
-          title="User Management"
-          eyebrow="Staff Admin / Identity"
+          title="Users"
+          eyebrow="Staff / Users"
           description="Review accounts across private sellers, brokers, service providers and staff, and freeze or re-activate them."
           totalLabel="Total registered users"
           endpoint="/api/v1/staff/users/"
