@@ -140,8 +140,10 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
     const value = filters[key] ?? "";
     if (key === "country") return COUNTRY_NAMES[value.toUpperCase()] ?? value;
     if (key === "seller_type") return t(value === "BROKER" ? "boats.f.broker" : "boats.f.private");
-    if (key === "price_min") return t("boats.chip.from_price", { value });
-    if (key === "price_max") return t("boats.chip.up_to_price", { value });
+    // Numbers the way the locale writes them ("From €100,000", not "From €100000").
+    const number = Number.isFinite(Number(value)) ? Number(value).toLocaleString(locale) : value;
+    if (key === "price_min") return t("boats.chip.from_price", { value: number });
+    if (key === "price_max") return t("boats.chip.up_to_price", { value: number });
     if (key === "year_min") return t("boats.chip.from_year", { value });
     if (key === "year_max") return t("boats.chip.until_year", { value });
     if (key === "length_min") return t("boats.chip.from_length", { value });

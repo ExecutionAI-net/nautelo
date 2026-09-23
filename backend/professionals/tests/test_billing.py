@@ -130,7 +130,10 @@ def test_the_first_checkout_collects_a_card_and_asks_for_the_trial(profile):
             from types import SimpleNamespace
             return SimpleNamespace(url="https://stripe.example/x")
 
+    profile.owner_user.locale = "ES"
+    profile.owner_user.save(update_fields=["locale"])
     billing.create_membership_checkout(profile=profile, gateway=Gateway())
+    assert captured["locale"] == "es"
     assert captured["payment_method_collection"] == "always"
     assert captured["subscription_data"]["trial_period_days"] == 30
     assert captured["subscription_data"]["trial_settings"] == {"end_behavior": {"missing_payment_method": "cancel"}}

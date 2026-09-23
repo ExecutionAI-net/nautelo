@@ -37,7 +37,7 @@ export default function SellerServices() {
     <div className="flex flex-col gap-space-xl">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
         <div>
-          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Owner console</span>
+          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Services</span>
           <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Nautical concierge &amp; services</h1>
           <p className="mt-space-xs font-body-md text-on-surface-variant">
             Find a verified professional to help you prepare, insure or transport your boat.

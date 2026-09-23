@@ -48,7 +48,8 @@ export default function BrokerDashboardNav({ locale }: { locale: Locale }) {
   return (
     <nav
       aria-label={tConversations(locale, "broker.dashboard.title")}
-      className="flex flex-wrap gap-space-md border-b border-outline-variant px-margin-mobile py-space-sm md:px-margin"
+      // The sidebar carries the same links on small screens; a second bar there was two stacked headers.
+      className="hidden flex-wrap gap-space-md border-b border-outline-variant px-margin-mobile py-space-sm md:px-margin lg:flex"
     >
       {BROKER_NAV_LINKS.map((link) => {
         // startsWith, so a thread URL underneath Messages still marks Messages

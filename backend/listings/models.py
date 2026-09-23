@@ -185,7 +185,10 @@ class BoatListing(UUIDTimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.brand_id} {self.model_id} ({self.status})"
+        # Read by humans in Django admin (promotions, entitlements...): a heading, not two UUIDs.
+        brand = self.brand.name if self.brand_id else "?"
+        model = self.custom_model_name or (self.model.name if self.model_id else "?")
+        return f"{self.manufacture_year} {brand} {model} ({self.status})"
 
     @staticmethod
     def max_manufacture_year() -> int:

@@ -31,6 +31,16 @@ from listings.models import BoatListing
 from accounts.enums import SellerType
 
 from .enums import LISTING_BOUND_PRODUCTS, PaymentOrderStatus, ProductCode
+
+# Stripe Checkout's supported locales that the platform also speaks. Without
+# an explicit locale Stripe follows the browser, which showed a Turkish
+# checkout (and a TRY price under adaptive pricing) to an EN account.
+CHECKOUT_LOCALES = {"EN": "en", "IT": "it", "ES": "es"}
+
+
+def checkout_locale(user) -> str:
+    """The Stripe `locale` for this account: its own language, else English."""
+    return CHECKOUT_LOCALES.get((getattr(user, "locale", "") or "").upper(), "en")
 from .errors import (
     IdempotencyKeyRequired,
     ProductNotAvailable,
@@ -267,6 +277,7 @@ def _open_stripe_session(order, return_url, gateway, request_id) -> str:
         ],
         "success_url": success_url,
         "cancel_url": cancel_url,
+        "locale": checkout_locale(order.user),
         "client_reference_id": str(order.pk),
         # Spec §23.2: "Store internal order/user/product identifiers in Stripe
         # metadata, not personal message content." No email, no name, no listing

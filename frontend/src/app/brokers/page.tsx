@@ -49,7 +49,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
     current.place && placeLabel ? { label: placeLabel, clear: hrefWith(current, { place: "", page: "" }) } : current.country
       ? { label: countryName(current.country), clear: hrefWith(current, { country: "", place: "", page: "" }) }
       : null,
-    current.specialty ? { label: current.specialty, clear: hrefWith(current, { specialty: "", page: "" }) } : null,
+    current.specialty ? { label: specialtyLabels([current.specialty])[0] ?? current.specialty, clear: hrefWith(current, { specialty: "", page: "" }) } : null,
     current.q ? { label: `"${current.q}"`, clear: hrefWith(current, { q: "", page: "" }) } : null,
   ].filter((item): item is { label: string; clear: string } => item !== null);
 
@@ -117,7 +117,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                   <option value="">{t("brokers.page.all_specialities")}</option>
                   {specialties.map((name) => (
                     <option key={name} value={name}>
-                      {name}
+                      {specialtyLabels([name])[0] ?? name}
                     </option>
                   ))}
                 </select>

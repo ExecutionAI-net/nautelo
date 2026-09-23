@@ -88,7 +88,7 @@ describe("/boats/", () => {
       sort: "price_asc",
       page: undefined,
     });
-    expect(screen.getByText("Up to €500000")).toBeInTheDocument();
+    expect(screen.getByText("Up to €500,000")).toBeInTheDocument();
     expect(screen.getByText("No boats match these filters.")).toBeInTheDocument();
   });
 

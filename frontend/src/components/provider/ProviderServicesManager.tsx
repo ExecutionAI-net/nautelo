@@ -21,6 +21,7 @@ function priceLabel(service: ProviderService): string {
 
 interface Category {
   id: string;
+  slug: string;
   name: string;
 }
 
@@ -101,7 +102,9 @@ export default function ProviderServicesManager() {
                   </td>
                   <td className="py-3.5 px-4 font-title-md text-primary font-semibold">{service.title_en}</td>
                   <td className="py-3.5 px-4 whitespace-nowrap">
-                    <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">{service.category_slug}</span>
+                    <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">
+                      {categories.find((category) => category.slug === service.category_slug)?.name ?? service.category_slug}
+                    </span>
                   </td>
                   <td className="py-3.5 px-4 whitespace-nowrap text-on-surface-variant">{priceLabel(service)}</td>
                   <td className="py-3.5 px-4 whitespace-nowrap">
