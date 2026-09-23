@@ -34,6 +34,12 @@ class StaffContactGrantPagination(PageNumberPagination):
 
 
 class StaffContactGrantSerializer(serializers.ModelSerializer):
+    # `viewer_id`/`source_conversation_id` are FK attnames, not real model
+    # field names - a bare ModelSerializer maps them to an untyped read-only
+    # field that returns the raw UUID object instead of a string. Declaring
+    # them explicitly gets the same str() conversion "id" gets for free.
+    viewer_id = serializers.UUIDField(read_only=True)
+    source_conversation_id = serializers.UUIDField(read_only=True)
     target_entity_id = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
 
