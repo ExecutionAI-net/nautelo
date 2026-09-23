@@ -115,6 +115,16 @@ def test_an_initial_submission_notifies_moderation_staff_once():
     assert list(rows.values_list("recipient", flat=True)) == [staff.pk]
 
 
+def test_an_initial_submission_also_confirms_receipt_to_the_submitter():
+    moderator()
+    owner, revision = _revision()
+    listing_initial_submitted.send(sender=type(revision), revision=revision)
+    row = Notification.objects.get(
+        notification_type=NotificationType.LISTING_SUBMISSION_RECEIVED
+    )
+    assert row.recipient_id == owner.pk
+
+
 def test_the_generic_revision_event_is_suppressed_for_an_initial_submission():
     moderator()
     _, revision = _revision()

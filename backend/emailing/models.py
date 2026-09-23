@@ -22,6 +22,7 @@ TEMPLATE_KEYS = (
     ("email_verification", "Email verification", ("name", "url")),
     ("password_reset", "Password reset", ("name", "url")),
     ("new_message", "New message received", ("sender", "context", "excerpt", "url")),
+    ("listing_submission_received", "Listing submission received", ("url",)),
     ("listing_approved", "Listing approved", ("url",)),
     ("listing_changes_requested", "Listing: changes requested", ("url",)),
     ("listing_rejected", "Listing rejected", ("url",)),

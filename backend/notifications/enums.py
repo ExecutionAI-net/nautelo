@@ -19,6 +19,10 @@ class NotificationType(models.TextChoices):
         "listing.other_model_submitted",
         "Other model submitted",
     )
+    LISTING_SUBMISSION_RECEIVED = (
+        "listing.submission_received",
+        "Listing submission received",
+    )
     LISTING_APPROVED = "listing.approved", "Listing approved"
     LISTING_CHANGES_REQUESTED = "listing.changes_requested", "Changes requested"
     LISTING_REJECTED = "listing.rejected", "Listing rejected"
@@ -69,6 +73,7 @@ class NotificationCategory(models.TextChoices):
 
 CATEGORY_BY_TYPE = {
     NotificationType.INQUIRY_RECEIVED: NotificationCategory.MESSAGES,
+    NotificationType.LISTING_SUBMISSION_RECEIVED: NotificationCategory.LISTINGS,
     NotificationType.LISTING_APPROVED: NotificationCategory.LISTINGS,
     NotificationType.LISTING_CHANGES_REQUESTED: NotificationCategory.LISTINGS,
     NotificationType.LISTING_REJECTED: NotificationCategory.LISTINGS,
