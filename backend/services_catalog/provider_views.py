@@ -193,7 +193,10 @@ class ProviderServiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProfessionalService
-        fields = ("id", "category", "category_slug", "title_en", "description_en", "service_area", "is_active")
+        fields = (
+            "id", "category", "category_slug", "title_en", "description_en", "service_area",
+            "price_from", "pricing_note", "is_active",
+        )
 
 
 class ProviderServiceMixin:

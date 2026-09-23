@@ -284,6 +284,21 @@ def test_newest_and_oldest_sort_by_when_the_profile_was_created():
 
 
 @pytest.mark.django_db
+def test_a_service_reports_its_price_or_quote_on_request():
+    legal = make_service_category(slug="legal-test", name_en="Legal")
+    pro = build_professional("pr@example.com", slug="priced-pro", display_name="Priced Pro")
+    make_professional_service(pro, legal, title_en="Sale contract review", price_from="150.00", pricing_note="per contract")
+    make_professional_service(pro, legal, title_en="Free consult", price_from=None)
+
+    services = APIClient().get(f"/api/v1/professionals/{pro.slug}/").data["services"]
+    by_title = {service["title"]: service for service in services}
+
+    assert by_title["Sale contract review"]["price_from"] == "150.00"
+    assert by_title["Sale contract review"]["pricing_note"] == "per contract"
+    assert by_title["Free consult"]["price_from"] is None
+
+
+@pytest.mark.django_db
 def test_a_card_reports_its_categories_in_the_requested_locale():
     legal = make_service_category(slug="legal-test", name_en="Legal", name_it="Legale")
     pro = build_professional("k@example.com", slug="cat-pro", display_name="Cat Pro")

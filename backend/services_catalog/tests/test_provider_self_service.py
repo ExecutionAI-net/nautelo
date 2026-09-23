@@ -127,6 +127,29 @@ def test_an_inactive_or_unknown_category_is_refused():
     assert response.status_code == 400
 
 
+def test_a_service_can_be_created_with_a_price_or_left_as_quote_on_request():
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-p")
+    api = client_for()
+    api.post(reverse("provider-profile"), PROFILE, format="json")
+
+    priced = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig inspection", "price_from": "120.00", "pricing_note": "per day"},
+        format="json",
+    )
+    assert priced.status_code == 201
+    assert priced.json()["price_from"] == "120.00"
+    assert priced.json()["pricing_note"] == "per day"
+
+    unpriced = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig advice"},
+        format="json",
+    )
+    assert unpriced.status_code == 201
+    assert unpriced.json()["price_from"] is None
+
+
 def test_category_is_read_from_the_manually_added_service_when_no_dropdown_value_was_sent():
     category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-z")
     api = client_for()

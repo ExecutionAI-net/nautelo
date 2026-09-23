@@ -137,7 +137,7 @@ class ProfessionalServiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProfessionalService
-        fields = ["id", "title", "description", "service_area", "category"]
+        fields = ["id", "title", "description", "service_area", "category", "price_from", "pricing_note"]
 
     def get_title(self, obj) -> str:
         return localized(obj, "title", self.context["locale"])

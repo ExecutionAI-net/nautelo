@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api/client";
+import { formatPrice } from "@/lib/api/plans";
 import {
   createProviderService,
   deleteProviderService,
@@ -10,6 +11,12 @@ import {
   updateProviderService,
   type ProviderService,
 } from "@/lib/api/provider";
+
+function priceLabel(service: ProviderService): string {
+  if (!service.price_from) return "Quote on request";
+  const price = `From ${formatPrice(service.price_from, "EUR")}`;
+  return service.pricing_note ? `${price} ${service.pricing_note}` : price;
+}
 
 interface Category {
   id: string;
@@ -22,7 +29,7 @@ export default function ProviderServicesManager() {
   const [services, setServices] = useState<ProviderService[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ category: "", title_en: "", description_en: "" });
+  const [draft, setDraft] = useState({ category: "", title_en: "", description_en: "", price_from: "", pricing_note: "" });
 
   const reload = useCallback(async () => {
     try {
@@ -73,6 +80,7 @@ export default function ProviderServicesManager() {
               <tr>
                 <th className="py-3 px-4">Service</th>
                 <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4">Price</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -84,6 +92,7 @@ export default function ProviderServicesManager() {
                   <td className="py-3.5 px-4 whitespace-nowrap">
                     <span className="inline-flex px-2.5 py-0.5 rounded bg-surface-container font-label-md text-primary">{service.category_slug}</span>
                   </td>
+                  <td className="py-3.5 px-4 whitespace-nowrap text-on-surface-variant">{priceLabel(service)}</td>
                   <td className="py-3.5 px-4 whitespace-nowrap">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-label-sm font-medium ${service.is_active ? "bg-emerald-50 text-emerald-800" : "bg-surface-container text-on-surface-variant"}`}>
                       <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
@@ -110,7 +119,7 @@ export default function ProviderServicesManager() {
               ))}
               {services.length === 0 ? (
                 <tr>
-                  <td className="py-space-md px-4 text-on-surface-variant" colSpan={4}>No services yet.</td>
+                  <td className="py-space-md px-4 text-on-surface-variant" colSpan={5}>No services yet.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -121,8 +130,11 @@ export default function ProviderServicesManager() {
         className="grid gap-space-sm rounded-xl bg-surface-container-lowest p-space-lg shadow-sm sm:grid-cols-2"
         onSubmit={(event) => {
           event.preventDefault();
-          void run(() => createProviderService(draft), "Service added.");
-          setDraft({ category: draft.category, title_en: "", description_en: "" });
+          void run(
+            () => createProviderService({ ...draft, price_from: draft.price_from.trim() || undefined }),
+            "Service added.",
+          );
+          setDraft({ category: draft.category, title_en: "", description_en: "", price_from: "", pricing_note: "" });
         }}
       >
         <label className="font-label-sm uppercase text-on-surface-variant">
@@ -139,6 +151,28 @@ export default function ProviderServicesManager() {
         <label className="font-label-sm uppercase text-on-surface-variant">
           Title
           <input className={FIELD} required maxLength={160} value={draft.title_en} onChange={(e) => setDraft({ ...draft, title_en: e.target.value })} />
+        </label>
+        <label className="font-label-sm uppercase text-on-surface-variant">
+          Price from (EUR, optional)
+          <input
+            className={FIELD}
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Quote on request"
+            value={draft.price_from}
+            onChange={(e) => setDraft({ ...draft, price_from: e.target.value })}
+          />
+        </label>
+        <label className="font-label-sm uppercase text-on-surface-variant">
+          Pricing note (optional)
+          <input
+            className={FIELD}
+            maxLength={120}
+            placeholder="e.g. per survey, +VAT"
+            value={draft.pricing_note}
+            onChange={(e) => setDraft({ ...draft, pricing_note: e.target.value })}
+          />
         </label>
         <label className="font-label-sm uppercase text-on-surface-variant sm:col-span-2">
           Description

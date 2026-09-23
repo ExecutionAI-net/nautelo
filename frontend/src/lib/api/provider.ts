@@ -32,6 +32,8 @@ export interface ProviderService {
   title_en: string;
   description_en: string;
   service_area: string[];
+  price_from: string | null;
+  pricing_note: string;
   is_active: boolean;
 }
 
@@ -58,7 +60,7 @@ export function fetchProviderServices(): Promise<ProviderService[]> {
   return apiFetch<ProviderService[]>("/api/v1/provider/services/");
 }
 
-export function createProviderService(input: { category: string; title_en: string; description_en?: string }): Promise<ProviderService> {
+export function createProviderService(input: { category: string; title_en: string; description_en?: string; price_from?: string; pricing_note?: string }): Promise<ProviderService> {
   return apiFetch<ProviderService>("/api/v1/provider/services/", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(input) });
 }
 

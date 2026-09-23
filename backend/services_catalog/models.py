@@ -73,6 +73,11 @@ class ProfessionalService(UUIDTimeStampedModel):
     service_area = models.JSONField(
         default=list, blank=True, validators=[validate_service_area]
     )
+    # Both optional: a professional may want to publish a starting price, add
+    # a free-text qualifier ("per survey", "+VAT"), both, or neither (in which
+    # case the public page shows "Quote on request").
+    price_from = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    pricing_note = models.CharField(max_length=120, blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     class Meta:
