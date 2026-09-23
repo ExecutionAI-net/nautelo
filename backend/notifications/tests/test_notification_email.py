@@ -352,6 +352,60 @@ def test_a_failed_send_logs_neither_the_address_nor_the_message(caplog, monkeypa
     assert "SMTPServerDisconnected" in logged
 
 
+# ---------------------------------------------------------------------------
+# Phase 4: generic notification types render through an emailing.EmailTemplate
+# when staff has authored one, and fall back to the plain-text copy otherwise.
+# ---------------------------------------------------------------------------
+
+
+@override_settings(PUBLIC_BASE_URL="https://nauta.test")
+def test_a_generic_notification_carries_html_when_a_template_exists():
+    from emailing.models import EmailTemplate
+
+    EmailTemplate.objects.create(
+        key="listing_approved",
+        locale="EN",
+        subject="Your listing is live",
+        html_body="<p>See it at {{ url }}</p>",
+    )
+    recipient = make_user(email="approved@phase6.example", locale=Locale.EN)
+    notification = create_notification(
+        recipient=recipient,
+        notification_type=NotificationType.LISTING_APPROVED,
+        title_key="notification.listing_approved.title",
+        body_key="notification.listing_approved.body",
+        target_url="/dashboard/listings/abc/",
+        email_to="approved-office@phase6.example",
+    )
+    mail.outbox.clear()
+
+    send_notification_email(str(notification.pk), "approved-office@phase6.example")
+
+    sent = mail.outbox[0]
+    assert sent.subject == "Your listing is live"
+    assert sent.alternatives
+    html, mimetype = sent.alternatives[0]
+    assert mimetype == "text/html"
+    assert "https://nauta.test/dashboard/listings/abc/" in html
+
+
+def test_a_generic_notification_without_a_template_sends_plain_text_only():
+    recipient = make_user(email="notpl@phase6.example", locale=Locale.EN)
+    notification = create_notification(
+        recipient=recipient,
+        notification_type=NotificationType.LISTING_APPROVED,
+        title_key="notification.listing_approved.title",
+        body_key="notification.listing_approved.body",
+        target_url="/dashboard/listings/xyz/",
+        email_to="notpl-office@phase6.example",
+    )
+    mail.outbox.clear()
+
+    send_notification_email(str(notification.pk), "notpl-office@phase6.example")
+
+    assert mail.outbox[0].alternatives == []
+
+
 def test_no_stored_row_records_the_destination_address():
     """Spec 16: the destination is a broker's published business address, and it
     is passed to the task as an argument rather than persisted on a row the
