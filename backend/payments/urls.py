@@ -1,5 +1,6 @@
 from django.urls import path
 
+from payments.staff_views import StaffPurchaseListView
 from payments.views import (
     CheckoutSessionCreateView,
     PaymentOrderDetailView,
@@ -24,4 +25,5 @@ urlpatterns = [
         StaffProductDetailView.as_view(),
         name="staff-product-detail",
     ),
+    path("staff/purchases/", StaffPurchaseListView.as_view(), name="staff-purchase-list"),
 ]
