@@ -31,6 +31,7 @@ def test_professional_registration_creates_owner_org_and_seat(django_capture_on_
     assert res.status_code == 201
     user = User.objects.get(email="mia@blue-rigging.example")
     assert user.primary_role == UserRole.PROFESSIONAL and not user.is_email_verified
+    assert user.phone_number == "+34600000000"
     profile = ProfessionalProfile.objects.get(owner_user=user)
     assert (profile.status, profile.country_code, profile.display_name) == ("DRAFT", "ES", "Blue Rigging")
     seat = ProfessionalMembership.objects.get(user=user)

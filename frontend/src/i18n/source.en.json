@@ -1841,6 +1841,7 @@
   "auth.login.failed": "Sign-in failed. Please try again.",
   "auth.register.heading": "Create your account",
   "auth.register.full_name": "Full name",
+  "auth.register.phone": "Phone number",
   "auth.register.email": "Email",
   "auth.register.password": "Password",
   "auth.register.creating": "Creating…",
