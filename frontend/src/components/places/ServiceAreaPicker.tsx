@@ -16,7 +16,6 @@ interface CityHit {
 }
 
 const FIELD = "w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md focus:outline-none";
-const LABEL = "font-label-sm uppercase text-on-surface-variant";
 
 /**
  * Adds one or more country/region/city areas to a `service_area` list, backed
@@ -44,10 +43,7 @@ export default function ServiceAreaPicker({ value, onChange }: { value: string[]
   }, []);
 
   useEffect(() => {
-    if (country.length !== 2) {
-      setRegions([]);
-      return;
-    }
+    if (country.length !== 2) return;
     let cancelled = false;
     apiFetch<RegionHit[]>(`/api/v1/places/regions/?country=${country}&locale=en`).then(
       (rows) => {
@@ -85,6 +81,7 @@ export default function ServiceAreaPicker({ value, onChange }: { value: string[]
 
   function reset() {
     setCountry("");
+    setRegions([]);
     setRegionId("");
     setRegionName("");
     setQuery("");
@@ -125,6 +122,7 @@ export default function ServiceAreaPicker({ value, onChange }: { value: string[]
           value={country}
           onChange={(e) => {
             setCountry(e.target.value);
+            setRegions([]);
             setRegionId("");
             setRegionName("");
             setQuery("");
