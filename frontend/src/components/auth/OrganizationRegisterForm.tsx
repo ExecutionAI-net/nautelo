@@ -7,7 +7,7 @@ import AuthShell from "@/components/auth/AuthShell";
 import { useT } from "@/i18n/client";
 import type { MessageKey } from "@/i18n";
 import { ApiError, apiFetch } from "@/lib/api/client";
-import { fetchPricingClient, formatPrice, type PlanSummary } from "@/lib/api/plans";
+import { fetchPricingClient, fetchServiceCategoriesClient, formatPrice, type PlanSummary, type ServiceCategoryOption } from "@/lib/api/plans";
 
 const INPUT =
   "mt-space-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md";
@@ -23,6 +23,8 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
   const copy = COPY[orgType];
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [plan, setPlan] = useState("");
+  const [categories, setCategories] = useState<ServiceCategoryOption[]>([]);
+  const [category, setCategory] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,6 +47,11 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
     );
   }, [orgType]);
 
+  useEffect(() => {
+    if (orgType !== "PROFESSIONAL") return;
+    fetchServiceCategoriesClient().then(setCategories, () => setCategories([]));
+  }, [orgType]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -62,6 +69,7 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
           newsletter_opt_in: newsletterOptIn,
           country_code: country,
           plan,
+          category,
         }),
       });
       setDone(true);
@@ -113,6 +121,21 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
               <option value="IT">{t("auth.org_register.country_it")}</option>
             </select>
           </label>
+          {orgType === "PROFESSIONAL" ? (
+            <label className="block font-label-md text-label-md">
+              {t("auth.org_register.category_legend")}
+              <select className={INPUT} required value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="" disabled>
+                  {t("auth.org_register.category_placeholder")}
+                </option>
+                {categories.map((item) => (
+                  <option key={item.slug} value={item.slug}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {orgType === "BROKER" ? (
             <fieldset className="space-y-space-xs">
               <legend className="font-label-md text-label-md">{t("auth.org_register.plan_legend")}</legend>
@@ -145,7 +168,11 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
               {error}
             </p>
           ) : null}
-          <button type="submit" disabled={busy || (orgType === "BROKER" && !plan)} className="w-full rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={busy || (orgType === "BROKER" && !plan) || (orgType === "PROFESSIONAL" && !category)}
+            className="w-full rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary disabled:opacity-50"
+          >
             {t("auth.org_register.submit")}
           </button>
           <p className="font-body-sm text-on-surface-variant">
