@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 
+import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
+import { useT } from "@/i18n/client";
 import { fetchPricingClient, formatPrice, type ListingPackage } from "@/lib/api/plans";
 import { startListingRightCheckout } from "@/lib/api/sellerListings";
 
 /** Package picker + quantity + checkout for paid listings (one-off). */
-export default function PaidListingBuy({ label = "Buy paid listings" }: { label?: string }) {
+export default function PaidListingBuy({ label }: { label?: string }) {
+  const t = useT();
+  const locale = useLocaleOrDefault();
   const [packages, setPackages] = useState<ListingPackage[]>([]);
   const [selected, setSelected] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -14,7 +18,7 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPricingClient().then(
+    fetchPricingClient(locale).then(
       (pricing) => {
         const list = pricing.listing_packages ?? [];
         setPackages(list);
@@ -22,7 +26,7 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
       },
       () => setPackages([]),
     );
-  }, []);
+  }, [locale]);
 
   async function buy() {
     setBusy(true);
@@ -31,19 +35,19 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
       const { checkout_url } = await startListingRightCheckout(undefined, quantity, selected);
       window.location.assign(checkout_url);
     } catch {
-      setError("Checkout is not available right now.");
+      setError(t("sell.package.checkout_unavailable"));
       setBusy(false);
     }
   }
 
   if (packages.length === 0) {
-    return <p className="font-body-sm text-on-surface-variant">Paid listings are not on sale yet.</p>;
+    return <p className="font-body-sm text-on-surface-variant">{t("sell.package.none")}</p>;
   }
 
   return (
     <div className="flex flex-col gap-space-sm">
       <fieldset className="flex flex-col gap-space-xs">
-        <legend className="sr-only">Package</legend>
+        <legend className="sr-only">{t("sell.package.legend")}</legend>
         {packages.map((pkg) => (
           <label
             key={pkg.slug}
@@ -52,7 +56,8 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
             <span className="flex items-center gap-space-xs">
               <input type="radio" name="listing-package" value={pkg.slug} checked={selected === pkg.slug} onChange={() => setSelected(pkg.slug)} />
               <span className="font-body-md">
-                {pkg.name} · {pkg.publication_days} days · {pkg.image_limit} photos{pkg.video_limit ? ` + ${pkg.video_limit} video` : ""}
+                {pkg.name} · {t("sell.package.summary", { days: pkg.publication_days, photos: pkg.image_limit })}
+                {pkg.video_limit ? ` + ${t("sell.package.video", { count: pkg.video_limit })}` : ""}
               </span>
             </span>
             <span className="font-label-md font-semibold">{formatPrice(pkg.amount, pkg.currency)}</span>
@@ -61,7 +66,7 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
       </fieldset>
       <div className="flex items-center gap-space-sm">
         <label className="font-label-sm text-on-surface-variant" htmlFor="paid-listing-quantity">
-          Quantity
+          {t("sell.package.quantity")}
         </label>
         <input
           id="paid-listing-quantity"
@@ -78,7 +83,7 @@ export default function PaidListingBuy({ label = "Buy paid listings" }: { label?
           onClick={() => void buy()}
           className="rounded-lg bg-primary px-space-md py-space-xs font-label-md text-on-primary hover:bg-primary-container disabled:opacity-50"
         >
-          {label}
+          {label ?? t("sell.package.buy")}
         </button>
       </div>
       {error ? <p role="alert" className="font-body-sm text-error">{error}</p> : null}

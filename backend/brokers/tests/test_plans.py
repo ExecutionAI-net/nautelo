@@ -50,6 +50,28 @@ def test_public_pricing_lists_broker_plans_and_only_the_listing_right(api):
     assert [p["name"] for p in body["individual_products"]] == ["Listing right"]
 
 
+def test_public_pricing_names_packages_and_products_in_the_requested_language(api):
+    from payments.enums import ProductCode
+    from payments.models import ListingPackage, MarketplaceProduct
+
+    MarketplaceProduct.objects.filter(code=ProductCode.INDIVIDUAL_LISTING_RIGHT).update(
+        name_en="Listing right", name_it="Diritto di inserzione", display_amount="49.00", is_active=True,
+        stripe_product_id="prod_x", stripe_price_id="price_x",
+    )
+    ListingPackage.objects.create(
+        slug="standard", name_en="Standard", name_it="Standard (IT)", description_en="Thirty days", publication_days=30,
+        display_amount="29.00", stripe_product_id="prod_p", stripe_price_id="price_p", is_active=True,
+    )
+    italian = api.get(reverse("public-pricing"), {"locale": "it"}).json()
+    assert italian["listing_packages"][0]["name"] == "Standard (IT)"
+    assert italian["individual_products"][0]["name"] == "Diritto di inserzione"
+    # A blank translation, or an unsupported language, falls back to English.
+    assert italian["listing_packages"][0]["description"] == "Thirty days"
+    german = api.get(reverse("public-pricing"), {"locale": "de"}).json()
+    assert german["listing_packages"][0]["name"] == "Standard"
+    assert api.get(reverse("public-pricing")).json()["individual_products"][0]["name"] == "Listing right"
+
+
 def test_a_broker_cannot_open_more_drafts_than_its_plan_allows(api):
     set_feature_flag(key="listing_revisions", is_enabled=True, actor=None, description="flag")
     broker = make_broker(plan=BrokerPlan.objects.get(slug="boutique-broker"))
