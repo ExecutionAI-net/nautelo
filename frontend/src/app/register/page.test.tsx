@@ -11,6 +11,7 @@ vi.mock("next/link", () => ({
 }));
 
 function fill() {
+  fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "+34 600 000 000" } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: "S3cret-pass!" } });
   fireEvent.click(screen.getByRole("button", { name: "Create account" }));
@@ -23,7 +24,17 @@ describe("RegisterPage", () => {
     expect(screen.queryAllByRole("option")).toHaveLength(0);
     fill();
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
-    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({ email: "a@b.co", password: "S3cret-pass!", full_name: "" });
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
+      email: "a@b.co",
+      password: "S3cret-pass!",
+      full_name: "",
+      phone_number: "+34 600 000 000",
+    });
+  });
+
+  it("requires a phone number before it can submit", () => {
+    render(<RegisterPage />);
+    expect(screen.getByLabelText("Phone number")).toBeRequired();
   });
 
   it("shows the server's field error", async () => {

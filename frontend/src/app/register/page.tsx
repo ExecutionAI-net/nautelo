@@ -16,6 +16,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,7 @@ export default function RegisterPage() {
     try {
       await apiFetch("/api/v1/auth/register/", {
         method: "POST",
-        body: JSON.stringify({ email, password, full_name: fullName }),
+        body: JSON.stringify({ email, password, full_name: fullName, phone_number: phoneNumber }),
       });
       setDone(true);
     } catch (caught) {
@@ -54,6 +55,10 @@ export default function RegisterPage() {
                     <label className="block font-label-md text-label-md">
             {t("auth.register.full_name")}
             <input className={INPUT} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </label>
+          <label className="block font-label-md text-label-md">
+            {t("auth.register.phone")}
+            <input className={INPUT} type="tel" autoComplete="tel" required value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
           </label>
           <label className="block font-label-md text-label-md">
             {t("auth.register.email")}

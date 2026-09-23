@@ -15,6 +15,7 @@ from rest_framework import serializers
 from accounts.enums import Locale, UserRole
 from accounts.models import User, UserManager
 from accounts.services import queue_email_verification
+from accounts.validators import validate_phone_number as check_phone_number
 
 
 class OrganizationRegistrationSerializer(serializers.Serializer):
@@ -48,11 +49,7 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
         return value
 
     def validate_phone(self, value):
-        value = value.strip()
-        digits = [c for c in value if c.isdigit()]
-        if len(digits) < 6 or any(not (c.isdigit() or c in "+-() .") for c in value):
-            raise serializers.ValidationError("Enter a valid phone number.")
-        return value
+        return check_phone_number(value)
 
     def validate_country_code(self, value):
         if not value.isalpha():
@@ -85,6 +82,7 @@ def register_organization(data: dict) -> User:
         email=data["email"],
         password=data["password"],
         full_name=data["full_name"],
+        phone_number=data["phone"],
         locale=data["locale"],
         primary_role=org_type,
     )

@@ -159,11 +159,12 @@ def queue_email_verification(user: User) -> None:
 
 
 @transaction.atomic
-def register_user(*, email, password, full_name="", locale=None, primary_role=None) -> User:
+def register_user(*, email, password, full_name="", phone_number="", locale=None, primary_role=None) -> User:
     user = User.objects.create_user(
         email=email,
         password=password,
         full_name=full_name,
+        phone_number=phone_number,
         locale=locale or Locale.EN,
         primary_role=primary_role or UserRole.PRIVATE_SELLER,
     )
