@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { fetchConversations, type ConversationRow } from "@/lib/api/conversations";
 import { fetchProviderProfile, fetchProviderServices, type ProviderProfile, type ProviderService } from "@/lib/api/provider";
+import UnpaidNotice from "@/components/provider/UnpaidNotice";
 
 interface State {
   profile: ProviderProfile | null;
@@ -52,6 +53,7 @@ export default function ProviderOverview() {
   return (
     <div className="flex flex-col gap-space-xl">
       {error ? <p role="alert">The dashboard could not be loaded.</p> : null}
+      <UnpaidNotice status={state?.profile?.status} />
 
       <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
         <div className="max-w-3xl flex flex-col gap-space-xs">
