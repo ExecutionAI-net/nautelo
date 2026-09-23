@@ -34,14 +34,31 @@ export function markAllNotificationsRead(): Promise<{ marked_read: number }> {
   });
 }
 
-export function fetchNotificationPreferences(): Promise<{ email_enabled: boolean }> {
+export interface NotificationPreferences {
+  email_enabled: boolean;
+  messages_enabled: boolean;
+  listings_enabled: boolean;
+  billing_enabled: boolean;
+}
+
+export function fetchNotificationPreferences(): Promise<NotificationPreferences> {
   return apiFetch("/api/v1/notifications/preferences/");
 }
 
-export function setEmailNotifications(email_enabled: boolean): Promise<{ email_enabled: boolean }> {
+export function setEmailNotifications(email_enabled: boolean): Promise<NotificationPreferences> {
   return apiFetch("/api/v1/notifications/preferences/", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email_enabled }),
+  });
+}
+
+export function setNotificationPreferences(
+  updates: Partial<NotificationPreferences>,
+): Promise<NotificationPreferences> {
+  return apiFetch("/api/v1/notifications/preferences/", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
   });
 }

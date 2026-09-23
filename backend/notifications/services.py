@@ -4,6 +4,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from notifications.enums import (
+    CATEGORY_BY_TYPE,
     NO_WEBSOCKET_TYPES,
     DeliveryChannel,
     DeliveryStatus,
@@ -29,9 +30,25 @@ def _find_deduplicated(*, recipient, notification_type, dedupe_key):
     ).first()
 
 
-def _email_enabled(user) -> bool:
+_CATEGORY_FIELD = {
+    "messages": "messages_enabled",
+    "listings": "listings_enabled",
+    "billing": "billing_enabled",
+}
+
+
+def _email_enabled(user, notification_type: str) -> bool:
     preference = NotificationPreference.objects.filter(user=user).first()
-    return preference is None or preference.email_enabled
+    if preference is None:
+        return True
+    if not preference.email_enabled:
+        return False
+    category = CATEGORY_BY_TYPE.get(notification_type)
+    if category is None:
+        # The three staff moderation-queue events: no user-facing category
+        # toggle exists for them, so only the master switch gates them.
+        return True
+    return getattr(preference, _CATEGORY_FIELD[category])
 
 
 def create_notification(
@@ -124,7 +141,7 @@ def create_notification(
         push_id = str(notification.pk)
         transaction.on_commit(lambda: push_notification_ws.delay(push_id))
 
-    if email_to and _email_enabled(recipient):
+    if email_to and _email_enabled(recipient, notification_type):
         NotificationDelivery.objects.create(
             notification=notification,
             channel=DeliveryChannel.EMAIL,

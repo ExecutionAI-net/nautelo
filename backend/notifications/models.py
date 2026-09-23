@@ -80,8 +80,11 @@ class NotificationDelivery(UUIDTimeStampedModel):
 
 
 class NotificationPreference(UUIDTimeStampedModel):
-    """Per-user delivery choices (spec 27.3). Absent row means defaults: email on.
-    In-app delivery is always on; only the email channel can be opted out."""
+    """Per-user delivery choices (spec 27.3). Absent row means defaults: every
+    switch on. In-app delivery is always on; only the email channel can be
+    opted out, both as a whole (`email_enabled`) and per category - a
+    category switch is only consulted when `email_enabled` is also true, so
+    the master switch always wins."""
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -89,3 +92,6 @@ class NotificationPreference(UUIDTimeStampedModel):
         related_name="notification_preference",
     )
     email_enabled = models.BooleanField(default=True)
+    messages_enabled = models.BooleanField(default=True)
+    listings_enabled = models.BooleanField(default=True)
+    billing_enabled = models.BooleanField(default=True)
