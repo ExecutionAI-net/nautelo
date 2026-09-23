@@ -10,15 +10,16 @@ export default function StaffLeadsPage() {
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
           title="Leads"
-          eyebrow="Staff Admin / Inquiries"
+          eyebrow="Staff / Leads"
           endpoint="/api/v1/staff/leads/"
+          searchPlaceholder="Search by subject or sender e-mail"
           columns={[
-            { key: "subject", label: "Subject" },
+            { key: "subject", label: "Subject", sortable: true },
             { key: "conversation_type", label: "Type" },
-            { key: "status", label: "Status" },
+            { key: "status", label: "Status", sortable: true },
             { key: "initiator_email", label: "From" },
             { key: "broker_name", label: "Broker" },
-            { key: "created_at", label: "Created" },
+            { key: "created_at", label: "Created", sortable: true },
           ]}
           statusOptions={["OPEN", "ARCHIVED", "BLOCKED"]}
         />

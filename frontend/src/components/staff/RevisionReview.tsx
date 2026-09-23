@@ -41,8 +41,8 @@ const FIELD_LABELS: Record<string, string> = {
 const SPEC_LABELS: Record<string, string> = {
   boat_type: "Boat type",
   condition: "Condition",
-  loa_m: "Length (m)",
-  length_m: "Length (m)",
+  loa_m: "Length overall (m)",
+  length_m: "Hull length (m)",
   beam_m: "Beam (m)",
   draft_m: "Draft (m)",
   cabins: "Cabins",
@@ -71,10 +71,11 @@ export function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? tidy(field);
 }
 
-function show(value: unknown): string {
+function show(value: unknown, field = ""): string {
   if (value === null || value === undefined || value === "") return "—";
   if (value === true) return "Yes";
   if (value === false) return "No";
+  if (field === "price" && /^\d+(\.\d+)?$/.test(String(value))) return Number(value).toLocaleString("en-GB");
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
@@ -228,8 +229,8 @@ export default function RevisionReview({ revisionId }: { revisionId: string }) {
             {detail.diff.map((change) => (
               <tr key={change.field}>
                 <th scope="row">{fieldLabel(change.field)}</th>
-                <td>{show(change.before)}</td>
-                <td>{show(change.after)}</td>
+                <td>{show(change.before, change.field)}</td>
+                <td>{show(change.after, change.field)}</td>
               </tr>
             ))}
           </tbody>

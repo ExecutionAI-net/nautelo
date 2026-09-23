@@ -10,10 +10,11 @@ export default function StaffPurchasesPage() {
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
           title="Purchases"
-          eyebrow="Staff Admin / Billing"
-          description="Every purchase on the platform in one ledger: one-time orders (listing packages, media upgrades), listing and profile promotions, and broker/professional subscriptions, with Stripe identifiers for support lookups. Read-only: payment status is never edited manually, it follows Stripe. For subscriptions the identifier columns hold the Stripe customer and subscription ids."
+          eyebrow="Staff / Purchases"
+          description="Every purchase on the platform in one ledger: one-time orders (listing packages, media upgrades), listing and profile promotions, and broker/professional subscriptions. Read-only: payment status follows Stripe and is never edited here. The Stripe identifiers for a support lookup are in the details panel."
           totalLabel="Total purchases"
           endpoint="/api/v1/staff/purchases/"
+          searchPlaceholder="Search by buyer e-mail, product or Stripe id"
           columns={[
             { key: "kind", label: "Kind" },
             { key: "user_email", label: "Buyer" },
@@ -23,9 +24,9 @@ export default function StaffPurchasesPage() {
             { key: "status", label: "Status" },
             { key: "created_at", label: "Created" },
             { key: "paid_at", label: "Paid" },
-            { key: "fulfilled_at", label: "Fulfilled / period end" },
-            { key: "stripe_checkout_session_id", label: "Checkout session / customer" },
-            { key: "stripe_payment_intent_id", label: "Payment intent / subscription" },
+            { key: "fulfilled_at", label: "Fulfilled / period end", panelOnly: true },
+            { key: "stripe_checkout_session_id", label: "Checkout session / customer", panelOnly: true },
+            { key: "stripe_payment_intent_id", label: "Payment intent / subscription", panelOnly: true },
           ]}
           groups={[
             {
@@ -43,7 +44,7 @@ export default function StaffPurchasesPage() {
               label: "Status",
               facets: true,
               options: ["CREATED", "CHECKOUT_OPEN", "PAID", "FULFILLED", "FAILED", "EXPIRED", "REFUNDED", "DISPUTED", "PENDING", "REVIEW", "TRIALING", "ACTIVE", "PAST_DUE", "LAPSED", "CANCELED"].map(
-                (value) => ({ value, label: value }),
+                (value) => ({ value, label: value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ") }),
               ),
             },
           ]}

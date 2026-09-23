@@ -223,3 +223,22 @@ def test_the_ledger_shows_the_user_email_and_the_listing_heading(staff_admin):
 
     assert row["user_email"] == "ledger-seller@example.com"
     assert row["listing_label"] == f"{listing.manufacture_year} {listing.brand.name} {listing.model.name}"
+
+
+@pytest.mark.django_db
+def test_staff_find_and_grant_rights_by_email(staff_admin):
+    from django.urls import reverse
+    from rest_framework.test import APIClient
+
+    seller = make_private_seller()
+    client = APIClient()
+    client.force_authenticate(staff_admin)
+    granted = client.post(
+        reverse("staff-entitlement-grant"),
+        {"user_email": seller.email.upper(), "entitlement_type": "PAID_LISTING", "reason": "Goodwill"},
+        format="json",
+    )
+    assert granted.status_code == 201 and granted.json()["user_email"] == seller.email
+    listed = client.get(reverse("staff-entitlement-list"), {"email": seller.email.split("@")[0]}).json()
+    assert [row["user_email"] for row in listed["results"]] == [seller.email]
+    assert client.get(reverse("staff-entitlement-list"), {"email": "nobody-here"}).json()["results"] == []

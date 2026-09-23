@@ -17,22 +17,28 @@ interface Summary {
   unverified_users: number;
 }
 
+// Same names as the left menu (AreaShell), so a card and a menu entry never disagree.
 const MODULES = [
-  { href: "/dashboard/staff/boats/", icon: "directions_boat", title: "Boats", text: "Listing submissions, status and seller details." },
+  { href: "/dashboard/staff/boats/", icon: "directions_boat", title: "Boats", text: "Every listing with its status, seller and pending review." },
+  { href: "/dashboard/staff/contact-grants/", icon: "lock_open", title: "Contact grants", text: "Who unlocked a broker's or professional's contact details." },
   { href: "/dashboard/staff/users/", icon: "person", title: "Users", text: "Accounts, roles, verification and freezes." },
   { href: "/dashboard/staff/brokers/", icon: "handshake", title: "Brokers", text: "Broker organisations, approval policy and audit history." },
-  { href: "/dashboard/staff/providers/", icon: "handyman", title: "Service providers", text: "Professional profiles and activation." },
-  { href: "/dashboard/staff/service-requests/", icon: "assignment", title: "Requests", text: "Service enquiries sent to professionals." },
-  { href: "/dashboard/staff/leads/", icon: "trending_up", title: "Leads", text: "Buyer enquiries across listings and brokers." },
-  { href: "/dashboard/staff/subscriptions/", icon: "payments", title: "Subscriptions", text: "Listing rights and entitlements." },
-  { href: "/dashboard/staff/advertising/", icon: "campaign", title: "Advertising", text: "Sponsored placements and creatives." },
-  { href: "/dashboard/staff/content/", icon: "article", title: "Guides", text: "Editorial guides and publishing." },
+  { href: "/dashboard/staff/providers/", icon: "handyman", title: "Providers", text: "Service provider profiles and activation." },
+  { href: "/dashboard/staff/leads/", icon: "trending_up", title: "Leads", text: "Buyer enquiries about listings and brokers." },
+  { href: "/dashboard/staff/service-requests/", icon: "assignment", title: "Service requests", text: "Enquiries sent to service providers." },
+  { href: "/dashboard/staff/contact-requests/", icon: "mark_email_unread", title: "Contact requests", text: "Messages from the contact page and financing study form." },
+  { href: "/dashboard/staff/subscriptions/", icon: "workspace_premium", title: "Subscriptions", text: "Broker membership plans, seats and renewals." },
+  { href: "/dashboard/staff/purchases/", icon: "receipt_long", title: "Purchases", text: "Every payment: orders, promotions and memberships." },
+  { href: "/dashboard/staff/entitlements/", icon: "confirmation_number", title: "Entitlements", text: "Listing rights and media upgrades per seller." },
   { href: "/dashboard/staff/taxonomy/", icon: "category", title: "Taxonomy", text: "Brands, models and the other-model queue." },
-  { href: "/dashboard/staff/reports/", icon: "analytics", title: "Reports", text: "Growth and inventory analytics." },
+  { href: "/dashboard/staff/advertising/", icon: "campaign", title: "Advertising", text: "Sponsored placements and creatives." },
+  { href: "/dashboard/staff/content/", icon: "article", title: "Content", text: "Guides shown on the public site." },
+  { href: "/dashboard/staff/email-templates/", icon: "mail", title: "Email templates", text: "The wording of every e-mail the platform sends." },
+  { href: "/dashboard/staff/reports/", icon: "analytics", title: "Reports", text: "Growth and inventory figures." },
   { href: "/dashboard/staff/settings/", icon: "tune", title: "Settings", text: "Listing rules, media allowances and pricing." },
 ];
 
-export default function StaffOverview({ pending }: { pending: number | null }) {
+export default function StaffOverview({ pending, queue }: { pending: number | null; queue?: React.ReactNode }) {
   const [summary, setSummary] = useState<Summary | null>(null);
 
   useEffect(() => {
@@ -83,23 +89,23 @@ export default function StaffOverview({ pending }: { pending: number | null }) {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-lg">
           <div className="flex flex-col gap-space-xs max-w-4xl">
             <div className="flex items-center gap-space-xs font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">
-              <span>Staff Administration</span>
+              <span>Staff</span>
               <span className="text-outline-variant">/</span>
-              <span>Marketplace Moderation</span>
+              <span>Dashboard</span>
             </div>
-            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Nautelo Staff Dashboard</h1>
+            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Staff dashboard</h1>
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-              Review vessel listings and revisions, and jump to every staff module: users, brokers, service providers, leads, subscriptions and advertising.
+              What needs attention today, the platform totals, and a shortcut to every staff module.
             </p>
           </div>
           <div className="flex items-center gap-space-sm shrink-0">
             <Link href="/dashboard/staff/reports/" className="inline-flex items-center gap-space-xs bg-surface-container text-primary hover:bg-surface-container-high font-body-md text-body-md px-space-md py-space-sm rounded transition-colors shadow-sm">
               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">analytics</span>
-              Platform Reports
+              Reports
             </Link>
             <Link href="/dashboard/staff/settings/" className="inline-flex items-center gap-space-xs bg-primary-container text-on-primary hover:bg-primary font-body-md text-body-md px-space-md py-space-sm rounded transition-colors shadow-sm">
               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">tune</span>
-              Dashboard Settings
+              Platform settings
             </Link>
           </div>
         </div>
@@ -142,11 +148,13 @@ export default function StaffOverview({ pending }: { pending: number | null }) {
         </section>
       ) : null}
 
+      {queue}
+
       <section className="bg-surface-container-lowest rounded-lg shadow-sm overflow-hidden flex flex-col">
         <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md border-b border-surface-container">
           <div>
-            <div className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Overview &amp; Management</div>
-            <h2 className="font-headline-sm text-headline-sm text-primary">Staff Management Modules</h2>
+            <div className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Shortcuts</div>
+            <h2 className="font-headline-sm text-headline-sm text-primary">All staff modules</h2>
           </div>
         </div>
         <div className="p-space-lg grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-md">

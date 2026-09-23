@@ -20,7 +20,7 @@ export default function EntitlementLedger() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchEntitlements({ user: userFilter.trim() || undefined })
+    fetchEntitlements({ email: userFilter.trim() || undefined })
       .then((page) => {
         if (!cancelled) setRows(page.results);
       })
@@ -51,14 +51,15 @@ export default function EntitlementLedger() {
   return (
     <section className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Sales</span>
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Entitlements</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Entitlement ledger</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">Listing rights and media upgrades: grant, revoke and restore with an audited reason.</p>
       </div>
       <label className="block rounded-xl bg-surface-container-lowest p-space-md shadow-sm font-label-sm uppercase text-on-surface-variant">
-        Filter by user id
+        Filter by user e-mail
         <input
           className="ml-space-xs rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md text-primary focus:outline-none"
+          placeholder="part of an e-mail address"
           value={userFilter}
           onChange={(event) => setUserFilter(event.target.value)}
         />
@@ -69,13 +70,13 @@ export default function EntitlementLedger() {
         onSubmit={(event) => {
           event.preventDefault();
           void act(() =>
-            grantEntitlement({ user_id: grantUser, entitlement_type: grantType, reason: grantReason }),
+            grantEntitlement({ user_email: grantUser.trim(), entitlement_type: grantType, reason: grantReason }),
           );
         }}
       >
         <label className="font-label-sm uppercase text-on-surface-variant">
-          User id
-          <input className="ml-space-xs rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md text-primary focus:outline-none" value={grantUser} onChange={(e) => setGrantUser(e.target.value)} required />
+          User e-mail
+          <input type="email" className="ml-space-xs rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md text-primary focus:outline-none" value={grantUser} onChange={(e) => setGrantUser(e.target.value)} required />
         </label>
         <label className="font-label-sm uppercase text-on-surface-variant">
           Type

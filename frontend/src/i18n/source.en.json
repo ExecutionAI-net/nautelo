@@ -2003,7 +2003,7 @@
   "nav.dash.area.brokerage_area": "Brokerage area",
   "nav.dash.area.service_provider_area": "Service provider area",
   "nav.dash.area.staff_area": "Staff area",
-  "nav.dash.home": "Home",
+  "nav.dash.home": "Home page",
   "nav.dash.menu": "{area} menu",
   "nav.dash.sections": "{area} sections",
   "spec.value.motor_yacht": "Motor yacht",
@@ -2082,5 +2082,6 @@
   "pricing.page.online_for_days": "Online for {days} days",
   "pricing.page.up_to_photos": "Up to {count} photos",
   "pricing.page.and_video": "and {count} video",
-  "nav.dash.contact_requests": "Contact requests"
+  "nav.dash.contact_requests": "Contact requests",
+  "nav.dash.group.overview": "Overview"
 }

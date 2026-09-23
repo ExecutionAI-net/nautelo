@@ -1,10 +1,13 @@
 // Notification push channel (spec 27.2). The socket only says "something
 // changed"; REST stays the source of truth, so every push and every reconnect
 // triggers a reload by the caller.
-import { getAccessToken } from "@/lib/api/client";
+import { getAccessToken, tryRefreshAccessToken } from "@/lib/api/client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8020";
-const MAX_BACKOFF_MS = 30_000;
+// A dashboard tab may stay open for hours: after repeated failures wait minutes, not seconds.
+const MAX_BACKOFF_MS = 5 * 60_000;
+// The server's close code for a missing or expired access token (notifications/consumers.py).
+const CLOSE_UNAUTHORIZED = 4401;
 
 export function socketUrl(apiBase: string = API_BASE): string {
   const url = new URL("/ws/notifications/", apiBase);
@@ -47,8 +50,14 @@ export function connectNotifications(handlers: SocketHandlers): () => void {
         // Ignore malformed frames.
       }
     };
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       socket = null;
+      if (stopped) return;
+      if (event?.code === CLOSE_UNAUTHORIZED) {
+        // The in-memory access token had expired: renew it first, otherwise every retry would fail the same way.
+        void tryRefreshAccessToken().finally(schedule);
+        return;
+      }
       schedule();
     };
   }
@@ -64,6 +73,12 @@ export function connectNotifications(handlers: SocketHandlers): () => void {
   return () => {
     stopped = true;
     if (timer) clearTimeout(timer);
-    socket?.close();
+    if (!socket) return;
+    if (socket.readyState === 0) {
+      // Closing a socket that is still connecting makes the browser log a failed connection: let it open, then close.
+      socket.onopen = () => socket?.close();
+    } else {
+      socket.close();
+    }
   };
 }

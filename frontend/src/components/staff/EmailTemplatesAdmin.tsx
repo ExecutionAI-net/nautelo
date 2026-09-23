@@ -35,7 +35,7 @@ export default function EmailTemplatesAdmin() {
       <section className="flex flex-col gap-space-xs max-w-3xl">
         <div className="inline-flex items-center gap-2">
           <span className="w-2.5 h-2.5 bg-secondary rounded-full" />
-          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Emailing</span>
+          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Email templates</span>
         </div>
         <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Email templates</h1>
         <p className="font-body-lg text-body-lg text-on-surface-variant">

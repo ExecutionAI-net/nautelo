@@ -2,7 +2,53 @@
 
 import { useEffect, useState } from "react";
 
+import { fetchPricingClient, formatPrice, type ListingPackage } from "@/lib/api/plans";
 import { fetchProducts, updateProduct, type StaffProduct } from "@/lib/api/staffProducts";
+
+const CODE_LABEL: Record<string, string> = {
+  INDIVIDUAL_LISTING_RIGHT: "Individual listing right",
+  LISTING_MEDIA_UPGRADE: "Listing media upgrade",
+};
+
+/** The packages a private seller can actually buy (payments.ListingPackage); their fields are edited in Django admin. */
+function PackageList() {
+  const [packages, setPackages] = useState<ListingPackage[] | null>(null);
+  useEffect(() => {
+    fetchPricingClient().then(
+      (pricing) => setPackages(pricing.listing_packages ?? []),
+      () => setPackages([]),
+    );
+  }, []);
+  return (
+    <section className="mt-space-xl">
+      <h2 className="font-headline-sm text-headline-sm text-primary">Listing packages on sale</h2>
+      <p className="mt-space-xs font-body-sm text-on-surface-variant">
+        What private sellers see on the pricing page. Prices, durations and translations are edited in{" "}
+        <a className="text-primary underline" href="/admin/payments/listingpackage/">
+          Django admin
+        </a>
+        .
+      </p>
+      {packages === null ? (
+        <p className="mt-space-sm text-on-surface-variant">Loading…</p>
+      ) : packages.length === 0 ? (
+        <p className="mt-space-sm text-on-surface-variant">No active package.</p>
+      ) : (
+        <ul className="mt-space-sm flex flex-col gap-space-xs">
+          {packages.map((pkg) => (
+            <li key={pkg.slug} className="flex flex-wrap items-center justify-between gap-space-sm rounded-lg border border-outline-variant p-space-sm font-body-md">
+              <span>
+                {pkg.name} · {pkg.publication_days} days · {pkg.image_limit} photos
+                {pkg.video_limit ? ` + ${pkg.video_limit} video` : ""}
+              </span>
+              <span className="font-label-md font-semibold">{formatPrice(pkg.amount, pkg.currency)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function ProductCard({ product, onSaved }: { product: StaffProduct; onSaved: () => void }) {
   const [name, setName] = useState(product.name_en);
@@ -31,9 +77,11 @@ function ProductCard({ product, onSaved }: { product: StaffProduct; onSaved: () 
   return (
     <form onSubmit={save} className="flex flex-col gap-space-sm rounded-lg border border-outline-variant p-space-md">
       <h2 className="font-title-md text-title-md">
-        {product.code} · {product.display_amount} {product.currency}
+        {CODE_LABEL[product.code] ?? product.code} · {product.display_amount} {product.currency}
       </h2>
-      <p className="font-body-sm text-on-surface-variant">Price check: {product.price_state}</p>
+      <p className="font-body-sm text-on-surface-variant">
+        Stripe price check: {product.price_state.toLowerCase().replace(/_/g, " ")} (an active product needs a Stripe price that matches its display amount)
+      </p>
       <label className="font-body-md">
         Name (EN)
         <input className="ml-space-xs rounded border border-outline-variant p-space-xs" value={name} onChange={(e) => setName(e.target.value)} />
@@ -90,6 +138,7 @@ export default function ProductSettings() {
           ))}
         </div>
       )}
+      <PackageList />
     </section>
   );
 }

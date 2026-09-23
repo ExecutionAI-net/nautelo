@@ -62,8 +62,8 @@ export default function StaffSubscriptions() {
   return (
     <section className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Billing</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Subscription Tiers &amp; Billing Oversight</h1>
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Subscriptions</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Subscriptions</h1>
         <p className="mt-space-xs max-w-3xl font-body-md text-on-surface-variant">
           Membership tiers, what each brokerage is subscribed to, and how much of its listing and seat allowance it uses.
         </p>
@@ -97,7 +97,7 @@ export default function StaffSubscriptions() {
       </div>
 
       <div>
-        <h2 className="font-headline-sm text-headline-sm text-primary">Corporate Licensing Tiers</h2>
+        <h2 className="font-headline-sm text-headline-sm text-primary">Broker plans</h2>
         <div className="mt-space-md grid grid-cols-1 gap-space-lg lg:grid-cols-3">
           {plans.map((plan) => (
             <div key={plan.id} className={`${CARD} flex flex-col gap-space-sm`}>
@@ -236,7 +236,16 @@ export default function StaffSubscriptions() {
                         aria-label={`Tier for ${row.name}`}
                         className={FIELD}
                         value={row.plan_slug ?? ""}
-                        onChange={(e) => void run(() => assignPlan(row.id, e.target.value || null, renewal || null), `${row.name} updated.`)}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          const name = plans.find((plan) => plan.slug === next)?.name ?? "no plan";
+                          // The change applies at once and changes what the brokerage may list: ask first.
+                          if (!window.confirm(`Move ${row.name} to ${name}?`)) {
+                            e.target.value = row.plan_slug ?? "";
+                            return;
+                          }
+                          void run(() => assignPlan(row.id, next || null, renewal || null), `${row.name} moved to ${name}.`);
+                        }}
                       >
                         <option value="">No plan</option>
                         {plans.map((plan) => (
@@ -256,24 +265,29 @@ export default function StaffSubscriptions() {
                       ) : (
                         <div className="text-on-surface-variant">-</div>
                       )}
-                      <input
-                        aria-label={`Renewal date for ${row.name}`}
-                        type="date"
-                        className="mt-1 rounded bg-surface-container-low px-space-xs py-1 text-on-surface-variant"
-                        value={renewal}
-                        disabled={!row.plan_slug}
-                        onChange={(e) => setRenewals({ ...renewals, [row.id]: e.target.value })}
-                      />
+                      {row.plan_slug ? (
+                        <input
+                          aria-label={`Renewal date for ${row.name}`}
+                          type="date"
+                          className="mt-1 rounded bg-surface-container-low px-space-xs py-1 text-on-surface-variant"
+                          value={renewal}
+                          onChange={(e) => setRenewals({ ...renewals, [row.id]: e.target.value })}
+                        />
+                      ) : null}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        className="font-title-md text-body-sm text-secondary hover:text-primary disabled:opacity-40"
-                        disabled={!row.plan_slug || renewal === (row.plan_renews_at ?? "")}
-                        onClick={() => void run(() => assignPlan(row.id, row.plan_slug, renewal || null), "Renewal date saved.")}
-                      >
-                        Save renewal
-                      </button>
+                      {row.plan_slug ? (
+                        <button
+                          type="button"
+                          className="font-title-md text-body-sm text-secondary hover:text-primary disabled:opacity-40"
+                          disabled={renewal === (row.plan_renews_at ?? "")}
+                          onClick={() => void run(() => assignPlan(row.id, row.plan_slug, renewal || null), "Renewal date saved.")}
+                        >
+                          Save renewal
+                        </button>
+                      ) : (
+                        <span className="font-body-sm text-on-surface-variant">Choose a plan to set a renewal date</span>
+                      )}
                     </td>
                   </tr>
                 );

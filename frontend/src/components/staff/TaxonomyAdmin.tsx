@@ -88,7 +88,7 @@ export default function TaxonomyAdmin() {
     <section className="flex flex-col gap-space-lg">
       <div className="flex flex-wrap items-end justify-between gap-space-md">
         <div>
-          <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Content</span>
+          <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Taxonomy</span>
           <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Brands and models</h1>
         </div>
         <div className="rounded-xl bg-surface-container-lowest px-space-md py-space-xs shadow-sm">

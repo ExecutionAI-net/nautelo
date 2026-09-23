@@ -9,8 +9,7 @@ export default function StaffHome() {
   const [pending, setPending] = useState<number | null>(null);
   return (
     <div className="flex flex-col gap-space-xl">
-      <StaffOverview pending={pending} />
-      <ModerationQueue onCounts={setPending} />
+      <StaffOverview pending={pending} queue={<ModerationQueue onCounts={setPending} />} />
     </div>
   );
 }
