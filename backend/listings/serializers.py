@@ -7,7 +7,7 @@ from rest_framework.exceptions import ErrorDetail
 
 from finance.listing_quotes import FinancePolicy, FinanceQuoteService
 
-from .drafts import open_revision_for
+from .drafts import open_revision_for, payload_from_snapshot
 from .payloads import (
     FROZEN_SPECIFICATION_KEYS,
     IMMUTABLE_FIELD_NAMES,
@@ -65,6 +65,10 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 else None
             ),
             "revision": RevisionSerializer(revision).data if revision else None,
+            # What the owner is editing when there is no open revision: the
+            # live content. Without it the edit form of a published listing
+            # opened empty.
+            "published_payload": _published_payload(listing),
             "policy": {
                 "requires_approval": requires_staff_approval(listing),
                 "immutable_fields": _immutable_fields_for(listing),
@@ -72,6 +76,25 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 "video_limit": allowance.videos,
             },
         }
+
+
+def _published_payload(listing) -> dict | None:
+    if not listing.current_public_snapshot_id:
+        return None
+    payload = payload_from_snapshot(listing.current_public_snapshot)
+    payload.update(
+        {
+            "brand_id": str(listing.brand_id) if listing.brand_id else "",
+            "model_id": str(listing.model_id) if listing.model_id else "",
+            "custom_model_name": listing.custom_model_name,
+            "manufacture_year": listing.manufacture_year,
+            "show_finance_estimate": listing.show_finance_estimate,
+            "finance_down_payment_override_percent": listing.finance_down_payment_override_percent,
+            "finance_rate_override_percent": listing.finance_rate_override_percent,
+            "finance_term_override_months": listing.finance_term_override_months,
+        }
+    )
+    return {key: value for key, value in payload.items() if value not in ("", None)}
 
 
 def _immutable_fields_for(listing):

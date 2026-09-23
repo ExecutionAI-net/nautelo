@@ -89,7 +89,7 @@ export default function SellListingForm({
   /** An existing listing (from GET listings/<id>/workflow/) to keep editing. */
   initial?: WorkflowListing;
 }) {
-  const seed = initial?.revision?.payload ?? {};
+  const seed = initial?.revision?.payload ?? initial?.published_payload ?? {};
   const seedSpecs = (typeof seed.specifications === "object" && seed.specifications !== null
     ? seed.specifications
     : {}) as Record<string, unknown>;

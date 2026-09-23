@@ -67,4 +67,20 @@ describe("SellListingForm", () => {
 
     expect(reorderMedia).toHaveBeenCalledWith("L1", "IMAGE", ["b", "c", "a"]);
   });
+
+  it("seeds the form from the live content when a published listing has no open revision", () => {
+    render(
+      <SellListingForm
+        initial={{
+          ...WORKFLOW_LISTING,
+          status: "PUBLISHED",
+          revision: null,
+          published_payload: { title_en: "Live title", location_city: "Genoa", price: "189000.00" },
+        }}
+      />,
+    );
+    expect((screen.getByDisplayValue("Live title") as HTMLInputElement).value).toBe("Live title");
+    expect(screen.getByDisplayValue("Genoa")).toBeTruthy();
+    expect(screen.getByDisplayValue("189000.00")).toBeTruthy();
+  });
 });

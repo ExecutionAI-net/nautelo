@@ -573,3 +573,33 @@ def test_basic_information_is_frozen_once_a_private_listing_was_submitted(api, w
     assert changed_year.data["error"]["fields"]["manufacture_year"][0]["code"] == "immutable_after_submission"
     assert changed_type.status_code == 400
     assert repeated.status_code == 200
+
+
+@pytest.mark.django_db
+def test_the_workflow_of_a_published_listing_carries_its_live_content_for_the_edit_form(api, workflow_enabled):
+    owner = _seller()
+    listing = _published(owner)
+    api.force_authenticate(owner)
+
+    response = api.get(reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk}))
+
+    assert response.status_code == 200
+    assert response.data["revision"] is None
+    payload = response.data["published_payload"]
+    snapshot = listing.current_public_snapshot
+    assert payload["title_en"] == snapshot.title_en
+    assert payload["price"] == f"{snapshot.price:f}"
+    assert payload["brand_id"] == str(listing.brand_id)
+    assert payload["manufacture_year"] == listing.manufacture_year
+
+
+@pytest.mark.django_db
+def test_a_draft_listing_has_no_published_payload(api, workflow_enabled):
+    owner = _seller()
+    listing = make_private_listing(owner=owner)
+    make_revision(listing, payload={"title_en": "First"})
+    api.force_authenticate(owner)
+
+    response = api.get(reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk}))
+
+    assert response.data["published_payload"] is None
