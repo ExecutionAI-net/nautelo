@@ -7,6 +7,7 @@ import { splitLocalePath } from "@/lib/i18n/localePath";
 import { useLocale } from "@/lib/i18n/useLocale";
 import Link from "@/components/layout/LocaleLink";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import NotificationBell from "@/components/layout/NotificationBell";
 import { useSession } from "@/lib/auth/session";
@@ -89,6 +90,9 @@ export default function PrimaryNav() {
     return true;
   });
 
+  // Below xl the links live behind a menu button instead of wrapping onto a second row.
+  const [menuOpen, setMenuOpen] = useState(false);
+
   // Dashboards have their own left menu with a Home button; no site header there.
   if (pathname && splitLocalePath(pathname).path.startsWith("/dashboard")) return null;
 
@@ -102,11 +106,27 @@ export default function PrimaryNav() {
           Nautelo
         </span>
       </Link>
-      <ul className="order-last flex w-full flex-wrap items-center gap-x-space-md xl:order-none xl:w-auto xl:flex-1 xl:gap-x-space-lg">
+      <button
+        type="button"
+        aria-expanded={menuOpen}
+        aria-controls="primary-nav-links"
+        onClick={() => setMenuOpen((open) => !open)}
+        className="ml-auto inline-flex items-center gap-1 rounded-lg px-space-sm py-space-xs font-label-md text-primary hover:bg-surface-container xl:hidden"
+      >
+        <span aria-hidden="true" className="material-symbols-outlined text-[22px]">
+          {menuOpen ? "close" : "menu"}
+        </span>
+        {t("nav.aria")}
+      </button>
+      <ul
+        id="primary-nav-links"
+        className={`${menuOpen ? "flex" : "hidden"} order-last w-full flex-col gap-y-space-xs xl:order-none xl:flex xl:w-auto xl:flex-1 xl:flex-row xl:flex-wrap xl:items-center xl:gap-x-space-lg`}
+      >
         {visible.map((link) => (
           <li key={link.href}>
             <Link
               href={link.href}
+              onClick={() => setMenuOpen(false)}
               className="inline-flex items-center whitespace-nowrap py-space-xs font-body-md text-on-surface-variant transition-colors hover:text-on-surface"
             >
               {link.messageKey ? tConversations(locale, link.messageKey) : link.label ? t(link.label) : null}
@@ -114,7 +134,7 @@ export default function PrimaryNav() {
           </li>
         ))}
       </ul>
-      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-x-space-md gap-y-space-xs">
+      <div className="flex max-w-full flex-wrap items-center justify-end gap-x-space-md gap-y-space-xs xl:ml-auto">
         <LanguageSwitcher />
         {loading ? null : authenticated ? (
           <>
