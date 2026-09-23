@@ -359,19 +359,26 @@ def test_a_failed_send_logs_neither_the_address_nor_the_message(caplog, monkeypa
 
 
 @override_settings(PUBLIC_BASE_URL="https://nauta.test")
-def test_a_generic_notification_carries_html_when_a_template_exists():
-    """Uses the IT locale, not EN: emailing/migrations/0003_seed_phase4_templates
-    seeds a real EN row for "listing_approved", and creating a second EN row
-    here would collide with it (UniqueConstraint on key+locale)."""
+def test_a_generic_notification_carries_html_when_a_template_exists(monkeypatch):
+    """The mapped key is monkeypatched to an unseeded one: every real key in
+    TEMPLATE_KEY_BY_TYPE now has EN/IT/ES rows from
+    emailing/migrations/0003_seed_phase4_templates, and creating another row
+    under a real key would collide with a seeded one (UniqueConstraint on
+    key+locale)."""
     from emailing.models import EmailTemplate
 
+    monkeypatch.setitem(
+        tasks.TEMPLATE_KEY_BY_TYPE,
+        NotificationType.LISTING_APPROVED,
+        "p_test_generic_template",
+    )
     EmailTemplate.objects.create(
-        key="listing_approved",
-        locale="IT",
+        key="p_test_generic_template",
+        locale="EN",
         subject="Your listing is live",
         html_body="<p>See it at {{ url }}</p>",
     )
-    recipient = make_user(email="approved@phase6.example", locale=Locale.IT)
+    recipient = make_user(email="approved@phase6.example", locale=Locale.EN)
     notification = create_notification(
         recipient=recipient,
         notification_type=NotificationType.LISTING_APPROVED,
