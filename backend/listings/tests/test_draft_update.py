@@ -603,3 +603,21 @@ def test_a_draft_listing_has_no_published_payload(api, workflow_enabled):
     response = api.get(reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk}))
 
     assert response.data["published_payload"] is None
+
+
+@pytest.mark.django_db
+def test_the_workflow_reports_a_paid_promotion_from_the_server_not_the_return_url(api, workflow_enabled):
+    from promotions.models import ListingPromotion, PromotionPlan
+
+    owner = _seller()
+    listing = make_private_listing(owner=owner)
+    make_revision(listing, payload={"title_en": "First"})
+    api.force_authenticate(owner)
+    url = reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk})
+
+    assert api.get(url).data["promotion"] == {"paid": False, "active_until": None}
+
+    plan = PromotionPlan.objects.create(code="qa-test-week", name_en="7 days", days=7, price="149.00", is_active=True)
+    ListingPromotion.objects.create(listing=listing, user=owner, plan=plan, days=7, amount="149.00", status="PAID")
+
+    assert api.get(url).data["promotion"]["paid"] is True

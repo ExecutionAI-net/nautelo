@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import models
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
@@ -69,6 +70,9 @@ class ListingWorkflowSerializer(serializers.Serializer):
             # live content. Without it the edit form of a published listing
             # opened empty.
             "published_payload": _published_payload(listing),
+            # The server's word on the promotion, so the form never trusts a
+            # ?promotion=success return flag alone.
+            "promotion": _promotion_state(listing),
             "policy": {
                 "requires_approval": requires_staff_approval(listing),
                 "immutable_fields": _immutable_fields_for(listing),
@@ -76,6 +80,19 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 "video_limit": allowance.videos,
             },
         }
+
+
+def _promotion_state(listing) -> dict:
+    """paid: a promotion is paid and either running or waiting for the listing
+    to go live; active_until: the end of the running feature window, if any."""
+    from promotions.models import ListingPromotion
+
+    now = timezone.now()
+    paid = ListingPromotion.objects.filter(listing=listing, status=ListingPromotion.Status.PAID).filter(
+        models.Q(starts_at__isnull=True) | models.Q(ends_at__gt=now)
+    )
+    featured_until = listing.featured_until if listing.featured_until and listing.featured_until > now else None
+    return {"paid": paid.exists(), "active_until": featured_until}
 
 
 def _published_payload(listing) -> dict | None:

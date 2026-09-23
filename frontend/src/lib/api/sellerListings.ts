@@ -21,6 +21,8 @@ export interface WorkflowListing {
   revision: { id: string; version: number; state: string; payload: Record<string, unknown> } | null;
   /** The live content when nothing is being edited yet (published listings). */
   published_payload?: Record<string, unknown> | null;
+  /** Server-verified promotion state (spec: the paid flag never comes from the return URL). */
+  promotion?: { paid: boolean; active_until: string | null };
   policy: {
     requires_approval: boolean;
     immutable_fields: string[];
