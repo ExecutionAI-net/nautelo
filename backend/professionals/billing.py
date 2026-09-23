@@ -66,6 +66,16 @@ def create_membership_checkout(*, profile, gateway=None) -> str:
         "metadata": metadata,
         "subscription_data": subscription_data,
     }
+    # Without this, Stripe Checkout leaves the email field blank and every
+    # payment shows up identical in the dashboard - there is no way to tell
+    # which professional paid. `customer` (an existing Stripe customer from a
+    # prior checkout) takes precedence over `customer_email` so paying again
+    # does not mint a second Stripe customer for the same professional.
+    existing = ProfessionalSubscription.objects.filter(profile=profile).first()
+    if existing and existing.stripe_customer_id:
+        params["customer"] = existing.stripe_customer_id
+    else:
+        params["customer_email"] = profile.owner_user.email
     if trial:
         # The card is collected now; the first charge happens when the trial
         # ends. No card on file at that point cancels the subscription.
