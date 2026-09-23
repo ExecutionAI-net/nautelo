@@ -1,13 +1,14 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import models
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
 
 from finance.listing_quotes import FinancePolicy, FinanceQuoteService
 
-from .drafts import open_revision_for
+from .drafts import open_revision_for, payload_from_snapshot
 from .payloads import (
     FROZEN_SPECIFICATION_KEYS,
     IMMUTABLE_FIELD_NAMES,
@@ -65,6 +66,13 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 else None
             ),
             "revision": RevisionSerializer(revision).data if revision else None,
+            # What the owner is editing when there is no open revision: the
+            # live content. Without it the edit form of a published listing
+            # opened empty.
+            "published_payload": _published_payload(listing),
+            # The server's word on the promotion, so the form never trusts a
+            # ?promotion=success return flag alone.
+            "promotion": _promotion_state(listing),
             "policy": {
                 "requires_approval": requires_staff_approval(listing),
                 "immutable_fields": _immutable_fields_for(listing),
@@ -72,6 +80,38 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 "video_limit": allowance.videos,
             },
         }
+
+
+def _promotion_state(listing) -> dict:
+    """paid: a promotion is paid and either running or waiting for the listing
+    to go live; active_until: the end of the running feature window, if any."""
+    from promotions.models import ListingPromotion
+
+    now = timezone.now()
+    paid = ListingPromotion.objects.filter(listing=listing, status=ListingPromotion.Status.PAID).filter(
+        models.Q(starts_at__isnull=True) | models.Q(ends_at__gt=now)
+    )
+    featured_until = listing.featured_until if listing.featured_until and listing.featured_until > now else None
+    return {"paid": paid.exists(), "active_until": featured_until}
+
+
+def _published_payload(listing) -> dict | None:
+    if not listing.current_public_snapshot_id:
+        return None
+    payload = payload_from_snapshot(listing.current_public_snapshot)
+    payload.update(
+        {
+            "brand_id": str(listing.brand_id) if listing.brand_id else "",
+            "model_id": str(listing.model_id) if listing.model_id else "",
+            "custom_model_name": listing.custom_model_name,
+            "manufacture_year": listing.manufacture_year,
+            "show_finance_estimate": listing.show_finance_estimate,
+            "finance_down_payment_override_percent": listing.finance_down_payment_override_percent,
+            "finance_rate_override_percent": listing.finance_rate_override_percent,
+            "finance_term_override_months": listing.finance_term_override_months,
+        }
+    )
+    return {key: value for key, value in payload.items() if value not in ("", None)}
 
 
 def _immutable_fields_for(listing):
@@ -168,6 +208,16 @@ def _with_url(item: dict) -> dict:
     return {**item, "url": url}
 
 
+# Internal bookkeeping in the snapshot manifest that no buyer needs: the S3
+# object key and the upload checksum. The owner's serializer (below) already
+# hides them by design; the public one must too.
+PRIVATE_MEDIA_KEYS = ("storage_key", "checksum_sha256")
+
+
+def _public_media(item: dict) -> dict:
+    return {key: value for key, value in _with_url(item).items() if key not in PRIVATE_MEDIA_KEYS}
+
+
 class PublicListingSerializer(serializers.Serializer):
     """Public representation, built ENTIRELY from the approved snapshot.
 
@@ -256,7 +306,7 @@ class PublicListingSerializer(serializers.Serializer):
                 "amount": f"{snapshot.price:f}",
                 "currency": snapshot.currency,
             },
-            "media": [_with_url(item) for item in snapshot.media_manifest],
+            "media": [_public_media(item) for item in snapshot.media_manifest],
             "view_count": listing.view_count_cached,
             # Spec §18.5. Six keys when eligible, exactly {"visible": False}
             # when not — never zeros or a disabled placeholder (spec §18.2).
@@ -355,7 +405,7 @@ class ListingPreviewSerializer(serializers.Serializer):
                 "amount": f"{Decimal(price):f}" if price is not None else "0.00",
                 "currency": field("currency", "currency", listing.currency),
             },
-            "media": [_with_url(item) for item in media_manifest],
+            "media": [_public_media(item) for item in media_manifest],
             "view_count": listing.view_count_cached,
             "finance": {"visible": False},
         }

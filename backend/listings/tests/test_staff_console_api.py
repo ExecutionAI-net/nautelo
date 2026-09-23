@@ -118,6 +118,33 @@ def test_the_detail_shows_a_field_diff_media_diff_and_warnings(mod):
     assert data["version"] == revision.version
 
 
+def test_the_detail_is_readable_by_a_moderator_names_not_ids_specs_per_key_and_thumbnails(mod, settings):
+    settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example"
+    owner = make_private_seller("o4b@console.example")
+    listing, revision = submitted(owner)
+    media = make_media(listing)
+    revision.payload = {
+        **revision.payload,
+        "brand_id": str(listing.brand_id),
+        "model_id": str(listing.model_id),
+        "specifications": {"cabins": 3, "fuel_type": "diesel"},
+        "media_ids": [str(media.pk)],
+    }
+    revision.save(update_fields=["payload"])
+
+    data = client_for(mod).get(reverse("staff-revision-detail", args=[revision.pk])).data
+
+    by_field = {c["field"]: c for c in data["diff"]}
+    assert by_field["brand_id"]["after"] == listing.brand.name
+    assert by_field["model_id"]["after"] == listing.model.name
+    assert "specifications" not in by_field
+    assert by_field["specifications.cabins"]["after"] == 3
+    assert by_field["specifications.fuel_type"]["after"] == "diesel"
+    proposed = data["media_diff"]["proposed"]
+    assert [(m["id"], m["change"]) for m in proposed] == [(str(media.pk), "added")]
+    assert proposed[0]["url"] == f"https://cdn.example/{media.storage_key}"
+
+
 def test_a_buyer_and_a_guest_cannot_use_the_console():
     buyer = make_user("buyer@console.example")
     assert client_for(buyer).get(reverse("staff-moderation-queue")).status_code == 403

@@ -50,13 +50,11 @@ function media(overrides: Partial<ListingMedia> = {}): ListingMedia {
   return {
     media_id: "9c1d2c4e-0000-4000-8000-0000000000aa",
     media_type: "IMAGE",
-    storage_key: "listings/3f1d/primary.jpg",
     mime_type: "image/jpeg",
     sort_order: 0,
     width: 1600,
     height: 1200,
     duration_seconds: null,
-    checksum_sha256: "a".repeat(64),
     ...overrides,
   };
 }
@@ -413,13 +411,11 @@ describe("BoatCard media", () => {
     const media = {
       media_id: "m1",
       media_type: "IMAGE" as const,
-      storage_key: "k",
       mime_type: "image/jpeg",
       sort_order: 0,
       width: 1,
       height: 1,
       duration_seconds: null,
-      checksum_sha256: "x",
     };
     const { rerender } = render(
       <BoatCard t={testT("en")} locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: "https://cdn.x/k" }] })} />,

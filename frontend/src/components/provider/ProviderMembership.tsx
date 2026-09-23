@@ -15,6 +15,7 @@ interface Membership {
   status: "INACTIVE" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "LAPSED" | "CANCELED";
   current_period_end: string | null;
   past_due_since: string | null;
+  cancel_at_period_end?: boolean;
   plan: { name: string; tagline: string; monthly_price: string; currency: string } | null;
 }
 
@@ -96,14 +97,26 @@ export default function ProviderMembership() {
             We could not collect your last payment. Your profile goes offline 24 hours after the due date unless it is paid.
           </p>
         ) : null}
-        {membership.status === "TRIALING" && membership.trial_ends_at ? (
+        {membership.status === "TRIALING" && membership.trial_ends_at && membership.cancel_at_period_end ? (
+          <p role="status" className="font-body-sm text-on-surface-variant">
+            Cancellation scheduled: your free trial ends on {new Date(membership.trial_ends_at).toLocaleDateString("en-GB")} and your
+            card will not be charged. You can resume the membership from Manage billing until then.
+          </p>
+        ) : null}
+        {membership.status === "TRIALING" && membership.trial_ends_at && !membership.cancel_at_period_end ? (
           <p className="font-body-sm text-on-surface-variant">
             Free trial until {new Date(membership.trial_ends_at).toLocaleDateString("en-GB")}. Your card is charged then, and monthly after that. Cancel any time before.
           </p>
         ) : null}
-        {membership.current_period_end && live && membership.status !== "TRIALING" ? (
+        {membership.current_period_end && live && membership.status !== "TRIALING" && membership.cancel_at_period_end ? (
+          <p role="status" className="font-body-sm text-on-surface-variant">
+            Cancellation scheduled: your membership ends on {new Date(membership.current_period_end).toLocaleDateString("en-GB")}. You keep
+            full access until then and can resume it from Manage billing.
+          </p>
+        ) : null}
+        {membership.current_period_end && live && membership.status !== "TRIALING" && !membership.cancel_at_period_end ? (
           <p className="font-body-sm text-on-surface-variant">
-            Paid until {new Date(membership.current_period_end).toLocaleDateString("en")}. Renews automatically each month.
+            Paid until {new Date(membership.current_period_end).toLocaleDateString("en-GB")}. Renews automatically each month.
           </p>
         ) : null}
         {!live && !membership.plan ? (

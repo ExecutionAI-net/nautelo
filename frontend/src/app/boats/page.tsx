@@ -12,6 +12,7 @@ import SortSelect from "@/components/listings/SortSelect";
 import LocationFacetFilter from "@/components/places/LocationFacetFilter";
 import { fetchListingFacets, fetchPublishedListings, type ListingSearch } from "@/lib/api/listings";
 import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
+import { specValueLabel } from "@/lib/i18n/specValues";
 
 
 export const dynamic = "force-dynamic";
@@ -147,6 +148,8 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
     if (key === "length_max") return t("boats.chip.up_to_length", { value });
     if (key === "cabins_min") return t("boats.chip.cabins_plus", { value });
     if (key === "q" || key === "query") return `“${value}”`;
+    if (key === "condition") return t(value === "new" ? "boats.f.new" : "boats.f.used");
+    if (key === "boat_type" || key === "fuel_type") return specValueLabel(t, value);
     return value;
   };
 
@@ -208,7 +211,7 @@ export default async function BoatsPage({ searchParams }: { searchParams: Search
                 <option value="">{t("boats.f.all_types")}</option>
                 {(facets.boat_types ?? []).map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {specValueLabel(t, type)}
                   </option>
                 ))}
               </select>

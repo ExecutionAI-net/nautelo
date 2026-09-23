@@ -35,13 +35,11 @@ export type ListingFinance =
 export interface ListingMedia {
   media_id: string;
   media_type: "IMAGE" | "VIDEO";
-  storage_key: string;
   mime_type: string;
   sort_order: number;
   width: number | null;
   height: number | null;
   duration_seconds: number | null;
-  checksum_sha256: string;
   /** CDN URL, or null until public media serving is configured. */
   url?: string | null;
 }

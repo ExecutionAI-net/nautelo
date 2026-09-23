@@ -197,6 +197,8 @@ class BrokerSubscription(UUIDTimeStampedModel):
     trial_used_at = models.DateTimeField(null=True, blank=True)
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     past_due_since = models.DateTimeField(null=True, blank=True)
+    # Customer asked Stripe (billing portal) to stop at current_period_end.
+    cancel_at_period_end = models.BooleanField(default=False)
 
     class Meta:
         constraints = [

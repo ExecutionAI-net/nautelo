@@ -33,6 +33,7 @@ class MembershipView(APIView):
                 "current_period_end": subscription.current_period_end if subscription else None,
                 "past_due_since": subscription.past_due_since if subscription else None,
                 "trial_ends_at": subscription.trial_ends_at if subscription else None,
+                "cancel_at_period_end": bool(subscription and subscription.cancel_at_period_end),
                 "trial_available": bool(plan and plan.trial_days > 0 and not (subscription and subscription.trial_used_at)),
                 "trial_days": plan.trial_days if plan else 0,
                 "plan": (

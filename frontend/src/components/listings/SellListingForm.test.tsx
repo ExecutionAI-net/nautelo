@@ -2,13 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import SellListingForm from "@/components/listings/SellListingForm";
-import { listMedia, reorderMedia } from "@/lib/api/sellerListings";
+import { fetchWorkflowListing, listMedia, reorderMedia } from "@/lib/api/sellerListings";
 import type { MediaRow, WorkflowListing } from "@/lib/api/sellerListings";
 
 vi.mock("@/lib/api/sellerListings", () => ({
   searchBrands: vi.fn().mockResolvedValue([]),
   listModels: vi.fn().mockResolvedValue({ models: [], other: null }),
   createDraft: vi.fn(),
+  fetchWorkflowListing: vi.fn(),
   updateDraft: vi.fn(),
   submitListing: vi.fn(),
   listMedia: vi.fn(),
@@ -66,5 +67,32 @@ describe("SellListingForm", () => {
     fireEvent.drop(screen.getByTestId("media-c"));
 
     expect(reorderMedia).toHaveBeenCalledWith("L1", "IMAGE", ["b", "c", "a"]);
+  });
+
+  it("seeds the form from the live content when a published listing has no open revision", () => {
+    render(
+      <SellListingForm
+        initial={{
+          ...WORKFLOW_LISTING,
+          status: "PUBLISHED",
+          revision: null,
+          published_payload: { title_en: "Live title", location_city: "Genoa", price: "189000.00" },
+        }}
+      />,
+    );
+    expect((screen.getByDisplayValue("Live title") as HTMLInputElement).value).toBe("Live title");
+    expect(screen.getByDisplayValue("Genoa")).toBeTruthy();
+    expect(screen.getByDisplayValue("189000.00")).toBeTruthy();
+  });
+
+  it("shows the promotion as paid only once the server confirms it, not from the return URL alone", async () => {
+    vi.mocked(listMedia).mockResolvedValue([]);
+    window.history.replaceState(null, "", "/sell/L1/?promotion=success");
+    vi.mocked(fetchWorkflowListing).mockResolvedValue({ ...WORKFLOW_LISTING, promotion: { paid: true, active_until: null } });
+    render(<SellListingForm initial={{ ...WORKFLOW_LISTING, promotion: { paid: false, active_until: null } }} />);
+    expect(screen.queryByText(/Promotion paid/)).toBeNull();
+    await waitFor(() => expect(screen.getByText(/Promotion paid/)).toBeTruthy());
+    expect(fetchWorkflowListing).toHaveBeenCalledWith("L1");
+    window.history.replaceState(null, "", "/");
   });
 });

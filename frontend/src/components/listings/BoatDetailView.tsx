@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 
 import Link from "@/components/layout/LocaleLink";
+import CompareToggle from "@/components/listings/CompareToggle";
 import type { MessageKey, Translate } from "@/i18n";
 import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import type { PublicListing } from "@/lib/api/listings";
 import { financingHref } from "@/lib/api/listingLinks";
 import type { Locale } from "@/lib/i18n/directory";
 import { placeLabel } from "@/lib/i18n/places";
+import { specValueLabel } from "@/lib/i18n/specValues";
 
 // The boat's own words for each stored spec, in the order a buyer reads them. Unknown keys still show, tidied.
 const SPEC_ORDER: [string, MessageKey][] = [
@@ -32,7 +34,13 @@ const SPEC_ORDER: [string, MessageKey][] = [
 
 export function readableSpecs(specifications: Record<string, unknown>, t: Translate): { key: string; label: string; value: string }[] {
   const shown = (value: unknown) =>
-    value === true ? t("boat.yes") : value === false ? t("boat.no") : typeof value === "string" ? value.charAt(0).toUpperCase() + value.slice(1) : String(value);
+    value === true
+      ? t("boat.yes")
+      : value === false
+        ? t("boat.no")
+        : typeof value === "string"
+          ? specValueLabel(t, value).replace(/^./, (c) => c.toUpperCase())
+          : String(value);
   const known = new Set(SPEC_ORDER.map(([key]) => key));
   const rows: { key: string; label: string; value: string }[] = [];
   const seenLabels = new Set<string>();
@@ -112,6 +120,18 @@ export function BoatDetailView({ listing, locale, t, headerExtra, asideExtra }: 
             <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.asking_price")}</p>
             {price ? <p className="font-spec-num text-headline-lg font-semibold text-primary">{price}</p> : null}
             {headerExtra ? <div className="mt-space-xs">{headerExtra}</div> : null}
+            <div className="mt-space-xs">
+              <CompareToggle
+                listingId={listing.id}
+                labels={{
+                  add: t("boats.compare.add"),
+                  added: t("boats.compare.added"),
+                  remove: t("boats.compare.remove_from_compare"),
+                  open: (count) => t("boats.compare.open", { count }),
+                  full: t("boats.compare.full", { max: 4 }),
+                }}
+              />
+            </div>
           </div>
         </div>
 

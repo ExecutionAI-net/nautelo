@@ -15,6 +15,7 @@ import PaidListingBuy from "@/components/listings/PaidListingBuy";
 import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
+  fetchWorkflowListing,
   listMedia,
   listModels,
   removeMedia,
@@ -89,7 +90,7 @@ export default function SellListingForm({
   /** An existing listing (from GET listings/<id>/workflow/) to keep editing. */
   initial?: WorkflowListing;
 }) {
-  const seed = initial?.revision?.payload ?? {};
+  const seed = initial?.revision?.payload ?? initial?.published_payload ?? {};
   const seedSpecs = (typeof seed.specifications === "object" && seed.specifications !== null
     ? seed.specifications
     : {}) as Record<string, unknown>;
@@ -142,12 +143,29 @@ export default function SellListingForm({
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [askPromo, setAskPromo] = useState(false);
-  const [promoPaid, setPromoPaid] = useState(false);
+  // The server decides whether a promotion is paid; the ?promotion=success
+  // return flag only tells us to ask again, since the webhook may land a
+  // moment after Stripe sends the seller back.
+  const promoPaid = listing?.promotion?.paid === true;
+  const returnedFromPromotion = initial?.id;
   useEffect(() => {
-    // Stripe sends the seller back here with ?promotion=success once the promotion is paid.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
-    if (new URLSearchParams(window.location.search).get("promotion") === "success") setPromoPaid(true);
-  }, []);
+    if (!returnedFromPromotion || new URLSearchParams(window.location.search).get("promotion") !== "success") return;
+    let cancelled = false;
+    let attempts = 0;
+    const check = () => {
+      fetchWorkflowListing(returnedFromPromotion)
+        .then((fresh) => {
+          if (cancelled) return;
+          if (fresh.promotion?.paid) setListing(fresh);
+          else if (++attempts < 5) window.setTimeout(check, 2000);
+        })
+        .catch(() => {});
+    };
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [returnedFromPromotion]);
 
   useEffect(() => {
     let cancelled = false;

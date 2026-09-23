@@ -14,6 +14,7 @@ interface Billing {
   trial_available: boolean;
   trial_days: number;
   past_due_since: string | null;
+  cancel_at_period_end?: boolean;
   plan: { name: string; monthly_price: string; currency: string } | null;
 }
 
@@ -60,13 +61,25 @@ export default function BrokerBilling({ brokerId }: { brokerId: string }) {
         </span>
         <span className="rounded-full bg-surface-container-low px-space-sm py-0.5 font-label-sm">Brokerage: {billing.broker_status.toLowerCase()}</span>
       </div>
-      {billing.status === "TRIALING" ? (
+      {billing.status === "TRIALING" && billing.cancel_at_period_end ? (
+        <p role="status" className="font-body-md">
+          Cancellation scheduled: your free trial ends on {date(billing.trial_ends_at)} and your card will not be charged. You can
+          resume the subscription from Manage billing until then.
+        </p>
+      ) : null}
+      {billing.status === "TRIALING" && !billing.cancel_at_period_end ? (
         <p className="font-body-md">
           Your free trial runs until {date(billing.trial_ends_at)}. Your card is charged
           {billing.plan ? ` ${formatPrice(billing.plan.monthly_price, billing.plan.currency)}` : ""} then, and monthly after that. Cancel any time before.
         </p>
       ) : null}
-      {billing.status === "ACTIVE" && billing.current_period_end ? (
+      {billing.status === "ACTIVE" && billing.current_period_end && billing.cancel_at_period_end ? (
+        <p role="status" className="font-body-md">
+          Cancellation scheduled: your subscription ends on {date(billing.current_period_end)}. You keep full access until then and
+          can resume it from Manage billing.
+        </p>
+      ) : null}
+      {billing.status === "ACTIVE" && billing.current_period_end && !billing.cancel_at_period_end ? (
         <p className="font-body-md">Paid until {date(billing.current_period_end)}. Renews automatically.</p>
       ) : null}
       {billing.status === "PAST_DUE" ? (

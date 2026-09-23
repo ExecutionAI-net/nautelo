@@ -120,7 +120,9 @@ def _activate(subscription, *, period_end=None, now=None):
     subscription.last_paid_at = now
     if period_end:
         subscription.current_period_end = period_end
-    subscription.save()
+    # Named fields only: a full save() would write back whatever this instance
+    # was loaded with, including trial_* values another handler just set.
+    subscription.save(update_fields=[*STRIPE_REF_FIELDS, "status", "past_due_since", "last_paid_at", "current_period_end", "updated_at"])
 
     profile = subscription.profile
     # Payment is what puts a profile live - a brand-new profile's first
@@ -137,15 +139,24 @@ def _activate(subscription, *, period_end=None, now=None):
         _notify(profile, NotificationType.PROFESSIONAL_ACTIVATED, f"{subscription.pk}:active:{now.date()}")
 
 
+STRIPE_REF_FIELDS = ("stripe_customer_id", "stripe_subscription_id")
+TRIAL_FIELDS = ("status", "trial_used_at", "trial_ends_at", "current_period_end")
+
+
 def _start_trial(subscription, *, now=None):
     now = now or timezone.now()
+    if subscription.status == SubscriptionStatus.TRIALING:
+        # checkout.session.completed and the €0 invoice.paid both describe the
+        # same trial; whichever lands second must not restart or extend it.
+        subscription.save(update_fields=[*STRIPE_REF_FIELDS, "updated_at"])
+        return
     plan = get_plan()
     days = plan.trial_days if plan else 0
     subscription.status = SubscriptionStatus.TRIALING
     subscription.trial_used_at = subscription.trial_used_at or now
     subscription.trial_ends_at = now + timedelta(days=days)
     subscription.current_period_end = subscription.trial_ends_at
-    subscription.save()
+    subscription.save(update_fields=[*STRIPE_REF_FIELDS, *TRIAL_FIELDS, "updated_at"])
 
 
 def _deactivate(subscription, *, status, now=None):
@@ -187,7 +198,25 @@ def _invoice_refs(invoice: dict) -> dict:
         "subscription_id": subscription,
         "customer_id": customer if isinstance(customer, str) else "",
         "professional_id": metadata.get("professional_id", ""),
+        "trial": metadata.get("trial") == "1",
     }
+
+
+def _period_end_from(stripe_sub: dict):
+    """`current_period_end` moved from the subscription onto its items in
+    newer Stripe API versions; accept either shape."""
+    items = (stripe_sub.get("items") or {}).get("data") or []
+    return _from_unix(stripe_sub.get("current_period_end") or (items[0] if items else {}).get("current_period_end"))
+
+
+def _is_trial_checkout(session: dict, metadata: dict) -> bool:
+    """Stripe reports a trial checkout as "no_payment_required", but the €0
+    first invoice can also surface as "paid"; a zero total settles it either
+    way. Reading only payment_status recorded trials as paid ACTIVE rows
+    (trial_used_at empty), which re-offered the trial."""
+    return metadata.get("trial") == "1" and (
+        session.get("payment_status") == "no_payment_required" or not session.get("amount_total")
+    )
 
 
 def handle_membership_checkout(session: dict) -> str:
@@ -203,7 +232,7 @@ def handle_membership_checkout(session: dict) -> str:
     subscription.stripe_customer_id = session.get("customer") or subscription.stripe_customer_id
     sub_id = session.get("subscription") or ""
     subscription.stripe_subscription_id = sub_id if isinstance(sub_id, str) else sub_id.get("id", "")
-    if metadata.get("trial") == "1" and session.get("payment_status") == "no_payment_required":
+    if _is_trial_checkout(session, metadata):
         _start_trial(subscription)
     elif session.get("payment_status") == "paid":
         _activate(subscription)
@@ -217,14 +246,20 @@ def handle_invoice_paid(event) -> str:
 
     invoice = event["data"]["object"]
     refs = _invoice_refs(invoice)
+    trial = refs.pop("trial")
     subscription = _subscription_for(**refs)
     if subscription is None:
         return WebhookResult.IGNORED
     if not subscription.stripe_subscription_id:
         subscription.stripe_subscription_id = refs["subscription_id"]
-    if subscription.status == SubscriptionStatus.TRIALING and not invoice.get("amount_paid"):
+    if not invoice.get("amount_paid"):
         # The zero-amount invoice Stripe issues when a trial starts is not a payment.
-        return WebhookResult.FULFILLED
+        if subscription.status == SubscriptionStatus.TRIALING:
+            return WebhookResult.FULFILLED
+        if trial and subscription.trial_used_at is None:
+            # It can land before checkout.session.completed; it opens the trial.
+            _start_trial(subscription)
+            return WebhookResult.FULFILLED
     lines = (invoice.get("lines") or {}).get("data") or []
     period_end = _from_unix(((lines[0] if lines else {}).get("period") or {}).get("end"))
     _activate(subscription, period_end=period_end)
@@ -235,7 +270,9 @@ def handle_invoice_payment_failed(event) -> str:
     from payments.enums import WebhookResult
 
     invoice = event["data"]["object"]
-    subscription = _subscription_for(**_invoice_refs(invoice))
+    refs = _invoice_refs(invoice)
+    refs.pop("trial")
+    subscription = _subscription_for(**refs)
     if subscription is None:
         return WebhookResult.IGNORED
     if subscription.past_due_since is None:
@@ -262,6 +299,29 @@ def handle_subscription_deleted(event) -> str:
     if subscription is None:
         return WebhookResult.IGNORED
     _deactivate(subscription, status=SubscriptionStatus.CANCELED)
+    return WebhookResult.FULFILLED
+
+
+def handle_subscription_updated(event) -> str:
+    """Mirror what the customer did in Stripe's billing portal: a scheduled
+    cancellation (`cancel_at_period_end`), its reversal, the period end, and
+    the trial rolling into a paid period."""
+    from payments.enums import WebhookResult
+
+    stripe_sub = event["data"]["object"]
+    subscription = _subscription_for(
+        subscription_id=stripe_sub.get("id", ""),
+        professional_id=(stripe_sub.get("metadata") or {}).get("professional_id", ""),
+    )
+    if subscription is None:
+        return WebhookResult.IGNORED
+    subscription.cancel_at_period_end = bool(stripe_sub.get("cancel_at_period_end"))
+    period_end = _period_end_from(stripe_sub)
+    if period_end:
+        subscription.current_period_end = period_end
+    if stripe_sub.get("status") == "active" and subscription.status == SubscriptionStatus.TRIALING:
+        subscription.status = SubscriptionStatus.ACTIVE
+    subscription.save(update_fields=["cancel_at_period_end", "current_period_end", "status", "updated_at"])
     return WebhookResult.FULFILLED
 
 

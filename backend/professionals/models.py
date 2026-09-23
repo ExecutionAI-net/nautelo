@@ -116,6 +116,8 @@ class ProfessionalSubscription(UUIDTimeStampedModel):
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     # Set by the first failed invoice; the profile goes offline 24 hours later.
     past_due_since = models.DateTimeField(null=True, blank=True)
+    # Customer asked Stripe (billing portal) to stop at current_period_end.
+    cancel_at_period_end = models.BooleanField(default=False)
 
     class Meta:
         constraints = [

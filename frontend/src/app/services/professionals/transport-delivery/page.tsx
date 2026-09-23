@@ -508,7 +508,7 @@ export default async function TransportDelivery() {
 </div>
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm text-on-surface-variant">{t("svc_transport.email_address")}</label>
-<input className="bg-surface-container-lowest px-space-sm py-2.5 rounded font-body-md text-body-md text-on-surface focus:outline-none focus:bg-surface-container-low shadow-sm" placeholder="m.riva@nauta-maritime.com" required type="email"/>
+<input className="bg-surface-container-lowest px-space-sm py-2.5 rounded font-body-md text-body-md text-on-surface focus:outline-none focus:bg-surface-container-low shadow-sm" placeholder="name@example.com" required type="email"/>
 </div>
 <div className="flex flex-col gap-1">
 <label className="font-label-sm text-label-sm text-on-surface-variant">{t("svc_transport.phone_whatsapp_enabled")}</label>
