@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from common.models import UUIDTimeStampedModel
@@ -17,6 +18,7 @@ class ContactRequest(UUIDTimeStampedModel):
 
     class Status(models.TextChoices):
         NEW = "NEW"
+        IN_PROGRESS = "IN_PROGRESS"
         HANDLED = "HANDLED"
 
     topic = models.CharField(max_length=12, choices=Topic.choices)
@@ -26,7 +28,13 @@ class ContactRequest(UUIDTimeStampedModel):
     message = models.TextField(max_length=4000, blank=True, default="")
     details = models.JSONField(default=dict, blank=True)
     reply_language = models.CharField(max_length=2, default="EN")
-    status = models.CharField(max_length=8, choices=Status.choices, default=Status.NEW)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.NEW)
+    # Staff keep what was done about the request here (calls made, answer sent, ...).
+    notes = models.TextField(blank=True, default="")
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    handled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]

@@ -2081,5 +2081,6 @@
   "sell.valuation.type.fishing_boat": "Fishing boat",
   "pricing.page.online_for_days": "Online for {days} days",
   "pricing.page.up_to_photos": "Up to {count} photos",
-  "pricing.page.and_video": "and {count} video"
+  "pricing.page.and_video": "and {count} video",
+  "nav.dash.contact_requests": "Contact requests"
 }
