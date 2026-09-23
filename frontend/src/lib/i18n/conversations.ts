@@ -210,10 +210,21 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
     es: "Anuncios publicados",
   },
   "broker.dashboard.metric.pending_approvals": {
-    en: "Pending approvals",
-    it: "In attesa di approvazione",
-    es: "Pendientes de aprobación",
+    en: "Awaiting review",
+    it: "In attesa di revisione",
+    es: "Pendientes de revisión",
   },
+  "broker.dashboard.metric.pending_approvals_help": {
+    en: "Vessels waiting for staff approval",
+    it: "Imbarcazioni in attesa dell'approvazione dello staff",
+    es: "Embarcaciones a la espera de la aprobación del equipo",
+  },
+  "messages.thread.about_profile": {
+    en: "About your brokerage profile",
+    it: "Riguarda il profilo della tua agenzia",
+    es: "Sobre el perfil de tu agencia",
+  },
+  "messages.thread.about": { en: "About", it: "Riguarda", es: "Sobre" },
   "broker.dashboard.metric.unread_messages": {
     en: "Unread messages",
     it: "Messaggi non letti",

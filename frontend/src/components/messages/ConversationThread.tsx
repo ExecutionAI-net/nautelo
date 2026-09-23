@@ -4,6 +4,7 @@ import { useT } from "@/i18n/client";
 import ReplyComposer from "@/components/messages/ReplyComposer";
 import type { ConversationRow, MessageRow } from "@/lib/api/conversations";
 import { tConversations } from "@/lib/i18n/conversations";
+import { formatDateTime } from "@/lib/i18n/datetime";
 import type { Locale } from "@/lib/i18n/directory";
 
 interface Props {
@@ -50,6 +51,13 @@ export default function ConversationThread({
               is not an archived one, and spec 2.1 forbids showing a state the
               data does not support — the earlier `!== "OPEN"` form labelled
               every blocked conversation "Archived". */}
+          {conversation.context.type === "BROKER" || conversation.context.type === "LISTING" ? (
+            <p className="w-full font-body-sm text-on-surface-variant">
+              {conversation.context.type === "BROKER"
+                ? tConversations(locale, "messages.thread.about_profile")
+                : `${tConversations(locale, "messages.thread.about")}: ${conversation.context.label}`}
+            </p>
+          ) : null}
           {conversation.status === "ARCHIVED" ? (
             <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
               {tConversations(locale, "messages.archived_badge")}
@@ -106,7 +114,7 @@ export default function ConversationThread({
                   </span>
                   <span aria-hidden="true">{" · "}</span>
                   <time dateTime={message.created_at}>
-                    {new Date(message.created_at).toLocaleString(locale)}
+                    {formatDateTime(locale, message.created_at)}
                   </time>
                 </p>
                 <p className="mt-space-xs whitespace-pre-wrap font-body-md">

@@ -8,8 +8,8 @@ export default function FleetPage() {
       <RequirePermission permission="create_broker_listing">
         <MyListings
           fleet
-          eyebrow="Fleet management"
-          heading="Active vessel inventory"
+          eyebrow="Brokerage / Fleet"
+          heading="Fleet"
           createHref="/dashboard/broker/fleet/new/"
           createLabel="Add vessel"
         />

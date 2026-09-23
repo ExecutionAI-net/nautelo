@@ -4,6 +4,7 @@ import Link from "@/components/layout/LocaleLink";
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type NotificationRow } from "@/lib/api/notifications";
+import { formatDateTime } from "@/lib/i18n/datetime";
 import type { Locale } from "@/lib/i18n/directory";
 import { NOTIFICATION_TEXT } from "@/lib/i18n/notifications";
 import { useLocale } from "@/lib/i18n/useLocale";
@@ -95,7 +96,7 @@ export default function NotificationList() {
                   {text(row.title_key, locale)}
                 </span>
                 <span className="block font-body-sm text-on-surface-variant">{text(row.body_key, locale)}</span>
-                <span className="block font-label-sm text-on-surface-variant">{new Date(row.created_at).toLocaleString(locale)}</span>
+                <span className="block font-label-sm text-on-surface-variant">{formatDateTime(locale, row.created_at)}</span>
               </>
             );
             return (

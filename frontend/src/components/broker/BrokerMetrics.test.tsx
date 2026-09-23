@@ -28,7 +28,7 @@ describe("BrokerMetrics", () => {
     const terms = screen.getAllByRole("term").map((node) => node.textContent);
     expect(terms).toEqual([
       "Published listings",
-      "Pending approvals",
+      "Awaiting review",
       "Unread messages",
       "New inquiries",
     ]);

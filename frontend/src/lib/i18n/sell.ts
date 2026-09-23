@@ -5,6 +5,13 @@ type Entry = Record<Locale, string>;
 
 const SELL: Record<string, Entry> = {
   "sell.title_broker": { en: "Add a vessel", it: "Aggiungi un'imbarcazione", es: "Añadir una embarcación" },
+  "sell.title_broker_edit": { en: "Edit vessel", it: "Modifica imbarcazione", es: "Editar embarcación" },
+  "sell.eyebrow_broker": { en: "Brokerage / Fleet", it: "Agenzia / Flotta", es: "Agencia / Flota" },
+  "sell.lead_broker": {
+    en: "The vessel is published under your brokerage once staff have reviewed it.",
+    it: "L'imbarcazione viene pubblicata a nome della tua agenzia dopo la revisione dello staff.",
+    es: "La embarcación se publica a nombre de tu agencia una vez que el equipo la haya revisado.",
+  },
   "sell.title": { en: "Sell your boat", it: "Vendi la tua barca", es: "Vende tu barco" },
   "sell.brand_search": { en: "Search brand", it: "Cerca marca", es: "Buscar marca" },
   "sell.brand": { en: "Brand", it: "Marca", es: "Marca" },

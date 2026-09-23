@@ -18,14 +18,14 @@ describe("PlanCards", () => {
   it("shows price, limits and unlimited tiers", () => {
     render(<PlanCards plans={PLANS} />);
     expect(screen.getByText("€290")).toBeTruthy();
-    expect(screen.getByText("5 Active Vessel Listings")).toBeTruthy();
-    expect(screen.getByText("Unlimited Active Vessel Listings")).toBeTruthy();
+    expect(screen.getByText("5 published vessels")).toBeTruthy();
+    expect(screen.getByText("Unlimited published vessels")).toBeTruthy();
     expect(screen.getByText("Featured placement")).toBeTruthy();
   });
 
   it("marks the enrolled tier and offers the others", () => {
     render(<PlanCards plans={PLANS} currentSlug="boutique-broker" ctaLabel="Request this tier" />);
-    expect(screen.getByRole("button", { name: "Currently Enrolled" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Current plan" })).toBeDisabled();
     expect(screen.getAllByRole("link", { name: "Request this tier" })).toHaveLength(1);
   });
 });

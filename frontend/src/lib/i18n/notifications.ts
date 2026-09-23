@@ -40,6 +40,16 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "IT": "Il tuo annuncio e stato ricevuto ed e in attesa di revisione.",
     "ES": "Tu anuncio fue recibido y esta pendiente de revision."
   },
+  "notification.inquiry_received.title": {
+    "EN": "New message",
+    "IT": "Nuovo messaggio",
+    "ES": "Nuevo mensaje"
+  },
+  "notification.inquiry_received.body": {
+    "EN": "A buyer wrote to you. Open the conversation in Messages.",
+    "IT": "Un acquirente ti ha scritto. Apri la conversazione in Messaggi.",
+    "ES": "Un comprador te ha escrito. Abre la conversación en Mensajes."
+  },
   "notification.listing_approved.title": {
     "EN": "Your listing was approved",
     "IT": "Il tuo annuncio e stato approvato",

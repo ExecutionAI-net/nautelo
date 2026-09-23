@@ -31,9 +31,15 @@ interface Props {
   eyebrow?: string;
   /** Replaces the listing-oriented intro (the professional's requests page is about services). */
   intro?: string;
+  /** Replaces the "Messages" heading (the broker's Leads page shows one slice of the inbox). */
+  heading?: string;
+  /** Hide the inbox filter chips (a page that IS one filter has nothing to switch). */
+  filters?: boolean;
+  /** Replaces the empty-state sentence. */
+  empty?: string;
 }
 
-export default function MessagesScreen({ brokerId, basePath, filter, selectedId, eyebrow, intro }: Props) {
+export default function MessagesScreen({ brokerId, basePath, filter, selectedId, eyebrow, intro, heading, filters = true, empty }: Props) {
   const { session, loading } = useSession();
   const [result, setResult] = useState<{
     key: string;
@@ -90,6 +96,8 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId,
     <p role="alert" className="mt-space-lg font-body-md text-error">
       {tConversations(locale, errorKey)}
     </p>
+  ) : rows.length === 0 && empty ? (
+    <p className="mt-space-lg font-body-md text-on-surface-variant">{empty}</p>
   ) : (
     <div className="mt-space-lg">
       <ConversationList locale={locale} rows={rows} hrefFor={(id) => `${basePath}${id}/`} />
@@ -99,10 +107,10 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId,
   return (
     <section aria-labelledby="messages-title">
       <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">
-        {eyebrow ?? (brokerId ? "Brokerage CRM" : "Your messages")}
+        {eyebrow ?? (brokerId ? "Brokerage / Messages" : "Your messages")}
       </span>
       <h1 id="messages-title" className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">
-        {tConversations(locale, "messages.title")}
+        {heading ?? tConversations(locale, "messages.title")}
       </h1>
       {selectedId ? null : (
         <p className="mt-space-sm font-body-md text-on-surface-variant">
@@ -111,13 +119,15 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId,
       )}
       <div className={selectedId ? "mt-space-lg grid items-start gap-space-md lg:grid-cols-12" : undefined}>
         <div className={selectedId ? "hidden lg:col-span-5 lg:block" : undefined}>
-          <div className="mt-space-lg">
-            <ConversationFilters
-              locale={locale}
-              active={filter}
-              hrefFor={(value) => `${basePath}?filter=${value}`}
-            />
-          </div>
+          {filters ? (
+            <div className="mt-space-lg">
+              <ConversationFilters
+                locale={locale}
+                active={filter}
+                hrefFor={(value) => `${basePath}?filter=${value}`}
+              />
+            </div>
+          ) : null}
           {list}
         </div>
         {selectedId ? (

@@ -86,9 +86,8 @@ describe("/dashboard/broker/", () => {
     render(<BrokerHomePage />);
     await waitFor(() => expect(screen.getByText("12")).toBeInTheDocument());
     expect(fetchDashboardMock).toHaveBeenCalledWith("b-1");
-    expect(
-      screen.getByRole("heading", { name: "Phase19 Alpha Brokers" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByText(/Phase19 Alpha Brokers/)).toBeInTheDocument();
   });
 
   it("explains itself to an account with no broker organization", () => {

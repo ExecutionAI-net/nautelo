@@ -15,7 +15,7 @@ export default async function BrokerThreadPage({ params }: { params: Params }) {
   return (
     <AreaShell area="broker" active="/dashboard/broker/messages/">
       <RequirePermission>
-        <MessagesScreen basePath="/dashboard/broker/messages/" filter="ALL" selectedId={conversationId} />
+        <MessagesScreen basePath="/dashboard/broker/messages/" filter="ALL" selectedId={conversationId} eyebrow="Brokerage / Messages" />
       </RequirePermission>
     </AreaShell>
   );
