@@ -60,10 +60,30 @@ class ZeptoMailBackend(BaseEmailBackend):
                 },
                 timeout=10,
             )
-            response.raise_for_status()
-        except requests.RequestException:
-            logger.exception("zeptomail send failed", extra={"to": message.to})
+            if response.status_code >= 400:
+                # ZeptoMail explains every rejection in the body (unverified
+                # sender domain, bad token, blocked address...). Without it the
+                # log only says "4xx" and the operator has to guess.
+                raise ZeptoMailError(response.status_code, _body_excerpt(response))
+        except requests.RequestException as exc:
+            logger.exception("zeptomail send failed: %s", exc, extra={"to": message.to})
             if not self.fail_silently:
                 raise
             return False
         return True
+
+
+class ZeptoMailError(requests.RequestException):
+    """ZeptoMail answered with an error status; `body` carries its explanation."""
+
+    def __init__(self, status_code: int, body: str):
+        self.status_code = status_code
+        self.body = body
+        super().__init__(f"ZeptoMail responded {status_code}: {body}")
+
+
+def _body_excerpt(response, limit: int = 500) -> str:
+    try:
+        return (response.text or "")[:limit]
+    except Exception:  # pragma: no cover - defensive, text access never raises on a real response
+        return ""
