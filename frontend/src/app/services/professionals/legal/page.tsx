@@ -69,7 +69,7 @@ export default async function LegalServices() {
 </div>
 <div className="lg:col-span-5">
 <div className="relative rounded-xl overflow-hidden shadow-xl bg-surface-container-high">
-<img alt="" className="w-full h-[460px] object-cover" src="/design/018863299d.jpg"/>
+<img alt="" className="w-full h-[460px] object-cover" src="/design/018863299d.webp"/>
 <div className="absolute bottom-0 inset-x-0 p-space-md bg-gradient-to-t from-primary/90 via-primary/50 to-transparent text-on-primary">
 <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary-fixed">{t("svc_legal.naval_registry_bureau")}</span>
 <p className="font-title-md text-title-md mt-0.5">{t("svc_legal.mallorca_genoa_admiralty_counsel")}</p>

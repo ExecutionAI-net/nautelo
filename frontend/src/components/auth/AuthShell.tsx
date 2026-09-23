@@ -41,7 +41,7 @@ export default function AuthShell({
       <div className="mx-auto grid max-w-[1440px] gap-space-xl px-margin-mobile py-space-xl md:px-margin lg:grid-cols-[5fr_7fr] lg:px-margin-desktop">
         <aside className="hidden flex-col overflow-hidden rounded-xl bg-primary text-on-primary lg:flex">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt="" src="/design/c4967d98c7.jpg" className="h-64 w-full object-cover opacity-90" />
+          <img alt="" src="/design/c4967d98c7.webp" className="h-64 w-full object-cover opacity-90" />
           <div className="flex flex-col gap-space-md p-space-lg">
             <span className="font-label-sm uppercase tracking-widest opacity-70">{t("auth.mediterranean_marketplace")}</span>
             {POINTS.map((point) => (

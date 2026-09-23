@@ -14,9 +14,13 @@ import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
 
+// The home page shows the same public sections to everyone: a one-minute server cache
+// takes the four API round trips off most requests (Lighthouse "server responded slowly").
+const HOME_CACHE = { revalidate: 60 };
+
 async function featured(): Promise<PublicListing[]> {
   try {
-    const page = await fetchPublishedListings({ featured: "1", sort: "featured", page_size: "12" });
+    const page = await fetchPublishedListings({ featured: "1", sort: "featured", page_size: "12" }, HOME_CACHE);
     return page?.results ?? [];
   } catch {
     return [];
@@ -25,7 +29,7 @@ async function featured(): Promise<PublicListing[]> {
 
 async function latest(): Promise<PublicListing[]> {
   try {
-    const page = await fetchPublishedListings({ page_size: "4" });
+    const page = await fetchPublishedListings({ page_size: "4" }, HOME_CACHE);
     return page?.results ?? [];
   } catch {
     // The home page must render even when the catalogue is unavailable.
@@ -36,7 +40,7 @@ async function latest(): Promise<PublicListing[]> {
 export default async function Home() {
   const locale = await getRequestLocale();
   const t = await getT();
-  const [promoted, newest, facets, [ad, banner]] = await Promise.all([featured(), latest(), fetchListingFacets(), fetchAds("HOME")]);
+  const [promoted, newest, facets, [ad, banner]] = await Promise.all([featured(), latest(), fetchListingFacets(undefined, HOME_CACHE), fetchAds("HOME", HOME_CACHE)]);
   // Paid promotions first; until there are any, the newest boats keep the strip from being empty.
   const showingPromoted = promoted.length > 0;
   const boats = showingPromoted ? promoted : newest;
@@ -160,7 +164,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-space-lg">
 
 <Link className="group relative aspect-[16/10] rounded-xl overflow-hidden shadow-sm flex flex-col justify-end p-space-md bg-primary" href="/boats/">
-<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/6e536ead8f.jpg"/>
+<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/6e536ead8f.webp" width="512" height="279" loading="lazy" decoding="async" />
 <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/30 to-transparent"></div>
 <div className="relative z-10">
 <h3 className="font-headline-sm text-headline-sm text-on-primary mb-1">{t("home.motor_yachts")}</h3>
@@ -171,7 +175,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 </Link>
 
 <Link className="group relative aspect-[16/10] rounded-xl overflow-hidden shadow-sm flex flex-col justify-end p-space-md bg-primary" href="/boats/">
-<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/65a3e00779.jpg"/>
+<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/65a3e00779.webp" width="512" height="279" loading="lazy" decoding="async" />
 <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/30 to-transparent"></div>
 <div className="relative z-10">
 <h3 className="font-headline-sm text-headline-sm text-on-primary mb-1">{t("home.sailing_yachts")}</h3>
@@ -182,7 +186,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 </Link>
 
 <Link className="group relative aspect-[16/10] rounded-xl overflow-hidden shadow-sm flex flex-col justify-end p-space-md bg-primary" href="/boats/">
-<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/4bbd1b22fd.jpg"/>
+<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/4bbd1b22fd.webp" width="512" height="279" loading="lazy" decoding="async" />
 <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/30 to-transparent"></div>
 <div className="relative z-10">
 <h3 className="font-headline-sm text-headline-sm text-on-primary mb-1">{t("home.catamarans")}</h3>
@@ -193,7 +197,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 </Link>
 
 <Link className="group relative aspect-[16/10] rounded-xl overflow-hidden shadow-sm flex flex-col justify-end p-space-md bg-primary" href="/boats/">
-<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/b8ac8c0656.jpg"/>
+<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/b8ac8c0656.webp" width="512" height="279" loading="lazy" decoding="async" />
 <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/30 to-transparent"></div>
 <div className="relative z-10">
 <h3 className="font-headline-sm text-headline-sm text-on-primary mb-1">{t("home.motorboats")}</h3>
@@ -204,7 +208,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 </Link>
 
 <Link className="group relative aspect-[16/10] rounded-xl overflow-hidden shadow-sm flex flex-col justify-end p-space-md bg-primary" href="/boats/">
-<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/aedafbad9f.jpg"/>
+<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/aedafbad9f.webp" width="512" height="279" loading="lazy" decoding="async" />
 <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/30 to-transparent"></div>
 <div className="relative z-10">
 <h3 className="font-headline-sm text-headline-sm text-on-primary mb-1">{t("home.ribs")}</h3>
@@ -215,7 +219,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 </Link>
 
 <Link className="group relative aspect-[16/10] rounded-xl overflow-hidden shadow-sm flex flex-col justify-end p-space-md bg-primary" href="/boats/">
-<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/b4697fc49d.jpg"/>
+<img alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80" src="/design/b4697fc49d.webp" width="512" height="279" loading="lazy" decoding="async" />
 <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/30 to-transparent"></div>
 <div className="relative z-10">
 <h3 className="font-headline-sm text-headline-sm text-on-primary mb-1">{t("home.fishing_boats")}</h3>
@@ -445,7 +449,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 
 <article className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
 <div className="relative w-full aspect-[16/10] overflow-hidden">
-<img alt="" className="w-full h-full object-cover" src="/design/ce28c27afe.jpg"/>
+<img alt="" className="w-full h-full object-cover" src="/design/ce28c27afe.webp" width="512" height="279" loading="lazy" decoding="async" />
 </div>
 <div className="p-space-lg flex flex-col flex-1 justify-between">
 <div>
@@ -463,7 +467,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 
 <article className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
 <div className="relative w-full aspect-[16/10] overflow-hidden">
-<img alt="" className="w-full h-full object-cover" src="/design/68be5c8e30.jpg"/>
+<img alt="" className="w-full h-full object-cover" src="/design/68be5c8e30.webp" width="512" height="279" loading="lazy" decoding="async" />
 </div>
 <div className="p-space-lg flex flex-col flex-1 justify-between">
 <div>
@@ -481,7 +485,7 @@ className="inline-flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg b
 
 <article className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
 <div className="relative w-full aspect-[16/10] overflow-hidden">
-<img alt="" className="w-full h-full object-cover" src="/design/83d5b58468.jpg"/>
+<img alt="" className="w-full h-full object-cover" src="/design/83d5b58468.webp" width="512" height="279" loading="lazy" decoding="async" />
 </div>
 <div className="p-space-lg flex flex-col flex-1 justify-between">
 <div>

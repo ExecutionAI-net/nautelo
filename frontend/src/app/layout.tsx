@@ -66,10 +66,21 @@ export default async function RootLayout({
             browser parses the <link> tag. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href={MATERIAL_SYMBOLS_URL}
-          rel="stylesheet"
+        {/* The icon stylesheet is fetched at once (preload) but applied only once it has
+            arrived: a `media="print"` sheet does not block the first paint, and the tiny
+            script switches it to `all` on load (Lighthouse "Render-blocking requests").
+            Icons have a fixed box in CSS, so the late swap causes no layout shift. */}
+        <link rel="preload" as="style" href={MATERIAL_SYMBOLS_URL} />
+        <link href={MATERIAL_SYMBOLS_URL} rel="stylesheet" media="print" data-icon-font="" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){var l=document.querySelector('link[data-icon-font]');if(!l)return;var on=function(){l.media='all'};l.addEventListener('load',on);if(l.sheet){on()}})();",
+          }}
         />
+        <noscript>
+          <link href={MATERIAL_SYMBOLS_URL} rel="stylesheet" />
+        </noscript>
       </head>
       <body
         className={`${playfairDisplay.variable} ${plusJakartaSans.variable} bg-surface text-on-surface antialiased`}

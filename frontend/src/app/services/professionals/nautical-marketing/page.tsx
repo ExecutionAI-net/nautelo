@@ -73,7 +73,7 @@ export default async function NauticalMarketing() {
 
 <div className="lg:col-span-5 relative">
 <div className="relative rounded-xl overflow-hidden shadow-xl bg-surface-container aspect-[4/3] group">
-<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" src="/design/afc29d14b9.jpg"/>
+<img alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" src="/design/afc29d14b9.webp"/>
 <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent"></div>
 
 <div className="absolute bottom-4 left-4 right-4 p-space-sm bg-surface-container-lowest/95 backdrop-blur-md rounded-md shadow-md">
