@@ -208,6 +208,16 @@ def _with_url(item: dict) -> dict:
     return {**item, "url": url}
 
 
+# Internal bookkeeping in the snapshot manifest that no buyer needs: the S3
+# object key and the upload checksum. The owner's serializer (below) already
+# hides them by design; the public one must too.
+PRIVATE_MEDIA_KEYS = ("storage_key", "checksum_sha256")
+
+
+def _public_media(item: dict) -> dict:
+    return {key: value for key, value in _with_url(item).items() if key not in PRIVATE_MEDIA_KEYS}
+
+
 class PublicListingSerializer(serializers.Serializer):
     """Public representation, built ENTIRELY from the approved snapshot.
 
@@ -296,7 +306,7 @@ class PublicListingSerializer(serializers.Serializer):
                 "amount": f"{snapshot.price:f}",
                 "currency": snapshot.currency,
             },
-            "media": [_with_url(item) for item in snapshot.media_manifest],
+            "media": [_public_media(item) for item in snapshot.media_manifest],
             "view_count": listing.view_count_cached,
             # Spec §18.5. Six keys when eligible, exactly {"visible": False}
             # when not — never zeros or a disabled placeholder (spec §18.2).
@@ -395,7 +405,7 @@ class ListingPreviewSerializer(serializers.Serializer):
                 "amount": f"{Decimal(price):f}" if price is not None else "0.00",
                 "currency": field("currency", "currency", listing.currency),
             },
-            "media": [_with_url(item) for item in media_manifest],
+            "media": [_public_media(item) for item in media_manifest],
             "view_count": listing.view_count_cached,
             "finance": {"visible": False},
         }

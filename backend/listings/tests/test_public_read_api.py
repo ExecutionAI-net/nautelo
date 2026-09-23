@@ -434,3 +434,18 @@ def test_approved_media_can_use_private_s3_downloads(settings):
         settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example"
         assert _with_url(item)["url"] == "https://cdn.example/listings/1/abc"
         sign.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_public_media_entries_do_not_expose_storage_keys_or_checksums(settings):
+    settings.MEDIA_PUBLIC_BASE_URL = "https://cdn.example"
+    listing, _snapshot = _published()
+    api = APIClient()
+
+    response = api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk}))
+
+    assert response.status_code == 200
+    entry = response.data["media"][0]
+    assert "storage_key" not in entry and "checksum_sha256" not in entry
+    assert entry["url"].startswith("https://cdn.example/")
+    assert {"media_id", "media_type", "mime_type", "width", "height"} <= set(entry)
