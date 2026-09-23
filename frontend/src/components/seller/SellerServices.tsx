@@ -12,7 +12,16 @@ interface Category {
   description: string;
 }
 
-const ICONS = ["engineering", "local_shipping", "gavel", "shield", "sailing", "handyman"];
+// Material symbol per service category slug (services_catalog seed); unknown categories get a neutral tool icon.
+const ICONS: Record<string, string> = {
+  "full-brokerage": "handshake",
+  legal: "gavel",
+  insurance: "shield",
+  "engines-maintenance": "engineering",
+  "transport-delivery": "local_shipping",
+  "nautical-marketing": "campaign",
+};
+const DEFAULT_ICON = "handyman";
 
 export default function SellerServices() {
   const [categories, setCategories] = useState<Category[] | null>(null);
@@ -46,14 +55,14 @@ export default function SellerServices() {
       <section aria-labelledby="book-heading" className="flex flex-col gap-space-md">
         <h2 id="book-heading" className="font-headline-sm text-headline-sm text-primary">Book nautical services for your fleet</h2>
         <div className="grid gap-space-md sm:grid-cols-2 lg:grid-cols-4">
-          {(categories ?? []).map((category, index) => (
+          {(categories ?? []).map((category) => (
             <Link
               key={category.id}
               href={`/services/professionals/?category=${encodeURIComponent(category.slug)}`}
               className="group rounded-xl bg-surface-container-lowest p-space-lg shadow-sm hover:shadow-md transition-shadow flex flex-col gap-space-sm"
             >
               <div className="w-10 h-10 rounded-lg bg-secondary-container/40 text-secondary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[22px]" aria-hidden="true">{ICONS[index % ICONS.length]}</span>
+                <span className="material-symbols-outlined text-[22px]" aria-hidden="true">{ICONS[category.slug] ?? DEFAULT_ICON}</span>
               </div>
               <p className="font-title-md text-title-md text-primary group-hover:text-secondary transition-colors">{category.name}</p>
               <p className="font-body-sm text-on-surface-variant">{category.description}</p>
