@@ -153,7 +153,8 @@ def test_professional_journey(django_capture_on_commit_callbacks, storage):
     ProfessionalPlan.objects.create(
         slug="m", name="Membership", monthly_price=49, trial_days=30, is_active=True, stripe_product_id="prod_p", stripe_price_id="price_p"
     )
-    _register_org("PROFESSIONAL", "owner@blue-rigging.example", "Blue Rigging", django_capture_on_commit_callbacks)
+    ServiceCategory.objects.create(name_en="General", slug="general-scn")
+    _register_org("PROFESSIONAL", "owner@blue-rigging.example", "Blue Rigging", django_capture_on_commit_callbacks, category="general-scn")
     owner_user = User.objects.get(email="owner@blue-rigging.example")
     assert owner_user.primary_role == UserRole.PROFESSIONAL
 

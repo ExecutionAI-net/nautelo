@@ -7,6 +7,8 @@ from accounts.enums import UserRole
 from accounts.models import User
 from brokers.models import BrokerMembership, BrokerOrganization, BrokerPlan
 from professionals.models import ProfessionalMembership, ProfessionalProfile
+from services_catalog.models import ProfessionalService
+from services_catalog.tests.factories import make_service_category
 
 pytestmark = pytest.mark.django_db
 
@@ -21,7 +23,13 @@ BASE = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _category():
+    return make_service_category(slug="rigging", name_en="Rigging")
+
+
 def _post(**extra):
+    extra.setdefault("category", "rigging")
     return APIClient().post(reverse(URL), {**BASE, **extra}, format="json")
 
 
@@ -38,6 +46,20 @@ def test_professional_registration_creates_owner_org_and_seat(django_capture_on_
     seat = ProfessionalMembership.objects.get(user=user)
     assert (seat.role, seat.is_owner) == ("ADMIN", True)
     assert mail.outbox and "verify-email" in mail.outbox[-1].body
+
+
+def test_professional_registration_requires_a_category():
+    res = _post(org_type="PROFESSIONAL", category="")
+    assert res.status_code == 400
+    assert "category" in res.data["error"]["fields"]
+
+
+def test_professional_registration_creates_its_first_service_from_the_chosen_category():
+    res = _post(org_type="PROFESSIONAL")
+    assert res.status_code == 201
+    profile = ProfessionalProfile.objects.get(display_name="Blue Rigging")
+    service = ProfessionalService.objects.get(professional=profile)
+    assert (service.category.slug, service.title_en, service.is_active) == ("rigging", "Rigging", True)
 
 
 def test_broker_registration_needs_an_active_plan_and_seats_the_owner():

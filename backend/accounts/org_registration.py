@@ -28,6 +28,7 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
     newsletter_opt_in = serializers.BooleanField(required=False, default=False)
     country_code = serializers.CharField(max_length=2, min_length=2)
     plan = serializers.SlugField(required=False, allow_blank=True, default="")
+    category = serializers.SlugField(required=False, allow_blank=True, default="")
     locale = serializers.ChoiceField(choices=Locale.choices, required=False, default=Locale.EN)
 
     def validate_email(self, value):
@@ -65,6 +66,13 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
             if plan is None:
                 raise serializers.ValidationError({"plan": ["Choose one of the available plans."]})
             attrs["plan_obj"] = plan
+        else:
+            from services_catalog.models import ServiceCategory
+
+            category = ServiceCategory.objects.filter(slug=attrs.get("category") or "", is_active=True).first()
+            if category is None:
+                raise serializers.ValidationError({"category": ["Choose one of the available categories."]})
+            attrs["category_obj"] = category
         return attrs
 
 
@@ -109,15 +117,29 @@ def register_organization(data: dict) -> User:
         )
     else:
         from professionals.models import ProfessionalProfile
+        from services_catalog.models import ProfessionalService
 
         # The post_save hook seats the owner as ADMIN.
-        ProfessionalProfile.objects.create(
+        profile = ProfessionalProfile.objects.create(
             owner_user=user,
             display_name=data["organization_name"],
             slug=_unique_slug(ProfessionalProfile, data["organization_name"], "professional"),
             public_email=data["email"],
             public_phone=data["phone"],
             country_code=data["country_code"],
+        )
+        category = data["category_obj"]
+        # Registration's own category pick becomes the profile's first
+        # service, so a brand-new profile already has at least one active
+        # service (professionals/completeness.py) and a non-zero
+        # active_service_count - both of which the public directory's default
+        # sort (services_catalog/views.py) uses to rank and surface it,
+        # instead of a categoryless profile sinking to the last page.
+        ProfessionalService.objects.create(
+            professional=profile,
+            category=category,
+            title_en=category.name_en,
+            is_active=True,
         )
     queue_email_verification(user)
     return user

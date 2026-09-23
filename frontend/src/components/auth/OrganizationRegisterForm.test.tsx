@@ -17,29 +17,55 @@ function fillCommon() {
   fireEvent.change(screen.getByLabelText(/phone/i), { target: { value: "+34600" } });
 }
 
+function mockCategoriesThenRegister() {
+  apiFetch.mockImplementation((url: string) =>
+    url.includes("service-categories")
+      ? Promise.resolve([{ slug: "rigging", name: "Rigging" }])
+      : Promise.resolve({}),
+  );
+}
+
+async function pickCategory() {
+  fireEvent.change(await screen.findByLabelText(/which field are you a professional in/i), {
+    target: { value: "rigging" },
+  });
+}
+
 describe("OrganizationRegisterForm", () => {
   it("registers a professional owner", async () => {
-    apiFetch.mockResolvedValue({});
+    mockCategoriesThenRegister();
     render(<OrganizationRegisterForm orgType="PROFESSIONAL" />);
     fillCommon();
+    await pickCategory();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
-    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toMatchObject({
+    const registerCall = apiFetch.mock.calls.find(([url]) => url.includes("register/organization"));
+    expect(JSON.parse(registerCall![1].body)).toMatchObject({
       org_type: "PROFESSIONAL",
       organization_name: "Blue Rigging",
       email: "m@b.co",
       newsletter_opt_in: false,
+      category: "rigging",
     });
   });
 
-  it("posts newsletter_opt_in true when the owner checks it", async () => {
-    apiFetch.mockResolvedValue({});
+  it("cannot submit without choosing a category", async () => {
+    mockCategoriesThenRegister();
     render(<OrganizationRegisterForm orgType="PROFESSIONAL" />);
     fillCommon();
+    expect(screen.getByRole("button", { name: "Create account" })).toBeDisabled();
+  });
+
+  it("posts newsletter_opt_in true when the owner checks it", async () => {
+    mockCategoriesThenRegister();
+    render(<OrganizationRegisterForm orgType="PROFESSIONAL" />);
+    fillCommon();
+    await pickCategory();
     fireEvent.click(screen.getByLabelText("Send me occasional updates from NAUTA."));
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
-    expect(JSON.parse(apiFetch.mock.calls[0][1].body).newsletter_opt_in).toBe(true);
+    const registerCall = apiFetch.mock.calls.find(([url]) => url.includes("register/organization"));
+    expect(JSON.parse(registerCall![1].body).newsletter_opt_in).toBe(true);
   });
 
   it("makes a broker pick a plan", async () => {

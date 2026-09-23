@@ -1912,6 +1912,8 @@
   "auth.org_register.country": "Country",
   "auth.org_register.country_es": "Spain",
   "auth.org_register.country_it": "Italy",
+  "auth.org_register.category_legend": "Which field are you a professional in?",
+  "auth.org_register.category_placeholder": "Choose a category",
   "auth.org_register.plan_legend": "Plan",
   "auth.org_register.listings_limit": "· {count} listings",
   "auth.org_register.listings_unlimited": "· unlimited listings",

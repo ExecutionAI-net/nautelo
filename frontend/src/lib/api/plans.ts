@@ -52,6 +52,19 @@ export function fetchPricingClient(): Promise<Pricing> {
   return apiFetch<Pricing>("/api/v1/pricing/");
 }
 
+export interface ServiceCategoryOption {
+  slug: string;
+  name: string;
+}
+
+// Deliberately not src/lib/api/directory.ts: that module reaches next/headers
+// (server-only), and this is called from a "use client" registration form -
+// see listingLinks.ts's own comment for why a Client Component reaching a
+// next/headers import anywhere in its graph fails production `next build`.
+export function fetchServiceCategoriesClient(): Promise<ServiceCategoryOption[]> {
+  return apiFetch<ServiceCategoryOption[]>("/api/v1/service-categories/");
+}
+
 export function formatPrice(amount: string, currency: string): string {
   const value = Number(amount);
   const symbol = currency === "EUR" ? "€" : `${currency} `;
