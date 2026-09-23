@@ -86,7 +86,17 @@ export default function BoatCard({
     .join(" · ");
 
   const card = (
-    <article className="flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
+    <article className="relative flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
+      {/* Whole-card click target: every part of the card opens the listing,
+          not just the image/title. aria-hidden + tabIndex=-1 because the
+          visible title link below already gives this listing its one
+          accessible/keyboard link; this is a mouse/touch convenience only.
+          z-20 keeps it above the image and its decorative badges (z-10 or
+          unset); the financing link, disclaimer anchor and finance
+          disclosure toggle stay independently clickable via `relative z-30`. */}
+      {href ? (
+        <Link href={href} aria-hidden="true" tabIndex={-1} className="absolute inset-0 z-20" />
+      ) : null}
       {/* Spec §29.1: primary approved image or a defined placeholder. */}
       <div className="relative">
         {listing.is_featured ? (
@@ -160,7 +170,7 @@ export default function BoatCard({
         </span>
       </div>
 
-      <h3 className="mt-space-xs font-title-lg text-title-lg text-primary">{href ? (
+      <h3 className="relative z-30 mt-space-xs font-title-lg text-title-lg text-primary">{href ? (
           <Link href={href} className="underline-offset-2 hover:underline">
             {heading}
           </Link>
@@ -187,7 +197,7 @@ export default function BoatCard({
           <p
             data-testid="finance-estimate"
             aria-describedby={disclaimerId}
-            className="text-right font-body-sm text-on-surface-variant"
+            className="relative z-30 text-right font-body-sm text-on-surface-variant"
           >
             <span className="block">{t("finance.estimated_payment")}</span>
             <span className="font-title-sm text-title-sm text-on-surface">
@@ -205,7 +215,7 @@ export default function BoatCard({
       </div>
 
       {monthly ? (
-        <>
+        <div className="relative z-30">
           <a
             className="mt-space-sm inline-flex items-center gap-space-xs font-body-md text-primary underline"
             href={financingHref(listing)}
@@ -216,7 +226,7 @@ export default function BoatCard({
             <span aria-hidden="true">→</span>
           </a>
           <FinanceDetailsDisclosure locale={locale} listingId={listing.id} />
-        </>
+        </div>
       ) : null}
       </div>
     </article>

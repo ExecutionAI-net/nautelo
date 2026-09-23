@@ -189,7 +189,13 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg">
             {brokers.results.map((broker) => (
-              <li key={broker.id} className="group flex flex-col justify-between bg-surface-container-lowest rounded-xl shadow-sm hover:shadow-md transition-shadow p-space-lg">
+              <li key={broker.id} className="group relative flex flex-col justify-between bg-surface-container-lowest rounded-xl shadow-sm hover:shadow-md transition-shadow p-space-lg">
+                {/* Whole-card click target: every part of the card opens the
+                    broker's profile, not just the "View profile" button.
+                    aria-hidden + tabIndex=-1 because that button remains the
+                    card's one accessible/keyboard link; this is a mouse/touch
+                    convenience only. */}
+                <Link href={broker.url} aria-hidden="true" tabIndex={-1} className="absolute inset-0 rounded-xl" />
                 <div>
                   <div className="flex items-start gap-space-md">
                     <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">
@@ -233,7 +239,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                     <span className="font-spec-num text-spec-num text-primary font-semibold">{broker.listing_count}</span>
                     active {broker.listing_count === 1 ? "listing" : "listings"}
                   </span>
-                  <Link href={broker.url} className="inline-flex items-center gap-1 rounded bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
+                  <Link href={broker.url} className="relative inline-flex items-center gap-1 rounded bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
                     {t("brokers.page.view_profile")}
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
                   </Link>
