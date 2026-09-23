@@ -105,12 +105,15 @@ def test_checkout_sets_card_up_front_and_never_offers_a_second_trial(broker):
             captured.update(params)
             return SimpleNamespace(url="https://stripe.example/b")
 
-    billing.create_subscription_checkout(broker=broker, gateway=Gateway())
+    billing.create_subscription_checkout(broker=broker, customer_email="owner@b.example", gateway=Gateway())
     assert captured["payment_method_collection"] == "always"
     assert captured["subscription_data"]["trial_period_days"] == 30
-    BrokerSubscription.objects.create(broker=broker, trial_used_at=timezone.now())
-    billing.create_subscription_checkout(broker=broker, gateway=Gateway())
+    # First checkout: the payer's email is prefilled; a later one reuses the Stripe customer instead.
+    assert captured["customer_email"] == "owner@b.example" and "customer" not in captured
+    BrokerSubscription.objects.create(broker=broker, trial_used_at=timezone.now(), stripe_customer_id="cus_b")
+    billing.create_subscription_checkout(broker=broker, customer_email="owner@b.example", gateway=Gateway())
     assert "trial_period_days" not in captured["subscription_data"]
+    assert captured["customer"] == "cus_b" and "customer_email" not in captured
 
 
 def test_subscription_endpoint_permissions(broker):

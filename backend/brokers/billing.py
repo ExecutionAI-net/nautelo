@@ -48,7 +48,7 @@ def _url(outcome: str) -> str:
     return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{SUBSCRIPTION_PATH}?{urlencode({'checkout': outcome})}"
 
 
-def create_subscription_checkout(*, broker, gateway=None) -> str:
+def create_subscription_checkout(*, broker, customer_email: str = "", gateway=None) -> str:
     from payments.gateway import StripeUnavailable, default_gateway
 
     plan = broker.plan
@@ -66,6 +66,15 @@ def create_subscription_checkout(*, broker, gateway=None) -> str:
         "metadata": metadata,
         "subscription_data": subscription_data,
     }
+    # Same rule as professionals/billing.py: an existing Stripe customer is
+    # reused (no second customer per brokerage); otherwise Checkout is opened
+    # with the payer's email so the field is not blank and the payment is
+    # attributable in the Stripe dashboard.
+    existing = BrokerSubscription.objects.filter(broker=broker).first()
+    if existing and existing.stripe_customer_id:
+        params["customer"] = existing.stripe_customer_id
+    elif customer_email:
+        params["customer_email"] = customer_email
     if trial:
         params["payment_method_collection"] = "always"
         subscription_data["trial_period_days"] = plan.trial_days
