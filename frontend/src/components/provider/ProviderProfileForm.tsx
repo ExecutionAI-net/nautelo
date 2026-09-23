@@ -7,6 +7,7 @@ import CompletenessChecklist from "@/components/team/CompletenessChecklist";
 import OrgImageUpload from "@/components/team/OrgImageUpload";
 import UnpaidNotice from "@/components/provider/UnpaidNotice";
 import { ApiError } from "@/lib/api/client";
+import { fetchServiceCategoriesClient, type ServiceCategoryOption } from "@/lib/api/plans";
 import {
   createProviderProfile,
   fetchProviderProfile,
@@ -35,6 +36,7 @@ interface Draft {
   country_code: string;
   place_id: number | null;
   service_area: string;
+  category: string;
 }
 
 const EMPTY: Draft = {
@@ -50,6 +52,7 @@ const EMPTY: Draft = {
   country_code: "",
   place_id: null,
   service_area: "",
+  category: "",
 };
 
 function toDraft(profile: ProviderProfile): Draft {
@@ -61,6 +64,7 @@ export default function ProviderProfileForm() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ServiceCategoryOption[]>([]);
 
   useEffect(() => {
     fetchProviderProfile().then(
@@ -74,6 +78,7 @@ export default function ProviderProfileForm() {
         setLoaded(true);
       },
     );
+    fetchServiceCategoriesClient().then(setCategories, () => setCategories([]));
   }, []);
 
   function payload(submit: boolean) {
@@ -149,6 +154,17 @@ export default function ProviderProfileForm() {
       <label className={LABEL}>
         Website
         <input className={FIELD} type="url" value={draft.website_url} onChange={set("website_url")} />
+      </label>
+      <label className={LABEL}>
+        Which field are you a professional in?
+        <select className={FIELD} value={draft.category} onChange={set("category")}>
+          <option value="">Choose a category</option>
+          {categories.map((option) => (
+            <option key={option.slug} value={option.slug}>
+              {option.name}
+            </option>
+          ))}
+        </select>
       </label>
       <OrgLocationFields
         withRegion

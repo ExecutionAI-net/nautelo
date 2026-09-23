@@ -34,6 +34,10 @@ class IsServiceProvider(BasePermission):
 class ProviderProfileSerializer(serializers.ModelSerializer):
     submit = serializers.BooleanField(write_only=True, required=False)
     place_id = serializers.IntegerField(source="place_geoname_id", required=False, allow_null=True)
+    # Not a model field: the profile's category lives on its primary
+    # ProfessionalService row. Read via to_representation, written by
+    # create()/update() moving or creating that row.
+    category = serializers.SlugField(required=False, allow_blank=True, default="")
     completeness = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
@@ -57,14 +61,29 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         model = ProfessionalProfile
         fields = (
             "id", "display_name", "slug", "short_description", "description", "public_email", "public_phone",
-            "website_url", "city", "place_id", "postal_code", "region", "country_code", "service_area", "status", "submit", "completeness", "logo_url", "cover_url",
+            "website_url", "city", "place_id", "postal_code", "region", "country_code", "service_area", "category", "status", "submit", "completeness", "logo_url", "cover_url",
         )
         read_only_fields = ("id", "slug", "status", "logo_url", "cover_url")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        primary = instance.services.filter(is_active=True).order_by("created_at").first()
+        data["category"] = primary.category.slug if primary else ""
+        return data
 
     def validate(self, attrs):
         from places.matching import apply_place_to_attrs
 
         return apply_place_to_attrs(attrs, has_region=True)
+
+    def validate_category(self, value):
+        if not value:
+            return value
+        from services_catalog.models import ServiceCategory
+
+        if not ServiceCategory.objects.filter(slug=value, is_active=True).exists():
+            raise serializers.ValidationError("Choose one of the available categories.")
+        return value
 
     def validate_display_name(self, value):
         return plain_text(value)
@@ -86,6 +105,7 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("submit", None)
+        category = validated_data.pop("category", "")
         base = slugify(validated_data["display_name"])[:200] or "provider"
         slug, n = base, 2
         while ProfessionalProfile.objects.filter(slug=slug).exists():
@@ -93,11 +113,16 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         profile = ProfessionalProfile.objects.create(slug=slug, owner_user=user, **validated_data)
         add_owner_membership(profile, user)
+        if category:
+            self._set_category(profile, category)
         return profile
 
     def update(self, instance, validated_data):
         submit = validated_data.pop("submit", False)
+        category = validated_data.pop("category", "")
         instance = super().update(instance, validated_data)
+        if category:
+            self._set_category(instance, category)
         if submit and instance.status == ProfessionalProfileStatus.DRAFT:
             from professionals.completeness import missing_items, subscription_is_live
 
@@ -109,6 +134,21 @@ class ProviderProfileSerializer(serializers.ModelSerializer):
             instance.status = ProfessionalProfileStatus.PENDING
             instance.save(update_fields=["status", "updated_at"])
         return instance
+
+    def _set_category(self, profile, slug):
+        from services_catalog.models import ProfessionalService, ServiceCategory
+
+        category = ServiceCategory.objects.get(slug=slug, is_active=True)
+        primary = profile.services.filter(is_active=True).order_by("created_at").first()
+        if primary is not None:
+            if primary.category_id != category.id:
+                primary.category = category
+                primary.title_en = category.name_en
+                primary.save(update_fields=["category", "title_en", "updated_at"])
+        else:
+            ProfessionalService.objects.create(
+                professional=profile, category=category, title_en=category.name_en, is_active=True
+            )
 
 
 class ProviderProfileView(APIView):
