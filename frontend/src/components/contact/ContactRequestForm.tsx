@@ -96,7 +96,7 @@ export default function ContactRequestForm({ mode = "contact", start = {} }: { m
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="grid gap-space-md">
+    <form id="contact-form" onSubmit={(e) => void submit(e)} className="grid gap-space-md">
       <div className="grid gap-space-md sm:grid-cols-2">
         <label className="font-label-md">
           Full name *

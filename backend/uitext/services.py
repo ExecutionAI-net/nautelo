@@ -14,6 +14,10 @@ from .models import LOCALES, TextKey, TextRelease, TextValue, check_text
 
 logger = logging.getLogger(__name__)
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
+# The platform was renamed; text translated or edited under the old name must
+# not keep it. Matched as a whole word so "nautical" and "Nautelo" are safe.
+RETIRED_BRAND = re.compile(r"\b(NAUTA|Nauta|nauta)(?!-maritime)\b")
+BRAND = {"NAUTA": "NAUTELO", "Nauta": "Nautelo", "nauta": "nautelo"}
 MAX_ATTEMPTS = 3
 OTHER_LOCALES = [code for code in LOCALES if code != "en"]
 
@@ -78,9 +82,33 @@ def sync_source(source: dict[str, str], seeds: dict[str, dict[str, str]] | None 
             if seeds and row.pk and not row.values.filter(locale__in=OTHER_LOCALES).exclude(text="").exists():
                 _apply_seed(row, seeds)
         retired = TextKey.objects.filter(is_active=True).exclude(key__in=source.keys()).update(is_active=False)
-        if created or changed:
+        scrubbed = scrub_retired_brand()
+        if created or changed or scrubbed:
             TextRelease.bump()
     return {"created": created, "changed": changed, "retired": retired}
+
+
+def scrub_retired_brand() -> int:
+    """Rewrite stored text that still carries the old brand name.
+
+    English follows the code again (a staff edit made under the old name is
+    superseded); other languages get the name swapped in place so the site is
+    right immediately, and are queued for a fresh machine translation."""
+    fixed = 0
+    for value in TextValue.objects.select_related("key").filter(text__iregex=r"\mnauta\M") | TextValue.objects.select_related(
+        "key"
+    ).filter(published_text__iregex=r"\mnauta\M"):
+        if value.locale == "en":
+            value.text = value.published_text = value.key.source_en
+            value.origin = TextValue.Origin.SOURCE
+        else:
+            value.text = RETIRED_BRAND.sub(lambda m: BRAND[m.group(1)], value.text)
+            value.published_text = RETIRED_BRAND.sub(lambda m: BRAND[m.group(1)], value.published_text)
+            if value.origin == TextValue.Origin.MACHINE:
+                value.stale, value.attempts = True, 0
+        value.save()
+        fixed += 1
+    return fixed
 
 
 def _apply_english(row: TextKey) -> None:

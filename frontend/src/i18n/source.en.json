@@ -546,7 +546,7 @@
   "contact.page.frequently_addressed_queries": "Frequently Addressed Queries",
   "contact.page.immediate_guidance_on_brokerage_licensing_flag": "Immediate guidance on brokerage licensing, flag compliance, and vessel listing standards.",
   "contact.page.how_do_i_check_that_a": "How do I check that a broker or surveyor is properly registered?",
-  "contact.page.nauta_reviews_every_broker_and_professional": "Nautelo reviews every broker and professional profile before it is published, but Nautelo is not a licensing body. Ask the professional for their registration number and check it with the Spanish or Italian register. Questions about a profile:",
+  "contact.page.nauta_reviews_every_broker_and_professional": "Nautelo reviews every broker and professional profile before it is published, but Nautelo is not a licensing body. Ask the professional for their registration number and check it with the Spanish or Italian register.",
   "contact.page.view_certified_broker_registry": "View Certified Broker Registry",
   "contact.page.can_nauta_assist_with_foreign_to": "Can Nautelo assist with foreign-to-EU flag transfers directly?",
   "contact.page.yes_our_maritime_legal_desks_in": "Yes. Our maritime legal desks in Palma and Genoa coordinate with Port Authorities to process Spanish (Pabellón Español) and Italian (Bandiera Italiana) flag registrations, VAT status certifications, and CE compliance audits.",
@@ -2045,5 +2045,6 @@
   "auth.meta.forgot.title": "Reset your password",
   "auth.meta.forgot.description": "Get a link to choose a new password.",
   "auth.meta.reset.title": "Choose a new password",
-  "auth.meta.reset.description": "Set a new password for your Nautelo account."
+  "auth.meta.reset.description": "Set a new password for your Nautelo account.",
+  "contact.page.use_the_form": "Use the contact form"
 }

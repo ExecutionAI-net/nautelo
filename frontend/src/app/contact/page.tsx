@@ -102,8 +102,8 @@ export default async function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">{t("contact.page.palma_de_mallorca_barcelona_hubs")}</div>
 </div>
 </div>
-<Link href="/contact/" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
-                      +34 971 000 840
+<Link href="#contact-form" className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1" >
+                      {t("contact.page.use_the_form")}
                     </Link>
 </div>
 <div className="flex items-center justify-between p-2.5 rounded bg-surface-container-low hover:bg-surface-container transition-colors">
@@ -114,8 +114,8 @@ export default async function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">{t("contact.page.genoa_liguria_naples_hubs")}</div>
 </div>
 </div>
-<Link href="/contact/" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
-                      +39 010 890 3300
+<Link href="#contact-form" className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1" >
+                      {t("contact.page.use_the_form")}
                     </Link>
 </div>
 <div className="flex items-center justify-between p-2.5 rounded bg-surface-container-low hover:bg-surface-container transition-colors">
@@ -126,8 +126,8 @@ export default async function ContactPage() {
 <div className="font-body-sm text-body-sm text-on-surface-variant">{t("contact.page.cross_border_flag_transfers")}</div>
 </div>
 </div>
-<Link href="/contact/" className="font-spec-num text-spec-num text-secondary hover:text-primary font-semibold flex items-center gap-1" >
-                      +34 930 112 400
+<Link href="#contact-form" className="font-label-md text-label-md text-secondary hover:text-primary font-semibold flex items-center gap-1" >
+                      {t("contact.page.use_the_form")}
                     </Link>
 </div>
 </div>
@@ -136,26 +136,26 @@ export default async function ContactPage() {
 <div className="pt-2">
 <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-2">{t("contact.page.dedicated_department_emails")}</div>
 <div className="grid grid-cols-1 gap-2">
-<Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<Link href="#contact-form" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">mail</span>
 <span className="font-body-md text-body-md text-primary">{t("contact.page.general_support_listings")}</span>
 </div>
-<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">contact@nauta-maritime.example.com</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{t("contact.page.use_the_form")}</span>
 </Link>
-<Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<Link href="#contact-form" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">domain</span>
 <span className="font-body-md text-body-md text-primary">{t("contact.page.broker_yard_verification")}</span>
 </div>
-<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">brokers@nauta-maritime.example.com</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{t("contact.page.use_the_form")}</span>
 </Link>
-<Link href="/contact/" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
+<Link href="#contact-form" className="flex items-center justify-between p-2 rounded hover:bg-surface-container-low transition-colors group" >
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary transition-colors">gavel</span>
 <span className="font-body-md text-body-md text-primary">{t("contact.page.legal_tax_desk")}</span>
 </div>
-<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">legal@nauta-maritime.example.com</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-primary transition-colors">{t("contact.page.use_the_form")}</span>
 </Link>
 </div>
 </div>
@@ -295,7 +295,7 @@ export default async function ContactPage() {
                 {t("contact.page.how_do_i_check_that_a")}
               </h3>
 <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                {t("contact.page.nauta_reviews_every_broker_and_professional")} <code className="font-spec-num text-xs bg-surface-container px-1 py-0.5 rounded">brokers@nauta-maritime.example.com</code>.
+                {t("contact.page.nauta_reviews_every_broker_and_professional")}
               </p>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-surface-container">

@@ -163,3 +163,25 @@ def test_seed_gives_new_keys_a_live_hand_written_translation_and_skips_bad_ones(
     bad = TextValue.objects.get(key__key="boats.count", locale="it")  # wrong placeholder: left for the machine
     assert bad.text == "" and bad.origin == "MACHINE" and bad.stale
     assert TextValue.objects.get(key__key="boats.count", locale="es").stale
+
+
+def test_sync_scrubs_the_retired_brand_from_stored_text():
+    services.sync_source({"fin.note": "Nautelo does not lend money"})
+    en = TextValue.objects.get(key__key="fin.note", locale="en")
+    en.text = en.published_text = "Nauta does not lend money"
+    en.origin = TextValue.Origin.HUMAN
+    en.save()
+    it = TextValue.objects.get(key__key="fin.note", locale="it")
+    it.text = it.published_text = "Nauta non presta denaro"
+    it.stale = False
+    it.save()
+    version = TextRelease.current().version
+
+    services.sync_source({"fin.note": "Nautelo does not lend money"})
+
+    en.refresh_from_db()
+    it.refresh_from_db()
+    assert en.published_text == "Nautelo does not lend money" and en.origin == "SOURCE"
+    assert it.published_text == "Nautelo non presta denaro" and it.stale
+    assert TextRelease.current().version == version + 1
+    assert "Nauta" not in services.bundle("it")["fin.note"]
