@@ -69,4 +69,12 @@ Aşağıdaki tablo düzeltmeler ilerledikçe güncellenir.
 | S26 | ✅ (kısmen) | "Length overall / Hull length", fiyat biçimli; "Back to queue" zaten vardı; önizleme bağlantısı yok |
 | S28 | ✅ | Taksonomi: başlık önce, Other-model kuyruğu altta |
 | S32 | ✅ | Reports: "Directory" kartı (broker + provider) |
+| S5 | ✅ (istemci) | Sunucu tarafı sağlam (el sıkışma 101, geçerli token ile `auth_ok`). Hata kaynağı istemci: süresi dolmuş access token ile tekrar tekrar bağlanıyordu ve sayfa geçişinde bağlanmakta olan soket kapatılıyordu. Artık 4401'de önce token yenileniyor, bekleme 5 dk'ya kadar uzuyor, bağlanan soket açılınca kapatılıyor |
+| S27 | ✅ | Kuyruk kısayol kartlarının üstünde; tekrar eden sayaç kartları kaldırıldı, açıklama eklendi |
+| S29 | ✅ | Products & pricing'de satılan paketler listeleniyor (+ Django admin bağlantısı); ürün adları okunur |
+| S30 | ✅ | Veri migrasyonu: "Nautelo editorial team" |
+| S31 | — | Düğmelerde aria-label/title zaten var; değişiklik yok |
+| S33 | ⏳ | Staff için görüşme görüntüleme ekranı yok; ayrı iş |
+| S34 | ⏳ | Karar bekliyor (spec: yalnız id) |
+| S20 | ⏳ | Fiyat biçimi birliği; sonraki tur |
 

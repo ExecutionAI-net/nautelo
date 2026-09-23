@@ -38,7 +38,7 @@ const MODULES = [
   { href: "/dashboard/staff/settings/", icon: "tune", title: "Settings", text: "Listing rules, media allowances and pricing." },
 ];
 
-export default function StaffOverview({ pending }: { pending: number | null }) {
+export default function StaffOverview({ pending, queue }: { pending: number | null; queue?: React.ReactNode }) {
   const [summary, setSummary] = useState<Summary | null>(null);
 
   useEffect(() => {
@@ -147,6 +147,8 @@ export default function StaffOverview({ pending }: { pending: number | null }) {
           ))}
         </section>
       ) : null}
+
+      {queue}
 
       <section className="bg-surface-container-lowest rounded-lg shadow-sm overflow-hidden flex flex-col">
         <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md border-b border-surface-container">
