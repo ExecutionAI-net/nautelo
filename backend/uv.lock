@@ -1075,6 +1075,7 @@ dependencies = [
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "redis" },
+    { name = "requests" },
     { name = "stripe" },
 ]
 
@@ -1104,6 +1105,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.5" },
     { name = "redis", specifier = ">=8.1.0" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "stripe", specifier = ">=15.6.1" },
 ]
 

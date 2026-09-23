@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 
 from accounts.models import User
+from emailing.services import render_email
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,14 @@ def send_email_verification_email(user_id: str, raw_token: str) -> None:
 
     locale = user.locale if user.locale in SUBJECTS else "EN"
     url = f"{settings.PUBLIC_BASE_URL}/verify-email?token={raw_token}"
+    name = user.get_short_name()
+    rendered = render_email("email_verification", locale, {"name": name, "url": url})
     send_mail(
-        subject=SUBJECTS[locale],
-        message=BODIES[locale].format(name=user.get_short_name(), url=url),
+        subject=rendered[0] if rendered else SUBJECTS[locale],
+        message=BODIES[locale].format(name=name, url=url),
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
+        html_message=rendered[1] if rendered else None,
     )
     logger.info("verification email sent", extra={"user_id": str(user.pk)})
 
@@ -57,11 +61,14 @@ def send_password_reset_email(user_id: str, raw_token: str) -> None:
         return
     locale = user.locale if user.locale in RESET_SUBJECTS else "EN"
     url = f"{settings.PUBLIC_BASE_URL}/reset-password?token={raw_token}"
+    name = user.get_short_name()
+    rendered = render_email("password_reset", locale, {"name": name, "url": url})
     send_mail(
-        subject=RESET_SUBJECTS[locale],
-        message=RESET_BODIES[locale].format(name=user.get_short_name(), url=url),
+        subject=rendered[0] if rendered else RESET_SUBJECTS[locale],
+        message=RESET_BODIES[locale].format(name=name, url=url),
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
+        html_message=rendered[1] if rendered else None,
     )
 
 
