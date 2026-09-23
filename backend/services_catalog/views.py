@@ -133,10 +133,19 @@ class ProfessionalDirectoryListView(LocalizedContextMixin, ListAPIView):
             )
         )
 
-        if params.get("sort", "recommended").strip() == "alphabetical":
+        sort = params.get("sort", "recommended").strip()
+        if sort == "newest":
+            ordering = ("-created_at", "id")
+        elif sort == "oldest":
+            ordering = ("created_at", "id")
+        elif sort in ("alphabetical", "name_asc"):
             # `display_name` isn't unique, so `id` is appended as a final
             # tiebreak to keep ordering fully deterministic across page loads.
+            # "alphabetical" is the original param value, kept working
+            # alongside "name_asc" for any link already carrying it.
             ordering = ("display_name", "id")
+        elif sort == "name_desc":
+            ordering = ("-display_name", "-id")
         else:
             # "Recommended" = breadth of real catalogue coverage, with a
             # deterministic tiebreak so pagination stays stable. No invented

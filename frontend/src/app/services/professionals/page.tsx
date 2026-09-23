@@ -168,8 +168,11 @@ export default async function CombinedDirectoryPage({
 </div>
 
 <form action="/services/professionals/" method="get" className="bg-surface-container-low p-space-md rounded-xl mb-space-xl">
-{filters.q ? <input type="hidden" name="q" value={filters.q} /> : null}
-<div className="grid grid-cols-1 md:grid-cols-5 gap-space-md items-end">
+<div className="grid grid-cols-1 md:grid-cols-6 gap-space-md items-end">
+<div>
+<label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-space-xs" htmlFor="qFilter">Professional name</label>
+<input id="qFilter" type="text" name="q" defaultValue={filters.q ?? ""} placeholder="Search by name…" className="w-full bg-surface-container-lowest px-space-md py-space-sm rounded text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary" />
+</div>
 <div className="md:col-span-2 grid grid-cols-2 gap-space-md">
 <LocationFacetFilter
   key={`${filters.country ?? ""}|${filters.place ?? ""}`}
@@ -202,8 +205,10 @@ export default async function CombinedDirectoryPage({
 <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-space-xs" htmlFor="sortFilter">Sort</label>
 <select id="sortFilter" name="sort" defaultValue={filters.sort ?? ""} className="w-full bg-surface-container-lowest px-space-md py-space-sm rounded text-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary">
 <option value="">Recommended</option>
-<option value="name">Name</option>
 <option value="newest">Newest</option>
+<option value="oldest">Oldest</option>
+<option value="name_asc">Alphabetical (A-Z)</option>
+<option value="name_desc">Alphabetical (Z-A)</option>
 </select>
 </div>
 <button type="submit" className="w-full px-space-xl py-space-sm bg-primary text-on-primary rounded font-title-md text-title-md hover:bg-primary-container transition-colors">Update directory</button>

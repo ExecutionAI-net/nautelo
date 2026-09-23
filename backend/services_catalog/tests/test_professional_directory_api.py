@@ -1,9 +1,13 @@
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
 from professionals.enums import ProfessionalProfileStatus
+from professionals.models import ProfessionalProfile
 from professionals.tests.factories import make_professional
 from services_catalog.tests.factories import (
     disable_combined_directory,
@@ -250,6 +254,33 @@ def test_recommended_sort_puts_broader_catalogues_first_then_alphabetical():
 
     assert recommended == ["zeta-broad", "alpha-narrow"]
     assert alphabetical == ["alpha-narrow", "zeta-broad"]
+
+
+@pytest.mark.django_db
+def test_name_sort_can_go_either_direction():
+    build_professional("b@example.com", slug="zeta-co", display_name="Zeta Co")
+    build_professional("s@example.com", slug="alpha-co", display_name="Alpha Co")
+    client = APIClient()
+
+    asc = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "name_asc"}).data["results"]]
+    desc = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "name_desc"}).data["results"]]
+
+    assert asc == ["alpha-co", "zeta-co"]
+    assert desc == ["zeta-co", "alpha-co"]
+
+
+@pytest.mark.django_db
+def test_newest_and_oldest_sort_by_when_the_profile_was_created():
+    old = build_professional("o@example.com", slug="old-co", display_name="Old Co")
+    ProfessionalProfile.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=10))
+    build_professional("n@example.com", slug="new-co", display_name="New Co")
+    client = APIClient()
+
+    newest = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "newest"}).data["results"]]
+    oldest = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "oldest"}).data["results"]]
+
+    assert newest == ["new-co", "old-co"]
+    assert oldest == ["old-co", "new-co"]
 
 
 @pytest.mark.django_db
