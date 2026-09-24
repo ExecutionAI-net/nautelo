@@ -335,7 +335,7 @@ export default function AdsAdmin() {
             <select className={FIELD} value={draft.placement} onChange={(e) => setDraft({ ...draft, placement: e.target.value as AdPlacement })}>
               {PLACEMENTS.map((slot) => (
                 <option key={slot.value} value={slot.value}>
-                  {slot.value}
+                  {slot.label}
                 </option>
               ))}
             </select>
