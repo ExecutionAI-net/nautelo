@@ -3,6 +3,7 @@
 import Link from "@/components/layout/LocaleLink";
 
 import AuthShell from "@/components/auth/AuthShell";
+import PhoneNumberField from "@/components/forms/PhoneNumberField";
 import { useT } from "@/i18n/client";
 import { useState } from "react";
 
@@ -63,10 +64,15 @@ export default function RegisterPage() {
             {t("auth.register.full_name")}
             <input className={INPUT} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </label>
-          <label className="block font-label-md text-label-md">
-            {t("auth.register.phone")}
-            <input className={INPUT} type="tel" autoComplete="tel" required value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
-          </label>
+          <PhoneNumberField
+            value={phoneNumber}
+            onChange={setPhoneNumber}
+            countryLabel={t("auth.register.phone_country")}
+            numberLabel={t("auth.register.phone")}
+            required
+            selectClassName={INPUT}
+            inputClassName={INPUT}
+          />
           <label className="block font-label-md text-label-md">
             {t("auth.register.email")}
             <input className={INPUT} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

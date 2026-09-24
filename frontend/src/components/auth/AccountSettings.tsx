@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import PhoneNumberField from "@/components/forms/PhoneNumberField";
 import { apiFetch } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/session";
 import { resolveLocale, type Locale } from "@/lib/i18n/directory";
@@ -102,16 +103,15 @@ export default function AccountSettings() {
               Full name
               <input className={FIELD} value={fullName} onChange={(event) => setFullName(event.target.value)} />
             </label>
-            <label className="font-label-sm uppercase text-on-surface-variant">
-              Phone number
-              <input
-                className={FIELD}
-                type="tel"
-                value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
-                placeholder="+34 600 000 000"
-              />
-            </label>
+            <PhoneNumberField
+              value={phoneNumber}
+              onChange={setPhoneNumber}
+              countryLabel="Country code"
+              numberLabel="Phone number"
+              selectClassName={FIELD}
+              inputClassName={FIELD}
+              labelClassName="font-label-sm uppercase text-on-surface-variant"
+            />
             <label className="flex items-start gap-space-xs font-body-sm text-on-surface">
               <input
                 type="checkbox"

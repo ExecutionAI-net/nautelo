@@ -4,6 +4,7 @@ import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
+import PhoneNumberField from "@/components/forms/PhoneNumberField";
 import { useT } from "@/i18n/client";
 import type { MessageKey } from "@/i18n";
 import { ApiError, apiFetch } from "@/lib/api/client";
@@ -110,10 +111,15 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
             {t("auth.org_register.password")}
             <input className={INPUT} type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <label className="block font-label-md text-label-md">
-            {t("auth.org_register.phone")}
-            <input className={INPUT} type="tel" autoComplete="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </label>
+          <PhoneNumberField
+            value={phone}
+            onChange={setPhone}
+            countryLabel={t("auth.org_register.phone_country")}
+            numberLabel={t("auth.org_register.phone")}
+            required
+            selectClassName={INPUT}
+            inputClassName={INPUT}
+          />
           <label className="block font-label-md text-label-md">
             {t("auth.org_register.country")}
             <select className={INPUT} value={country} onChange={(e) => setCountry(e.target.value)}>
