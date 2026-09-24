@@ -59,6 +59,26 @@ const SPEC_KEYS = [
   "berth",
 ] as const;
 
+// Measurements take a decimal part (comma or dot, shown as typed); counts are whole numbers.
+const NUMERIC_SPECS: Record<string, boolean> = {
+  loa_m: true,
+  beam_m: true,
+  draft_m: true,
+  power_hp: true,
+  engine_hours: false,
+  cabins: false,
+  bathrooms: false,
+  berth: false,
+};
+
+/** Keeps digits and, for decimals, a single comma or dot, so letters can never be typed in. */
+export function numericOnly(value: string, decimal: boolean): string {
+  if (!decimal) return value.replace(/\D/g, "");
+  const cleaned = value.replace(/[^\d.,]/g, "");
+  const at = cleaned.search(/[.,]/);
+  return at === -1 ? cleaned : cleaned.slice(0, at + 1) + cleaned.slice(at + 1).replace(/[.,]/g, "");
+}
+
 function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiError) {
     const first = Object.values(error.fields)[0]?.[0]?.message;
@@ -330,7 +350,8 @@ export default function SellListingForm({
   const locked = (listing?.policy.immutable_fields.length ?? 0) > 0;
   // The server names what it froze (private seller after submission adds condition and boat type).
   const frozenSpecs = listing?.policy.immutable_fields ?? [];
-  const setSpec = (key: string, value: string) => setSpecs((current) => ({ ...current, [key]: value }));
+  const setSpec = (key: string, value: string) =>
+    setSpecs((current) => ({ ...current, [key]: key in NUMERIC_SPECS ? numericOnly(value, NUMERIC_SPECS[key]) : value }));
 
   function payload(): Record<string, unknown> {
     // Specification entries are flat lowercase keys; blanks are dropped, and
@@ -340,7 +361,7 @@ export default function SellListingForm({
       if (!(SPEC_KEYS as readonly string[]).includes(key)) merged[key] = value as string | number | boolean | null;
     }
     for (const key of SPEC_KEYS) {
-      if (specs[key].trim()) merged[key] = specs[key].trim();
+      if (specs[key].trim()) merged[key] = key in NUMERIC_SPECS ? specs[key].trim().replace(",", ".") : specs[key].trim();
     }
     const body: Record<string, unknown> = {
       title_en: titles.en,
@@ -600,6 +621,12 @@ export default function SellListingForm({
   const titleKey = brokerId ? (initial ? "sell.title_broker_edit" : "sell.title_broker") : "sell.title";
   const previewTitle = titles.en || [year, brandName, modelLabel].filter(Boolean).join(" ") || t(titleKey);
   const previewImage = media.find((row) => row.status === "READY" && row.media_type === "IMAGE");
+  // The preview card shows the cover the seller sees in the media grid: a ready photo,
+  // else any uploaded photo with a preview, else a photo picked but not saved yet.
+  const previewUrl =
+    previewImage?.preview_url ??
+    media.find((row) => row.media_type === "IMAGE" && row.preview_url)?.preview_url ??
+    pending.find((item) => !item.file.type.startsWith("video/"))?.url;
 
   if (blocked) {
     const next = eligibility?.free.next_available_at;
@@ -941,9 +968,10 @@ export default function SellListingForm({
                 <p className="font-body-sm text-on-surface-variant">
                   {t("sell.media_free_note", { images: mediaLimits.images, paid_images: options?.media_limits.paid_images ?? 20, paid_videos: options?.media_limits.paid_videos ?? 1 })}
                 </p>
-                <div className="mt-space-xs">
-                  <PaidListingBuy label={t("sell.allowance_buy")} />
-                </div>
+                <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("sell.media_free_continue")}</p>
+                <Link href="/pricing/" className="mt-space-sm inline-block rounded-lg border border-primary px-space-md py-space-xs font-body-md text-primary hover:bg-surface-container">
+                  {t("sell.media_see_paid")}
+                </Link>
               </div>
             ) : null}
             <ul className="mt-space-sm grid grid-cols-2 gap-space-sm sm:grid-cols-3">
@@ -1070,9 +1098,9 @@ export default function SellListingForm({
               <span className="rounded bg-surface-container-lowest px-2 py-0.5 font-label-sm text-label-sm text-on-surface-variant">{t("sell.live_sync")}</span>
             </div>
             <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary-container" data-testid="preview-image">
-              {previewImage?.preview_url ? (
+              {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" className="h-full w-full object-cover" src={previewImage.preview_url} />
+                <img alt="" className="h-full w-full object-cover" src={previewUrl} />
               ) : null}
               {city || country ? (
                 <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded bg-surface-container-lowest/90 px-2.5 py-1 font-label-sm text-label-sm text-primary shadow-sm backdrop-blur">

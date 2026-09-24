@@ -10,10 +10,11 @@ vi.mock("next/link", () => ({
 }));
 
 function fillCommon() {
-  fireEvent.change(screen.getByLabelText(/name$/i, { selector: "input" }) as HTMLElement, { target: { value: "Blue Rigging" } });
+  fireEvent.change(screen.getByLabelText(/^business name/i, { selector: "input" }) as HTMLElement, { target: { value: "Blue Rigging" } });
   fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: "Mia" } });
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "m@b.co" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "S3cret-pass!" } });
+  fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "m@b.co" } });
+  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "S3cret-pass!" } });
+  fireEvent.change(screen.getByLabelText(/^Confirm password/), { target: { value: "S3cret-pass!" } });
   fireEvent.change(screen.getByLabelText(/phone/i), { target: { value: "+34600" } });
 }
 

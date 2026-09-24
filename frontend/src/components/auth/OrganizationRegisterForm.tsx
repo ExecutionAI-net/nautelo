@@ -4,6 +4,7 @@ import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
+import NewPasswordFields from "@/components/forms/NewPasswordFields";
 import PhoneNumberField from "@/components/forms/PhoneNumberField";
 import { useT } from "@/i18n/client";
 import type { MessageKey } from "@/i18n";
@@ -95,22 +96,20 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
       ) : (
         <form onSubmit={(event) => void submit(event)} className="w-full space-y-space-md">
           <p className="font-body-sm text-on-surface-variant">{t(copy.pitch)}</p>
+          <p className="font-body-sm text-on-surface-variant">{t("auth.required_hint")}</p>
           <label className="block font-label-md text-label-md">
-            {t(copy.name)}
+            {t(copy.name)} <span aria-hidden="true" className="text-error">*</span>
             <input className={INPUT} required value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} />
           </label>
           <label className="block font-label-md text-label-md">
-            {t("auth.org_register.owner_full_name")}
+            {t("auth.org_register.owner_full_name")} <span aria-hidden="true" className="text-error">*</span>
             <input className={INPUT} autoComplete="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </label>
           <label className="block font-label-md text-label-md">
-            {t("auth.org_register.email")}
+            {t("auth.org_register.email")} <span aria-hidden="true" className="text-error">*</span>
             <input className={INPUT} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
-          <label className="block font-label-md text-label-md">
-            {t("auth.org_register.password")}
-            <input className={INPUT} type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          </label>
+          <NewPasswordFields value={password} onChange={setPassword} label={t("auth.org_register.password")} inputClassName={INPUT} />
           <PhoneNumberField
             value={phone}
             onChange={setPhone}
@@ -129,7 +128,7 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
           </label>
           {orgType === "PROFESSIONAL" ? (
             <label className="block font-label-md text-label-md">
-              {t("auth.org_register.category_legend")}
+              {t("auth.org_register.category_legend")} <span aria-hidden="true" className="text-error">*</span>
               <select className={INPUT} required value={category} onChange={(e) => setCategory(e.target.value)}>
                 <option value="" disabled>
                   {t("auth.org_register.category_placeholder")}
