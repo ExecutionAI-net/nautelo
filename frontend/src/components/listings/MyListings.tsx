@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
 import PromotionDialog from "@/components/promotion/PromotionDialog";
-import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout } from "@/lib/api/sellerListings";
+import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout, cancelPromotionCheckout } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
@@ -189,7 +189,15 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
           </button>
         ) : null}
         {promoting ? (
-          <PromotionDialog listingId={row.id} title={row.title} imageUrl={row.image_url} returnPath={returnPath} onSkip={() => setPromoting(false)} />
+          <PromotionDialog
+            listingId={row.id}
+            title={row.title}
+            imageUrl={row.image_url}
+            returnPath={returnPath}
+            live={row.status === "PUBLISHED"}
+            featuredUntil={featuredUntil}
+            onSkip={() => setPromoting(false)}
+          />
         ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
       </div>
@@ -238,19 +246,25 @@ export default function MyListings({
   const [rows, setRows] = useState<MyListingRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
-  const [checkout, setCheckout] = useState<"success" | "cancelled" | null>(null);
+  const [checkout, setCheckout] = useState<"success" | "cancelled" | "promotion_success" | "promotion_cancelled" | null>(null);
 
   useEffect(() => {
-    // Stripe sends the buyer back here with ?checkout=success|cancelled (payments/checkout.py).
+    // Stripe sends the buyer back here with ?checkout=success|cancelled (payments/checkout.py)
+    // or ?promotion=success|cancelled[&listing=] (promotions/checkout.py).
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("checkout");
-    if (outcome !== "success" && outcome !== "cancelled") return;
+    const promotion = params.get("promotion");
+    if (outcome !== "success" && outcome !== "cancelled" && promotion !== "success" && promotion !== "cancelled") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
-    setCheckout(outcome);
+    setCheckout(outcome === "success" || outcome === "cancelled" ? outcome : promotion === "success" ? "promotion_success" : "promotion_cancelled");
     const order = params.get("order");
     if (outcome === "cancelled" && order) void cancelCheckout(order).catch(() => undefined);
+    const listing = params.get("listing");
+    if (promotion === "cancelled" && listing) void cancelPromotionCheckout(listing).catch(() => undefined);
     params.delete("checkout");
     params.delete("order");
+    params.delete("promotion");
+    params.delete("listing");
     const query = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
   }, []);
@@ -289,11 +303,13 @@ export default function MyListings({
       {checkout ? (
         <p
           role="status"
-          className={`mb-space-md rounded-lg p-space-sm font-body-md ${checkout === "success" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
+          className={`mb-space-md rounded-lg p-space-sm font-body-md ${checkout.endsWith("success") ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
         >
           {checkout === "success"
             ? "Payment received. Your paid listing is ready: create a new listing or renew one below."
-            : "Checkout cancelled. Nothing was charged."}
+            : checkout === "promotion_success"
+              ? "Payment received. Your boat is featured as soon as Stripe confirms the payment, usually within a minute."
+              : "Checkout cancelled. Nothing was charged."}
         </p>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-space-md">

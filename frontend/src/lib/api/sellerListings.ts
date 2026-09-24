@@ -192,6 +192,15 @@ export function cancelCheckout(orderId: string) {
   return apiFetch<unknown>(`/api/v1/payment-orders/${encodeURIComponent(orderId)}/cancel/`, { method: "POST" });
 }
 
+/** Same for a promotion checkout: ?promotion=cancelled&listing=<id> names the target. */
+export function cancelPromotionCheckout(listingId: string) {
+  return apiFetch<{ cancelled: number }>("/api/v1/promotions/cancel/", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ target: "listing", listing_id: listingId }),
+  });
+}
+
 /** Spends one paid listing to extend or re-activate a private listing. */
 export interface OwnedPackage {
   package: string;

@@ -58,11 +58,63 @@ def create_promotion_checkout(
     if plan is None:
         raise ValidationError({"plan": ["unknown_plan"]})
 
+    # One open Checkout per target: the buyer who backed out and chose again
+    # must not be left with two payable links.
+    cancel_pending_promotions(user=user, listing=listing, gateway=gateway, note="replaced by a new checkout")
     promotion = ListingPromotion.objects.create(
         listing=listing, user=user, plan=plan, days=plan.days, amount=plan.price, currency=plan.currency.upper()
     )
     metadata = {"kind": KIND, "promotion_id": str(promotion.pk), "listing_id": str(listing.pk)}
-    return _open_checkout(user, promotion, metadata, return_path, f"Featured listing - {plan.name_en} ({plan.days} days)", gateway)
+    return _open_checkout(
+        user, promotion, metadata, return_path, f"Featured listing - {plan.name_en} ({plan.days} days)", gateway,
+        cancel_query={"listing": str(listing.pk)},
+    )
+
+
+def cancel_pending_promotions(*, user, listing=None, professional=None, gateway=None, note="cancelled by the buyer") -> int:
+    """Close the caller's PENDING checkouts for one target, at Stripe and here.
+
+    Called when the buyer comes back through Stripe's cancel link and before a
+    new checkout for the same target opens. A session that Stripe refuses to
+    expire (already paid, or Stripe unreachable) is left alone: the webhook
+    stays the authority on money."""
+    from payments.gateway import StripeUnavailable, default_gateway
+
+    pending = ListingPromotion.objects.filter(user=user, status=ListingPromotion.Status.PENDING)
+    if listing is not None:
+        pending = pending.filter(listing=listing)
+    elif professional is not None:
+        pending = pending.filter(professional=professional)
+    else:
+        return 0
+    closed = 0
+    for promotion in pending:
+        if promotion.stripe_checkout_session_id:
+            try:
+                (gateway or default_gateway()).expire_checkout_session(promotion.stripe_checkout_session_id)
+            except StripeUnavailable:
+                continue
+        promotion.status = ListingPromotion.Status.CANCELED
+        promotion.note = note
+        promotion.save(update_fields=["status", "note", "updated_at"])
+        closed += 1
+    return closed
+
+
+def cancel_listing_promotion_checkout(*, user, listing_id, gateway=None) -> int:
+    listing = BoatListing.objects.filter(pk=listing_id).first()
+    if listing is None or not can_edit_owned_object(user, owner_user_id=listing.owner_user_id, broker_id=listing.broker_id):
+        raise NotFound()
+    return cancel_pending_promotions(user=user, listing=listing, gateway=gateway)
+
+
+def cancel_profile_promotion_checkout(*, user, gateway=None) -> int:
+    from professionals.access import membership_for
+
+    seat = membership_for(user)
+    if seat is None:
+        raise NotFound()
+    return cancel_pending_promotions(user=user, professional=seat.profile, gateway=gateway)
 
 
 def create_profile_promotion_checkout(
@@ -83,6 +135,7 @@ def create_profile_promotion_checkout(
     plan = PromotionPlan.objects.filter(code=plan_code, is_active=True).first()
     if plan is None:
         raise ValidationError({"plan": ["unknown_plan"]})
+    cancel_pending_promotions(user=user, professional=profile, gateway=gateway, note="replaced by a new checkout")
     promotion = ListingPromotion.objects.create(
         professional=profile, user=user, plan=plan, days=plan.days, amount=plan.price, currency=plan.currency.upper()
     )
@@ -90,14 +143,17 @@ def create_profile_promotion_checkout(
     return _open_checkout(user, promotion, metadata, return_path, f"Featured profile - {plan.name_en} ({plan.days} days)", gateway)
 
 
-def _open_checkout(user, promotion, metadata, return_path, product_name, gateway) -> str:
+def _open_checkout(user, promotion, metadata, return_path, product_name, gateway, cancel_query=None) -> str:
     from payments.checkout import checkout_locale
     from payments.gateway import StripeUnavailable, default_gateway
 
     base = settings.PUBLIC_BASE_URL.rstrip("/")
 
     def _url(outcome):
-        return f"{base}{return_path}?{urlencode({'promotion': outcome})}"
+        # The cancel link names the target, so the page the buyer lands on can
+        # close the abandoned session without guessing which listing it was.
+        extra = cancel_query if outcome == "cancelled" and cancel_query else {}
+        return f"{base}{return_path}?{urlencode({'promotion': outcome, **extra})}"
 
     params = {
         "mode": "payment",

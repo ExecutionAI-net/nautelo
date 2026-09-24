@@ -455,6 +455,8 @@
   "promo.point1": "A place on the home page, in the moving Featured strip",
   "promo.point2": "A Featured badge that makes your listing stand out in search",
   "promo.point3": "Your promotion starts when your listing goes live, not before",
+  "promo.point3_live": "Your boat is live, so the promotion starts as soon as the payment is confirmed",
+  "promo.point3_extend": "Your boat is already featured until {date}; the new period continues from there",
   "promo.preview": "How it will look",
   "promo.badge": "Featured",
   "promo.popular": "Most popular",
