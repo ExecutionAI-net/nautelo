@@ -90,7 +90,7 @@ def test_the_amount_is_shown_with_its_currency(api_client, staff_admin):
 
     row = api_client.get(LIST_URL).data["results"][0]
 
-    assert row["amount_display"] == "49.00 EUR"
+    assert row["amount_display"] == "€49"
 
 
 @pytest.mark.django_db
@@ -161,12 +161,12 @@ def test_promotions_and_subscriptions_appear_in_the_same_ledger_as_orders(api_cl
 
     by_kind = {row["kind"]: row for row in rows}
     assert set(by_kind) == {"Order", "Promotion", "Broker subscription"}
-    assert by_kind["Promotion"]["amount_display"] == "149.00 EUR"
+    assert by_kind["Promotion"]["amount_display"] == "€149"
     assert by_kind["Promotion"]["stripe_payment_intent_id"] == "pi_promo"
     assert "Featured week" in by_kind["Promotion"]["product_name"]
     assert by_kind["Broker subscription"]["user_email"] == "p14-broker-owner@example.com"
     assert by_kind["Broker subscription"]["detail"] == "Ledger Brokers"
-    assert by_kind["Broker subscription"]["amount_display"] == "99.00 EUR/month"
+    assert by_kind["Broker subscription"]["amount_display"] == "€99/month"
 
     only_promotions = api_client.get(LIST_URL, {"kind": "Promotion"}).data
     assert only_promotions["count"] == 1

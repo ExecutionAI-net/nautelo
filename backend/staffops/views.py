@@ -5,6 +5,7 @@ the Django admin and the dedicated moderation endpoints.
 """
 
 from django.db.models import Count, Prefetch, Q
+from common.money import display_money
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -286,9 +287,7 @@ class BoatRowSerializer(serializers.ModelSerializer):
         return f"{listing.manufacture_year} {listing.brand.name} {listing.custom_model_name or listing.model.name}"
 
     def get_price_display(self, listing) -> str:
-        if listing.price is None:
-            return ""
-        return f"{listing.price:,.0f} {listing.currency}"
+        return display_money(listing.price, listing.currency)
 
     def get_pending_revision_id(self, listing):
         """The submitted revision a moderator can approve, or None (prefetched by the list view)."""
