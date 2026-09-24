@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
 import PromotionDialog from "@/components/promotion/PromotionDialog";
-import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage } from "@/lib/api/sellerListings";
+import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
@@ -247,6 +247,8 @@ export default function MyListings({
     if (outcome !== "success" && outcome !== "cancelled") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
     setCheckout(outcome);
+    const order = params.get("order");
+    if (outcome === "cancelled" && order) void cancelCheckout(order).catch(() => undefined);
     params.delete("checkout");
     params.delete("order");
     const query = params.toString();

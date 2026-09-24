@@ -186,6 +186,12 @@ export function startListingRightCheckout(returnUrl = "/dashboard/private-seller
   });
 }
 
+/** The buyer left Stripe's page through its back link: close that session now
+ *  instead of leaving a payable link (and an open order) around for a day. */
+export function cancelCheckout(orderId: string) {
+  return apiFetch<unknown>(`/api/v1/payment-orders/${encodeURIComponent(orderId)}/cancel/`, { method: "POST" });
+}
+
 /** Spends one paid listing to extend or re-activate a private listing. */
 export interface OwnedPackage {
   package: string;

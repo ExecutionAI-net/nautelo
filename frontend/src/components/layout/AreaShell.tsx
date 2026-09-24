@@ -94,16 +94,19 @@ export type AreaKey = keyof typeof AREAS;
 export default function AreaShell({
   area,
   active,
+  title,
   children,
 }: {
   area: AreaKey;
   active: string;
+  /** Tab title for a page that sits under a menu entry without being it (the sell form under "My listings"). */
+  title?: string;
   children: React.ReactNode;
 }) {
   const config = AREAS[area];
   return (
     <div className="flex w-full flex-col bg-surface lg:min-h-screen lg:flex-row">
-      <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} languageSwitcher={area !== "staff"} />
+      <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} title={title} languageSwitcher={area !== "staff"} />
       <main className="min-w-0 flex-1">
         <div className="mx-auto max-w-[1200px] px-margin-mobile py-space-xl md:px-margin">
           <VerifyEmailBanner />

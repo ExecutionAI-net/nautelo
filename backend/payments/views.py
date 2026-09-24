@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser, IsEmailVerified, IsStaffAdmin
 
-from .checkout import create_checkout_session
+from .checkout import cancel_checkout_session, create_checkout_session
 from .errors import IdempotencyKeyRequired
 from .models import MarketplaceProduct, PaymentOrder
 from .permissions import StripeCheckoutEnabled
@@ -83,6 +83,22 @@ class CheckoutSessionCreateView(APIView):
             },
             status=status.HTTP_201_CREATED if result.created else status.HTTP_200_OK,
         )
+
+
+class PaymentOrderCancelView(APIView):
+    """POST /api/v1/payment-orders/<id>/cancel/: the buyer backed out of Stripe's
+    hosted page. Scoped to the caller's own orders; any other id, or an order
+    that is not waiting on Stripe, is the same 409 (spec §33.1)."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser]
+    throttle_scope = "checkout_create"
+    http_method_names = ["post", "options"]
+
+    def post(self, request, order_id):
+        order = cancel_checkout_session(
+            user=request.user, order_id=order_id, request_id=getattr(request, "request_id", None)
+        )
+        return Response(PaymentOrderSerializer(order).data)
 
 
 class PaymentOrderDetailView(APIView):

@@ -75,6 +75,8 @@ class StripeGateway(Protocol):
 
     def create_portal_session(self, *, customer_id: str, return_url: str) -> str: ...
 
+    def expire_checkout_session(self, session_id: str) -> None: ...
+
     def list_active_products_with_prices(self) -> list[ProductWithPrice]: ...
 
 
@@ -105,6 +107,13 @@ class StripeApiGateway:
             # the message this raises carries nothing.
             raise StripeUnavailable("Stripe rejected the session creation.") from exc
         return CheckoutSessionResult(session_id=session.id, url=session.url)
+
+    def expire_checkout_session(self, session_id: str) -> None:
+        """Close an open Checkout so its link can no longer be paid."""
+        try:
+            self._client.v1.checkout.sessions.expire(session_id)
+        except stripe.StripeError as exc:
+            raise StripeUnavailable("Stripe rejected the session expiry.") from exc
 
     def create_portal_session(self, *, customer_id: str, return_url: str) -> str:
         """Stripe-hosted page for cards, tax details and invoices."""

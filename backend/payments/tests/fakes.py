@@ -30,6 +30,13 @@ class FakeStripeGateway:
 
     portal_url: str = "https://billing.stripe.test/portal"
     portals: list = field(default_factory=list)
+    expired: list = field(default_factory=list)
+    raise_on_expire: Exception | None = None
+
+    def expire_checkout_session(self, session_id):
+        if self.raise_on_expire is not None:
+            raise self.raise_on_expire
+        self.expired.append(session_id)
 
     def create_portal_session(self, *, customer_id, return_url):
         self.portals.append({"customer_id": customer_id, "return_url": return_url})
