@@ -1,9 +1,10 @@
 "use client";
 
 import PromotePanel from "@/components/promotion/PromotePanel";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ManageBillingButton from "@/components/team/ManageBillingButton";
+import { useCheckoutReturn } from "@/lib/api/checkoutReturn";
 import { apiFetch } from "@/lib/api/client";
 import { formatPrice } from "@/lib/api/plans";
 
@@ -28,16 +29,31 @@ const STATUS_COPY: Record<Membership["status"], string> = {
   CANCELED: "Canceled",
 };
 
+const isLive = (status: Membership["status"]) => status === "TRIALING" || status === "ACTIVE" || status === "PAST_DUE";
+
 export default function ProviderMembership() {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const returned = useCheckoutReturn();
+  const polls = useRef(0);
 
   useEffect(() => {
     apiFetch<Membership>("/api/v1/provider/membership/").then(setMembership, () =>
       setError("Create your professional profile first, then come back to activate it."),
     );
   }, []);
+
+  useEffect(() => {
+    // Back from a successful checkout, Stripe's webhook may still be in flight:
+    // re-read the status for up to half a minute until the membership is live.
+    if (returned !== "success" || !membership || isLive(membership.status) || polls.current >= 10) return;
+    const timer = setTimeout(() => {
+      polls.current += 1;
+      apiFetch<Membership>("/api/v1/provider/membership/").then(setMembership, () => undefined);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [returned, membership]);
 
   async function subscribe() {
     setBusy(true);
@@ -56,9 +72,21 @@ export default function ProviderMembership() {
   if (error && !membership) return <p role="alert" className="font-body-md text-on-surface-variant">{error}</p>;
   if (!membership) return <p className="font-body-md text-on-surface-variant">Loading...</p>;
 
-  const live = membership.status === "TRIALING" || membership.status === "ACTIVE" || membership.status === "PAST_DUE";
+  const live = isLive(membership.status);
   return (
     <div className="flex flex-col gap-space-lg">
+      {returned ? (
+        <p
+          role="status"
+          className={`rounded-lg p-space-sm font-body-md ${returned === "success" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
+        >
+          {returned === "success"
+            ? live
+              ? "Thank you. Your membership is set up: the details are below."
+              : "Thank you. Your profile goes live as soon as Stripe confirms the payment, usually within a minute."
+            : "Checkout cancelled. Nothing was charged."}
+        </p>
+      ) : null}
       <div>
         <span className="font-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / My plan</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">My plan</h1>

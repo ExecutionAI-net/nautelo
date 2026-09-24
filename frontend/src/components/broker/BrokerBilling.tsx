@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ManageBillingButton from "@/components/team/ManageBillingButton";
+import { useCheckoutReturn } from "@/lib/api/checkoutReturn";
 import { apiFetch } from "@/lib/api/client";
 import { formatPrice } from "@/lib/api/plans";
 
@@ -27,15 +28,30 @@ const STATUS_COPY: Record<Billing["status"], string> = {
   CANCELED: "Canceled",
 };
 
+const isLive = (status: Billing["status"]) => status === "TRIALING" || status === "ACTIVE" || status === "PAST_DUE";
+
 /** Subscription status and the Stripe checkout (free trial with a card up front). */
 export default function BrokerBilling({ brokerId }: { brokerId: string }) {
   const [billing, setBilling] = useState<Billing | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const returned = useCheckoutReturn();
+  const polls = useRef(0);
 
   useEffect(() => {
     apiFetch<Billing>(`/api/v1/brokers/${brokerId}/subscription/`).then(setBilling, () => setBilling(null));
   }, [brokerId]);
+
+  useEffect(() => {
+    // Back from a successful checkout, Stripe's webhook may still be in flight:
+    // re-read the status for up to half a minute until the subscription is live.
+    if (returned !== "success" || !billing || isLive(billing.status) || polls.current >= 10) return;
+    const timer = setTimeout(() => {
+      polls.current += 1;
+      apiFetch<Billing>(`/api/v1/brokers/${brokerId}/subscription/`).then(setBilling, () => undefined);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [returned, billing, brokerId]);
 
   async function start() {
     setBusy(true);
@@ -50,11 +66,23 @@ export default function BrokerBilling({ brokerId }: { brokerId: string }) {
   }
 
   if (!billing) return null;
-  const live = billing.status === "TRIALING" || billing.status === "ACTIVE" || billing.status === "PAST_DUE";
+  const live = isLive(billing.status);
   const date = (value: string | null) => (value ? new Date(value).toLocaleDateString("en-GB") : "");
 
   return (
     <section className="flex flex-col gap-space-sm rounded-xl bg-surface-container-lowest p-space-xl shadow-sm" aria-label="Billing">
+      {returned ? (
+        <p
+          role="status"
+          className={`rounded-lg p-space-sm font-body-md ${returned === "success" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
+        >
+          {returned === "success"
+            ? live
+              ? "Thank you. Your subscription is set up: the details are below."
+              : "Thank you. Your subscription activates as soon as Stripe confirms the payment, usually within a minute."
+            : "Checkout cancelled. Nothing was charged."}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-space-sm">
         <span className="rounded-full bg-secondary-container px-space-sm py-0.5 font-label-sm font-semibold uppercase text-on-secondary-container">
           {STATUS_COPY[billing.status]}
