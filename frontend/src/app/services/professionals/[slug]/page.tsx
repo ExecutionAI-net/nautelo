@@ -31,6 +31,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
+// The API speaks in enum values; the page speaks to visitors.
+const TEAM_ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", MANAGER: "Manager", AGENT: "Agent", VIEWER: "Viewer" };
+
 export default async function ProfessionalDetailPage({ params }: { params: Params }) {
   const t = await getT();
   const { slug } = await params;
@@ -115,7 +118,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                 {professional.team.map((member, index) => (
                   <li key={`${member.name}-${index}`} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
                     <p className="font-title-md text-primary">{member.name}</p>
-                    <p className="font-label-md text-on-surface-variant">{member.role}</p>
+                    <p className="font-label-md text-on-surface-variant">{TEAM_ROLE_LABEL[member.role] ?? member.role}</p>
                   </li>
                 ))}
               </ul>
