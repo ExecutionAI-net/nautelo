@@ -4,6 +4,7 @@ Everything here is placeholder copy for design review. Run it on local and stagi
 databases only, then delete the rows from the staff "Guides & ads" page before launch.
 """
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from content.models import AdPlacement, Advertisement, GuideArticle, GuideStatus
@@ -100,7 +101,9 @@ class Command(BaseCommand):
                     "body": body,
                     "cta_label": cta,
                     "cta_url": "https://example.com/",
-                    "image_url": image_url,
+                    # Advertisement.image_url is a URLField: the staff API refuses a bare
+                    # "/design/x.jpg", so the seed writes the same absolute form staff would.
+                    "image_url": f"{settings.PUBLIC_BASE_URL.rstrip('/')}{image_url}",
                     "is_active": True,
                 },
             )
