@@ -6,7 +6,12 @@ from rest_framework.views import APIView
 from accounts.permissions import IsActiveUser, IsEmailVerified
 
 from .stats import record_event, report_for
-from .checkout import create_profile_promotion_checkout, create_promotion_checkout
+from .checkout import (
+    cancel_listing_promotion_checkout,
+    cancel_profile_promotion_checkout,
+    create_profile_promotion_checkout,
+    create_promotion_checkout,
+)
 from .models import PromotionPlan
 
 
@@ -65,6 +70,31 @@ class PromotionCheckoutView(APIView):
                 return_path=values["return_path"],
             )
         return Response({"checkout_url": url}, status=status.HTTP_201_CREATED)
+
+
+class CancelSerializer(serializers.Serializer):
+    listing_id = serializers.UUIDField(required=False)
+    target = serializers.ChoiceField(choices=["listing", "profile"], default="listing")
+
+
+class PromotionCancelView(APIView):
+    """POST /api/v1/promotions/cancel/: the buyer left Stripe's page through its
+    back link. Closes the caller's pending checkouts for that target."""
+
+    permission_classes = [IsAuthenticated, IsActiveUser]
+    throttle_scope = "checkout_create"
+
+    def post(self, request):
+        serializer = CancelSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        if values["target"] == "profile":
+            closed = cancel_profile_promotion_checkout(user=request.user)
+        else:
+            if "listing_id" not in values:
+                raise serializers.ValidationError({"listing_id": ["This field is required."]})
+            closed = cancel_listing_promotion_checkout(user=request.user, listing_id=values["listing_id"])
+        return Response({"cancelled": closed})
 
 
 class EventSerializer(serializers.Serializer):

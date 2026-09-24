@@ -29,6 +29,8 @@ export default function PromotionDialog({
   imageUrl,
   locale = "en",
   returnPath,
+  live = false,
+  featuredUntil = null,
   onSkip,
 }: {
   target?: "listing" | "profile";
@@ -37,6 +39,10 @@ export default function PromotionDialog({
   imageUrl?: string | null;
   locale?: Locale;
   returnPath: string;
+  /** The listing is public now: the promotion starts right away instead of waiting for publication. */
+  live?: boolean;
+  /** A promotion is already running until this date: the new one queues after it. */
+  featuredUntil?: string | null;
   onSkip: () => void;
 }) {
   const t = useT();
@@ -116,12 +122,20 @@ export default function PromotionDialog({
         </div>
 
         <ul className="mt-space-md grid gap-space-xs font-body-md">
-          {["promo.point1", "promo.point2", "promo.point3"].map((key) => (
+          {["promo.point1", "promo.point2"].map((key) => (
             <li key={key} className="flex gap-space-xs">
               <span aria-hidden="true" className="text-secondary">✓</span>
               {t(key as MessageKey)}
             </li>
           ))}
+          <li className="flex gap-space-xs">
+            <span aria-hidden="true" className="text-secondary">✓</span>
+            {featuredUntil
+              ? t("promo.point3_extend", { date: new Date(featuredUntil).toLocaleDateString(locale === "en" ? "en-GB" : locale) })
+              : live
+                ? t("promo.point3_live")
+                : t("promo.point3")}
+          </li>
         </ul>
 
         <fieldset className="mt-space-md grid gap-space-sm sm:grid-cols-3">

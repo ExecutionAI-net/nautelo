@@ -77,6 +77,36 @@ def test_checkout_sends_the_plan_price_and_binds_the_listing(seller, fake):
     assert (promotion.days, promotion.status) == (14, "PENDING")
 
 
+def test_choosing_again_closes_the_earlier_checkout_and_cancel_closes_the_last(seller, fake):
+    """Back out of Stripe, pick another plan: the first session is expired at
+    Stripe and the row is CANCELED, so one payable link exists at a time. The
+    cancel return closes the last one and says so."""
+    listing = make_private_listing(owner=seller)
+    first = _buy(seller, listing, "week")
+    second = _buy(seller, listing, "two-weeks")
+    first.refresh_from_db()
+    assert (first.status, first.note) == ("CANCELED", "replaced by a new checkout")
+    assert fake.expired == [first.stripe_checkout_session_id]
+    assert fake.created[1]["params"]["cancel_url"].endswith(f"?promotion=cancelled&listing={listing.pk}")
+
+    response = _api(seller).post(reverse("promotion-cancel"), {"listing_id": str(listing.pk)}, format="json")
+    assert response.status_code == 200
+    assert response.json() == {"cancelled": 1}
+    second.refresh_from_db()
+    assert second.status == "CANCELED"
+    assert fake.expired[-1] == second.stripe_checkout_session_id
+    # Paid rows are never touched by a cancel.
+    assert _api(seller).post(reverse("promotion-cancel"), {"listing_id": str(listing.pk)}, format="json").json() == {"cancelled": 0}
+
+
+def test_a_stranger_cannot_cancel_someone_elses_promotion(seller, fake):
+    listing = make_private_listing(owner=seller)
+    _buy(seller, listing)
+    stranger = make_user("stranger@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)
+    assert _api(stranger).post(reverse("promotion-cancel"), {"listing_id": str(listing.pk)}, format="json").status_code == 404
+    assert fake.expired == []
+
+
 def test_someone_elses_listing_and_unverified_users_are_refused(seller, fake):
     listing = make_private_listing(owner=seller)
     other = make_user("other@promo.example", role=UserRole.PRIVATE_SELLER, verified=True)
