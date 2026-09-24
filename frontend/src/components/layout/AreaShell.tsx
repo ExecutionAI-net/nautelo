@@ -10,7 +10,7 @@ const AREAS = {
     tabs: [
       { href: "/dashboard/private-seller/", label: "Overview" },
       { href: "/dashboard/private-seller/listings/", label: "My listings" },
-      { href: "/dashboard/private-seller/messages/", label: "Enquiries & messages" },
+      { href: "/dashboard/private-seller/messages/", label: "Messages" },
       { href: "/dashboard/private-seller/services/", label: "Services" },
       { href: "/dashboard/private-seller/account/", label: "My account" },
       { href: "/dashboard/private-seller/notifications/", label: "Notifications" },
@@ -69,7 +69,7 @@ const AREAS = {
 
 // Menu sections per area; each entry names a tab above by its label.
 const GROUPS: Record<string, [string, string[]][]> = {
-  seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Enquiries & messages"]], ["Account", ["Services", "My account", "Notifications"]]],
+  seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Messages"]], ["Account", ["Services", "My account", "Notifications"]]],
   broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan", "Notifications"]]],
   provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan", "Notifications"]]],
   staff: [

@@ -136,7 +136,7 @@ async function englishSitemap(): Promise<MetadataRoute.Sitemap> {
     ...categories
       .filter((category) => category.has_seo_page)
       .map((category) => ({
-        url: `${PUBLIC_BASE_URL}/services/${category.slug}/`,
+        url: `${PUBLIC_BASE_URL}/services/professionals/${category.slug}/`,
         changeFrequency: "weekly" as const,
         priority: 0.8,
       })),
