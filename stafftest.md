@@ -76,5 +76,5 @@ Aşağıdaki tablo düzeltmeler ilerledikçe güncellenir.
 | S31 | — | Düğmelerde aria-label/title zaten var; değişiklik yok |
 | S33 | ⏳ | Staff için görüşme görüntüleme ekranı yok; ayrı iş |
 | S34 | ⏳ | Karar bekliyor (spec: yalnız id) |
-| S20 | ⏳ | Fiyat biçimi birliği; sonraki tur |
+| S20 | ✅ | #496 — `display_money`: €245,000 / €9.99 / €99/month |
 

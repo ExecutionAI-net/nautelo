@@ -67,7 +67,7 @@ Not: Sol menü (Home butonu, iç boşluk, zil hizası, sekme başlığı) staff 
 | B10 | ✅ | "Vessels", "Published value €245K"; kartlar filtreyi seçiyor |
 | B11 | ✅ | "Brokerage / Fleet" + broker açıklaması (EN/IT/ES) |
 | B12 | — | Değişiklik yok (P3) |
-| B13 | ✅ (kısmen) | Promotion bölümü My plan'ın sonuna alındı; pop-up deploy sonrası doğrulanacak |
+| B13 | ✅ | Promotion bölümü My plan'ın sonunda; Fleet'te "Extend promotion" pop-up'ı canlıda doğrulandı (tam ekran, görünür) |
 | B14 | ✅ | Leads: başlık, açıklama, çip yok, boş durum metni |
 | B15 | ✅ | `formatDateTime`: "23 Sep 2026, 21:30" (görüşme listesi, görüşme, bildirimler) |
 | B16 | ✅ | Üst etiket; görüşme başlığının altında "About your brokerage profile" / "About: <tekne>" |
