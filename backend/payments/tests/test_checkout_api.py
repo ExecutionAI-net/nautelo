@@ -233,6 +233,44 @@ def test_replaying_the_same_key_returns_200_and_the_same_order(
 
 
 @pytest.mark.django_db
+def test_the_owner_cancels_an_open_checkout(api_client, seller, checkout_enabled, patched_gateway):
+    listing_right_product()
+    api_client.force_authenticate(seller)
+    created = api_client.post(
+        "/api/v1/checkout-sessions/",
+        {"product_code": ProductCode.INDIVIDUAL_LISTING_RIGHT},
+        format="json",
+        HTTP_IDEMPOTENCY_KEY="click-1",
+    )
+    order_id = created.data["order"]["id"]
+
+    response = api_client.post(f"/api/v1/payment-orders/{order_id}/cancel/")
+
+    assert response.status_code == 200
+    assert response.data["status"] == PaymentOrderStatus.EXPIRED
+    assert patched_gateway.expired == [patched_gateway.session_id]
+
+
+@pytest.mark.django_db
+def test_another_user_cannot_cancel_it_and_learns_nothing(api_client, seller, checkout_enabled, patched_gateway):
+    listing_right_product()
+    api_client.force_authenticate(seller)
+    created = api_client.post(
+        "/api/v1/checkout-sessions/",
+        {"product_code": ProductCode.INDIVIDUAL_LISTING_RIGHT},
+        format="json",
+        HTTP_IDEMPOTENCY_KEY="click-1",
+    )
+    stranger = make_user("stranger@example.com", role=UserRole.PRIVATE_SELLER, verified=True)
+    api_client.force_authenticate(stranger)
+
+    response = api_client.post(f"/api/v1/payment-orders/{created.data['order']['id']}/cancel/")
+
+    assert response.status_code == 409
+    assert response.data["error"]["code"] == "checkout_not_open"
+    assert patched_gateway.expired == []
+
+
 def test_the_error_envelope_carries_a_request_id(
     api_client, seller, checkout_enabled, patched_gateway
 ):

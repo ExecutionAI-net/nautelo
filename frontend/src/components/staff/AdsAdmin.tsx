@@ -24,6 +24,8 @@ function flightWindow(ad: StaffAd): string {
   return `${short(ad.starts_at) ?? "-"} to ${short(ad.ends_at) ?? "open"}`;
 }
 
+const placementLabel = (value: string) => PLACEMENTS.find((slot) => slot.value === value)?.label ?? value;
+
 export default function AdsAdmin() {
   const [ads, setAds] = useState<StaffAd[]>([]);
   const [q, setQ] = useState("");
@@ -177,7 +179,7 @@ export default function AdsAdmin() {
                       <div className="font-medium text-primary line-clamp-1">{ad.headline}</div>
                       <span className="inline-flex items-center gap-1 font-label-sm text-label-sm text-primary bg-surface-container px-2 py-0.5 rounded mt-1">
                         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">desktop_windows</span>
-                        {ad.placement.replace("_", " ")}
+                        {placementLabel(ad.placement)}
                       </span>
                     </td>
                     <td className="py-4 px-4 align-top font-spec-num text-spec-num text-primary font-medium">{flightWindow(ad)}</td>
@@ -255,7 +257,7 @@ export default function AdsAdmin() {
               <div className="flex items-center justify-between border-b border-[#DCE3E3] pb-2">
                 <div className="flex items-center gap-2">
                   <span className="font-label-sm text-label-sm uppercase tracking-widest text-[#637177] font-semibold">Advertisement</span>
-                  <span className="text-[11px] text-[#637177] bg-white/60 px-1.5 py-0.5 rounded">{selected.placement.replace("_", " ")}</span>
+                  <span className="text-[11px] text-[#637177] bg-white/60 px-1.5 py-0.5 rounded">{placementLabel(selected.placement)}</span>
                 </div>
                 {selected.cta_url ? <span className="font-label-sm text-label-sm text-[#167D82]">{selected.cta_url.replace(/^https?:\/\//, "")}</span> : null}
               </div>

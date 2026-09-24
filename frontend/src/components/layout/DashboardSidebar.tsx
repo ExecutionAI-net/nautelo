@@ -24,11 +24,13 @@ export default function DashboardSidebar({
   eyebrow,
   groups,
   active,
+  title,
   languageSwitcher = true,
 }: {
   eyebrow: string;
   groups: MenuGroup[];
   active: string;
+  title?: string;
   /** The staff screens are English-only, so the switcher is hidden there. */
   languageSwitcher?: boolean;
 }) {
@@ -45,7 +47,7 @@ export default function DashboardSidebar({
   // Every dashboard page shares one layout, so the tab title is set here: "My listings - Seller area - Nautelo".
   useEffect(() => {
     // Pages outside the menu (a revision review, a broker detail) name themselves through their heading.
-    const heading = activeLabel ? label("nav.dash.", activeLabel) : document.querySelector("main h1")?.textContent?.trim() ?? "";
+    const heading = title ?? (activeLabel ? label("nav.dash.", activeLabel) : document.querySelector("main h1")?.textContent?.trim() ?? "");
     const parts = [heading, areaLabel, "Nautelo"].filter(Boolean);
     document.title = parts.join(" \u00b7 ");
   });

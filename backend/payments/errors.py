@@ -71,6 +71,14 @@ class IdempotencyKeyReused(_MetaAPIException):
     default_code = "idempotency_key_reused"
 
 
+class CheckoutNotOpen(_MetaAPIException):
+    """Only an order still waiting on Stripe's hosted page can be cancelled."""
+
+    status_code = 409
+    default_detail = "This checkout is not open."
+    default_code = "checkout_not_open"
+
+
 class PaymentGatewayUnavailable(_MetaAPIException):
     status_code = 502
     default_detail = "The payment provider is unavailable. Try again shortly."
