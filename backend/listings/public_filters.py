@@ -9,7 +9,7 @@ parameter should still render a list.
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from django.db.models import Case, DecimalField, F, Q, QuerySet, When
+from django.db.models import Case, DecimalField, Exists, F, OuterRef, Q, QuerySet, When
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 
@@ -55,7 +55,14 @@ def apply_public_filters(queryset: QuerySet, params, *, exclude_dimensions: froz
     if (params.get("featured") or "").strip() in ("1", "true"):
         from django.utils import timezone
 
-        queryset = queryset.filter(featured_until__gt=timezone.now())
+        from listings.enums import MediaStatus
+        from listings.models import ListingMedia
+
+        # The featured strip is a photo strip: a promoted listing whose photos are
+        # not ready yet (still scanning, or none uploaded) would render as an empty
+        # card, so it waits until it has at least one ready photo.
+        has_photo = Exists(ListingMedia.objects.filter(listing=OuterRef("pk"), status=MediaStatus.READY))
+        queryset = queryset.filter(featured_until__gt=timezone.now()).filter(has_photo)
 
     exclude = (params.get("exclude") or "").strip()
     if exclude:

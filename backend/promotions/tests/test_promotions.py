@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
 from listings.enums import ListingStatus
-from listings.tests.factories import make_private_listing, make_snapshot
+from listings.tests.factories import make_media, make_private_listing, make_snapshot
 from payments.enums import WebhookResult
 from payments.tests.fakes import FakeStripeGateway
 from promotions.checkout import handle_checkout
@@ -160,6 +160,7 @@ def test_public_list_shows_only_running_promotions_newest_first(seller, fake):
     now = timezone.now()
     for i, listing in enumerate((first, second, expired)):
         _publish(listing)
+        make_media(listing)  # the featured strip only shows listings with a ready photo
         listing.featured_until = now + timedelta(days=3) if listing is not expired else now - timedelta(days=1)
         listing.featured_at = now + timedelta(minutes=i)
         listing.save()
