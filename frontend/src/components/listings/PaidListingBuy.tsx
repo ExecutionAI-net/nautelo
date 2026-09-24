@@ -18,11 +18,13 @@ export default function PaidListingBuy({ label }: { label?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The pricing page sends the seller here with the package they chose (?package=<slug>).
+    const wanted = new URLSearchParams(window.location.search).get("package") ?? "";
     fetchPricingClient(locale).then(
       (pricing) => {
         const list = pricing.listing_packages ?? [];
         setPackages(list);
-        setSelected((current) => current || list[0]?.slug || "");
+        setSelected((current) => current || (list.some((pkg) => pkg.slug === wanted) ? wanted : "") || list[0]?.slug || "");
       },
       () => setPackages([]),
     );

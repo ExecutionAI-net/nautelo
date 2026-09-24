@@ -193,11 +193,11 @@ export function cancelCheckout(orderId: string) {
 }
 
 /** Same for a promotion checkout: ?promotion=cancelled&listing=<id> names the target. */
-export function cancelPromotionCheckout(listingId: string) {
+export function cancelPromotionCheckout(listingId: string | null, target: "listing" | "profile" = "listing") {
   return apiFetch<{ cancelled: number }>("/api/v1/promotions/cancel/", {
     method: "POST",
     headers: JSON_HEADERS,
-    body: JSON.stringify({ target: "listing", listing_id: listingId }),
+    body: JSON.stringify(target === "profile" ? { target } : { target, listing_id: listingId }),
   });
 }
 
