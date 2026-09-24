@@ -11,10 +11,12 @@ vi.mock("next/link", () => ({
 }));
 
 function fill() {
+  fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: "Carlo Carmine" } });
   fireEvent.change(screen.getByLabelText("Country code"), { target: { value: "ES" } });
   fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "600000000" } });
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "S3cret-pass!" } });
+  fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "a@b.co" } });
+  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "S3cret-pass!" } });
+  fireEvent.change(screen.getByLabelText(/^Confirm password/), { target: { value: "S3cret-pass!" } });
   fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 }
 
@@ -28,7 +30,7 @@ describe("RegisterPage", () => {
     expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
       email: "a@b.co",
       password: "S3cret-pass!",
-      full_name: "",
+      full_name: "Carlo Carmine",
       phone_number: "+34600000000",
       newsletter_opt_in: false,
     });

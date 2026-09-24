@@ -3,6 +3,7 @@
 import Link from "@/components/layout/LocaleLink";
 
 import AuthShell from "@/components/auth/AuthShell";
+import NewPasswordFields from "@/components/forms/NewPasswordFields";
 import PhoneNumberField from "@/components/forms/PhoneNumberField";
 import { useT } from "@/i18n/client";
 import { useState } from "react";
@@ -60,9 +61,10 @@ export default function RegisterPage() {
         </p>
       ) : (
         <form onSubmit={submit} className="w-full space-y-space-md">
-                    <label className="block font-label-md text-label-md">
-            {t("auth.register.full_name")}
-            <input className={INPUT} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <p className="font-body-sm text-on-surface-variant">{t("auth.required_hint")}</p>
+          <label className="block font-label-md text-label-md">
+            {t("auth.register.full_name")} <span aria-hidden="true" className="text-error">*</span>
+            <input className={INPUT} autoComplete="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </label>
           <PhoneNumberField
             value={phoneNumber}
@@ -74,13 +76,10 @@ export default function RegisterPage() {
             inputClassName={INPUT}
           />
           <label className="block font-label-md text-label-md">
-            {t("auth.register.email")}
+            {t("auth.register.email")} <span aria-hidden="true" className="text-error">*</span>
             <input className={INPUT} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
-          <label className="block font-label-md text-label-md">
-            {t("auth.register.password")}
-            <input className={INPUT} type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          </label>
+          <NewPasswordFields value={password} onChange={setPassword} label={t("auth.register.password")} inputClassName={INPUT} />
           <label className="flex items-start gap-space-xs font-body-sm">
             <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
             {t("auth.register.newsletter")}

@@ -164,3 +164,12 @@ describe("SellListingForm", () => {
     expect(screen.queryByText("Current brand")).toBeNull();
   });
 });
+
+describe("numericOnly", () => {
+  it("drops letters and keeps one decimal separator for measurements", async () => {
+    const { numericOnly } = await import("@/components/listings/SellListingForm");
+    expect(numericOnly("12abc,5", true)).toBe("12,5");
+    expect(numericOnly("1.2.3", true)).toBe("1.23");
+    expect(numericOnly("3 cabins", false)).toBe("3");
+  });
+});
