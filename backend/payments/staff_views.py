@@ -7,6 +7,7 @@ module's sibling payments/models.py docstring: no card data is ever stored,
 so none can leak here either.
 """
 
+from common.money import display_money
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -32,7 +33,7 @@ class StaffPurchaseSerializer(serializers.ModelSerializer):
         )
 
     def get_amount_display(self, obj) -> str:
-        return f"{obj.amount} {obj.currency}"
+        return display_money(obj.amount, obj.currency)
 
 
 def _order_row(order) -> dict:
@@ -59,7 +60,7 @@ def _promotion_row(promotion) -> dict:
         "product_code": f"PROMOTION_{promotion.plan.code}".upper(),
         "detail": target,
         "quantity": 1,
-        "amount_display": f"{promotion.amount} {promotion.currency}",
+        "amount_display": display_money(promotion.amount, promotion.currency),
         "status": promotion.status,
         "stripe_checkout_session_id": promotion.stripe_checkout_session_id,
         "stripe_payment_intent_id": promotion.stripe_payment_intent_id,
@@ -78,7 +79,7 @@ def _subscription_row(subscription, *, kind, owner_email, product_name, detail, 
         "product_code": kind.upper().replace(" ", "_"),
         "detail": detail,
         "quantity": 1,
-        "amount_display": f"{price} {currency}/month" if price is not None else "",
+        "amount_display": f"{display_money(price, currency)}/month" if price is not None else "",
         "status": subscription.status,
         "stripe_checkout_session_id": subscription.stripe_customer_id,
         "stripe_payment_intent_id": subscription.stripe_subscription_id,

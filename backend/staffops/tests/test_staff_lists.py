@@ -146,7 +146,7 @@ def test_boat_rows_carry_the_submitted_revision_a_moderator_can_decide(staff_api
     assert rows[str(draft.pk)]["pending_revision_id"] is None
     # A moderator reads a heading and a formatted price, not a bare decimal.
     assert rows[str(draft.pk)]["title"] == f"{draft.manufacture_year} {draft.brand.name} {draft.model.name}"
-    assert rows[str(draft.pk)]["price_display"].endswith(f" {draft.currency}")
+    assert rows[str(draft.pk)]["price_display"] == f"€{draft.price:,.0f}"
 
 
 def test_lists_sort_by_a_whitelisted_column_and_ignore_the_rest(staff_api):

@@ -77,7 +77,7 @@ function ProductCard({ product, onSaved }: { product: StaffProduct; onSaved: () 
   return (
     <form onSubmit={save} className="flex flex-col gap-space-sm rounded-lg border border-outline-variant p-space-md">
       <h2 className="font-title-md text-title-md">
-        {CODE_LABEL[product.code] ?? product.code} · {product.display_amount} {product.currency}
+        {CODE_LABEL[product.code] ?? product.code} · {formatPrice(product.display_amount, product.currency)}
       </h2>
       <p className="font-body-sm text-on-surface-variant">
         Stripe price check: {product.price_state.toLowerCase().replace(/_/g, " ")} (an active product needs a Stripe price that matches its display amount)
