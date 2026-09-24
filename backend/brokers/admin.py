@@ -3,7 +3,7 @@ from django.db import transaction
 
 from audit.models import AuditEvent
 from brokers.forms import BrokerOrganizationAdminForm
-from brokers.models import BrokerMembership, BrokerOrganization, BrokerPlan
+from brokers.models import BrokerMembership, BrokerOrganization, BrokerPlan, BrokerSubscription
 from brokers.services import set_broker_auto_approval
 
 POLICY_READONLY = ("auto_approve_changed_by", "auto_approve_changed_at")
@@ -137,3 +137,15 @@ class BrokerMembershipAdmin(admin.ModelAdmin):
     search_fields = ("user__email", "broker__name")
     autocomplete_fields = ("user", "broker")
     readonly_fields = BASE_READONLY
+
+
+@admin.register(BrokerSubscription)
+class BrokerSubscriptionAdmin(admin.ModelAdmin):
+    """Same window professionals.admin gives ProfessionalSubscription: billing state
+    is written by Stripe webhooks, but staff need to see it, and a test system
+    needs to put a subscription PAST_DUE to exercise the lapse sweep."""
+
+    list_display = ("broker", "status", "current_period_end", "past_due_since", "last_paid_at")
+    list_filter = ("status",)
+    search_fields = ("broker__name", "broker__slug", "stripe_subscription_id")
+    raw_id_fields = ("broker",)
