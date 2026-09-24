@@ -11,7 +11,8 @@ vi.mock("next/link", () => ({
 }));
 
 function fill() {
-  fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "+34 600 000 000" } });
+  fireEvent.change(screen.getByLabelText("Country code"), { target: { value: "ES" } });
+  fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "600000000" } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: "S3cret-pass!" } });
   fireEvent.click(screen.getByRole("button", { name: "Create account" }));
@@ -21,14 +22,14 @@ describe("RegisterPage", () => {
   it("has no role picker and posts no role", async () => {
     apiFetch.mockResolvedValue({});
     render(<RegisterPage />);
-    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.queryByLabelText(/role/i)).toBeNull();
     fill();
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
     expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
       email: "a@b.co",
       password: "S3cret-pass!",
       full_name: "",
-      phone_number: "+34 600 000 000",
+      phone_number: "+34600000000",
       newsletter_opt_in: false,
     });
   });

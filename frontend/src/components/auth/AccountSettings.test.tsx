@@ -57,11 +57,12 @@ describe("AccountSettings", () => {
   it("saves an edited phone number alongside the other fields", async () => {
     mockLocation();
     render(<AccountSettings />);
-    fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "+39 333 123 4567" } });
+    fireEvent.change(screen.getByLabelText("Country code"), { target: { value: "IT" } });
+    fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "3331234567" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     const [, init] = apiFetch.mock.calls[0];
-    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", phone_number: "+39 333 123 4567", newsletter_opt_in: false, locale: "EN" });
+    expect(JSON.parse(init.body)).toEqual({ full_name: "Ann", phone_number: "+393331234567", newsletter_opt_in: false, locale: "EN" });
   });
 
   it("lets a user opt into or out of the newsletter later", async () => {
