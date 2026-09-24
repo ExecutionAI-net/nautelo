@@ -78,8 +78,6 @@ jobs:
           docker compose -f docker-compose.yml up -d minio
           timeout 60 bash -c 'until curl -sf http://localhost:9010/minio/health/live >/dev/null; do sleep 1; done'
           docker compose -f docker-compose.yml run --rm --entrypoint /usr/bin/mc createbuckets \
-            alias set local http://minio:9000 nautelo nautelo123
-          docker compose -f docker-compose.yml run --rm --entrypoint /usr/bin/mc createbuckets \
             mb --ignore-existing -p local/nautelo-media
 
       - name: Django system check

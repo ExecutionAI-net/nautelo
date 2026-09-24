@@ -34,10 +34,11 @@ services:
   # with "no healthcheck configured" if you try). Readiness is instead
   # polled from the CI workflow via curl against minio's own
   # /minio/health/live HTTP endpoint (a real server feature, not a shell
-  # script). Bucket setup is two separate `mc` invocations from the CI
-  # workflow rather than an entrypoint script, since there's no shell to
-  # run one in; they share the mc_config volume so the alias set by the
-  # first invocation is still there for the second.
+  # script). Bucket setup runs as a single `mc mb` invocation from the CI
+  # workflow using the MC_HOST_<alias> env var to define the alias inline
+  # (no `mc alias set` needed) - the client image's nonroot user can't
+  # write a config file to a fresh named volume anyway, so this avoids
+  # that entirely.
   minio:
     image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
@@ -55,11 +56,8 @@ services:
     depends_on:
       - minio
     environment:
-      MC_CONFIG_DIR: /mc-config
-    volumes:
-      - mc_config:/mc-config
+      MC_HOST_local: http://nautelo:nautelo123@minio:9000
 
 volumes:
   postgres_data:
   minio_data:
-  mc_config:
