@@ -52,8 +52,7 @@ export default function NotificationPreferences() {
   return (
     <div className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Preferences</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Notifications</h1>
+        <h2 className="font-headline-sm text-headline-sm text-primary tracking-tight">Email preferences</h2>
         <p className="mt-space-xs font-body-md text-on-surface-variant">
           Choose which emails Nautelo sends you. You always see these as in-app notifications regardless of what&apos;s selected here.
         </p>

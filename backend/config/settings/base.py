@@ -224,7 +224,12 @@ REST_FRAMEWORK = {
         # stricter `auth` bucket would let a handful of reloads lock real people out
         # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
         "auth-refresh": "30/min",
-        "services_directory": "60/min",
+        # The public services directory (categories, professional list and detail).
+        # One page view is two or three of these calls, so 60/min stalled at about
+        # twenty page views a minute per address: an office behind one NAT address,
+        # or a crawler walking the 1,500 sitemap URLs, got error pages instead of
+        # the directory. Same ceiling as `public_listing_read` for the same reason.
+        "services_directory": "300/min",
         "inquiry_submit": "20/hour",
         "messaging_read": "120/min",
         # Phase 18: notification list/read; the bell polls on reconnect only.
