@@ -25,8 +25,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # quay.io/minio/* stopped serving anonymous pulls on 2026-09-24 (MinIO's own
+  # registry policy change, not project-specific - it broke public CI
+  # everywhere overnight). Chainguard mirrors both images and still allows
+  # anonymous pulls of their non-"-dev" tags. Both images are fully
+  # distroless (no /bin/sh, and no Docker HEALTHCHECK either - `docker
+  # compose run --depends_on condition: service_healthy` errors outright
+  # with "no healthcheck configured" if you try). Readiness is instead
+  # polled from the CI workflow via curl against minio's own
+  # /minio/health/live HTTP endpoint (a real server feature, not a shell
+  # script). Bucket setup runs as a single `mc mb` invocation from the CI
+  # workflow using the MC_HOST_<alias> env var to define the alias inline
+  # (no `mc alias set` needed) - the client image's nonroot user can't
+  # write a config file to a fresh named volume anyway, so this avoids
+  # that entirely.
   minio:
-    image: quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: nautelo
@@ -36,23 +50,13 @@ services:
       - "127.0.0.1:9011:9001"
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   createbuckets:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest
     depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 nautelo nautelo123;
-      mc mb -p local/nautelo-media;
-      exit 0;
-      "
+      - minio
+    environment:
+      MC_HOST_local: http://nautelo:nautelo123@minio:9000
 
 volumes:
   postgres_data:

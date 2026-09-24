@@ -75,8 +75,10 @@ jobs:
       - name: Start MinIO (via root docker compose)
         if: steps.check.outputs.exists == 'true'
         run: |
-          docker compose -f docker-compose.yml up -d --wait minio
-          docker compose -f docker-compose.yml up createbuckets
+          docker compose -f docker-compose.yml up -d minio
+          timeout 60 bash -c 'until curl -sf http://localhost:9010/minio/health/live >/dev/null; do sleep 1; done'
+          docker compose -f docker-compose.yml run --rm --entrypoint /usr/bin/mc createbuckets \
+            mb --ignore-existing local/nautelo-media
 
       - name: Django system check
         if: steps.check.outputs.exists == 'true'
