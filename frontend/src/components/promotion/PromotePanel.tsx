@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import PromotionDialog from "@/components/promotion/PromotionDialog";
 import { apiFetch } from "@/lib/api/client";
-import { fetchMyListings, type MyListingRow } from "@/lib/api/sellerListings";
+import { fetchMyListings, type MyListingRow, cancelPromotionCheckout } from "@/lib/api/sellerListings";
 
 /**
  * "Promote" block for the My plan pages. Brokers pick one of their vessels; professionals
@@ -21,13 +21,20 @@ export default function PromotePanel({
 }) {
   const [rows, setRows] = useState<MyListingRow[] | null>(null);
   const [target, setTarget] = useState<MyListingRow | "profile" | null>(null);
-  const [paid, setPaid] = useState(false);
+  const [outcome, setOutcome] = useState<"paid" | "cancelled" | null>(null);
   const [seen, setSeen] = useState<{ impressions: number; clicks: number } | null>(null);
 
   useEffect(() => {
-    // Stripe returns here with ?promotion=success.
+    // Stripe returns here with ?promotion=success|cancelled[&listing=<id>] (promotions/checkout.py).
+    const params = new URLSearchParams(window.location.search);
+    const returned = params.get("promotion");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
-    if (new URLSearchParams(window.location.search).get("promotion") === "success") setPaid(true);
+    if (returned === "success") setOutcome("paid");
+    if (returned === "cancelled") {
+      setOutcome("cancelled");
+      // Close the abandoned session so no payable link (or "awaiting payment" row) lingers.
+      void cancelPromotionCheckout(params.get("listing"), mode === "profile" ? "profile" : "listing").catch(() => undefined);
+    }
     if (mode === "profile") {
       apiFetch<{ profile: { impressions: number; clicks: number } | null }>("/api/v1/promotions/stats/").then(
         (report) => setSeen(report.profile),
@@ -53,7 +60,8 @@ export default function PromotePanel({
           : "A featured profile carries a Featured badge and is shown first in the professionals directory."}{" "}
         Choose 1 week, 2 weeks or 1 month. The promotion starts when the {mode === "listings" ? "vessel is live" : "profile is live"}.
       </p>
-      {paid ? <p role="status" className="mt-space-sm font-body-md text-secondary">Promotion paid. It starts as soon as it can go live.</p> : null}
+      {outcome === "paid" ? <p role="status" className="mt-space-sm font-body-md text-secondary">Promotion paid. It starts as soon as it can go live.</p> : null}
+      {outcome === "cancelled" ? <p role="status" className="mt-space-sm font-body-md text-on-surface-variant">Checkout cancelled. Nothing was charged.</p> : null}
 
       {mode === "profile" && seen && seen.impressions > 0 ? (
         <p className="mt-space-sm font-body-md text-secondary">

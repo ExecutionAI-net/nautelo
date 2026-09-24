@@ -102,7 +102,7 @@ export default async function PricingPage() {
                       </li>
                     </ul>
                   </div>
-                  <Link href="/sell/create/" className="w-full bg-primary text-on-primary hover:bg-primary-container font-body-md py-space-sm px-space-md rounded text-center transition-colors">
+                  <Link href={`/sell/create/?package=${encodeURIComponent(pkg.slug)}`} className="w-full bg-primary text-on-primary hover:bg-primary-container font-body-md py-space-sm px-space-md rounded text-center transition-colors">
                     {t("pricing.page.start_a_listing")}
                   </Link>
                 </div>
