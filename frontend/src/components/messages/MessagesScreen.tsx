@@ -107,7 +107,7 @@ export default function MessagesScreen({ brokerId, basePath, filter, selectedId,
   return (
     <section aria-labelledby="messages-title">
       <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">
-        {eyebrow ?? (brokerId ? "Brokerage / Messages" : "Seller area / Enquiries & messages")}
+        {eyebrow ?? (brokerId ? "Brokerage / Messages" : "Seller area / Messages")}
       </span>
       <h1 id="messages-title" className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">
         {heading ?? tConversations(locale, "messages.title")}

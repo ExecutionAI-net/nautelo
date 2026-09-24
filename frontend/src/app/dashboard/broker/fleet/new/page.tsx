@@ -4,7 +4,7 @@ import AreaShell from "@/components/layout/AreaShell";
 
 export default function NewFleetVesselPage() {
   return (
-    <AreaShell area="broker" active="/dashboard/broker/fleet/">
+    <AreaShell area="broker" active="/dashboard/broker/fleet/" title="Add a vessel">
       <RequirePermission permission="create_broker_listing">
         <FleetListingPage />
       </RequirePermission>
