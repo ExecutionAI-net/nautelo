@@ -241,6 +241,8 @@ def test_an_exhausted_seller_with_a_paid_right_may_start(entitlements_enforced):
         state=EntitlementState.AVAILABLE,
         valid_from=now - timedelta(days=1),
         valid_until=now + timedelta(days=100),
+        # A one-week package: the seller is told 7 days, not the platform's 30.
+        metadata={"package": "listing-1-week", "publication_days": 7},
     )
 
     result = ListingEligibilityService.for_user(user, now=now)
@@ -252,7 +254,7 @@ def test_an_exhausted_seller_with_a_paid_right_may_start(entitlements_enforced):
     assert result.recommended_entitlement.entitlement_type == (
         EntitlementType.PAID_LISTING
     )
-    assert result.recommended_entitlement.publication_days == 30
+    assert result.recommended_entitlement.publication_days == 7
 
 
 @pytest.mark.django_db
