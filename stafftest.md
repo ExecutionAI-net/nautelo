@@ -74,7 +74,7 @@ Aşağıdaki tablo düzeltmeler ilerledikçe güncellenir.
 | S29 | ✅ | Products & pricing'de satılan paketler listeleniyor (+ Django admin bağlantısı); ürün adları okunur |
 | S30 | ✅ | Veri migrasyonu: "Nautelo editorial team" |
 | S31 | — | Düğmelerde aria-label/title zaten var; değişiklik yok |
-| S33 | ⏳ | Staff için görüşme görüntüleme ekranı yok; ayrı iş |
+| S33 | ✅/⏳ | Tür etiketi okunur ("Broker inquiry", #488). "Open conversation": staff için görüşme görüntüleme ekranı yok; ayrı iş |
 | S34 | ⏳ | Karar bekliyor (spec: yalnız id) |
 | S20 | ✅ | #496 — `display_money`: €245,000 / €9.99 / €99/month |
 
