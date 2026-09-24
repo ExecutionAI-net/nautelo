@@ -119,6 +119,7 @@ export default function SellListingForm({
   const [translatedLangs, setTranslatedLangs] = useState<Lang[]>([]);
   const [options, setOptions] = useState<FormOptions | null>(null);
   const [eligibility, setEligibility] = useState<Eligibility | null>(null);
+  const [wantedPackage, setWantedPackage] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
   const [modelQuery, setModelQuery] = useState("");
   const [titles, setTitles] = useState<Record<Lang, string>>({
@@ -279,6 +280,13 @@ export default function SellListingForm({
       active = false;
     };
   }, [initialId, brokerId]);
+
+  useEffect(() => {
+    // The pricing page sends a seller here with ?package=<slug>: offer that package
+    // up front even when a free listing or an unused paid one would do.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the address bar once
+    setWantedPackage(new URLSearchParams(window.location.search).get("package") ?? "");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -621,6 +629,20 @@ export default function SellListingForm({
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(titleKey)}</h1>
         <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{t(brokerId ? "sell.lead_broker" : "sell.lead")}</p>
       </header>
+
+      {wantedPackage && !listing && !brokerId && eligibility ? (
+        <section className={`${CARD} border-l-4 border-secondary`} aria-label={t("sell.package_chosen_title")}>
+          <h2 className="font-headline-sm text-headline-sm text-primary">{t("sell.package_chosen_title")}</h2>
+          <p className="mt-space-xs font-body-md text-on-surface-variant">
+            {eligibility.paid_listing_rights_available > 0
+              ? t("sell.package_chosen_owned", { count: eligibility.paid_listing_rights_available })
+              : t("sell.package_chosen_lead")}
+          </p>
+          <div className="mt-space-md">
+            <PaidListingBuy label={t("sell.allowance_buy")} />
+          </div>
+        </section>
+      ) : null}
 
       <ol className="flex flex-wrap gap-space-xs rounded-xl bg-surface-container-lowest p-space-sm shadow-sm" aria-label="Steps">
         {steps.map(([anchor, label], index) => (

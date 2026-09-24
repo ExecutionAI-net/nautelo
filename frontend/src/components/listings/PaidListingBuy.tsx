@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
 import { useT } from "@/i18n/client";
@@ -16,6 +16,9 @@ export default function PaidListingBuy({ label }: { label?: string }) {
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Two pickers can share a page (the "package you picked" card and the media step); a
+  // radio group name per instance keeps one from unchecking the other.
+  const group = useId();
 
   useEffect(() => {
     // The pricing page sends the seller here with the package they chose (?package=<slug>).
@@ -56,7 +59,7 @@ export default function PaidListingBuy({ label }: { label?: string }) {
             className={`flex cursor-pointer items-center justify-between gap-space-sm rounded-lg px-space-sm py-space-xs ${selected === pkg.slug ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-lowest text-on-surface"}`}
           >
             <span className="flex items-center gap-space-xs">
-              <input type="radio" name="listing-package" value={pkg.slug} checked={selected === pkg.slug} onChange={() => setSelected(pkg.slug)} />
+              <input type="radio" name={`listing-package${group}`} value={pkg.slug} checked={selected === pkg.slug} onChange={() => setSelected(pkg.slug)} />
               <span className="font-body-md">
                 {pkg.name} · {t("sell.package.summary", { days: pkg.publication_days, photos: pkg.image_limit })}
                 {pkg.video_limit ? ` + ${t("sell.package.video", { count: pkg.video_limit })}` : ""}

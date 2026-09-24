@@ -16,7 +16,32 @@ vi.mock("@/lib/api/sellerListings", () => ({
   removeMedia: vi.fn(),
   uploadMedia: vi.fn(),
   reorderMedia: vi.fn(),
+  startListingRightCheckout: vi.fn(),
 }));
+
+const eligibility = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/listingForm", () => ({
+  fetchFormOptions: vi.fn().mockRejectedValue(new Error("offline")),
+  fetchEligibility: eligibility,
+}));
+
+vi.mock("@/lib/api/plans", () => ({
+  fetchPricingClient: vi.fn().mockResolvedValue({
+    listing_packages: [{ slug: "standard", name: "Standard", description: "", amount: "29.00", currency: "EUR", publication_days: 30, image_limit: 20, video_limit: 1 }],
+    broker_plans: [],
+    individual_products: [],
+  }),
+  formatPrice: (amount: string) => `€${amount}`,
+}));
+
+const ELIGIBLE = {
+  can_start_listing: true,
+  blocking_reason: null,
+  free: { available: true, next_available_at: null, used_at: null },
+  paid_listing_rights_available: 0,
+  purchase_product_code: "INDIVIDUAL_LISTING_RIGHT",
+};
+eligibility.mockResolvedValue(ELIGIBLE);
 
 const WORKFLOW_LISTING: WorkflowListing = {
   id: "L1",
@@ -45,6 +70,32 @@ describe("SellListingForm", () => {
     unmount();
     render(<SellListingForm />);
     expect(screen.queryByText("Financing estimate")).toBeNull();
+  });
+
+  it("offers the package picked on the pricing page even when a free listing is available", async () => {
+    window.history.replaceState(null, "", "/sell/create/?package=standard");
+    render(<SellListingForm />);
+
+    expect(await screen.findByRole("heading", { name: "Buy the paid listing you picked" })).toBeTruthy();
+    const [picked] = await screen.findAllByRole("radio", { name: /Standard/ });
+    expect(picked).toBeChecked();
+    expect(screen.getByText(/skip this and continue below with your free listing/)).toBeTruthy();
+    window.history.replaceState(null, "", "/sell/create/");
+  });
+
+  it("tells a seller with unused paid listings what buying more means", async () => {
+    window.history.replaceState(null, "", "/sell/create/?package=standard");
+    eligibility.mockResolvedValueOnce({ ...ELIGIBLE, paid_listing_rights_available: 2 });
+    render(<SellListingForm />);
+
+    expect(await screen.findByText(/You already have 2 unused paid listing/)).toBeTruthy();
+    window.history.replaceState(null, "", "/sell/create/");
+  });
+
+  it("does not push a package on a seller who did not pick one", async () => {
+    render(<SellListingForm />);
+    await waitFor(() => expect(eligibility).toHaveBeenCalled());
+    expect(screen.queryByRole("heading", { name: "Buy the paid listing you picked" })).toBeNull();
   });
 
   it("lets photos be picked before the first save and counts them", () => {
