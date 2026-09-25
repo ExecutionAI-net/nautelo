@@ -207,3 +207,18 @@ cache rules for `/api/*`. If the origin also returns HTML, inspect the running
 proxy configuration and its `/api/` upstream. A `Location` header identifies a
 redirect that the previous Node fetch would have followed. Keep the existing
 volumes; deleting them cannot repair API routing and can destroy stored data.
+
+## Video scanning limits
+
+Both deployment stacks configure ClamAV through the official image's `CLAMD_CONF_*`
+environment variables: 300 MiB stream/file limits, a 600 MiB aggregate scan limit,
+a 240-second scan budget (`MaxScanTime` uses milliseconds), and a 300-second
+stream read timeout. `AlertExceedsMax` rejects scans that exceed inspection limits.
+The application's video upload limit remains 250 MiB and 120 seconds.
+The backend scanner socket timeout defaults to 300 seconds (`CLAMAV_TIMEOUT`).
+This is a per-socket-operation timeout, not an overall task deadline.
+
+Deploy the updated backend image and Compose files together. The deployment helper
+now permits Compose to recreate ClamAV when its configuration or image changes;
+the signature database volume is retained. No Nginx changes are needed for the
+direct-to-S3 upload path.
