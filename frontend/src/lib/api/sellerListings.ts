@@ -214,6 +214,17 @@ export function fetchMyPaidListings() {
   return apiFetch<{ results: OwnedPackage[] }>("/api/v1/paid-listings/");
 }
 
+/** Owner-initiated soft delete: hidden from the dashboard (and, once published,
+ *  from every public page) but never removed from the database, so it still
+ *  counts against the free-listing quota. */
+export function deleteListing(listingId: string, version: number) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(listingId)}/delete/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ version }),
+  });
+}
+
 export function renewListing(listingId: string, pkg = "") {
   return apiFetch<{ listing_id: string; status: string; expires_at: string }>(
     `/api/v1/listings/${encodeURIComponent(listingId)}/renew/`,
@@ -239,6 +250,7 @@ export interface MyListingRow {
   id: string;
   title: string;
   status: string;
+  version: number;
   seller_type: string;
   slug: string | null;
   updated_at: string;

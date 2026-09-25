@@ -30,6 +30,7 @@ from .decisions import (
 )
 from .staff_queue import TABS, queue_rows, revision_detail
 from .media_upgrade import apply_media_upgrade
+from .deletion import delete_listing
 from .renewal import renew_listing
 from .media_uploads import complete_upload, create_upload_intent, remove_media
 from .drafts import create_listing_draft, update_listing_draft
@@ -153,6 +154,28 @@ class ListingWithdrawView(ListingSubmitView):
         envelope = ListingVersionSerializer(data=request.data)
         envelope.is_valid(raise_exception=True)
         withdraw_listing_revision(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingDeleteView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/delete/ - owner-initiated soft delete.
+
+    Inherits the draft view's permission stack and `get_listing` (owner or
+    broker editor). Callable from any workflow state, unlike withdraw.
+    """
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        delete_listing(
             listing=listing,
             actor=request.user,
             expected_version=envelope.validated_data["version"],
@@ -287,7 +310,9 @@ def published_listings_queryset() -> QuerySet[BoatListing]:
     """
     return (
         BoatListing.objects.filter(
-            status=ListingStatus.PUBLISHED, current_public_snapshot__isnull=False
+            status=ListingStatus.PUBLISHED,
+            current_public_snapshot__isnull=False,
+            deleted_at__isnull=True,
         )
         .select_related("current_public_snapshot", "broker")
         .order_by("-published_at", "-created_at")

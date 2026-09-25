@@ -44,7 +44,8 @@ class MyListingsView(APIView):
         ).values_list("broker_id", flat=True)
         rows = (
             BoatListing.objects.filter(
-                Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
+                Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids)),
+                deleted_at__isnull=True,
             )
             .select_related("brand", "model", "current_public_snapshot")
             .prefetch_related("media", "promo_stats")
@@ -73,6 +74,7 @@ def _row(item) -> dict:
         "id": str(item.pk),
         "title": _title(item),
         "status": item.status,
+        "version": item.version,
         "seller_type": item.seller_type,
         "slug": item.slug,
         "updated_at": item.updated_at,
@@ -107,7 +109,8 @@ class MyListingsSummaryView(APIView):
             user=request.user, is_active=True, can_edit_listings=True
         ).values_list("broker_id", flat=True)
         mine = BoatListing.objects.filter(
-            Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
+            Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids)),
+            deleted_at__isnull=True,
         )
         counts = dict(mine.values_list("status").annotate(total=Count("pk")))
         return Response(
