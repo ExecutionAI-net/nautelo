@@ -1006,10 +1006,10 @@ export default function SellListingForm({
                     {row.rejection_reason ? <p role="note" className="px-space-xs font-body-sm text-error">{row.rejection_reason}</p> : null}
                     <div className="flex items-center justify-between gap-1 p-space-xs font-label-md">
                       <span className="flex gap-1">
-                        <button type="button" aria-label={t("sell.move_earlier")} disabled={position === 0} onClick={() => void move(row, -1)} className="rounded px-2 text-primary disabled:opacity-30">←</button>
-                        <button type="button" aria-label={t("sell.move_later")} disabled={position === siblings.length - 1} onClick={() => void move(row, 1)} className="rounded px-2 text-primary disabled:opacity-30">→</button>
+                        <button type="button" draggable={false} aria-label={t("sell.move_earlier")} disabled={position === 0} onClick={() => void move(row, -1)} className="rounded px-2 text-primary disabled:opacity-30">←</button>
+                        <button type="button" draggable={false} aria-label={t("sell.move_later")} disabled={position === siblings.length - 1} onClick={() => void move(row, 1)} className="rounded px-2 text-primary disabled:opacity-30">→</button>
                       </span>
-                      <button type="button" onClick={() => void remove(row)} className="text-primary underline">
+                      <button type="button" draggable={false} onClick={() => void remove(row)} className="text-primary underline">
                         {t("sell.remove")}
                       </button>
                     </div>
