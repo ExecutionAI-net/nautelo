@@ -1,6 +1,5 @@
 "use client";
 
-import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
 import { useT } from "@/i18n/client";
 import { localizePath } from "@/lib/i18n/localePath";
 import { Suspense, useState } from "react";
@@ -13,6 +12,8 @@ import { ApiError } from "@/lib/api/client";
 import { dashboardHomeFor } from "@/lib/auth/home";
 import { isSafeNextUrl, safeNextUrl } from "@/lib/auth/next-url";
 import { useSession } from "@/lib/auth/session";
+import { resolveLocale, type Locale } from "@/lib/i18n/directory";
+import { writeLocaleCookie } from "@/lib/i18n/useLocale";
 
 function LoginForm() {
   const router = useRouter();
@@ -25,7 +26,6 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const destination = safeNextUrl(searchParams.get("next"));
-  const pageLocale = useLocaleOrDefault();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,7 +35,12 @@ function LoginForm() {
       const user = await login(email, password);
       // No explicit ?next=: go to the account's own dashboard, not the home page.
       const target = isSafeNextUrl(searchParams.get("next")) ? destination : dashboardHomeFor(user);
-      router.replace(localizePath(target, pageLocale));
+      // The account's saved language wins over whatever language this login
+      // page happened to be shown in, so a returning user always lands back
+      // in their own language even on a browser that never set the cookie.
+      const accountLocale = resolveLocale(user?.locale) as Locale;
+      writeLocaleCookie(accountLocale);
+      router.replace(localizePath(target, accountLocale));
     } catch (caught) {
       setError(
         caught instanceof ApiError
