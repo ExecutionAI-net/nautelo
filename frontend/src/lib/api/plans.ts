@@ -65,6 +65,17 @@ export function fetchServiceCategoriesClient(): Promise<ServiceCategoryOption[]>
   return apiFetch<ServiceCategoryOption[]>("/api/v1/service-categories/");
 }
 
+export interface BrokerRoleOption {
+  slug: string;
+  name: string;
+}
+
+/** The registering owner's role within the brokerage - staff-editable in
+ *  Django admin (brokers.BrokerRole), not a hardcoded list. */
+export function fetchBrokerRolesClient(): Promise<BrokerRoleOption[]> {
+  return apiFetch<BrokerRoleOption[]>("/api/v1/broker-roles/");
+}
+
 export function formatPrice(amount: string, currency: string): string {
   const value = Number(amount);
   const symbol = currency === "EUR" ? "€" : `${currency} `;
