@@ -149,7 +149,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                     </p>
                     <p className="mt-space-xs font-body-sm font-semibold text-primary">
                       {service.price_from
-                        ? `${t("professional.services.price_from")} ${formatPrice(service.price_from, "EUR")}${service.pricing_note ? ` ${service.pricing_note}` : ""}`
+                        ? `${t("professional.services.price_from")} ${formatPrice(service.price_from, service.currency || "EUR")}${service.pricing_note ? ` ${service.pricing_note}` : ""}`
                         : t("professional.services.quote_on_request")}
                     </p>
                     {service.description ? (

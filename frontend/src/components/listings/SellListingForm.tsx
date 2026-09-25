@@ -169,6 +169,7 @@ export default function SellListingForm({
   const [city, setCity] = useState(text(seed, "location_city"));
   const [placeId, setPlaceId] = useState<number | null>(typeof seed.location_place_id === "number" ? seed.location_place_id : null);
   const [price, setPrice] = useState(text(seed, "price"));
+  const [currency, setCurrency] = useState(text(seed, "currency") || "EUR");
   const [showFinance, setShowFinance] = useState(seed.show_finance_estimate === true);
   const [downOverride, setDownOverride] = useState(text(seed, "finance_down_payment_override_percent"));
   const [rateOverride, setRateOverride] = useState(text(seed, "finance_rate_override_percent"));
@@ -385,7 +386,7 @@ export default function SellListingForm({
       location_city: city,
       ...(placeId !== null ? { location_place_id: placeId } : {}),
       price,
-      currency: "EUR",
+      currency,
     };
     if (brokerId) {
       body.show_finance_estimate = showFinance;
@@ -620,7 +621,7 @@ export default function SellListingForm({
     />
   );
   // The card preview shows the price the way the marketplace will ("€189,000"), not the raw input.
-  const previewPrice = price ? (safeMoney(locale, price.trim(), "EUR") ?? `€ ${price}`) : "—";
+  const previewPrice = price ? (safeMoney(locale, price.trim(), currency) ?? `${currency} ${price}`) : "—";
   const blocked = eligibility !== null && !eligibility.can_start_listing && !listing;
 
   const steps = [
@@ -948,7 +949,27 @@ export default function SellListingForm({
                 <label className={LABEL}>
                   {t("sell.price")}
                   <Req />
-                  <input className={FIELD} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required />
+                  <div className="mt-space-xs flex gap-space-xs">
+                    <input
+                      className={`${FIELD} mt-0`}
+                      inputMode="decimal"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
+                    />
+                    <select
+                      className={`${FIELD} mt-0 w-28 shrink-0`}
+                      aria-label={t("sell.currency")}
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                    >
+                      {(options?.currencies ?? ["EUR", "USD", "GBP"]).map((code) => (
+                        <option key={code} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <SearchSelect
                   label={

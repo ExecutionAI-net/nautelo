@@ -5,6 +5,12 @@ from common.models import UUIDTimeStampedModel
 from professionals.models import validate_service_area
 from services_catalog.services import RESERVED_CATEGORY_SLUGS, validate_category_slug
 
+# A professional prices their own services in their own currency (customer
+# feedback, 2026-09-25). Separate from listings.models.SUPPORTED_CURRENCIES
+# on purpose: the two domains don't share a migration path or a release
+# schedule, even though the set happens to match today.
+SUPPORTED_CURRENCIES = frozenset({"EUR", "USD", "GBP"})
+
 
 class ServiceCategory(UUIDTimeStampedModel):
     """A nautical service category (spec §11.2).
@@ -77,6 +83,9 @@ class ProfessionalService(UUIDTimeStampedModel):
     # a free-text qualifier ("per survey", "+VAT"), both, or neither (in which
     # case the public page shows "Quote on request").
     price_from = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(
+        max_length=3, default="EUR", choices=[(code, code) for code in sorted(SUPPORTED_CURRENCIES)]
+    )
     pricing_note = models.CharField(max_length=120, blank=True, default="")
     # Storage key for the service card photo (common.org_images "photo" kind);
     # never a URL - resolved to one at read time like logo_key/cover_key.

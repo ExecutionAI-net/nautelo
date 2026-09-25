@@ -148,6 +148,29 @@ def test_a_service_can_be_created_with_a_price_or_left_as_quote_on_request():
     )
     assert unpriced.status_code == 201
     assert unpriced.json()["price_from"] is None
+    # Left off, a service prices in EUR (customer feedback, 2026-09-25: a
+    # professional may price in EUR/USD/GBP).
+    assert unpriced.json()["currency"] == "EUR"
+
+
+def test_a_service_can_be_priced_in_usd_or_gbp_but_not_an_unsupported_currency():
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-cur")
+    api = client_for()
+    api.post(reverse("provider-profile"), PROFILE, format="json")
+
+    usd = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig inspection", "price_from": "120.00", "currency": "USD"},
+        format="json",
+    )
+    assert usd.status_code == 201 and usd.json()["currency"] == "USD"
+
+    refused = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig advice", "price_from": "50.00", "currency": "JPY"},
+        format="json",
+    )
+    assert refused.status_code == 400
 
 
 def test_category_is_read_from_the_manually_added_service_when_no_dropdown_value_was_sent():

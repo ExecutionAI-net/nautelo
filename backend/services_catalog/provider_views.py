@@ -201,7 +201,7 @@ class ProviderServiceSerializer(serializers.ModelSerializer):
         model = ProfessionalService
         fields = (
             "id", "category", "category_slug", "title_en", "description_en", "service_area",
-            "price_from", "pricing_note", "photo_url", "is_active",
+            "price_from", "currency", "pricing_note", "photo_url", "is_active",
         )
 
 
