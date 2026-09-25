@@ -1918,6 +1918,7 @@
   "auth.org_register.looking_personal": "Looking to sell one boat?",
   "auth.org_register.create_personal": "Create a personal account",
   "auth.org_register.error_fallback": "Registration failed. Please check the details and try again.",
+  "auth.org_register.compare_plans": "Compare plans",
   "auth.account_settings.breadcrumb": "Seller area / My account",
   "auth.account_settings.title": "My account",
   "auth.account_settings.subtitle": "Your personal details, language and sign-in security.",
