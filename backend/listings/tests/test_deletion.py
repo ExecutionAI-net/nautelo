@@ -111,7 +111,7 @@ def test_deleting_a_published_listing_hides_it_from_every_public_path():
 
     detail = api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk}))
     assert detail.status_code == 404
-    by_slug = api.get(reverse("listing-by-slug", kwargs={"slug": listing.slug}))
+    by_slug = api.get(reverse("listing-detail-by-slug", kwargs={"slug": listing.slug}))
     assert by_slug.status_code == 404
     listed_ids = [row["id"] for row in api.get(reverse("listing-list")).data["results"]]
     assert str(listing.pk) not in listed_ids
