@@ -222,3 +222,10 @@ Deploy the updated backend image and Compose files together. The deployment help
 now permits Compose to recreate ClamAV when its configuration or image changes;
 the signature database volume is retained. No Nginx changes are needed for the
 direct-to-S3 upload path.
+
+## Frontend production bundler
+
+`pnpm build` uses `next build --webpack` in CI and the frontend Docker image.
+This works around the Next.js 16.3.5 Turbopack Google Fonts loader failure
+(`next/font/google queries have exactly one entry`) observed with Plus Jakarta
+Sans. Recheck that font build before switching production back to Turbopack.
