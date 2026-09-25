@@ -57,7 +57,8 @@ describe("AccountSettings", () => {
   it("saves an edited phone number alongside the other fields", async () => {
     mockLocation();
     render(<AccountSettings />);
-    fireEvent.change(screen.getByLabelText("Country code"), { target: { value: "IT" } });
+    fireEvent.click(screen.getByLabelText("Country code"));
+    fireEvent.click(screen.getByRole("option", { name: /^Italy/ }));
     fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "3331234567" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
