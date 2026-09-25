@@ -12,7 +12,8 @@ vi.mock("next/link", () => ({
 
 function fill() {
   fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: "Carlo Carmine" } });
-  fireEvent.change(screen.getByLabelText("Country code"), { target: { value: "ES" } });
+  fireEvent.click(screen.getByLabelText("Country code"));
+  fireEvent.click(screen.getByRole("option", { name: /^Spain/ }));
   fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "600000000" } });
   fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "a@b.co" } });
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "S3cret-pass!" } });
