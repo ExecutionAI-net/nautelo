@@ -9,13 +9,14 @@ from rest_framework import serializers
 from rest_framework.response import Response
 
 from brokers.models import BrokerOrganization
-from common.field_rules import phone_number, plain_text
+from common.field_rules import phone_number, plain_text, service_country
 from brokers.plans import plan_usage
 from brokers.views import BrokerTeamBaseView
 
 
 class BrokerProfileSerializer(serializers.ModelSerializer):
     completeness = serializers.SerializerMethodField()
+    place_id = serializers.IntegerField(source="place_geoname_id", required=False, allow_null=True)
     logo_upload_url = serializers.SerializerMethodField()
     cover_upload_url = serializers.SerializerMethodField()
 
@@ -39,6 +40,11 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Up to 8 short specialties.")
         return [v.strip() for v in value]
 
+    def validate(self, attrs):
+        from places.matching import apply_place_to_attrs
+
+        return apply_place_to_attrs(attrs, has_region=False)
+
     def validate_name(self, value):
         return plain_text(value)
 
@@ -52,13 +58,13 @@ class BrokerProfileSerializer(serializers.ModelSerializer):
         return phone_number(value)
 
     def validate_country_code(self, value):
-        return value.upper()
+        return service_country(value)
 
     class Meta:
         model = BrokerOrganization
         fields = (
             "id", "name", "slug", "status", "public_email", "public_phone", "website_url", "auto_approve_listings",
-            "tagline", "about", "city", "country_code", "logo_url", "cover_image_url", "specialties", "completeness",
+            "tagline", "about", "city", "place_id", "country_code", "logo_url", "cover_image_url", "specialties", "completeness",
             "logo_upload_url", "cover_upload_url",
         )
         read_only_fields = ("id", "slug", "status", "auto_approve_listings", "completeness", "logo_upload_url", "cover_upload_url")

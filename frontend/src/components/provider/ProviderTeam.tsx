@@ -21,6 +21,7 @@ interface Member {
   is_active: boolean;
 }
 
+const ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", MANAGER: "Manager", AGENT: "Agent", VIEWER: "Viewer" };
 const ROLE_HELP: Record<string, string> = {
   ADMIN: "Everything, including the team and billing.",
   MANAGER: "Edits the profile and services, reads messages.",
@@ -72,7 +73,7 @@ export default function ProviderTeam() {
     <div className="flex flex-col gap-space-lg">
       <div>
         <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / Team</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Team, roles and permissions</h1>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Team</h1>
       </div>
       {message ? (
         <p role="status" className="font-body-md">
@@ -112,14 +113,17 @@ export default function ProviderTeam() {
                   >
                     {ROLES.map((role) => (
                       <option key={role} value={role}>
-                        {role}
+                        {ROLE_LABEL[role] ?? role}
                       </option>
                     ))}
                   </select>
                   <p className="mt-1 text-on-surface-variant">{ROLE_HELP[member.role]}</p>
                 </td>
                 <td className="py-3.5 px-4 text-on-surface-variant">
-                  {[member.can_edit_profile && "Profile", member.can_manage_team && "Team", member.can_read_messages && "Messages"].filter(Boolean).join(" - ") || "Read only"}
+                  {(() => {
+                    const parts = [member.can_edit_profile && "edit the profile", member.can_manage_team && "manage the team", member.can_read_messages && "read messages"].filter(Boolean) as string[];
+                    return parts.length ? `Can ${parts.join(", ")}` : "Read only";
+                  })()}
                 </td>
                 <td className="py-3.5 px-4">
                   <label className="inline-flex items-center gap-2">

@@ -81,3 +81,102 @@ def test_services_are_scoped_to_the_owner():
     assert api.patch(url, {"is_active": False}, format="json").json()["is_active"] is False
     assert api.delete(url).status_code == 204
     assert ProfessionalProfile.objects.count() == 2
+
+
+def test_unverified_owner_can_read_but_not_change_the_profile():
+    client = APIClient()
+    client.force_authenticate(make_user(email="unver@example.com", role=UserRole.PROFESSIONAL, verified=False))
+    assert client.get(reverse("provider-profile")).status_code == 404
+    denied = client.post(reverse("provider-profile"), PROFILE, format="json")
+    assert denied.status_code == 403 and "email_not_verified" in str(denied.json())
+
+
+def test_country_outside_the_supported_markets_is_refused():
+    response = client_for(email="fr@example.com").post(reverse("provider-profile"), {**PROFILE, "country_code": "FR"}, format="json")
+    assert response.status_code == 400
+
+
+def test_category_can_be_set_on_create_and_changed_later():
+    from services_catalog.models import ProfessionalService
+
+    rigging = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-y")
+    valeting = ServiceCategory.objects.create(name_en="Valeting", slug="valeting-y")
+    api = client_for()
+
+    created = api.post(reverse("provider-profile"), {**PROFILE, "category": rigging.slug}, format="json")
+    assert created.status_code == 201
+    assert created.json()["category"] == rigging.slug
+    profile = ProfessionalProfile.objects.get()
+    assert ProfessionalService.objects.get(professional=profile).category == rigging
+
+    changed = api.patch(reverse("provider-profile"), {"category": valeting.slug}, format="json")
+    assert changed.status_code == 200
+    assert changed.json()["category"] == valeting.slug
+    # The dropdown changes the existing primary service's category in place
+    # rather than adding a second one.
+    assert ProfessionalService.objects.filter(professional=profile).count() == 1
+    assert ProfessionalService.objects.get(professional=profile).category == valeting
+
+
+def test_an_inactive_or_unknown_category_is_refused():
+    ServiceCategory.objects.create(name_en="Hidden", slug="hidden-y", is_active=False)
+    api = client_for()
+    response = api.post(reverse("provider-profile"), {**PROFILE, "category": "hidden-y"}, format="json")
+    assert response.status_code == 400
+    response = api.post(reverse("provider-profile"), {**PROFILE, "category": "does-not-exist"}, format="json")
+    assert response.status_code == 400
+
+
+def test_a_service_can_be_created_with_a_price_or_left_as_quote_on_request():
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-p")
+    api = client_for()
+    api.post(reverse("provider-profile"), PROFILE, format="json")
+
+    priced = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig inspection", "price_from": "120.00", "pricing_note": "per day"},
+        format="json",
+    )
+    assert priced.status_code == 201
+    assert priced.json()["price_from"] == "120.00"
+    assert priced.json()["pricing_note"] == "per day"
+
+    unpriced = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig advice"},
+        format="json",
+    )
+    assert unpriced.status_code == 201
+    assert unpriced.json()["price_from"] is None
+    # Left off, a service prices in EUR (customer feedback, 2026-09-25: a
+    # professional may price in EUR/USD/GBP).
+    assert unpriced.json()["currency"] == "EUR"
+
+
+def test_a_service_can_be_priced_in_usd_or_gbp_but_not_an_unsupported_currency():
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-cur")
+    api = client_for()
+    api.post(reverse("provider-profile"), PROFILE, format="json")
+
+    usd = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig inspection", "price_from": "120.00", "currency": "USD"},
+        format="json",
+    )
+    assert usd.status_code == 201 and usd.json()["currency"] == "USD"
+
+    refused = api.post(
+        reverse("provider-service-list"),
+        {"category": str(category.id), "title_en": "Rig advice", "price_from": "50.00", "currency": "JPY"},
+        format="json",
+    )
+    assert refused.status_code == 400
+
+
+def test_category_is_read_from_the_manually_added_service_when_no_dropdown_value_was_sent():
+    category = ServiceCategory.objects.create(name_en="Rigging", slug="rigging-z")
+    api = client_for()
+    api.post(reverse("provider-profile"), PROFILE, format="json")
+    assert api.get(reverse("provider-profile")).json()["category"] == ""
+    api.post(reverse("provider-service-list"), {"category": str(category.id), "title_en": "Mast"}, format="json")
+    assert api.get(reverse("provider-profile")).json()["category"] == category.slug

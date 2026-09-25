@@ -1,25 +1,27 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
-import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage } from "@/lib/api/sellerListings";
+import PromotionDialog from "@/components/promotion/PromotionDialog";
+import { deleteListing, fetchMyListings, fetchMyPaidListings, pauseListing, resumeListing, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout, cancelPromotionCheckout } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
 const FILTERS: { key: Filter; label: string; statuses: string[] }[] = [
   { key: "all", label: "All", statuses: [] },
-  { key: "active", label: "Active", statuses: ["PUBLISHED"] },
+  { key: "active", label: "Published", statuses: ["PUBLISHED"] },
   { key: "review", label: "In review", statuses: ["PENDING_APPROVAL"] },
   { key: "drafts", label: "Drafts", statuses: ["DRAFT"] },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-  PUBLISHED: "Publicly live",
+  PUBLISHED: "Published",
   PENDING_APPROVAL: "In review",
   DRAFT: "Draft",
   EXPIRED: "Expired",
+  PAUSED: "Paused",
 };
 
 const RENEW_WINDOW_MS = 7 * 24 * 3600 * 1000;
@@ -106,17 +108,65 @@ function Spec({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ListingCard({ row }: { row: MyListingRow }) {
+export function ListingCard({
+  row,
+  returnPath = "/dashboard/private-seller/listings/",
+  onDeleted,
+}: {
+  row: MyListingRow;
+  returnPath?: string;
+  /** Notifies the parent list so its own state/counters stay in sync;
+   *  the card removes itself either way. */
+  onDeleted?: (id: string) => void;
+}) {
+  const [promoting, setPromoting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteState, setDeleteState] = useState<"idle" | "busy" | "error" | "done">("idle");
+  const [pauseState, setPauseState] = useState<"idle" | "busy" | "error">("idle");
+  const featuredUntil = row.featured_until ?? null; // the API sends it only while the promotion runs
+  const promotable = row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL";
   const price = money(row);
   const location = [row.city, row.country].filter(Boolean).join(", ");
-  const heading = [row.year, row.title].filter(Boolean).join(" ");
+  // Sellers often put the year in the title themselves; do not print it twice.
+  const heading = row.year && !row.title.includes(String(row.year)) ? `${row.year} ${row.title}` : row.title;
   const published = row.status === "PUBLISHED" && row.slug;
+  const viewHref = published ? `/boats/${row.slug}/` : `/dashboard/listings/${row.id}/preview/`;
+
+  async function confirmDelete() {
+    setConfirmingDelete(false);
+    setDeleteState("busy");
+    try {
+      await deleteListing(row.id, row.version);
+      setDeleteState("done");
+      onDeleted?.(row.id);
+    } catch {
+      setDeleteState("error");
+    }
+  }
+
+  async function togglePause() {
+    setPauseState("busy");
+    try {
+      if (row.status === "PAUSED") await resumeListing(row.id, row.version);
+      else await pauseListing(row.id, row.version);
+      window.location.reload();
+    } catch {
+      setPauseState("error");
+    }
+  }
+
+  if (deleteState === "done") return null;
+
   return (
     <li className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm md:flex-row">
-      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-lg bg-surface-container-high md:w-72">
+      <Link
+        href={viewHref}
+        aria-label={published ? "View public page" : "Preview listing"}
+        className="group relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-lg bg-surface-container-high md:w-72"
+      >
         {row.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- owner-signed media URL
-          <img src={row.image_url} alt={row.title} className="h-full w-full object-cover" />
+          <img src={row.image_url} alt={row.title} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
         ) : null}
         <span className="absolute left-2 top-2 rounded bg-surface-container-lowest/90 px-2 py-0.5 font-label-sm text-label-sm text-primary">
           {STATUS_LABEL[row.status] ?? row.status}
@@ -127,7 +177,10 @@ export function ListingCard({ row }: { row: MyListingRow }) {
             {location}
           </span>
         ) : null}
-      </div>
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/0 font-label-md text-label-md text-on-primary opacity-0 transition-all group-hover:bg-primary/40 group-hover:opacity-100">
+          {published ? "View public page" : "Preview"}
+        </span>
+      </Link>
 
       <div className="flex min-w-0 flex-1 flex-col gap-space-sm">
         {row.boat_type ? (
@@ -146,6 +199,11 @@ export function ListingCard({ row }: { row: MyListingRow }) {
           <span className="material-symbols-outlined text-base" aria-hidden="true">visibility</span>
           {row.views.toLocaleString("en")} views
         </p>
+        {row.promo_impressions ? (
+          <p className="font-body-sm text-body-sm text-secondary">
+            Featured: seen {row.promo_impressions.toLocaleString("en")} times, {(row.promo_clicks ?? 0).toLocaleString("en")} clicks
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col justify-center gap-space-xs rounded-lg bg-surface-container-low p-space-md md:w-52">
@@ -155,12 +213,62 @@ export function ListingCard({ row }: { row: MyListingRow }) {
           </Link>
         ) : null}
         <Link
-          href={`/sell/${row.id}/`}
+          href={row.seller_type === "BROKER" ? `/dashboard/broker/fleet/${row.id}/` : `/sell/${row.id}/`}
           className={`rounded-lg px-space-md py-space-sm text-center font-body-md ${published ? "bg-surface-container-lowest text-primary" : "bg-primary text-on-primary hover:bg-primary-container"}`}
         >
           {row.status === "DRAFT" ? "Continue editing" : "Edit listing"}
         </Link>
+        {featuredUntil ? (
+          <p className="rounded-lg bg-secondary-container px-space-md py-space-xs text-center font-label-md text-on-secondary-container">
+            Featured until {new Date(featuredUntil).toLocaleDateString("en-GB")}
+          </p>
+        ) : null}
+        {promotable ? (
+          <button type="button" onClick={() => setPromoting(true)} className="rounded-lg bg-surface-container-lowest px-space-md py-space-sm text-center font-body-md text-primary">
+            {featuredUntil ? "Extend promotion" : "Promote this boat"}
+          </button>
+        ) : null}
+        {promoting ? (
+          <PromotionDialog
+            listingId={row.id}
+            title={row.title}
+            imageUrl={row.image_url}
+            returnPath={returnPath}
+            live={row.status === "PUBLISHED"}
+            featuredUntil={featuredUntil}
+            onSkip={() => setPromoting(false)}
+          />
+        ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
+        {row.status === "PUBLISHED" || row.status === "PAUSED" ? (
+          <button
+            type="button"
+            onClick={() => void togglePause()}
+            disabled={pauseState === "busy"}
+            className="rounded-lg border border-outline px-space-md py-space-sm text-center font-body-md text-on-surface disabled:opacity-50"
+          >
+            {row.status === "PAUSED" ? "Resume listing" : "Pause listing"}
+          </button>
+        ) : null}
+        {pauseState === "error" ? <p role="alert" className="font-body-sm text-error">This listing could not be updated.</p> : null}
+        {confirmingDelete ? (
+          <div role="dialog" aria-modal="true" aria-label="Delete this listing" className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm">
+            <p className="font-body-sm text-on-surface">Are you sure? This listing will no longer be visible.</p>
+            <div className="mt-space-xs flex flex-col gap-space-xs">
+              <button type="button" onClick={() => void confirmDelete()} className="w-full rounded-lg bg-error px-space-md py-space-xs font-label-md text-on-error">
+                Yes, delete
+              </button>
+              <button type="button" onClick={() => setConfirmingDelete(false)} className="w-full rounded-lg border border-outline px-space-md py-space-xs font-label-md text-on-surface">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setConfirmingDelete(true)} disabled={deleteState === "busy"} className="rounded-lg px-space-md py-space-sm text-center font-body-md text-error disabled:opacity-50">
+            Delete listing
+          </button>
+        )}
+        {deleteState === "error" ? <p role="alert" className="font-body-sm text-error">This listing could not be deleted.</p> : null}
       </div>
     </li>
   );
@@ -175,9 +283,13 @@ interface Props {
   fleet?: boolean;
 }
 
-function KpiCard({ label, value, note, icon, accent }: { label: string; value: string; note: string; icon: string; accent: string }) {
+function KpiCard({ label, value, note, icon, accent, onClick }: { label: string; value: string; note: string; icon: string; accent: string; onClick?: () => void }) {
   return (
-    <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden hover:shadow-md transition-shadow">
+    <button
+      type="button"
+      onClick={onClick}
+      className="bg-surface-container-lowest p-5 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden hover:shadow-md transition-shadow text-left"
+    >
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <span className="font-label-sm uppercase tracking-wider text-outline">{label}</span>
@@ -189,13 +301,13 @@ function KpiCard({ label, value, note, icon, accent }: { label: string; value: s
       </div>
       <div className="mt-4 pt-3 text-body-sm text-outline">{note}</div>
       <div className={`absolute bottom-0 left-0 right-0 h-1 ${accent}`} />
-    </div>
+    </button>
   );
 }
 
 export default function MyListings({
-  eyebrow = "Bespoke maritime portfolio",
-  heading = "My vessel listings",
+  eyebrow = "Seller area / My listings",
+  heading = "My listings",
   createHref = "/sell/create/",
   createLabel = "Create new listing",
   fleet = false,
@@ -203,6 +315,28 @@ export default function MyListings({
   const [rows, setRows] = useState<MyListingRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
+  const [checkout, setCheckout] = useState<"success" | "cancelled" | "promotion_success" | "promotion_cancelled" | null>(null);
+
+  useEffect(() => {
+    // Stripe sends the buyer back here with ?checkout=success|cancelled (payments/checkout.py)
+    // or ?promotion=success|cancelled[&listing=] (promotions/checkout.py).
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("checkout");
+    const promotion = params.get("promotion");
+    if (outcome !== "success" && outcome !== "cancelled" && promotion !== "success" && promotion !== "cancelled") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the return flag once
+    setCheckout(outcome === "success" || outcome === "cancelled" ? outcome : promotion === "success" ? "promotion_success" : "promotion_cancelled");
+    const order = params.get("order");
+    if (outcome === "cancelled" && order) void cancelCheckout(order).catch(() => undefined);
+    const listing = params.get("listing");
+    if (promotion === "cancelled" && listing) void cancelPromotionCheckout(listing).catch(() => undefined);
+    params.delete("checkout");
+    params.delete("order");
+    params.delete("promotion");
+    params.delete("listing");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,6 +369,18 @@ export default function MyListings({
 
   return (
     <section>
+      {checkout ? (
+        <p
+          role="status"
+          className={`mb-space-md rounded-lg p-space-sm font-body-md ${checkout.endsWith("success") ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
+        >
+          {checkout === "success"
+            ? "Payment received. Your paid listing is ready: create a new listing or renew one below."
+            : checkout === "promotion_success"
+              ? "Payment received. Your boat is featured as soon as Stripe confirms the payment, usually within a minute."
+              : "Checkout cancelled. Nothing was charged."}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-space-md">
         <div>
           <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">{eyebrow}</span>
@@ -247,18 +393,23 @@ export default function MyListings({
 
       {fleet && rows ? (
         <div className="mt-space-lg grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <KpiCard label="Managed vessels" value={String(rows.length)} note={`${counts.active} published`} icon="directions_boat" accent="bg-secondary" />
+          <KpiCard label="Vessels" value={String(rows.length)} note={`${counts.active} published`} icon="directions_boat" accent="bg-secondary" onClick={() => setFilter("all")} />
           <KpiCard
-            label="Published fleet value"
-            value={new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(
-              rows.filter((row) => row.status === "PUBLISHED").reduce((sum, row) => sum + (Number(row.price) || 0), 0),
+            label="Published value"
+            value={new Intl.NumberFormat("en", { style: "currency", currency: "EUR", notation: "compact", maximumFractionDigits: 1 }).format(
+              // Only EUR listings are summed - adding a USD or GBP asking
+              // price to a EUR total would be a made-up number, not a total.
+              rows
+                .filter((row) => row.status === "PUBLISHED" && (row.currency ?? "EUR") === "EUR")
+                .reduce((sum, row) => sum + (Number(row.price) || 0), 0),
             )}
-            note="Asking prices, published vessels"
+            note="Asking prices of the published vessels priced in EUR"
             icon="euro"
             accent="bg-secondary-fixed-dim"
+            onClick={() => setFilter("active")}
           />
-          <KpiCard label="In review" value={String(counts.review)} note="Awaiting staff approval" icon="assignment_turned_in" accent="bg-tertiary-fixed-dim" />
-          <KpiCard label="Drafts" value={String(counts.drafts)} note="Not yet submitted" icon="edit_note" accent="bg-outline-variant" />
+          <KpiCard label="In review" value={String(counts.review)} note="Waiting for staff approval" icon="assignment_turned_in" accent="bg-tertiary-fixed-dim" onClick={() => setFilter("review")} />
+          <KpiCard label="Drafts" value={String(counts.drafts)} note="Not yet submitted" icon="edit_note" accent="bg-outline-variant" onClick={() => setFilter("drafts")} />
         </div>
       ) : null}
 
@@ -290,7 +441,12 @@ export default function MyListings({
           </div>
           <ul className="mt-space-md flex flex-col gap-space-md">
             {visible.map((row) => (
-              <ListingCard key={row.id} row={row} />
+              <ListingCard
+                key={row.id}
+                row={row}
+                returnPath={fleet ? "/dashboard/broker/fleet/" : undefined}
+                onDeleted={(id) => setRows((current) => (current ?? []).filter((item) => item.id !== id))}
+              />
             ))}
           </ul>
         </>

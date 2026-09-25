@@ -1,4 +1,5 @@
 from datetime import timedelta
+import hashlib
 from pathlib import Path
 
 import environ
@@ -31,6 +32,9 @@ INSTALLED_APPS = [
     "accounts",
     "brokers",
     "contactdesk",
+    "places",
+    "promotions",
+    "semantic",
     "professionals",
     "services_catalog",
     "audit",
@@ -41,11 +45,13 @@ INSTALLED_APPS = [
     "entitlements",
     "messaging",
     "notifications",
+    "emailing",
     "platform_settings",
     "payments",
     "content",
     "staffops",
     "translation",
+    "uitext",
 ]
 
 MIDDLEWARE = [
@@ -143,6 +149,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "listings.tasks.cleanup_stale_media_uploads",
         "schedule": crontab(minute=10),
     },
+    "requeue-stuck-media": {
+        "task": "listings.tasks.requeue_stuck_media",
+        "schedule": crontab(minute="*/10"),
+    },
+    "translate-site-text": {
+        "task": "uitext.tasks.translate_pending_ui_text",
+        "schedule": crontab(minute="*/10"),
+    },
     "sync-openrouter-models": {
         "task": "translation.tasks.sync_openrouter_models",
         "schedule": crontab(hour=4, minute=30),
@@ -159,12 +173,20 @@ CELERY_BEAT_SCHEDULE = {
         "task": "entitlements.tasks.sweep_entitlement_ledger",
         "schedule": crontab(hour=3, minute=30),
     },
+    "sync-places": {
+        "task": "places.tasks.sync_places",
+        "schedule": crontab(hour=2, minute=30, day_of_week="sunday"),
+        "options": {"queue": "maintenance"},
+    },
     "flush-expired-jwt-tokens": {
         "task": "common.tasks.flush_expired_tokens",
         "schedule": crontab(hour=3, minute=0),
         "options": {"queue": "maintenance"},
     },
 }
+
+# Markets brokers and professionals may register in.
+SUPPORTED_COUNTRIES = env.list("SUPPORTED_COUNTRIES", default=["ES", "IT"])
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -202,7 +224,12 @@ REST_FRAMEWORK = {
         # stricter `auth` bucket would let a handful of reloads lock real people out
         # of logging in. Used by RefreshView only - see Task 10's SessionProvider.
         "auth-refresh": "30/min",
-        "services_directory": "60/min",
+        # The public services directory (categories, professional list and detail).
+        # One page view is two or three of these calls, so 60/min stalled at about
+        # twenty page views a minute per address: an office behind one NAT address,
+        # or a crawler walking the 1,500 sitemap URLs, got error pages instead of
+        # the directory. Same ceiling as `public_listing_read` for the same reason.
+        "services_directory": "300/min",
         "inquiry_submit": "20/hour",
         "messaging_read": "120/min",
         # Phase 18: notification list/read; the bell polls on reconnect only.
@@ -239,6 +266,7 @@ REST_FRAMEWORK = {
         "finance_quote": "120/min",
         "checkout_create": "30/min",
         "contact_request": "10/hour",
+        "promo_event": "1200/hour",
         # Eligibility is polled on every Sell/dashboard/create render (spec
         # §22.2 names five evaluation points), so it is sized like a page-load
         # endpoint rather than like the `auth` bucket. It is authenticated and
@@ -344,6 +372,14 @@ CORS_ALLOW_CREDENTIALS = True
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+# Where every public form (contact page, financing study) is announced to the team.
+CONTACT_NOTIFY_EMAIL = env("CONTACT_NOTIFY_EMAIL", default="info@nautelo.com")
+
+# ZeptoMail (emailing.backend.ZeptoMailBackend): point EMAIL_BACKEND at that
+# class to send through it. Empty by default so a deployment that hasn't set
+# up ZeptoMail yet fails loudly at send time rather than silently dropping mail.
+ZEPTOMAIL_API_KEY = env("ZEPTOMAIL_API_KEY", default="")
+ZEPTOMAIL_API_URL = env("ZEPTOMAIL_API_URL", default="https://api.zeptomail.eu/v1.1/email")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
@@ -352,3 +388,19 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Natural-language boat search: open-source multilingual embeddings running on the CPU (see docs/semantic-search.md).
+SEMANTIC_EMBEDDER = env("SEMANTIC_EMBEDDER", default="fastembed")  # "hash" keeps tests offline
+SEMANTIC_MODEL = env("SEMANTIC_MODEL", default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+SEMANTIC_CACHE_DIR = env("SEMANTIC_CACHE_DIR", default="")
+
+# Site text (every word of the interface, editable in the admin). The English source is one JSON file in the frontend repo;
+# the Docker image carries a copy next to manage.py.
+_UITEXT_IMAGE_COPY = BASE_DIR / "ui_source.en.json"
+UITEXT_SOURCE_FILE = _UITEXT_IMAGE_COPY if _UITEXT_IMAGE_COPY.exists() else BASE_DIR.parent / "frontend" / "src" / "i18n" / "source.en.json"
+_UITEXT_SEED_COPY = BASE_DIR / "ui_seed.json"
+UITEXT_SEED_FILE = _UITEXT_SEED_COPY if _UITEXT_SEED_COPY.exists() else BASE_DIR.parent / "frontend" / "src" / "i18n" / "seed.json"
+# Publishing tells the site to drop its cached text right away (optional; the site's own cache also expires in a minute).
+# The token is derived from the secret both sides already share, so no new secret has to be set anywhere.
+UITEXT_REVALIDATE_URL = env("UITEXT_REVALIDATE_URL", default="http://web:3000/api/revalidate-ui-text/" if env("DEPLOY_ENVIRONMENT", default="") else "")
+UITEXT_REVALIDATE_TOKEN = hashlib.sha256(f"uitext:{INTERNAL_SERVICE_SECRET}".encode()).hexdigest()

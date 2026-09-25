@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from django.utils.cache import patch_vary_headers
@@ -29,6 +30,8 @@ from .decisions import (
 )
 from .staff_queue import TABS, queue_rows, revision_detail
 from .media_upgrade import apply_media_upgrade
+from .deletion import delete_listing
+from .pausing import pause_listing, resume_listing
 from .renewal import renew_listing
 from .media_uploads import complete_upload, create_upload_intent, remove_media
 from .drafts import create_listing_draft, update_listing_draft
@@ -152,6 +155,69 @@ class ListingWithdrawView(ListingSubmitView):
         envelope = ListingVersionSerializer(data=request.data)
         envelope.is_valid(raise_exception=True)
         withdraw_listing_revision(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingDeleteView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/delete/ - owner-initiated soft delete.
+
+    Inherits the draft view's permission stack and `get_listing` (owner or
+    broker editor). Callable from any workflow state, unlike withdraw.
+    """
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        delete_listing(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingPauseView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/pause/ - owner-initiated pause.
+
+    Unlike delete, the listing stays visible on the owner's own dashboard;
+    it only drops out of public read paths (those only ever serve
+    status=PUBLISHED). Only a PUBLISHED listing can be paused.
+    """
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        pause_listing(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingResumeView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/resume/ - the PAUSED -> PUBLISHED return edge."""
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        resume_listing(
             listing=listing,
             actor=request.user,
             expected_version=envelope.validated_data["version"],
@@ -286,7 +352,9 @@ def published_listings_queryset() -> QuerySet[BoatListing]:
     """
     return (
         BoatListing.objects.filter(
-            status=ListingStatus.PUBLISHED, current_public_snapshot__isnull=False
+            status=ListingStatus.PUBLISHED,
+            current_public_snapshot__isnull=False,
+            deleted_at__isnull=True,
         )
         .select_related("current_public_snapshot", "broker")
         .order_by("-published_at", "-created_at")
@@ -326,19 +394,94 @@ class PublicListingListView(PublicListingReadView, ListAPIView):
 
     pagination_class = PublicListingPagination
 
+    def _semantic(self):
+        """(query, parsed) when the caller asked for a natural-language search, else None."""
+        if not hasattr(self, "_semantic_cache"):
+            params = self.request.query_params
+            query = (params.get("query") or "").strip()[:300]
+            if params.get("mode") == "semantic" and query:
+                from semantic.parse import parse_query
+
+                self._semantic_cache = (query, parse_query(query))
+            else:
+                self._semantic_cache = None
+        return self._semantic_cache
+
     def get_queryset(self):
         queryset = super().get_queryset()
         broker = self.request.query_params.get("broker", "").strip()
         if broker:
             queryset = queryset.filter(broker__slug=broker)
-        return apply_public_filters(queryset, self.request.query_params)
+        params = self.request.query_params
+        semantic = self._semantic()
+        if semantic is None:
+            return apply_public_filters(queryset, params)
+        query, parsed = semantic
+        merged = params.copy()
+        for key, value in parsed.filters.items():
+            if not merged.get(key):  # a filter the visitor set by hand wins over the sentence
+                merged[key] = value
+        base = queryset
+        queryset = apply_public_filters(base, merged)
+        self._relaxed = []
+        if not queryset.exists():
+            # No boat matches every detail: keep place, price and length, and let type and cabins go before saying "nothing".
+            for dropped in (("cabins", "cabins_min"), ("boat_type", "cabins", "cabins_min")):
+                loose = merged.copy()
+                gone = [key for key in dropped if key in parsed.filters and loose.get(key) == parsed.filters[key]]
+                for key in gone:
+                    del loose[key]
+                if not gone:
+                    continue
+                candidate = apply_public_filters(base, loose)
+                if candidate.exists():
+                    queryset, self._relaxed = candidate, gone
+                    break
+        from semantic.search import rank
+
+        return rank(queryset, query, parsed)[0]
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        semantic = self._semantic()
+        if semantic is not None and isinstance(response.data, dict):
+            response.data["interpretation"] = {
+                "labels": semantic[1].labels,
+                "filters": semantic[1].filters,
+                "relaxed": getattr(self, "_relaxed", []),
+            }
+        return response
+
+
+FACETS_CACHE_KEY = "listings:public_facets"
+# Every visitor gets the same response (no personalization, no locale variance —
+# BOAT_TYPES/FUEL_TYPES are plain enum values); a short TTL trades a few minutes of
+# staleness on newly published brands/locations for skipping facets()'s several
+# distinct/group-by queries on every /boats/ page load.
+FACETS_CACHE_TTL_SECONDS = 180
 
 
 class PublicListingFacetsView(PublicListingReadView, APIView):
-    """GET /api/v1/listings/facets/ - distinct filter choices for the boat filter panel."""
+    """GET /api/v1/listings/facets/ - distinct filter choices for the boat filter panel.
+
+    With no query params (the home page's first paint), the response is the
+    platform-wide totals and is cached, as before. Called WITH the caller's
+    current filters (the /boats/ page, once a boat_type/price/etc. is
+    active), each facet excludes only its own dimension so a shown count
+    still reflects every other already-active filter — otherwise a city
+    could promise boats that filter combination does not actually have.
+    """
 
     def get(self, request):
-        return Response(facets(published_listings_queryset()))
+        params = request.query_params
+        if not params:
+            cached = cache.get(FACETS_CACHE_KEY)
+            if cached is not None:
+                return Response(cached)
+            data = facets(published_listings_queryset())
+            cache.set(FACETS_CACHE_KEY, data, FACETS_CACHE_TTL_SECONDS)
+            return Response(data)
+        return Response(facets(published_listings_queryset(), params))
 
 
 class PublicListingDetailView(PublicListingReadView, RetrieveAPIView):

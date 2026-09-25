@@ -9,6 +9,13 @@ import {
   type EntitlementRow,
 } from "@/lib/api/staffEntitlements";
 
+/** "PAID_LISTING" -> "Paid listing": the ledger is read by people, the enum by the API. */
+function words(value: string | null | undefined): string {
+  if (!value) return "—";
+  const text = value.toLowerCase().replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export default function EntitlementLedger() {
   const [userFilter, setUserFilter] = useState("");
   const [rows, setRows] = useState<EntitlementRow[] | null>(null);
@@ -20,7 +27,7 @@ export default function EntitlementLedger() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchEntitlements({ user: userFilter.trim() || undefined })
+    fetchEntitlements({ email: userFilter.trim() || undefined })
       .then((page) => {
         if (!cancelled) setRows(page.results);
       })
@@ -51,14 +58,15 @@ export default function EntitlementLedger() {
   return (
     <section className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff Admin / Sales</span>
+        <span className="font-label-sm uppercase tracking-widest text-secondary font-semibold">Staff / Entitlements</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Entitlement ledger</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">Listing rights and media upgrades: grant, revoke and restore with an audited reason.</p>
       </div>
       <label className="block rounded-xl bg-surface-container-lowest p-space-md shadow-sm font-label-sm uppercase text-on-surface-variant">
-        Filter by user id
+        Filter by user e-mail
         <input
           className="ml-space-xs rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md text-primary focus:outline-none"
+          placeholder="part of an e-mail address"
           value={userFilter}
           onChange={(event) => setUserFilter(event.target.value)}
         />
@@ -69,13 +77,13 @@ export default function EntitlementLedger() {
         onSubmit={(event) => {
           event.preventDefault();
           void act(() =>
-            grantEntitlement({ user_id: grantUser, entitlement_type: grantType, reason: grantReason }),
+            grantEntitlement({ user_email: grantUser.trim(), entitlement_type: grantType, reason: grantReason }),
           );
         }}
       >
         <label className="font-label-sm uppercase text-on-surface-variant">
-          User id
-          <input className="ml-space-xs rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md text-primary focus:outline-none" value={grantUser} onChange={(e) => setGrantUser(e.target.value)} required />
+          User e-mail
+          <input type="email" className="ml-space-xs rounded-lg bg-surface-container-low px-space-sm py-2 font-body-md text-primary focus:outline-none" value={grantUser} onChange={(e) => setGrantUser(e.target.value)} required />
         </label>
         <label className="font-label-sm uppercase text-on-surface-variant">
           Type
@@ -104,6 +112,7 @@ export default function EntitlementLedger() {
             <thead className="bg-surface-container-low text-on-surface-variant font-label-sm uppercase tracking-wider">
               <tr>
                 <th scope="col" className="py-3 px-4">User</th>
+                <th scope="col" className="py-3 px-4">Listing</th>
                 <th scope="col" className="py-3 px-4">Type</th>
                 <th scope="col" className="py-3 px-4">Source</th>
                 <th scope="col" className="py-3 px-4">State</th>
@@ -113,10 +122,17 @@ export default function EntitlementLedger() {
             <tbody className="divide-y divide-surface-container">
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-surface-container-low/50 transition-colors">
-                  <td className="py-3.5 px-4 font-spec-num text-primary">{row.user_id}</td>
-                  <td className="py-3.5 px-4">{row.entitlement_type}</td>
-                  <td className="py-3.5 px-4">{row.source}</td>
-                  <td className="py-3.5 px-4">{row.state}</td>
+                  <td className="py-3.5 px-4 text-primary">
+                    {row.user_email ? (
+                      <span title={row.user_id}>{row.user_email}</span>
+                    ) : (
+                      <span className="font-spec-num">{row.user_id}</span>
+                    )}
+                  </td>
+                  <td className="py-3.5 px-4 text-on-surface-variant">{row.listing_label || (row.listing_id ? <span className="font-spec-num">{row.listing_id}</span> : "—")}</td>
+                  <td className="py-3.5 px-4">{words(row.entitlement_type)}</td>
+                  <td className="py-3.5 px-4">{words(row.source)}</td>
+                  <td className="py-3.5 px-4">{words(row.state)}</td>
                   <td className="py-3.5 px-4">
                     <div className="flex justify-end gap-space-sm">
                       {row.state === "AVAILABLE" ? (

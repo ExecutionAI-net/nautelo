@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import {
@@ -71,26 +71,14 @@ export default function ModerationQueue({ onCounts }: { onCounts?: (pending: num
 
   return (
     <section>
-      <span className="font-label-sm uppercase tracking-widest text-secondary">Moderation / Registry control</span>
+      <span className="font-label-sm uppercase tracking-widest text-secondary">Staff / Moderation</span>
       <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">Moderation queue</h1>
-      {counts ? (
-        <dl className="mt-space-md grid grid-cols-2 gap-space-md lg:grid-cols-5" aria-label="Queue totals">
-          {QUEUE_TABS.map((key) => (
-            <div key={key} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
-              <dt className="font-label-sm uppercase tracking-wider text-on-surface-variant">{TAB_LABEL[key]}</dt>
-              <dd className="mt-space-xs font-headline-lg text-headline-lg text-primary">{counts[key]}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      <p className="mt-space-md">
-        <Link href="/dashboard/staff/taxonomy/" className="font-body-md text-primary underline">
-          Other-model queue
+      <p className="mt-space-xs max-w-3xl font-body-md text-on-surface-variant">
+        Listings waiting for a decision, oldest first. Listings that name a model outside the catalogue are in the{" "}
+        <Link href="/dashboard/staff/taxonomy/" className="text-primary underline">
+          other-model queue
         </Link>
-        {" · "}
-        <Link href="/dashboard/staff/entitlements/" className="font-body-md text-primary underline">
-          Entitlement ledger
-        </Link>
+        .
       </p>
       <div role="tablist" aria-label="Queue tabs" className="mt-space-md flex flex-wrap gap-space-sm">
         {QUEUE_TABS.map((key) => (

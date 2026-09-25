@@ -11,8 +11,8 @@ class UserAdmin(DjangoUserAdmin):
     form = AdminUserChangeForm
     add_form = AdminUserCreationForm
     model = User
-    ordering = ("email",)
-    list_display = ("email", "full_name", "primary_role", "is_active", "email_verified_at")
+    ordering = ("-created_at",)
+    list_display = ("email", "full_name", "primary_role", "is_active", "email_verified_at", "created_at")
     list_filter = ("primary_role", "is_active", "is_staff", "is_superuser", "locale")
     search_fields = ("email", "full_name")
     readonly_fields = ("id", "created_at", "updated_at", "last_login")

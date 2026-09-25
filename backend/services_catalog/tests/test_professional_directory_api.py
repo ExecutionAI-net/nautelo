@@ -1,15 +1,19 @@
+from datetime import timedelta
+
 import pytest
-from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.enums import UserRole
 from accounts.tests.factories import make_user
-from platform_settings.models import FeatureFlag
-from platform_settings.services import feature_flag_cache_key
 from professionals.enums import ProfessionalProfileStatus
+from professionals.models import ProfessionalProfile
 from professionals.tests.factories import make_professional
-from services_catalog.permissions import COMBINED_DIRECTORY_FLAG
-from services_catalog.tests.factories import make_professional_service, make_service_category
+from services_catalog.tests.factories import (
+    disable_combined_directory,
+    make_professional_service,
+    make_service_category,
+)
 
 # No autouse cache fixture here: the project-root backend/conftest.py clears the
 # whole cache around every test in the suite — both the feature-flag value and
@@ -157,6 +161,81 @@ def test_location_matches_city_region_or_an_exact_service_area_entry():
 
 
 @pytest.mark.django_db
+def test_country_filter_returns_only_professionals_in_that_country():
+    build_professional("es@example.com", slug="es-pro", display_name="ES Pro", country_code="ES")
+    build_professional("it@example.com", slug="it-pro", display_name="IT Pro", country_code="IT")
+
+    response = APIClient().get("/api/v1/professionals/", {"country": "es"})
+
+    assert [r["slug"] for r in response.data["results"]] == ["es-pro"]
+    facets = response.data["facets"]
+    assert facets["countries"] == {"ES": 1, "IT": 1}
+
+
+@pytest.mark.django_db
+def test_place_id_filters_exactly_and_only_geocoded_professionals_reach_the_location_facet():
+    palma = build_professional(
+        "p1@example.com",
+        slug="palma-pro",
+        display_name="Palma Pro",
+        city="Palma de Mallorca",
+        country_code="ES",
+        place_geoname_id=3128760,
+    )
+    # Free text only, never run through the standard place picker - still
+    # counts toward its country, but must not appear as a fake city choice.
+    build_professional(
+        "g1@example.com",
+        slug="genoa-pro",
+        display_name="Genoa Pro",
+        city="Genoa",
+        country_code="IT",
+    )
+
+    client = APIClient()
+    url = "/api/v1/professionals/"
+    assert [r["slug"] for r in client.get(url, {"place": "3128760"}).data["results"]] == ["palma-pro"]
+    assert client.get(url, {"place": "999999"}).data["results"] == []
+
+    facets = client.get(url).data["facets"]
+    assert facets["locations"] == [{"country": "ES", "place_id": 3128760, "city": "Palma de Mallorca", "count": 1}]
+
+
+@pytest.mark.django_db
+def test_country_and_category_facets_respect_each_others_currently_applied_filter():
+    # Reproduces the reported bug: Croatia showed "(7)" next to it even though
+    # only 1 of those 7 professionals actually offers "Full brokerage" -
+    # picking that specialization must narrow the country counts to match.
+    legal = make_service_category(slug="legal-test", name_en="Legal")
+    brokerage = make_service_category(slug="full-brokerage-test", name_en="Full brokerage")
+
+    hr_broker = build_professional("hr-b@example.com", slug="hr-broker", display_name="HR Broker", country_code="HR")
+    make_professional_service(hr_broker, brokerage, title_en="Full brokerage service")
+    for i in range(6):
+        pro = build_professional(f"hr-l{i}@example.com", slug=f"hr-legal-{i}", display_name=f"HR Legal {i}", country_code="HR")
+        make_professional_service(pro, legal, title_en="Legal advice")
+
+    es_broker = build_professional("es-b@example.com", slug="es-broker", display_name="ES Broker", country_code="ES")
+    make_professional_service(es_broker, brokerage, title_en="Full brokerage service")
+
+    client = APIClient()
+    url = "/api/v1/professionals/"
+
+    # Unfiltered: Croatia's grand total is 7, both categories show their own total.
+    facets = client.get(url).data["facets"]
+    assert facets["countries"]["HR"] == 7
+    assert facets["categories"] == {"legal-test": 6, "full-brokerage-test": 2}
+
+    # Selecting a category narrows the COUNTRY counts to that category alone.
+    facets = client.get(url, {"category": "full-brokerage-test"}).data["facets"]
+    assert facets["countries"] == {"HR": 1, "ES": 1}
+
+    # Selecting a country narrows the CATEGORY counts to that country alone.
+    facets = client.get(url, {"country": "HR"}).data["facets"]
+    assert facets["categories"] == {"legal-test": 6, "full-brokerage-test": 1}
+
+
+@pytest.mark.django_db
 def test_recommended_sort_puts_broader_catalogues_first_then_alphabetical():
     legal = make_service_category(slug="legal-test", name_en="Legal")
     insurance = make_service_category(slug="insurance-test", name_en="Insurance")
@@ -175,6 +254,48 @@ def test_recommended_sort_puts_broader_catalogues_first_then_alphabetical():
 
     assert recommended == ["zeta-broad", "alpha-narrow"]
     assert alphabetical == ["alpha-narrow", "zeta-broad"]
+
+
+@pytest.mark.django_db
+def test_name_sort_can_go_either_direction():
+    build_professional("b@example.com", slug="zeta-co", display_name="Zeta Co")
+    build_professional("s@example.com", slug="alpha-co", display_name="Alpha Co")
+    client = APIClient()
+
+    asc = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "name_asc"}).data["results"]]
+    desc = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "name_desc"}).data["results"]]
+
+    assert asc == ["alpha-co", "zeta-co"]
+    assert desc == ["zeta-co", "alpha-co"]
+
+
+@pytest.mark.django_db
+def test_newest_and_oldest_sort_by_when_the_profile_was_created():
+    old = build_professional("o@example.com", slug="old-co", display_name="Old Co")
+    ProfessionalProfile.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=10))
+    build_professional("n@example.com", slug="new-co", display_name="New Co")
+    client = APIClient()
+
+    newest = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "newest"}).data["results"]]
+    oldest = [r["slug"] for r in client.get("/api/v1/professionals/", {"sort": "oldest"}).data["results"]]
+
+    assert newest == ["new-co", "old-co"]
+    assert oldest == ["old-co", "new-co"]
+
+
+@pytest.mark.django_db
+def test_a_service_reports_its_price_or_quote_on_request():
+    legal = make_service_category(slug="legal-test", name_en="Legal")
+    pro = build_professional("pr@example.com", slug="priced-pro", display_name="Priced Pro")
+    make_professional_service(pro, legal, title_en="Sale contract review", price_from="150.00", pricing_note="per contract")
+    make_professional_service(pro, legal, title_en="Free consult", price_from=None)
+
+    services = APIClient().get(f"/api/v1/professionals/{pro.slug}/").data["services"]
+    by_title = {service["title"]: service for service in services}
+
+    assert by_title["Sale contract review"]["price_from"] == "150.00"
+    assert by_title["Sale contract review"]["pricing_note"] == "per contract"
+    assert by_title["Free consult"]["price_from"] is None
 
 
 @pytest.mark.django_db
@@ -238,7 +359,6 @@ def test_an_empty_directory_returns_an_empty_result_set_not_an_error():
 
 @pytest.mark.django_db
 def test_the_directory_404s_when_the_rollout_flag_is_off():
-    FeatureFlag.objects.filter(key=COMBINED_DIRECTORY_FLAG).update(is_enabled=False)
-    cache.delete(feature_flag_cache_key(COMBINED_DIRECTORY_FLAG))
+    disable_combined_directory()
 
     assert APIClient().get("/api/v1/professionals/").status_code == 404

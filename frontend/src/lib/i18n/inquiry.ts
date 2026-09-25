@@ -20,6 +20,11 @@ export const INQUIRY_MESSAGES: Record<string, Translations> = {
     es: "Enviar un mensaje",
   },
   "inquiry.full_name": { en: "Full name", it: "Nome completo", es: "Nombre completo" },
+  "inquiry.guest_hint": {
+    en: "You will be asked to sign in or create a free account before the message is sent. What you write here is kept for you.",
+    it: "Ti verrà chiesto di accedere o creare un account gratuito prima dell'invio. Quello che scrivi qui viene conservato.",
+    es: "Se te pedirá iniciar sesión o crear una cuenta gratuita antes de enviar. Lo que escribas aquí se guarda.",
+  },
   "inquiry.email_hint": {
     // Spec 15.1's "Update in account". Rendered as text, not a link, until an
     // /account/ page exists - see the comment at its render site.
@@ -50,18 +55,18 @@ export const INQUIRY_MESSAGES: Record<string, Translations> = {
     es: "Acepto la política de privacidad (versión {version}).",
   },
   "inquiry.marketing_consent": {
-    en: "Send me occasional updates from NAUTA.",
-    it: "Inviami aggiornamenti occasionali da NAUTA.",
-    es: "Enviarme novedades ocasionales de NAUTA.",
+    en: "Send me occasional updates from Nautelo.",
+    it: "Inviami aggiornamenti occasionali da Nautelo.",
+    es: "Enviarme novedades ocasionales de Nautelo.",
   },
   "inquiry.sending": { en: "Sending…", it: "Invio…", es: "Enviando…" },
   // Rendered wherever a message's `sender.display_name` is the empty string -
   // which is what the backend stores for a replier whose account has no name,
   // rather than leaking their email address. Phase 19's thread UI consumes it.
   "inquiry.sender_unnamed": {
-    en: "A NAUTA user",
-    it: "Un utente NAUTA",
-    es: "Un usuario de NAUTA",
+    en: "A Nautelo user",
+    it: "Un utente Nautelo",
+    es: "Un usuario de Nautelo",
   },
   "inquiry.sign_in_to_send": {
     en: "Sign in to send",

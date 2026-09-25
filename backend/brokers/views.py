@@ -267,6 +267,7 @@ class BrokerSubscriptionView(BrokerTeamBaseView):
                 "trial_available": trial_available(broker),
                 "trial_days": plan.trial_days if plan else 0,
                 "past_due_since": subscription.past_due_since if subscription else None,
+                "cancel_at_period_end": bool(subscription and subscription.cancel_at_period_end),
                 "plan": (
                     {"name": plan.name, "monthly_price": str(plan.monthly_price), "currency": plan.currency}
                     if plan
@@ -277,9 +278,14 @@ class BrokerSubscriptionView(BrokerTeamBaseView):
 
     def post(self, request, broker_id):
         from brokers.billing import create_subscription_checkout
+        from payments.checkout import checkout_locale
 
         return Response(
-            {"checkout_url": create_subscription_checkout(broker=self.get_broker())},
+            {
+                "checkout_url": create_subscription_checkout(
+                    broker=self.get_broker(), customer_email=request.user.email, locale=checkout_locale(request.user)
+                )
+            },
             status=status.HTTP_201_CREATED,
         )
 

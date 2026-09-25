@@ -10,7 +10,7 @@ export default function StaffServiceRequestsPage() {
       <RequirePermission permission="configure_products_and_settings">
         <StaffDataTable
           title="Service requests"
-          eyebrow="Staff Admin / Inquiries"
+          eyebrow="Staff / Service requests"
           endpoint="/api/v1/staff/service-requests/"
           columns={[
             { key: "subject", label: "Subject" },

@@ -53,6 +53,7 @@ CONTENT_FIELDS = frozenset(
         "location_country",
         "location_region",
         "location_city",
+        "location_place_id",
         "price",
         "currency",
         "media_ids",
@@ -231,6 +232,24 @@ def _reject_disallowed_fields(errors, payload, *, listing, allowed):
             errors[field] = _error("Unknown field.", "unknown_field")
 
 
+def _apply_place(errors, cleaned, raw):
+    """A picked place fixes country, region and city to the canonical (English) names."""
+    from places.models import City
+
+    if raw in (None, ""):
+        cleaned["location_place_id"] = None
+        return
+    try:
+        city = City.objects.select_related("region").get(geoname_id=int(raw))
+    except (ValueError, TypeError, City.DoesNotExist):
+        errors["location_place_id"] = _error("Choose a place from the list.", "invalid_place")
+        return
+    cleaned["location_place_id"] = city.geoname_id
+    cleaned["location_country"] = city.country_code
+    cleaned["location_region"] = city.region.name_en if city.region else ""
+    cleaned["location_city"] = city.name_en
+
+
 def validate_revision_payload(
     payload: dict, *, listing: BoatListing, origin: str, for_submission: bool
 ) -> dict:
@@ -273,6 +292,12 @@ def validate_revision_payload(
             errors["location_country"] = _error(
                 "Enter a two-letter ISO-3166-1 country code.", "invalid_country"
             )
+
+    if present("location_place_id"):
+        _apply_place(errors, cleaned, payload["location_place_id"])
+    elif present("location_city") or present("location_region"):
+        # Free text no longer matches the picked place, so forget the place.
+        cleaned["location_place_id"] = None
 
     if present("specifications"):
         value = _clean_specifications(errors, payload["specifications"])

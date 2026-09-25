@@ -39,6 +39,8 @@ def test_a_user_reads_their_own_account(api):
     assert response.data["id"] == str(user.pk)
     assert response.data["full_name"] == "Me Myself"
     assert response.data["primary_role"] == UserRole.PRIVATE_SELLER
+    assert response.data["phone_number"] == ""
+    assert response.data["newsletter_opt_in"] is False
     assert "password" not in response.data
 
 
@@ -55,6 +57,37 @@ def test_a_user_can_update_their_name_and_locale(api):
     user.refresh_from_db()
     assert user.full_name == "Nuevo Nombre"
     assert user.locale == Locale.ES
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("role", [UserRole.PRIVATE_SELLER, UserRole.BROKER, UserRole.PROFESSIONAL])
+def test_a_user_can_add_a_personal_phone_number_regardless_of_role(api, role):
+    user = make_user(f"phone-{role.lower()}@example.com", role=role)
+    _authenticate(api, user)
+
+    response = api.patch(ACCOUNT_URL, {"phone_number": "+34 600 000 000"}, format="json")
+
+    assert response.status_code == 200
+    assert response.data["phone_number"] == "+34 600 000 000"
+    user.refresh_from_db()
+    assert user.phone_number == "+34 600 000 000"
+
+
+@pytest.mark.django_db
+def test_a_user_can_change_their_newsletter_opt_in_later(api):
+    user = make_user("changeable@example.com")
+    _authenticate(api, user)
+
+    on = api.patch(ACCOUNT_URL, {"newsletter_opt_in": True}, format="json")
+    assert on.status_code == 200
+    assert on.data["newsletter_opt_in"] is True
+    user.refresh_from_db()
+    assert user.newsletter_opt_in is True
+
+    off = api.patch(ACCOUNT_URL, {"newsletter_opt_in": False}, format="json")
+    assert off.status_code == 200
+    user.refresh_from_db()
+    assert user.newsletter_opt_in is False
 
 
 @pytest.mark.django_db

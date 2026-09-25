@@ -284,7 +284,7 @@ def test_an_unsupported_currency_is_rejected():
 
     with pytest.raises(ValidationError) as exc_info:
         validate_revision_payload(
-            {"currency": "USD"}, listing=listing,
+            {"currency": "JPY"}, listing=listing,
             origin=RevisionOrigin.OWNER, for_submission=False,
         )
 
@@ -421,3 +421,32 @@ def test_a_complete_payload_passes_submission_validation():
     assert cleaned["title_en"] == "Oceanis 46.1, one owner"
     assert cleaned["location_country"] == "IT"
     assert SPECIFICATIONS_SCHEMA_VERSION == 1
+
+
+@pytest.mark.django_db
+def test_a_picked_place_fixes_country_region_and_city():
+    from places.importer import load_cities, load_regions
+
+    regions = load_regions(["IT.07\tLiguria\tLiguria\t3174725\n"], {"IT"})
+    load_cities(["3176219\tGenoa\tGenoa\tGenova\t44.4\t8.9\tP\tPPLA\tIT\t\t07\t\t\t\t580223\t\t19\tEurope/Rome\t2024-01-01\n"], {"IT"}, regions)
+    listing = make_private_listing(owner=make_user(email=OWNER_EMAIL))
+
+    cleaned = validate_revision_payload(
+        {"location_place_id": 3176219, "location_city": "genova", "location_country": "FR"},
+        listing=listing,
+        origin=RevisionOrigin.OWNER,
+        for_submission=False,
+    )
+
+    assert (cleaned["location_country"], cleaned["location_region"], cleaned["location_city"]) == ("IT", "Liguria", "Genoa")
+    assert cleaned["location_place_id"] == 3176219
+
+
+@pytest.mark.django_db
+def test_an_unknown_place_is_refused_and_free_text_forgets_the_place():
+    listing = make_private_listing(owner=make_user(email=OWNER_EMAIL))
+    with pytest.raises(ValidationError) as exc_info:
+        validate_revision_payload({"location_place_id": 1}, listing=listing, origin=RevisionOrigin.OWNER, for_submission=False)
+    assert _codes(exc_info, "location_place_id") == ["invalid_place"]
+    cleaned = validate_revision_payload({"location_city": "Somewhere"}, listing=listing, origin=RevisionOrigin.OWNER, for_submission=False)
+    assert cleaned["location_place_id"] is None

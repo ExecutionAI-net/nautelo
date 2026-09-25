@@ -18,44 +18,67 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
+from emailing.services import render_email
 from notifications.copy import text_for
 from notifications.enums import DeliveryChannel, DeliveryStatus, NotificationType
 from notifications.models import Notification, NotificationDelivery
 
+#: Maps a NotificationType to the emailing.models.TEMPLATE_KEYS entry a staff
+#: editor can author HTML for. A type absent here (there are none today, but a
+#: newly appended NotificationType starts absent until someone adds it) simply
+#: never gets an HTML version - the plain-text body below still sends.
+TEMPLATE_KEY_BY_TYPE = {
+    NotificationType.INQUIRY_RECEIVED: "new_message",
+    NotificationType.LISTING_SUBMISSION_RECEIVED: "listing_submission_received",
+    NotificationType.LISTING_APPROVED: "listing_approved",
+    NotificationType.LISTING_CHANGES_REQUESTED: "listing_changes_requested",
+    NotificationType.LISTING_REJECTED: "listing_rejected",
+    NotificationType.LISTING_EXPIRING: "listing_expiring",
+    NotificationType.LISTING_EXPIRED: "listing_expired",
+    NotificationType.BROKER_TRIAL_STARTED: "broker_trial_started",
+    NotificationType.BROKER_PAYMENT_FAILED: "broker_payment_failed",
+    NotificationType.BROKER_SUSPENDED: "broker_suspended",
+    NotificationType.PAYMENT_FULFILLED: "payment_fulfilled",
+    NotificationType.PROFESSIONAL_ACTIVATED: "professional_activated",
+    NotificationType.PROFESSIONAL_PAYMENT_FAILED: "professional_payment_failed",
+    NotificationType.PROFESSIONAL_DEACTIVATED: "professional_deactivated",
+    NotificationType.PAYMENT_FULFILLMENT_FAILED: "payment_fulfillment_failed",
+}
+
 logger = logging.getLogger(__name__)
 
 SUBJECTS = {
-    "EN": "New message on NAUTA",
-    "IT": "Nuovo messaggio su NAUTA",
-    "ES": "Nuevo mensaje en NAUTA",
+    "EN": "New message on Nautelo",
+    "IT": "Nuovo messaggio su Nautelo",
+    "ES": "Nuevo mensaje en Nautelo",
 }
 # Used when the sender's account carries no name. Never their email address:
 # messaging._reply_display_name deliberately stores "" rather than letting
 # User.get_full_name()'s `full_name or email` fallback leak an address into a
 # message another party reads. Per-locale, not a concatenated literal (spec 37).
 SENDER_FALLBACK = {
-    "EN": "A NAUTA user",
-    "IT": "Un utente NAUTA",
-    "ES": "Un usuario de NAUTA",
+    "EN": "A Nautelo user",
+    "IT": "Un utente Nautelo",
+    "ES": "Un usuario de Nautelo",
 }
 BODIES = {
     "EN": (
-        "{sender} sent you a message about {context} on NAUTA.\n\n"
+        "{sender} sent you a message about {context} on Nautelo.\n\n"
         "{excerpt}\n\n"
-        "Read and reply on NAUTA:\n{url}\n\n"
-        "Reply through NAUTA so the conversation stays on the platform."
+        "Read and reply on Nautelo:\n{url}\n\n"
+        "Reply through Nautelo so the conversation stays on the platform."
     ),
     "IT": (
-        "{sender} ti ha inviato un messaggio su {context} tramite NAUTA.\n\n"
+        "{sender} ti ha inviato un messaggio su {context} tramite Nautelo.\n\n"
         "{excerpt}\n\n"
-        "Leggi e rispondi su NAUTA:\n{url}\n\n"
-        "Rispondi tramite NAUTA per mantenere la conversazione sulla piattaforma."
+        "Leggi e rispondi su Nautelo:\n{url}\n\n"
+        "Rispondi tramite Nautelo per mantenere la conversazione sulla piattaforma."
     ),
     "ES": (
-        "{sender} te ha enviado un mensaje sobre {context} en NAUTA.\n\n"
+        "{sender} te ha enviado un mensaje sobre {context} en Nautelo.\n\n"
         "{excerpt}\n\n"
-        "Lee y responde en NAUTA:\n{url}\n\n"
-        "Responde a traves de NAUTA para mantener la conversacion en la plataforma."
+        "Lee y responde en Nautelo:\n{url}\n\n"
+        "Responde a traves de Nautelo para mantener la conversacion en la plataforma."
     ),
 }
 
@@ -104,6 +127,23 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
         subject, summary = generic
         body = f"{summary}\n\n{url}"
 
+    html_body = None
+    template_key = TEMPLATE_KEY_BY_TYPE.get(notification.notification_type)
+    if template_key is not None:
+        context = (
+            {
+                "sender": payload.get("sender_display_name") or SENDER_FALLBACK[locale],
+                "context": payload.get("context_label", ""),
+                "excerpt": payload.get("excerpt", ""),
+                "url": url,
+            }
+            if notification.notification_type == NotificationType.INQUIRY_RECEIVED
+            else {"url": url}
+        )
+        rendered = render_email(template_key, locale, context)
+        if rendered is not None:
+            subject, html_body = rendered
+
     delivery, _ = NotificationDelivery.objects.get_or_create(
         notification=notification, channel=DeliveryChannel.EMAIL
     )
@@ -124,6 +164,7 @@ def send_notification_email(self, notification_id: str, to_email: str) -> None:
             message=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[to_email],
+            html_message=html_body,
         )
     except Exception as exc:  # noqa: BLE001 - re-raised via Celery's retry below
         delivery.status = DeliveryStatus.FAILED

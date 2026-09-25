@@ -1,0 +1,210 @@
+[
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 0,
+      "vat_percent": null,
+      "vat_on_installment": false,
+      "product": "LOAN",
+      "tin_percent": 6.5
+    },
+    "input": {
+      "price": 180000,
+      "down_percent": 20,
+      "term_years": 10
+    },
+    "expected": {
+      "down_payment": "36000.00",
+      "financed": "144000.00",
+      "monthly": "1635.09",
+      "monthly_with_vat": "1635.09",
+      "vat_per_month": "0.00",
+      "residual": "0.00",
+      "opening_fee": "0.00",
+      "total_repaid": "196210.90",
+      "cost_of_financing": "52210.90"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 0,
+      "vat_percent": null,
+      "vat_on_installment": false,
+      "product": "LOAN",
+      "tin_percent": 5.9
+    },
+    "input": {
+      "price": 50000,
+      "down_percent": 0,
+      "term_years": 5
+    },
+    "expected": {
+      "down_payment": "0.00",
+      "financed": "50000.00",
+      "monthly": "964.32",
+      "monthly_with_vat": "964.32",
+      "vat_per_month": "0.00",
+      "residual": "0.00",
+      "opening_fee": "0.00",
+      "total_repaid": "57859.01",
+      "cost_of_financing": "7859.01"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 0,
+      "vat_percent": null,
+      "vat_on_installment": false,
+      "product": "LOAN",
+      "tin_percent": 0
+    },
+    "input": {
+      "price": 60000,
+      "down_percent": 10,
+      "term_years": 5
+    },
+    "expected": {
+      "down_payment": "6000.00",
+      "financed": "54000.00",
+      "monthly": "900.00",
+      "monthly_with_vat": "900.00",
+      "vat_per_month": "0.00",
+      "residual": "0.00",
+      "opening_fee": "0.00",
+      "total_repaid": "54000.00",
+      "cost_of_financing": "0.00"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 1.5,
+      "residual_percent": 0,
+      "vat_percent": null,
+      "vat_on_installment": false,
+      "product": "LOAN",
+      "tin_percent": 7.1
+    },
+    "input": {
+      "price": 120000,
+      "down_percent": 25,
+      "term_years": 7
+    },
+    "expected": {
+      "down_payment": "30000.00",
+      "financed": "90000.00",
+      "monthly": "1362.75",
+      "monthly_with_vat": "1362.75",
+      "vat_per_month": "0.00",
+      "residual": "0.00",
+      "opening_fee": "1350.00",
+      "total_repaid": "115820.58",
+      "cost_of_financing": "25820.58"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 5,
+      "vat_percent": 21,
+      "vat_on_installment": true,
+      "product": "LEASING",
+      "tin_percent": 5.5
+    },
+    "input": {
+      "price": 250000,
+      "down_percent": 20,
+      "term_years": 10
+    },
+    "expected": {
+      "down_payment": "50000.00",
+      "financed": "200000.00",
+      "monthly": "2092.16",
+      "monthly_with_vat": "2531.51",
+      "vat_per_month": "439.35",
+      "residual": "15125.00",
+      "opening_fee": "0.00",
+      "total_repaid": "318906.54",
+      "cost_of_financing": "118906.54"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 1,
+      "vat_percent": 22,
+      "vat_on_installment": true,
+      "product": "LEASING",
+      "tin_percent": 6.5
+    },
+    "input": {
+      "price": 90000,
+      "down_percent": 30,
+      "term_years": 8
+    },
+    "expected": {
+      "down_payment": "27000.00",
+      "financed": "63000.00",
+      "monthly": "836.16",
+      "monthly_with_vat": "1020.12",
+      "vat_per_month": "183.96",
+      "residual": "1098.00",
+      "opening_fee": "0.00",
+      "total_repaid": "99029.06",
+      "cost_of_financing": "36029.06"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 10,
+      "vat_percent": null,
+      "vat_on_installment": false,
+      "product": "LEASING",
+      "tin_percent": 5.0
+    },
+    "input": {
+      "price": 400000,
+      "down_percent": 35,
+      "term_years": 12
+    },
+    "expected": {
+      "down_payment": "140000.00",
+      "financed": "260000.00",
+      "monthly": "2201.43",
+      "monthly_with_vat": "2201.43",
+      "vat_per_month": "0.00",
+      "residual": "40000.00",
+      "opening_fee": "0.00",
+      "total_repaid": "357005.28",
+      "cost_of_financing": "97005.28"
+    }
+  },
+  {
+    "rule": {
+      "opening_fee_percent": 0,
+      "residual_percent": 0,
+      "vat_percent": null,
+      "vat_on_installment": false,
+      "product": "LOAN",
+      "tin_percent": 9.9
+    },
+    "input": {
+      "price": 15000,
+      "down_percent": 50,
+      "term_years": 15
+    },
+    "expected": {
+      "down_payment": "7500.00",
+      "financed": "7500.00",
+      "monthly": "80.14",
+      "monthly_with_vat": "80.14",
+      "vat_per_month": "0.00",
+      "residual": "0.00",
+      "opening_fee": "0.00",
+      "total_repaid": "14424.69",
+      "cost_of_financing": "6924.69"
+    }
+  }
+]

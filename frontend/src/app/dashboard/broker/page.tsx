@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import { ListingCard } from "@/components/listings/MyListings";
@@ -9,6 +9,7 @@ import { useLocale } from "@/lib/i18n/useLocale";
 
 import RequirePermission from "@/components/auth/RequirePermission";
 import { primaryBrokerMembership } from "@/components/broker/BrokerDashboardNav";
+import OnboardingChecklist from "@/components/broker/OnboardingChecklist";
 import BrokerMetrics from "@/components/broker/BrokerMetrics";
 import {
   fetchBrokerDashboard,
@@ -28,7 +29,8 @@ export default function BrokerHomePage() {
 
   const locale = useLocale();
   const membership = primaryBrokerMembership(session);
-  const brokerId = membership?.broker_id ?? null;
+  const live = membership?.broker_status === "ACTIVE";
+  const brokerId = live ? (membership?.broker_id ?? null) : null;
 
   useEffect(() => {
     // Same session-timing rule as the messages screens: nothing is fetched
@@ -77,8 +79,19 @@ export default function BrokerHomePage() {
           <>
             <div className="flex flex-wrap items-end justify-between gap-space-md">
               <div>
-                <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">Yacht brokerage desk</span>
-                <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{membership.broker_name}</h1>
+                <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Brokerage / Dashboard</span>
+                <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Dashboard</h1>
+                <p className="mt-space-xs font-body-md text-on-surface-variant">
+                  {membership.broker_name}
+                  {live ? (
+                    <>
+                      {" · "}
+                      <Link href={`/brokers/${membership.broker_slug}/`} className="text-primary underline">
+                        View public page
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
               </div>
               <Link
                 href="/dashboard/broker/fleet/new/"
@@ -87,6 +100,7 @@ export default function BrokerHomePage() {
                 Add vessel
               </Link>
             </div>
+            {membership.broker_status !== "ACTIVE" ? <OnboardingChecklist status={membership.broker_status} /> : null}
             {errorKey ? (
               <p role="alert" className="mt-space-lg font-body-md text-error">
                 {tConversations(locale, errorKey)}
@@ -97,10 +111,16 @@ export default function BrokerHomePage() {
                 <BrokerMetrics locale={locale} dashboard={dashboard} />
               </div>
             ) : null}
+            {live ? (
             <section aria-labelledby="inventory-heading" className="mt-space-xl">
-              <h2 id="inventory-heading" className="font-headline-sm text-headline-sm text-primary">
-                Mandate inventory
-              </h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-space-sm">
+                <h2 id="inventory-heading" className="font-headline-sm text-headline-sm text-primary">
+                  Your vessels
+                </h2>
+                <Link href="/dashboard/broker/fleet/" className="font-label-md text-primary underline">
+                  All vessels
+                </Link>
+              </div>
               <ul className="mt-space-md flex flex-col gap-space-md">
                 {(listings ?? []).slice(0, 5).map((row) => (
                   <ListingCard key={row.id} row={row} />
@@ -112,6 +132,7 @@ export default function BrokerHomePage() {
                 ) : null}
               </ul>
             </section>
+            ) : null}
           </>
         )}
       </RequirePermission>

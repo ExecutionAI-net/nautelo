@@ -63,23 +63,38 @@ class NotificationReadAllView(_Base):
         return Response({"marked_read": marked})
 
 
+#: The fields PATCH accepts, each independently optional - the bell dropdown's
+#: master switch sends only `email_enabled`; the dashboard settings page can
+#: send one or more category fields alongside it.
+_PREFERENCE_FIELDS = ("email_enabled", "messages_enabled", "listings_enabled", "billing_enabled")
+
+
 class NotificationPreferenceView(_Base):
-    """GET/PATCH /api/v1/notifications/preferences/ - {email_enabled}."""
+    """GET/PATCH /api/v1/notifications/preferences/ - the master email switch
+    plus one switch per NotificationCategory. Absent row (never configured)
+    reads as every switch on."""
 
     def _payload(self, request):
         preference = NotificationPreference.objects.filter(user=request.user).first()
-        return {"email_enabled": True if preference is None else preference.email_enabled}
+        if preference is None:
+            return {field: True for field in _PREFERENCE_FIELDS}
+        return {field: getattr(preference, field) for field in _PREFERENCE_FIELDS}
 
     def get(self, request):
         return Response(self._payload(request))
 
     def patch(self, request):
-        value = request.data.get("email_enabled")
-        if not isinstance(value, bool):
-            from rest_framework.exceptions import ValidationError
+        from rest_framework.exceptions import ValidationError
 
-            raise ValidationError({"email_enabled": "Send true or false."})
-        NotificationPreference.objects.update_or_create(
-            user=request.user, defaults={"email_enabled": value}
-        )
+        updates = {}
+        for field in _PREFERENCE_FIELDS:
+            if field not in request.data:
+                continue
+            value = request.data[field]
+            if not isinstance(value, bool):
+                raise ValidationError({field: "Send true or false."})
+            updates[field] = value
+        if not updates:
+            raise ValidationError("Send at least one of: " + ", ".join(_PREFERENCE_FIELDS))
+        NotificationPreference.objects.update_or_create(user=request.user, defaults=updates)
         return Response(self._payload(request))

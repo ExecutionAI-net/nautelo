@@ -130,7 +130,9 @@ class ListingEligibilityService:
                 entitlement_type=EntitlementType.PAID_LISTING,
                 source=right.source,
                 valid_until=right.valid_until,
-                publication_days=paid_publication_days(),
+                # The package's length was frozen on the right at purchase; the
+                # platform default only covers rights granted without one.
+                publication_days=(right.metadata or {}).get("publication_days") or paid_publication_days(),
             )
 
         has_right = recommended is not None

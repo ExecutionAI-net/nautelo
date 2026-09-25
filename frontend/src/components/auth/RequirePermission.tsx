@@ -1,9 +1,12 @@
 "use client";
 
+import { useLocaleOrDefault } from "@/components/layout/LocaleContext";
+import { localizePath } from "@/lib/i18n/localePath";
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import ForbiddenScreen from "@/components/auth/ForbiddenScreen";
+import { useT } from "@/i18n/client";
 import { safeNextUrl } from "@/lib/auth/next-url";
 import { useSession } from "@/lib/auth/session";
 import type { PermissionKey } from "@/lib/auth/types";
@@ -18,7 +21,9 @@ interface Props {
 export default function RequirePermission({ permission, children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const pageLocale = useLocaleOrDefault();
   const { session, loading, can } = useSession();
+  const t = useT();
 
   const authenticated = session?.authenticated === true;
   const allowed = permission === undefined || can(permission);
@@ -26,20 +31,20 @@ export default function RequirePermission({ permission, children }: Props) {
   useEffect(() => {
     if (loading || authenticated) return;
     const next = encodeURIComponent(safeNextUrl(pathname));
-    router.replace(`/login?next=${next}`);
-  }, [loading, authenticated, pathname, router]);
+    router.replace(localizePath(`/login?next=${next}`, pageLocale));
+  }, [loading, authenticated, pathname, router, pageLocale]);
 
   if (loading) {
     return (
       <p className="p-space-lg font-body-md text-on-surface-variant" aria-busy="true">
-        Loading…
+        {t("auth.require_permission.loading")}
       </p>
     );
   }
   if (!authenticated) return null;
   if (!allowed) {
     const unverified = session?.user && !session.user.email_verified;
-    return <ForbiddenScreen reason={unverified ? "Verify your email address first. Until then most features are locked. Use the notice at the top of the dashboard to get a new verification email." : undefined} />;
+    return <ForbiddenScreen reason={unverified ? t("auth.forbidden.verify_email_reason") : undefined} />;
   }
   return <>{children}</>;
 }

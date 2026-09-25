@@ -17,7 +17,16 @@ export default function BrokerLeadsPage() {
         {membership === null ? (
           <p className="font-body-md text-on-surface-variant">No brokerage is linked to this account.</p>
         ) : (
-          <MessagesScreen brokerId={membership.broker_id} basePath="/dashboard/broker/messages/" filter="LISTING" />
+          <MessagesScreen
+            brokerId={membership.broker_id}
+            basePath="/dashboard/broker/messages/"
+            filter="LISTING"
+            eyebrow="Brokerage / Leads"
+            heading="Leads"
+            intro="Enquiries buyers sent about one of your vessels. Enquiries about your brokerage as a whole are under Messages."
+            filters={false}
+            empty="No enquiries about your vessels yet."
+          />
         )}
       </RequirePermission>
     </AreaShell>

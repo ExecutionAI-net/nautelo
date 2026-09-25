@@ -90,14 +90,14 @@ describe("InquiryForm", () => {
 
     expect(screen.getByLabelText("Full name")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    expect(screen.getByLabelText("Phone (optional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Phone")).toBeInTheDocument();
     expect(screen.getByLabelText("Subject")).toBeInTheDocument();
     expect(screen.getByLabelText("Message")).toBeInTheDocument();
     expect(
       screen.getByLabelText("I accept the privacy policy (version 2026-09)."),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Send me occasional updates from NAUTA."),
+      screen.getByLabelText("Send me occasional updates from Nautelo."),
     ).toBeInTheDocument();
   });
 
@@ -119,6 +119,17 @@ describe("InquiryForm", () => {
     expect(screen.queryByRole("link", { name: /account/i })).toBeNull();
   });
 
+  it("prefills the phone from the profile but keeps it editable", async () => {
+    sessionValue = signedIn({ phone_number: "+34600000000" });
+    renderForm();
+
+    const phone = screen.getByLabelText("Phone");
+    expect(phone).toHaveValue("+34600000000");
+    await userEvent.clear(phone);
+    await userEvent.type(phone, "+390000000000");
+    expect(phone).toHaveValue("+390000000000");
+  });
+
   it("derives the default subject from the context and lets it be edited", async () => {
     sessionValue = signedIn();
     renderForm();
@@ -134,7 +145,7 @@ describe("InquiryForm", () => {
     sessionValue = signedIn();
     renderForm();
     expect(
-      screen.getByLabelText("Send me occasional updates from NAUTA."),
+      screen.getByLabelText("Send me occasional updates from Nautelo."),
     ).not.toBeChecked();
     expect(
       screen.getByLabelText("I accept the privacy policy (version 2026-09)."),
@@ -186,7 +197,7 @@ describe("InquiryForm", () => {
       company_website: "",
     });
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Your message has been sent.",
+      "Your message about Phase6 Pro has been sent. You will get a reply as soon as possible. Thank you.",
     );
   });
 
@@ -294,7 +305,7 @@ describe("InquiryForm", () => {
       expect(screen.getByLabelText("Message")).toHaveValue(BODY),
     );
     expect(screen.getByLabelText("Subject")).toHaveValue("Mooring question");
-    expect(screen.getByLabelText("Phone (optional)")).toHaveValue("+390000000000");
+    expect(screen.getByLabelText("Phone")).toHaveValue("+390000000000");
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Your message was saved. Check it and press Send.",
     );

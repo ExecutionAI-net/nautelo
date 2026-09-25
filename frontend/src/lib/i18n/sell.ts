@@ -5,6 +5,13 @@ type Entry = Record<Locale, string>;
 
 const SELL: Record<string, Entry> = {
   "sell.title_broker": { en: "Add a vessel", it: "Aggiungi un'imbarcazione", es: "Añadir una embarcación" },
+  "sell.title_broker_edit": { en: "Edit vessel", it: "Modifica imbarcazione", es: "Editar embarcación" },
+  "sell.eyebrow_broker": { en: "Brokerage / Fleet", it: "Agenzia / Flotta", es: "Agencia / Flota" },
+  "sell.lead_broker": {
+    en: "The vessel is published under your brokerage once staff have reviewed it.",
+    it: "L'imbarcazione viene pubblicata a nome della tua agenzia dopo la revisione dello staff.",
+    es: "La embarcación se publica a nombre de tu agencia una vez que el equipo la haya revisado.",
+  },
   "sell.title": { en: "Sell your boat", it: "Vendi la tua barca", es: "Vende tu barco" },
   "sell.brand_search": { en: "Search brand", it: "Cerca marca", es: "Buscar marca" },
   "sell.brand": { en: "Brand", it: "Marca", es: "Marca" },
@@ -16,6 +23,7 @@ const SELL: Record<string, Entry> = {
   "sell.listing_title": { en: "Title", it: "Titolo", es: "Título" },
   "sell.description": { en: "Description", it: "Descrizione", es: "Descripción" },
   "sell.country": { en: "Country", it: "Paese", es: "País" },
+  "sell.city_hint": { en: "Choose your city from the list.", it: "Scegli la città dall'elenco.", es: "Elige tu ciudad de la lista." },
   "sell.city": { en: "City", it: "Città", es: "Ciudad" },
   "sell.price": { en: "Price (EUR)", it: "Prezzo (EUR)", es: "Precio (EUR)" },
   "sell.save_draft": { en: "Save draft", it: "Salva bozza", es: "Guardar borrador" },
@@ -136,9 +144,9 @@ const SELL: Record<string, Entry> = {
   "sell.translation_health": { en: "Catalog translation health", it: "Stato delle traduzioni", es: "Estado de las traducciones" },
   "sell.master": { en: "Master", it: "Originale", es: "Original" },
   "sell.preview_note": {
-    en: "Vessels listed on Nauta are reviewed before publication. AI translations keep the nautical terminology.",
-    it: "Le imbarcazioni su Nauta sono controllate prima della pubblicazione. Le traduzioni IA mantengono la terminologia nautica.",
-    es: "Las embarcaciones en Nauta se revisan antes de publicarse. Las traducciones con IA conservan la terminologia nautica.",
+    en: "Vessels listed on Nautelo are reviewed before publication. AI translations keep the nautical terminology.",
+    it: "Le imbarcazioni su Nautelo sono controllate prima della pubblicazione. Le traduzioni IA mantengono la terminologia nautica.",
+    es: "Las embarcaciones en Nautelo se revisan antes de publicarse. Las traducciones con IA conservan la terminologia nautica.",
   },
   "sell.media_free_note": {
     en: "A free listing includes {images} photo and no video. A paid listing includes up to {paid_images} photos and {paid_videos} video.",
@@ -167,9 +175,9 @@ const SELL: Record<string, Entry> = {
   "sell.cabins": { en: "Cabins", it: "Cabine", es: "Camarotes" },
   "sell.bathrooms": { en: "Bathrooms", it: "Bagni", es: "Baños" },
   "sell.contact_note": {
-    en: "Buyers contact you through Nauta messaging. Your email and phone number are never published.",
-    it: "Gli acquirenti ti contattano tramite i messaggi di Nauta. Email e telefono non vengono mai pubblicati.",
-    es: "Los compradores te contactan mediante la mensajería de Nauta. Tu correo y teléfono nunca se publican.",
+    en: "Buyers contact you through Nautelo messaging. Your email and phone number are never published.",
+    it: "Gli acquirenti ti contattano tramite i messaggi di Nautelo. Email e telefono non vengono mai pubblicati.",
+    es: "Los compradores te contactan mediante la mensajería de Nautelo. Tu correo y teléfono nunca se publican.",
   },
   "sell.preview": { en: "Marketplace card preview", it: "Anteprima della scheda", es: "Vista previa de la tarjeta" },
   "sell.asking_price": { en: "Asking price", it: "Prezzo richiesto", es: "Precio de venta" },

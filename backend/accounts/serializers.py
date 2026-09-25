@@ -5,6 +5,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from accounts.enums import Locale, UserRole
 from accounts.models import User, UserManager
+from accounts.validators import validate_phone_number as check_phone_number
 
 # Plain sign-up always yields a private seller; broker/professional accounts
 # are created through organization registration or a team invitation.
@@ -15,6 +16,8 @@ class RegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(write_only=True, max_length=128)
     full_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
+    phone_number = serializers.CharField(max_length=32)
+    newsletter_opt_in = serializers.BooleanField(required=False, default=False)
     locale = serializers.ChoiceField(choices=Locale.choices, required=False, default=Locale.EN)
     primary_role = serializers.ChoiceField(
         choices=[(role.value, role.label) for role in SELF_SERVICE_ROLES],
@@ -35,6 +38,9 @@ class RegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError(list(exc.messages)) from exc
         return value
 
+    def validate_phone_number(self, value):
+        return check_phone_number(value)
+
 
 class VerifyEmailSerializer(serializers.Serializer):
     token = serializers.CharField(max_length=128)
@@ -53,6 +59,8 @@ class UserSummarySerializer(serializers.ModelSerializer):
             "id",
             "email",
             "full_name",
+            "phone_number",
+            "newsletter_opt_in",
             "primary_role",
             "locale",
             "email_verified",
@@ -64,7 +72,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
 class AccountUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("full_name", "locale")
+        fields = ("full_name", "phone_number", "newsletter_opt_in", "locale")
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):

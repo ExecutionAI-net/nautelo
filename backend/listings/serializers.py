@@ -1,13 +1,18 @@
+from decimal import Decimal
+
 from django.conf import settings
+from django.db import models
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
 
 from finance.listing_quotes import FinancePolicy, FinanceQuoteService
 
-from .drafts import open_revision_for
+from .drafts import open_revision_for, payload_from_snapshot
 from .payloads import (
     FROZEN_SPECIFICATION_KEYS,
     IMMUTABLE_FIELD_NAMES,
+    SPECIFICATIONS_SCHEMA_VERSION,
     is_frozen_after_submission,
     is_locked_for_owner,
 )
@@ -53,6 +58,11 @@ class ListingWorkflowSerializer(serializers.Serializer):
             "status": listing.status,
             "seller_type": listing.seller_type,
             "version": listing.version,
+            # Display names for the ids in the payload: the form's brand/model
+            # comboboxes only know the options of the current search.
+            "brand_name": listing.brand.name,
+            "model_name": listing.model.name,
+            "custom_model_name": listing.custom_model_name,
             "published_at": listing.published_at,
             "expires_at": listing.expires_at,
             "current_public_snapshot_version": (
@@ -61,6 +71,13 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 else None
             ),
             "revision": RevisionSerializer(revision).data if revision else None,
+            # What the owner is editing when there is no open revision: the
+            # live content. Without it the edit form of a published listing
+            # opened empty.
+            "published_payload": _published_payload(listing),
+            # The server's word on the promotion, so the form never trusts a
+            # ?promotion=success return flag alone.
+            "promotion": _promotion_state(listing),
             "policy": {
                 "requires_approval": requires_staff_approval(listing),
                 "immutable_fields": _immutable_fields_for(listing),
@@ -68,6 +85,38 @@ class ListingWorkflowSerializer(serializers.Serializer):
                 "video_limit": allowance.videos,
             },
         }
+
+
+def _promotion_state(listing) -> dict:
+    """paid: a promotion is paid and either running or waiting for the listing
+    to go live; active_until: the end of the running feature window, if any."""
+    from promotions.models import ListingPromotion
+
+    now = timezone.now()
+    paid = ListingPromotion.objects.filter(listing=listing, status=ListingPromotion.Status.PAID).filter(
+        models.Q(starts_at__isnull=True) | models.Q(ends_at__gt=now)
+    )
+    featured_until = listing.featured_until if listing.featured_until and listing.featured_until > now else None
+    return {"paid": paid.exists(), "active_until": featured_until}
+
+
+def _published_payload(listing) -> dict | None:
+    if not listing.current_public_snapshot_id:
+        return None
+    payload = payload_from_snapshot(listing.current_public_snapshot)
+    payload.update(
+        {
+            "brand_id": str(listing.brand_id) if listing.brand_id else "",
+            "model_id": str(listing.model_id) if listing.model_id else "",
+            "custom_model_name": listing.custom_model_name,
+            "manufacture_year": listing.manufacture_year,
+            "show_finance_estimate": listing.show_finance_estimate,
+            "finance_down_payment_override_percent": listing.finance_down_payment_override_percent,
+            "finance_rate_override_percent": listing.finance_rate_override_percent,
+            "finance_term_override_months": listing.finance_term_override_months,
+        }
+    )
+    return {key: value for key, value in payload.items() if value not in ("", None)}
 
 
 def _immutable_fields_for(listing):
@@ -164,6 +213,16 @@ def _with_url(item: dict) -> dict:
     return {**item, "url": url}
 
 
+# Internal bookkeeping in the snapshot manifest that no buyer needs: the S3
+# object key and the upload checksum. The owner's serializer (below) already
+# hides them by design; the public one must too.
+PRIVATE_MEDIA_KEYS = ("storage_key", "checksum_sha256")
+
+
+def _public_media(item: dict) -> dict:
+    return {key: value for key, value in _with_url(item).items() if key not in PRIVATE_MEDIA_KEYS}
+
+
 class PublicListingSerializer(serializers.Serializer):
     """Public representation, built ENTIRELY from the approved snapshot.
 
@@ -220,6 +279,7 @@ class PublicListingSerializer(serializers.Serializer):
             ),
             "snapshot_version": snapshot.version,
             "published_at": listing.published_at,
+            "is_featured": bool(listing.featured_until and listing.featured_until > timezone.now()),
             "expires_at": listing.expires_at,
             "brand_name": snapshot.brand_name_snapshot,
             "model_name": snapshot.model_name_snapshot,
@@ -244,19 +304,115 @@ class PublicListingSerializer(serializers.Serializer):
                 "country": snapshot.location_country,
                 "region": snapshot.location_region,
                 "city": snapshot.location_city,
+                "place_id": snapshot.location_place_id,
             },
             # Spec §30.2: money as decimal strings.
             "price": {
                 "amount": f"{snapshot.price:f}",
                 "currency": snapshot.currency,
             },
-            "media": [_with_url(item) for item in snapshot.media_manifest],
+            "media": [_public_media(item) for item in snapshot.media_manifest],
             "view_count": listing.view_count_cached,
             # Spec §18.5. Six keys when eligible, exactly {"visible": False}
             # when not — never zeros or a disabled placeholder (spec §18.2).
             "finance": FinanceQuoteService.card_block(
                 listing, policy=self.finance_policy()
             ),
+        }
+
+
+class ListingPreviewSerializer(serializers.Serializer):
+    """The owner's own listing, in PublicListingSerializer's exact SHAPE, but
+    built from the current open revision's draft payload — falling back to the
+    approved snapshot for any field the draft has not touched — rather than
+    only ever from `current_public_snapshot`.
+
+    Deliberately NOT a subclass of PublicListingSerializer and never fed a row
+    from anywhere but `ListingPreviewView`: PublicListingSerializer's own
+    docstring is explicit that it "must only ever be fed rows from
+    published_listings_queryset()", precisely so a pending edit — including
+    broker finance settings (spec §36.1) — can never leak onto the real public
+    path. This is that same shape, deliberately walled off, for the one screen
+    where showing the pending edit IS the point: the owner's own preview
+    (never reachable except through IsOwnerOrBrokerEditor).
+
+    The finance block is always `{"visible": False}` here: FinanceQuoteService
+    reconciles against the live global configuration for a *committed* price,
+    and a draft price is, by definition, not committed yet.
+    """
+
+    def to_representation(self, listing):
+        from .snapshots import build_media_manifest
+
+        revision = open_revision_for(listing)
+        payload = dict((revision.payload if revision else None) or {})
+        snapshot = listing.current_public_snapshot
+
+        def field(key, snapshot_attr, default=""):
+            return payload[key] if key in payload else getattr(snapshot, snapshot_attr, default) if snapshot else default
+
+        specifications = payload.get("specifications")
+        if specifications is None:
+            specifications = snapshot.specifications if snapshot else {}
+        price = payload.get("price")
+        if price is None:
+            price = snapshot.price if snapshot else None
+        media_ids = payload.get("media_ids")
+        media_manifest = (
+            build_media_manifest(listing, media_ids)
+            if media_ids is not None
+            else (snapshot.media_manifest if snapshot else [])
+        )
+        return {
+            "id": str(listing.pk),
+            # A draft has no slug yet (spec: assigned once, at first
+            # publication) — the preview route is id-keyed, never slug-keyed.
+            "slug": listing.slug,
+            "seller_type": listing.seller_type,
+            "broker": (
+                {"id": str(listing.broker_id), "name": listing.broker.name, "slug": listing.broker.slug}
+                if listing.broker_id
+                else None
+            ),
+            "snapshot_version": snapshot.version if snapshot else None,
+            "published_at": listing.published_at,
+            "is_featured": bool(listing.featured_until and listing.featured_until > timezone.now()),
+            "expires_at": listing.expires_at,
+            "brand_name": listing.brand.name,
+            "model_name": listing.model.name,
+            "custom_model_name": listing.custom_model_name,
+            "manufacture_year": listing.manufacture_year,
+            "title": {
+                "en": field("title_en", "title_en"),
+                "it": field("title_it", "title_it"),
+                "es": field("title_es", "title_es"),
+            },
+            "description": {
+                "en": field("description_en", "description_en"),
+                "it": field("description_it", "description_it"),
+                "es": field("description_es", "description_es"),
+            },
+            "specifications": specifications,
+            "specifications_schema_version": (
+                snapshot.specifications_schema_version if snapshot else SPECIFICATIONS_SCHEMA_VERSION
+            ),
+            "location": {
+                "country": field("location_country", "location_country"),
+                "region": field("location_region", "location_region"),
+                "city": field("location_city", "location_city"),
+                "place_id": (
+                    payload["location_place_id"]
+                    if "location_place_id" in payload
+                    else (snapshot.location_place_id if snapshot else None)
+                ),
+            },
+            "price": {
+                "amount": f"{Decimal(price):f}" if price is not None else "0.00",
+                "currency": field("currency", "currency", listing.currency),
+            },
+            "media": [_public_media(item) for item in media_manifest],
+            "view_count": listing.view_count_cached,
+            "finance": {"visible": False},
         }
 
 

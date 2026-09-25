@@ -19,11 +19,18 @@ class NotificationType(models.TextChoices):
         "listing.other_model_submitted",
         "Other model submitted",
     )
+    LISTING_SUBMISSION_RECEIVED = (
+        "listing.submission_received",
+        "Listing submission received",
+    )
     LISTING_APPROVED = "listing.approved", "Listing approved"
     LISTING_CHANGES_REQUESTED = "listing.changes_requested", "Changes requested"
     LISTING_REJECTED = "listing.rejected", "Listing rejected"
     LISTING_EXPIRING = "listing.expiring", "Listing expiring"
     LISTING_EXPIRED = "listing.expired", "Listing expired"
+    BROKER_TRIAL_STARTED = "broker.trial_started", "Broker trial started"
+    BROKER_PAYMENT_FAILED = "broker.payment_failed", "Broker payment failed"
+    BROKER_SUSPENDED = "broker.suspended", "Broker suspended"
     PAYMENT_FULFILLED = "payment.fulfilled", "Payment fulfilled"
     PROFESSIONAL_ACTIVATED = "professional.activated", "Professional membership active"
     PROFESSIONAL_PAYMENT_FAILED = "professional.payment_failed", "Professional payment failed"
@@ -50,6 +57,37 @@ class DeliveryStatus(models.TextChoices):
 #: Spec 27.1's channel column. `listing.expiring` is the only event without a
 #: WebSocket push (it is a slow, date-driven reminder, not a live event).
 NO_WEBSOCKET_TYPES = frozenset({NotificationType.LISTING_EXPIRING})
+
+
+class NotificationCategory(models.TextChoices):
+    """The dashboard's "Notifications" settings page groups NotificationType's
+    17 events into these 3, since nobody wants a checkbox per event. A type
+    absent from CATEGORY_BY_TYPE (the three staff moderation-queue events)
+    has no user-facing toggle at all - they go to internal staff, not the
+    person the notification is about, and are not opted out of here."""
+
+    MESSAGES = "messages", "Messages"
+    LISTINGS = "listings", "Listing updates"
+    BILLING = "billing", "Billing & account status"
+
+
+CATEGORY_BY_TYPE = {
+    NotificationType.INQUIRY_RECEIVED: NotificationCategory.MESSAGES,
+    NotificationType.LISTING_SUBMISSION_RECEIVED: NotificationCategory.LISTINGS,
+    NotificationType.LISTING_APPROVED: NotificationCategory.LISTINGS,
+    NotificationType.LISTING_CHANGES_REQUESTED: NotificationCategory.LISTINGS,
+    NotificationType.LISTING_REJECTED: NotificationCategory.LISTINGS,
+    NotificationType.LISTING_EXPIRING: NotificationCategory.LISTINGS,
+    NotificationType.LISTING_EXPIRED: NotificationCategory.LISTINGS,
+    NotificationType.BROKER_TRIAL_STARTED: NotificationCategory.BILLING,
+    NotificationType.BROKER_PAYMENT_FAILED: NotificationCategory.BILLING,
+    NotificationType.BROKER_SUSPENDED: NotificationCategory.BILLING,
+    NotificationType.PAYMENT_FULFILLED: NotificationCategory.BILLING,
+    NotificationType.PROFESSIONAL_ACTIVATED: NotificationCategory.BILLING,
+    NotificationType.PROFESSIONAL_PAYMENT_FAILED: NotificationCategory.BILLING,
+    NotificationType.PROFESSIONAL_DEACTIVATED: NotificationCategory.BILLING,
+    NotificationType.PAYMENT_FULFILLMENT_FAILED: NotificationCategory.BILLING,
+}
 
 #: Spec 27.3's "safe summary" / 15.4's "safe excerpt", capped so a notification
 #: payload never becomes a second copy of the whole message body. The cap is

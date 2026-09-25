@@ -91,6 +91,89 @@ def test_facets_list_distinct_choices(api, catalogue):
     assert body["brands"] == ["Bavaria", "Lagoon", "Sanlorenzo"]
     assert body["countries"] == ["ES", "IT"]
     assert "Liguria" in body["regions"]
+    # Every location row carries its own country and region, so the filter can offer only what belongs together.
+    assert {row["country"] for row in body["locations"]} == {"ES", "IT"}
+    assert all(set(row) == {"country", "region", "place_id", "city", "count"} and row["count"] >= 1 for row in body["locations"])
+    assert sum(row["count"] for row in body["locations"]) == len(api.get(reverse("listing-list")).json()["results"])
+
+
+def test_facets_are_cached_across_requests(api, catalogue):
+    from django.core.cache import cache
+
+    from listings.views import FACETS_CACHE_KEY
+
+    first = api.get(reverse("listing-facets")).json()
+    assert cache.get(FACETS_CACHE_KEY) == first
+
+    # A brand-new brand does not show up until the cache expires — this is the
+    # accepted trade-off (spec: a short TTL, not correctness) that lets the
+    # endpoint skip its distinct/group-by queries on every /boats/ page load.
+    _published(title_en="Brand New", brand_name_snapshot="ZzTop Yachts")
+    assert api.get(reverse("listing-facets")).json() == first
+
+    cache.delete(FACETS_CACHE_KEY)
+    refreshed = api.get(reverse("listing-facets")).json()
+    assert "ZzTop Yachts" in refreshed["brands"]
+
+
+def test_location_facet_counts_respect_an_already_active_boat_type_filter(api):
+    # Reproduces the reported bug: Pula has 3 boats, but only the catamaran is
+    # a "Sailing yacht" — the location facet must say 1 for Pula once
+    # boat_type=Sailing yacht is already selected, not the raw city total,
+    # or picking it promises boats that combination does not have.
+    _published(
+        title_en="Pula Motor One",
+        location_country="HR",
+        location_city="Pula",
+        location_place_id=3192224,
+        specifications={"boat_type": "Motor yacht"},
+    )
+    _published(
+        title_en="Pula Motor Two",
+        location_country="HR",
+        location_city="Pula",
+        location_place_id=3192224,
+        specifications={"boat_type": "Motor yacht"},
+    )
+    _published(
+        title_en="Pula Sailor",
+        location_country="HR",
+        location_city="Pula",
+        location_place_id=3192224,
+        specifications={"boat_type": "Sailing yacht"},
+    )
+
+    unfiltered = api.get(reverse("listing-facets")).json()
+    pula_unfiltered = next(row for row in unfiltered["locations"] if row["place_id"] == 3192224)
+    assert pula_unfiltered["count"] == 3
+
+    filtered = api.get(reverse("listing-facets"), {"boat_type": "Sailing yacht"}).json()
+    pula_filtered = next(row for row in filtered["locations"] if row["place_id"] == 3192224)
+    assert pula_filtered["count"] == 1
+
+    # Selecting that filtered count actually returns that many boats.
+    assert len(
+        api.get(reverse("listing-list"), {"boat_type": "Sailing yacht", "country": "HR", "place": "3192224"}).json()[
+            "results"
+        ]
+    ) == pula_filtered["count"]
+
+
+def test_location_facet_own_dimension_is_never_self_restricting(api, catalogue):
+    # Choosing a country still shows every OTHER country's own option/count —
+    # otherwise the location filter could never be changed to a different one.
+    body = api.get(reverse("listing-facets"), {"country": "IT"}).json()
+    assert {row["country"] for row in body["locations"]} == {"ES", "IT"}
+
+
+def test_filtered_facets_are_not_cached_and_do_not_disturb_the_global_cache(api, catalogue):
+    from django.core.cache import cache
+
+    from listings.views import FACETS_CACHE_KEY
+
+    cache.delete(FACETS_CACHE_KEY)
+    api.get(reverse("listing-facets"), {"country": "IT"})
+    assert cache.get(FACETS_CACHE_KEY) is None
 
 
 def test_exclude_drops_one_listing_and_ignores_garbage(api, catalogue):

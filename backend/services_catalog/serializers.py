@@ -69,6 +69,12 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
     logo_url = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
     active_service_count = serializers.IntegerField(read_only=True)
+    is_featured = serializers.SerializerMethodField()
+
+    def get_is_featured(self, obj) -> bool:
+        from django.utils import timezone
+
+        return bool(obj.featured_until and obj.featured_until > timezone.now())
 
     def get_logo_url(self, obj):
         from common.org_images import resolve_url
@@ -95,6 +101,7 @@ class ProfessionalCardSerializer(serializers.ModelSerializer):
             "active_service_count",
             "logo_url",
             "cover_url",
+            "is_featured",
             "url",
         ]
 
@@ -127,16 +134,22 @@ class ProfessionalServiceSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfessionalService
-        fields = ["id", "title", "description", "service_area", "category"]
+        fields = ["id", "title", "description", "service_area", "category", "price_from", "currency", "pricing_note", "photo_url"]
 
     def get_title(self, obj) -> str:
         return localized(obj, "title", self.context["locale"])
 
     def get_description(self, obj) -> str:
         return localized(obj, "description", self.context["locale"])
+
+    def get_photo_url(self, obj):
+        from common.org_images import resolve_url
+
+        return resolve_url(obj.photo_key)
 
     def get_category(self, obj) -> dict:
         return {
@@ -167,7 +180,8 @@ class ProfessionalDetailSerializer(ProfessionalCardSerializer):
 
     def get_team(self, obj):
         return [
-            {"name": m.user.full_name or m.user.email, "email": m.user.email, "role": m.role}
+            # No e-mail address here: contact details are released only through the gated contact panel.
+            {"name": m.user.full_name or "Team member", "role": m.role}
             for m in obj.memberships.select_related("user").filter(is_active=True, show_on_profile=True)
         ]
 

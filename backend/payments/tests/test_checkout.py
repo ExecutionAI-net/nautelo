@@ -11,6 +11,7 @@ from entitlements.tests.factories import make_entitlement
 from listings.enums import ListingStatus
 from listings.tests.factories import make_brand, make_private_listing
 from payments.checkout import (
+    cancel_checkout_session,
     DEFAULT_RETURN_URL,
     RETURN_URL_ALLOWLIST,
     build_return_urls,
@@ -18,6 +19,7 @@ from payments.checkout import (
 )
 from payments.enums import PaymentOrderStatus, ProductCode
 from payments.errors import (
+    CheckoutNotOpen,
     InvalidReturnUrl,
     ListingNotUpgradable,
     ListingRequiredForProduct,
@@ -297,6 +299,78 @@ def test_reusing_an_idempotency_key_for_a_different_request_is_refused(seller, g
         )
 
     assert excinfo.value.get_codes() == "idempotency_key_reused"
+
+
+@pytest.mark.django_db
+def test_starting_the_same_purchase_again_returns_the_open_session(seller, gateway):
+    """The buyer backs out of Stripe's page and clicks Buy again: same order,
+    same session, no second row in Purchases."""
+    listing_right_product()
+    first = create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        client_idempotency_key="click-1", gateway=gateway,
+    )
+    again = create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        client_idempotency_key="click-2", gateway=gateway,
+    )
+
+    assert again.created is False
+    assert again.order.pk == first.order.pk
+    assert again.checkout_url == first.checkout_url
+    assert len(gateway.created) == 1
+    assert PaymentOrder.objects.filter(user=seller).count() == 1
+
+
+@pytest.mark.django_db
+def test_a_different_purchase_gets_its_own_session(seller, gateway):
+    listing_right_product()
+    create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        client_idempotency_key="click-1", gateway=gateway,
+    )
+    other = create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT, quantity=2,
+        client_idempotency_key="click-2", gateway=gateway,
+    )
+
+    assert other.created is True
+    assert len(gateway.created) == 2
+
+
+@pytest.mark.django_db
+def test_cancelling_an_open_checkout_expires_it_at_stripe_and_here(seller, gateway):
+    listing_right_product()
+    result = create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        client_idempotency_key="click-1", gateway=gateway,
+    )
+
+    order = cancel_checkout_session(user=seller, order_id=result.order.pk, gateway=gateway)
+
+    assert order.status == PaymentOrderStatus.EXPIRED
+    assert gateway.expired == [result.order.stripe_checkout_session_id]
+    assert AuditEvent.objects.filter(action="payment_order.cancelled", target_id=str(order.pk)).exists()
+    # A fresh click after the cancel opens a new session rather than the dead one.
+    fresh = create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        client_idempotency_key="click-2", gateway=gateway,
+    )
+    assert fresh.created is True
+
+
+@pytest.mark.django_db
+def test_only_an_open_checkout_can_be_cancelled(seller, gateway):
+    listing_right_product()
+    result = create_checkout_session(
+        user=seller, product_code=ProductCode.INDIVIDUAL_LISTING_RIGHT,
+        client_idempotency_key="click-1", gateway=gateway,
+    )
+    PaymentOrder.objects.filter(pk=result.order.pk).update(status=PaymentOrderStatus.EXPIRED)
+
+    with pytest.raises(CheckoutNotOpen):
+        cancel_checkout_session(user=seller, order_id=result.order.pk, gateway=gateway)
+    assert gateway.expired == []
 
 
 @pytest.mark.django_db

@@ -1,5 +1,6 @@
 // Seller-side listing workflow (spec 20, 24, 30.1). Browser-only, authenticated.
 import { apiFetch } from "@/lib/api/client";
+import type { PublicListing } from "@/lib/api/listings";
 import { sha256HexSync } from "@/lib/sha256";
 
 export interface TaxonomyItem {
@@ -18,6 +19,14 @@ export interface WorkflowListing {
   seller_type: string;
   version: number;
   revision: { id: string; version: number; state: string; payload: Record<string, unknown> } | null;
+  /** Display names for the ids in the payload (the brand/model comboboxes only know the current search). */
+  brand_name?: string;
+  model_name?: string;
+  custom_model_name?: string;
+  /** The live content when nothing is being edited yet (published listings). */
+  published_payload?: Record<string, unknown> | null;
+  /** Server-verified promotion state (spec: the paid flag never comes from the return URL). */
+  promotion?: { paid: boolean; active_until: string | null };
   policy: {
     requires_approval: boolean;
     immutable_fields: string[];
@@ -177,6 +186,21 @@ export function startListingRightCheckout(returnUrl = "/dashboard/private-seller
   });
 }
 
+/** The buyer left Stripe's page through its back link: close that session now
+ *  instead of leaving a payable link (and an open order) around for a day. */
+export function cancelCheckout(orderId: string) {
+  return apiFetch<unknown>(`/api/v1/payment-orders/${encodeURIComponent(orderId)}/cancel/`, { method: "POST" });
+}
+
+/** Same for a promotion checkout: ?promotion=cancelled&listing=<id> names the target. */
+export function cancelPromotionCheckout(listingId: string | null, target: "listing" | "profile" = "listing") {
+  return apiFetch<{ cancelled: number }>("/api/v1/promotions/cancel/", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(target === "profile" ? { target } : { target, listing_id: listingId }),
+  });
+}
+
 /** Spends one paid listing to extend or re-activate a private listing. */
 export interface OwnedPackage {
   package: string;
@@ -188,6 +212,35 @@ export interface OwnedPackage {
 
 export function fetchMyPaidListings() {
   return apiFetch<{ results: OwnedPackage[] }>("/api/v1/paid-listings/");
+}
+
+/** Owner-initiated soft delete: hidden from the dashboard (and, once published,
+ *  from every public page) but never removed from the database, so it still
+ *  counts against the free-listing quota. */
+export function deleteListing(listingId: string, version: number) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(listingId)}/delete/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ version }),
+  });
+}
+
+/** Owner-initiated pause: unlike delete, stays visible on the owner's own
+ *  dashboard, but drops out of every public page until resumed. */
+export function pauseListing(listingId: string, version: number) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(listingId)}/pause/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ version }),
+  });
+}
+
+export function resumeListing(listingId: string, version: number) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(listingId)}/resume/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ version }),
+  });
 }
 
 export function renewListing(listingId: string, pkg = "") {
@@ -215,10 +268,12 @@ export interface MyListingRow {
   id: string;
   title: string;
   status: string;
+  version: number;
   seller_type: string;
   slug: string | null;
   updated_at: string;
   expires_at: string | null;
+  featured_until?: string | null;
   price: string | null;
   currency: string;
   year: number | null;
@@ -230,6 +285,8 @@ export interface MyListingRow {
   beam_m: string;
   engine: string;
   views: number;
+  promo_impressions?: number;
+  promo_clicks?: number;
   image_url: string | null;
 }
 
@@ -250,4 +307,14 @@ export function fetchMyListingsSummary() {
 
 export function fetchWorkflowListing(id: string) {
   return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(id)}/workflow/`);
+}
+
+/**
+ * The owner's own listing, in the exact shape a buyer will eventually see
+ * (`PublicListing`), built from the current draft rather than the approved
+ * snapshot — backend/listings/serializers.py's `ListingPreviewSerializer`.
+ * Requires owning (or holding broker edit rights on) the listing.
+ */
+export function fetchListingPreview(id: string) {
+  return apiFetch<PublicListing>(`/api/v1/listings/${encodeURIComponent(id)}/preview/`);
 }

@@ -3,8 +3,16 @@ from django.db import transaction
 
 from audit.models import AuditEvent
 from brokers.forms import BrokerOrganizationAdminForm
-from brokers.models import BrokerMembership, BrokerOrganization, BrokerPlan
+from brokers.models import (
+    BrokerMembership,
+    BrokerOrganization,
+    BrokerPlan,
+    BrokerRole,
+    BrokerSubscription,
+    BrokerVerificationDocument,
+)
 from brokers.services import set_broker_auto_approval
+from common import org_images
 
 POLICY_READONLY = ("auto_approve_changed_by", "auto_approve_changed_at")
 BASE_READONLY = ("id", "created_at", "updated_at")
@@ -24,10 +32,40 @@ class BrokerMembershipInline(admin.TabularInline):
     autocomplete_fields = ("user",)
 
 
+class BrokerVerificationDocumentInline(admin.TabularInline):
+    """Documents uploaded at registration (customer feedback, 2026-09-25).
+
+    No separate staff broker-approval screen exists yet, so this inline on
+    the org's own admin page is where staff review what was uploaded, while
+    deciding whether to move a PENDING broker to ACTIVE.
+    """
+
+    model = BrokerVerificationDocument
+    extra = 0
+    fields = ("storage_key", "view_link", "created_at")
+    readonly_fields = ("storage_key", "view_link", "created_at")
+    can_delete = False
+
+    def view_link(self, obj):
+        from django.utils.html import format_html
+
+        url = org_images.resolve_url(obj.storage_key)
+        return format_html('<a href="{}" target="_blank" rel="noopener">View</a>', url) if url else "-"
+
+    view_link.short_description = "Document"
+
+
 @admin.register(BrokerPlan)
 class BrokerPlanAdmin(admin.ModelAdmin):
     list_display = ("name", "monthly_price", "trial_days", "listing_limit", "seat_limit", "profile_visibility", "is_active", "display_order")
     list_editable = ("is_active", "display_order")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(BrokerRole)
+class BrokerRoleAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "display_order", "is_active")
+    list_editable = ("display_order", "is_active")
     prepopulated_fields = {"slug": ("name",)}
 
 
@@ -36,6 +74,7 @@ class BrokerOrganizationAdmin(admin.ModelAdmin):
     form = BrokerOrganizationAdminForm
     list_display = (
         "name",
+        "trading_name",
         "slug",
         "status",
         "plan",
@@ -44,9 +83,9 @@ class BrokerOrganizationAdmin(admin.ModelAdmin):
         "auto_approve_changed_at",
     )
     list_filter = ("status", "plan", "auto_approve_listings")
-    search_fields = ("name", "slug", "public_email")
+    search_fields = ("name", "trading_name", "slug", "public_email")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = [BrokerMembershipInline]
+    inlines = [BrokerVerificationDocumentInline, BrokerMembershipInline]
 
     def get_readonly_fields(self, request, obj=None):
         from accounts.services import is_staff_admin
@@ -137,3 +176,15 @@ class BrokerMembershipAdmin(admin.ModelAdmin):
     search_fields = ("user__email", "broker__name")
     autocomplete_fields = ("user", "broker")
     readonly_fields = BASE_READONLY
+
+
+@admin.register(BrokerSubscription)
+class BrokerSubscriptionAdmin(admin.ModelAdmin):
+    """Same window professionals.admin gives ProfessionalSubscription: billing state
+    is written by Stripe webhooks, but staff need to see it, and a test system
+    needs to put a subscription PAST_DUE to exercise the lapse sweep."""
+
+    list_display = ("broker", "status", "current_period_end", "past_due_since", "last_paid_at")
+    list_filter = ("status",)
+    search_fields = ("broker__name", "broker__slug", "stripe_subscription_id")
+    raw_id_fields = ("broker",)

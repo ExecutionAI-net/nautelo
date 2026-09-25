@@ -11,6 +11,7 @@ from accounts.tests.factories import make_user
 
 REGISTER_URL = "/api/v1/auth/register/"
 VALID_PASSWORD = "n4uta-test-Passw0rd"
+VALID_PHONE = "+34 600 000 000"
 
 
 @pytest.fixture
@@ -22,7 +23,12 @@ def api():
 def test_registration_creates_an_unverified_active_buyer(api):
     response = api.post(
         REGISTER_URL,
-        {"email": "New.User@Example.com", "password": VALID_PASSWORD, "full_name": "New User"},
+        {
+            "email": "New.User@Example.com",
+            "password": VALID_PASSWORD,
+            "full_name": "New User",
+            "phone_number": VALID_PHONE,
+        },
         format="json",
     )
     assert response.status_code == 201
@@ -31,8 +37,49 @@ def test_registration_creates_an_unverified_active_buyer(api):
     assert user.is_email_verified is False
     assert user.primary_role == UserRole.PRIVATE_SELLER
     assert user.locale == Locale.EN
+    assert user.phone_number == VALID_PHONE
+    assert user.newsletter_opt_in is False  # optional, defaults to opted out
     assert response.data["email"] == "new.user@example.com"
     assert "password" not in response.data
+
+
+@pytest.mark.django_db
+def test_registration_can_opt_into_the_newsletter(api):
+    response = api.post(
+        REGISTER_URL,
+        {
+            "email": "subscriber@example.com",
+            "password": VALID_PASSWORD,
+            "phone_number": VALID_PHONE,
+            "newsletter_opt_in": True,
+        },
+        format="json",
+    )
+    assert response.status_code == 201
+    assert User.objects.get(email="subscriber@example.com").newsletter_opt_in is True
+
+
+@pytest.mark.django_db
+def test_registration_requires_a_phone_number(api):
+    response = api.post(
+        REGISTER_URL,
+        {"email": "nophone@example.com", "password": VALID_PASSWORD},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "phone_number" in response.data["error"]["fields"]
+    assert not User.objects.filter(email="nophone@example.com").exists()
+
+
+@pytest.mark.django_db
+def test_registration_rejects_a_junk_phone_number(api):
+    response = api.post(
+        REGISTER_URL,
+        {"email": "junkphone@example.com", "password": VALID_PASSWORD, "phone_number": "abc"},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "phone_number" in response.data["error"]["fields"]
 
 
 @pytest.mark.django_db
@@ -45,7 +92,7 @@ def test_registration_sends_one_verification_email_and_stores_only_a_hash(
     with django_capture_on_commit_callbacks(execute=True) as callbacks:
         api.post(
             REGISTER_URL,
-            {"email": "hash@example.com", "password": VALID_PASSWORD},
+            {"email": "hash@example.com", "password": VALID_PASSWORD, "phone_number": VALID_PHONE},
             format="json",
         )
 
@@ -60,7 +107,12 @@ def test_registration_sends_one_verification_email_and_stores_only_a_hash(
 def test_registration_accepts_only_self_service_roles(api):
     ok = api.post(
         REGISTER_URL,
-        {"email": "seller@example.com", "password": VALID_PASSWORD, "primary_role": "PRIVATE_SELLER"},
+        {
+            "email": "seller@example.com",
+            "password": VALID_PASSWORD,
+            "phone_number": VALID_PHONE,
+            "primary_role": "PRIVATE_SELLER",
+        },
         format="json",
     )
     assert ok.status_code == 201
@@ -73,7 +125,7 @@ def test_registration_rejects_privileged_roles(api, forbidden_role):
     response = api.post(
         REGISTER_URL,
         {"email": f"{forbidden_role.lower()}@example.com", "password": VALID_PASSWORD,
-         "primary_role": forbidden_role},
+         "phone_number": VALID_PHONE, "primary_role": forbidden_role},
         format="json",
     )
     assert response.status_code == 400
@@ -85,7 +137,9 @@ def test_registration_rejects_privileged_roles(api, forbidden_role):
 @pytest.mark.django_db
 def test_registration_rejects_a_weak_password(api):
     response = api.post(
-        REGISTER_URL, {"email": "weak@example.com", "password": "pass"}, format="json"
+        REGISTER_URL,
+        {"email": "weak@example.com", "password": "pass", "phone_number": VALID_PHONE},
+        format="json",
     )
     assert response.status_code == 400
     assert "password" in response.data["error"]["fields"]
@@ -95,7 +149,9 @@ def test_registration_rejects_a_weak_password(api):
 def test_registration_rejects_a_duplicate_email_case_insensitively(api):
     make_user("taken@example.com")
     response = api.post(
-        REGISTER_URL, {"email": "TAKEN@example.com", "password": VALID_PASSWORD}, format="json"
+        REGISTER_URL,
+        {"email": "TAKEN@example.com", "password": VALID_PASSWORD, "phone_number": VALID_PHONE},
+        format="json",
     )
     assert response.status_code == 400
     assert "email" in response.data["error"]["fields"]
@@ -114,7 +170,7 @@ def test_concurrent_registration_for_the_same_email_yields_one_conflict_not_a_50
         try:
             response = APIClient().post(
                 REGISTER_URL,
-                {"email": "racer@example.com", "password": VALID_PASSWORD},
+                {"email": "racer@example.com", "password": VALID_PASSWORD, "phone_number": VALID_PHONE},
                 format="json",
             )
             responses.append(response)
@@ -142,7 +198,7 @@ def test_concurrent_registration_for_the_same_email_yields_one_conflict_not_a_50
 def test_registration_cannot_set_verification_or_staff_flags(api):
     api.post(
         REGISTER_URL,
-        {"email": "sneaky@example.com", "password": VALID_PASSWORD,
+        {"email": "sneaky@example.com", "password": VALID_PASSWORD, "phone_number": VALID_PHONE,
          "is_staff": True, "is_superuser": True, "email_verified_at": "2020-01-01T00:00:00Z"},
         format="json",
     )

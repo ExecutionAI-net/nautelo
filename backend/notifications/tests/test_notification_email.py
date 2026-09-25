@@ -62,13 +62,13 @@ def test_the_email_is_localized_by_recipient_locale_with_an_en_fallback():
     notification = _notify(italian, email_to="it-office@phase6.example")
     mail.outbox.clear()
     send_notification_email(str(notification.pk), "it-office@phase6.example")
-    assert mail.outbox[0].subject == "Nuovo messaggio su NAUTA"
+    assert mail.outbox[0].subject == "Nuovo messaggio su Nautelo"
 
     english = make_user(email="en@phase6.example", locale=Locale.EN)
     notification = _notify(english, email_to="en-office@phase6.example")
     mail.outbox.clear()
     send_notification_email(str(notification.pk), "en-office@phase6.example")
-    assert mail.outbox[0].subject == "New message on NAUTA"
+    assert mail.outbox[0].subject == "New message on Nautelo"
 
 
 def test_a_successful_send_marks_the_delivery_row_sent():
@@ -173,7 +173,7 @@ def test_the_spanish_email_is_rendered_in_spanish():
     send_notification_email(str(notification.pk), "es-office@phase6.example")
 
     sent = mail.outbox[0]
-    assert sent.subject == "Nuevo mensaje en NAUTA"
+    assert sent.subject == "Nuevo mensaje en Nautelo"
     assert sent.body.startswith("Ada Rossi te ha enviado un mensaje")
     assert "https://nauta.test/dashboard/messages/abc/" in sent.body
 
@@ -195,7 +195,7 @@ def test_a_sender_without_a_name_falls_back_to_a_localized_placeholder():
 
     send_notification_email(str(notification.pk), "noname-office@phase6.example")
 
-    assert mail.outbox[0].body.startswith("Un utente NAUTA")
+    assert mail.outbox[0].body.startswith("Un utente Nautelo")
 
 
 def test_an_unknown_locale_falls_back_to_english():
@@ -207,7 +207,7 @@ def test_an_unknown_locale_falls_back_to_english():
 
     send_notification_email(str(notification.pk), "xx-office@phase6.example")
 
-    assert mail.outbox[0].subject == "New message on NAUTA"
+    assert mail.outbox[0].subject == "New message on Nautelo"
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +350,73 @@ def test_a_failed_send_logs_neither_the_address_nor_the_message(caplog, monkeypa
     assert "quiet2-office@phase6.example" not in logged
     assert EXCERPT not in logged
     assert "SMTPServerDisconnected" in logged
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: generic notification types render through an emailing.EmailTemplate
+# when staff has authored one, and fall back to the plain-text copy otherwise.
+# ---------------------------------------------------------------------------
+
+
+@override_settings(PUBLIC_BASE_URL="https://nauta.test")
+def test_a_generic_notification_carries_html_when_a_template_exists(monkeypatch):
+    """The mapped key is monkeypatched to an unseeded one: every real key in
+    TEMPLATE_KEY_BY_TYPE now has EN/IT/ES rows from
+    emailing/migrations/0003_seed_phase4_templates, and creating another row
+    under a real key would collide with a seeded one (UniqueConstraint on
+    key+locale)."""
+    from emailing.models import EmailTemplate
+
+    monkeypatch.setitem(
+        tasks.TEMPLATE_KEY_BY_TYPE,
+        NotificationType.LISTING_APPROVED,
+        "p_test_generic_template",
+    )
+    EmailTemplate.objects.create(
+        key="p_test_generic_template",
+        locale="EN",
+        subject="Your listing is live",
+        html_body="<p>See it at {{ url }}</p>",
+    )
+    recipient = make_user(email="approved@phase6.example", locale=Locale.EN)
+    notification = create_notification(
+        recipient=recipient,
+        notification_type=NotificationType.LISTING_APPROVED,
+        title_key="notification.listing_approved.title",
+        body_key="notification.listing_approved.body",
+        target_url="/dashboard/listings/abc/",
+        email_to="approved-office@phase6.example",
+    )
+    mail.outbox.clear()
+
+    send_notification_email(str(notification.pk), "approved-office@phase6.example")
+
+    sent = mail.outbox[0]
+    assert sent.subject == "Your listing is live"
+    assert sent.alternatives
+    html, mimetype = sent.alternatives[0]
+    assert mimetype == "text/html"
+    assert "https://nauta.test/dashboard/listings/abc/" in html
+
+
+def test_a_notification_type_absent_from_the_template_map_sends_plain_text_only():
+    """LISTING_INITIAL_SUBMITTED has no entry in TEMPLATE_KEY_BY_TYPE (spec 27.1's
+    staff-only moderation events aren't user-facing templates), so this exercises
+    the `template_key is None` branch regardless of what's seeded in the DB."""
+    recipient = make_user(email="notpl@phase6.example", locale=Locale.EN)
+    notification = create_notification(
+        recipient=recipient,
+        notification_type=NotificationType.LISTING_INITIAL_SUBMITTED,
+        title_key="notification.listing_initial_submitted.title",
+        body_key="notification.listing_initial_submitted.body",
+        target_url="/dashboard/listings/xyz/",
+        email_to="notpl-office@phase6.example",
+    )
+    mail.outbox.clear()
+
+    send_notification_email(str(notification.pk), "notpl-office@phase6.example")
+
+    assert mail.outbox[0].alternatives == []
 
 
 def test_no_stored_row_records_the_destination_address():

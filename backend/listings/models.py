@@ -28,8 +28,12 @@ CUSTOM_MODEL_NAME_MIN_LENGTH = 2
 CUSTOM_MODEL_NAME_MAX_LENGTH = 100
 # Spec §11.4: "currency ISO-4217, initially EUR". Spec §18.2 requires an
 # eligibility check for "listing.currency is supported", so the supported set is
-# explicit rather than implied.
-SUPPORTED_CURRENCIES = frozenset({"EUR"})
+# explicit rather than implied. Extended to USD/GBP (customer feedback,
+# 2026-09-25): sellers price boats in their own currency; this has no effect
+# on Stripe (the platform never takes payment for a boat itself) or on
+# finance quotes, which stay EUR-only (finance/serializers.py's own,
+# deliberately narrower SUPPORTED_CURRENCIES).
+SUPPORTED_CURRENCIES = frozenset({"EUR", "USD", "GBP"})
 
 
 class BoatListing(UUIDTimeStampedModel):
@@ -96,6 +100,10 @@ class BoatListing(UUIDTimeStampedModel):
         related_name="+",
     )
     view_count_cached = models.BigIntegerField(default=0)
+    # Paid promotion ("featured"): featured while `featured_until` is in the future;
+    # `featured_at` orders the featured strip, newest first. Written only by promotions.services.
+    featured_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    featured_at = models.DateTimeField(null=True, blank=True)
     # Optimistic locking (spec §20.5); bumped by listings.locking.bump_version().
     version = models.PositiveIntegerField(default=1)
     # Spec 4.1's canonical /boats/<listing-slug>/. Assigned once, at first
@@ -115,6 +123,15 @@ class BoatListing(UUIDTimeStampedModel):
         on_delete=models.SET_NULL,
         related_name="+",
     )
+    # Owner-initiated soft delete. Independent of `status`: settable from any
+    # workflow state, never read by the state machine. A deleted listing is
+    # excluded from the owner's dashboard and its counters, and from every
+    # public read path (published_listings_queryset), but the row - and the
+    # FREE_LISTING entitlement its publication consumed - is never removed,
+    # so a deleted listing still counts against the owner's free-listing quota
+    # until that entitlement ages out on its own (entitlements.policy computes
+    # the quota purely from the entitlement ledger, never from this table).
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -181,7 +198,10 @@ class BoatListing(UUIDTimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.brand_id} {self.model_id} ({self.status})"
+        # Read by humans in Django admin (promotions, entitlements...): a heading, not two UUIDs.
+        brand = self.brand.name if self.brand_id else "?"
+        model = self.custom_model_name or (self.model.name if self.model_id else "?")
+        return f"{self.manufacture_year} {brand} {model} ({self.status})"
 
     @staticmethod
     def max_manufacture_year() -> int:
@@ -362,6 +382,8 @@ class ListingSnapshot(UUIDModel):
     location_country = models.CharField(max_length=2)
     location_region = models.CharField(max_length=120, blank=True, default="")
     location_city = models.CharField(max_length=120)
+    # GeoNames id of the city picked from places.City; null on listings created before the picker.
+    location_place_id = models.PositiveBigIntegerField(null=True, blank=True, db_index=True)
     currency = models.CharField(max_length=3)
     price = models.DecimalField(max_digits=14, decimal_places=2)
     # Spec §18.2 reads these four as "listing.show_finance_estimate" etc. They

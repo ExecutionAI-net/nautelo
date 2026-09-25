@@ -1,0 +1,217 @@
+import type { ReactNode } from "react";
+
+import Link from "@/components/layout/LocaleLink";
+import CompareToggle from "@/components/listings/CompareToggle";
+import type { MessageKey, Translate } from "@/i18n";
+import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
+import type { PublicListing } from "@/lib/api/listings";
+import { financingHref } from "@/lib/api/listingLinks";
+import type { Locale } from "@/lib/i18n/directory";
+import { placeLabel } from "@/lib/i18n/places";
+import { specValueLabel } from "@/lib/i18n/specValues";
+
+// The boat's own words for each stored spec, in the order a buyer reads them. Unknown keys still show, tidied.
+const SPEC_ORDER: [string, MessageKey][] = [
+  ["boat_type", "boat.spec.boat_type"],
+  ["condition", "boat.spec.condition"],
+  ["loa_m", "boat.spec.length"],
+  ["length_m", "boat.spec.length"],
+  ["beam_m", "boat.spec.beam"],
+  ["draft_m", "boat.spec.draft"],
+  ["cabins", "boat.spec.cabins"],
+  ["berths", "boat.spec.berths"],
+  ["heads", "boat.spec.bathrooms"],
+  ["hull_material", "boat.spec.hull"],
+  ["engines", "boat.spec.engines"],
+  ["engine_power_hp", "boat.spec.engine_power"],
+  ["engine_hours", "boat.spec.engine_hours"],
+  ["fuel_type", "boat.spec.fuel"],
+  ["max_speed_kn", "boat.spec.top_speed"],
+  ["fuel_capacity_l", "boat.spec.fuel_tank"],
+  ["water_capacity_l", "boat.spec.water_tank"],
+  ["vat_paid", "boat.spec.vat_paid"],
+];
+
+export function readableSpecs(specifications: Record<string, unknown>, t: Translate): { key: string; label: string; value: string }[] {
+  const shown = (value: unknown) =>
+    value === true
+      ? t("boat.yes")
+      : value === false
+        ? t("boat.no")
+        : typeof value === "string"
+          ? specValueLabel(t, value).replace(/^./, (c) => c.toUpperCase())
+          : String(value);
+  const known = new Set(SPEC_ORDER.map(([key]) => key));
+  const rows: { key: string; label: string; value: string }[] = [];
+  const seenLabels = new Set<string>();
+  for (const [key, labelKey] of SPEC_ORDER) {
+    const label = t(labelKey);
+    const value = specifications[key];
+    if (value === null || value === undefined || value === "" || seenLabels.has(label)) continue;
+    seenLabels.add(label);
+    rows.push({ key, label, value: shown(value) });
+  }
+  for (const [key, value] of Object.entries(specifications)) {
+    if (known.has(key) || value === null || value === undefined || value === "") continue;
+    rows.push({ key, label: key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), value: shown(value) });
+  }
+  return rows;
+}
+
+export interface BoatDetailViewProps {
+  listing: PublicListing;
+  locale: Locale;
+  t: Translate;
+  /** Rendered beside the price — ShareButtons on the real page, nothing (or a
+   * "preview" badge) on the owner's own preview. */
+  headerExtra?: ReactNode;
+  /** Rendered in the right-hand aside, below the seller/broker card —
+   * InquiryForm on the real page, omitted on the owner's own preview (nobody
+   * should be able to message a listing that isn't published yet). */
+  asideExtra?: ReactNode;
+}
+
+/**
+ * The hero, spec grid, description and finance teaser shared by the real
+ * public boat page (frontend/src/app/boats/[slug]/page.tsx) and the owner's
+ * own preview (frontend/src/app/dashboard/listings/[id]/preview/page.tsx).
+ * Deliberately excludes anything that only makes sense once a listing is
+ * actually public: ShareButtons, InquiryForm and "similar boats" stay with
+ * the caller, via the two slots above (or omitted entirely, for preview).
+ */
+export function BoatDetailView({ listing, locale, t, headerExtra, asideExtra }: BoatDetailViewProps) {
+  const modelName = listing.custom_model_name || listing.model_name;
+  const heading = `${listing.manufacture_year} ${listing.brand_name} ${modelName}`;
+  const price = askingPrice(locale, listing.price.amount, listing.price.currency);
+  const location = placeLabel(listing.location);
+  const images = listing.media.filter((item) => item.media_type === "IMAGE" && item.url);
+  const specs = readableSpecs(listing.specifications, t);
+  const mainImage = images[0];
+  const sideImages = images.slice(1, 3);
+  const monthly =
+    listing.finance?.visible === true && isFinanceablePrice(listing.price)
+      ? safeMoney(locale, listing.finance.monthly_payment, listing.price.currency)
+      : null;
+
+  return (
+    <>
+      <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-lg md:px-margin lg:px-margin-desktop">
+        <nav aria-label={t("boat.breadcrumb")} className="font-body-sm text-on-surface-variant">
+          <Link href="/boats/" className="hover:text-primary">
+            {t("boats.title")}
+          </Link>
+          <span aria-hidden="true"> / </span>
+          <Link href={`/boats/?brand=${encodeURIComponent(listing.brand_name)}`} className="hover:text-primary">
+            {listing.brand_name}
+          </Link>
+        </nav>
+
+        <div className="mt-space-md flex flex-col justify-between gap-space-md md:flex-row md:items-start">
+          <div>
+            <span className="rounded bg-surface-container px-2 py-0.5 font-label-sm uppercase text-on-surface-variant">
+              {listing.seller_type === "BROKER" ? t("boat.professional_seller") : t("boat.private_seller")}
+            </span>
+            <h1 className="mt-space-xs font-headline-lg text-headline-lg text-primary">
+              {listing.title[locale] || heading}
+            </h1>
+            {location ? <p className="mt-space-xs font-body-md text-on-surface-variant">{location}</p> : null}
+          </div>
+          <div className="md:text-right">
+            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.asking_price")}</p>
+            {price ? <p className="font-spec-num text-headline-lg font-semibold text-primary">{price}</p> : null}
+            {headerExtra ? <div className="mt-space-xs">{headerExtra}</div> : null}
+            <div className="mt-space-xs">
+              <CompareToggle
+                listingId={listing.id}
+                labels={{
+                  add: t("boats.compare.add"),
+                  added: t("boats.compare.added"),
+                  remove: t("boats.compare.remove_from_compare"),
+                  open: t("boats.compare.open", { count: "{count}" }),
+                  full: t("boats.compare.full", { max: 4 }),
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-space-lg grid grid-cols-1 gap-space-sm lg:grid-cols-3">
+          <div className="overflow-hidden rounded-xl bg-surface-container-high lg:col-span-2">
+            {mainImage ? (
+              // eslint-disable-next-line @next/next/no-img-element -- CDN URL
+              <img src={mainImage.url ?? ""} alt={heading} className="aspect-[16/10] w-full object-cover" />
+            ) : (
+              <div aria-hidden="true" className="aspect-[16/10] w-full" />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-space-sm lg:grid-cols-1">
+            {sideImages.map((item) => (
+              // eslint-disable-next-line @next/next/no-img-element -- CDN URL
+              <img key={item.media_id} src={item.url ?? ""} alt={heading} loading="lazy" className="aspect-[16/10] w-full rounded-xl object-cover" />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {specs.length > 0 ? (
+        <section aria-label={t("boat.key_specs")} className="bg-surface-container-low py-space-md">
+          <dl className="mx-auto grid max-w-[1440px] grid-cols-2 gap-space-sm px-margin-mobile sm:grid-cols-4 md:px-margin lg:grid-cols-6 lg:px-margin-desktop">
+            {specs.map((spec) => (
+              <div key={spec.key} className="rounded-lg bg-surface-container-lowest p-space-sm">
+                <dt className="font-label-sm uppercase text-on-surface-variant">{spec.label}</dt>
+                <dd className="font-spec-num text-title-md text-primary">{spec.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
+
+      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-space-xl px-margin-mobile py-space-xl md:px-margin lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:px-margin-desktop">
+        <div>
+          {listing.description[locale] ? (
+            <>
+              <h2 className="font-headline-md text-headline-md text-primary">{t("boat.description")}</h2>
+              <p className="mt-space-md whitespace-pre-line rounded-xl bg-surface-container-lowest p-space-lg font-body-md text-on-surface shadow-sm">
+                {listing.description[locale]}
+              </p>
+            </>
+          ) : null}
+          {monthly ? (
+            <div className="mt-space-lg flex flex-col justify-between gap-space-sm rounded-xl bg-surface-container-low p-space-lg sm:flex-row sm:items-center">
+              <div>
+                <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">{t("boat.marine_financing")}</p>
+                <p className="font-title-lg text-title-lg text-primary">
+                  {t("finance.estimated_payment")} {monthly}
+                  {t("finance.per_month")}
+                </p>
+                <p className="font-body-sm text-on-surface-variant">{t("finance.illustrative_disclaimer")}</p>
+              </div>
+              <a
+                href={financingHref(listing)}
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-space-md py-space-sm font-body-md text-on-primary"
+              >
+                {t("finance.calculate")}
+              </a>
+            </div>
+          ) : null}
+        </div>
+        <aside className="flex flex-col gap-space-md">
+          <div className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+            <p className="font-label-sm uppercase tracking-widest text-on-surface-variant">
+              {listing.broker ? t("boat.listing_brokerage") : t("boat.private_seller")}
+            </p>
+            {listing.broker ? (
+              <p className="font-title-md text-title-md text-primary">
+                <Link href={`/brokers/${listing.broker.slug}/`} className="underline">
+                  {listing.broker.name}
+                </Link>
+              </p>
+            ) : null}
+            {location ? <p className="font-body-sm text-on-surface-variant">{location}</p> : null}
+          </div>
+          {asideExtra}
+        </aside>
+      </div>
+    </>
+  );
+}

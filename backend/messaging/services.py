@@ -25,6 +25,7 @@ from messaging.enums import (
     FULL_NAME_MAX_LENGTH,
     ContactAccessOutcome,
     ConversationStatus,
+    broker_conversation_url,
     conversation_url,
 )
 from messaging.exceptions import (
@@ -180,6 +181,19 @@ def grant_contact_access(*, viewer, context, conversation, request_id=None):
     return grant, True
 
 
+def recipient_conversation_url(conversation, user) -> str:
+    """Where this recipient reads the thread: a member of the brokerage the
+    conversation belongs to has a broker seat (spec 28); everyone else uses
+    the role-neutral messages page."""
+    from brokers.models import BrokerMembership
+
+    if conversation.broker_id and BrokerMembership.objects.filter(
+        broker_id=conversation.broker_id, user=user, is_active=True
+    ).exists():
+        return broker_conversation_url(conversation.pk)
+    return conversation_url(conversation.pk)
+
+
 def _dispatch_notifications(
     *, recipients, email_to, conversation, message, context_type, context_label
 ) -> list[str]:
@@ -228,7 +242,7 @@ def _dispatch_notifications(
             notification_type=NotificationType.INQUIRY_RECEIVED,
             title_key=INQUIRY_TITLE_KEY,
             body_key=INQUIRY_BODY_KEY,
-            target_url=conversation_url(conversation.pk),
+            target_url=recipient_conversation_url(conversation, user),
             payload=payload,
             email_to=email_to if index == email_index and email_to else "",
             # Spec 27.1's deduplication key for `inquiry.received` is the

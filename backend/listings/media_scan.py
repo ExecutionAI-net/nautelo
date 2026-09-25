@@ -43,6 +43,16 @@ def scan_stream(chunks, *, host: str, port: int, timeout: float = 30.0) -> str:
         raise ScannerUnavailable(str(exc)) from exc
 
 
+def ping_clamd(*, timeout: float = 2.0) -> bool:
+    """True when clamd answers PING with PONG; used by the health endpoint."""
+    try:
+        with socket.create_connection((settings.CLAMAV_HOST, settings.CLAMAV_PORT), timeout=timeout) as sock:
+            sock.sendall(b"zPING\0")
+            return _reply(sock).endswith("PONG")
+    except OSError:
+        return False
+
+
 def clamd_scan(storage, key: str) -> None:
     data = storage.read(key)
     verdict = scan_stream(

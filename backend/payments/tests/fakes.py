@@ -8,7 +8,12 @@ implementation, so a signature change on one is a failure on the other.
 
 from dataclasses import dataclass, field
 
-from payments.gateway import CheckoutSessionResult, PriceSnapshot, StripeUnavailable
+from payments.gateway import (
+    CheckoutSessionResult,
+    PriceSnapshot,
+    ProductWithPrice,
+    StripeUnavailable,
+)
 
 
 @dataclass
@@ -20,9 +25,18 @@ class FakeStripeGateway:
     raise_on_retrieve: Exception | None = None
     created: list[dict] = field(default_factory=list)
     retrieved: list[str] = field(default_factory=list)
+    products: list[ProductWithPrice] = field(default_factory=list)
+    raise_on_list_products: Exception | None = None
 
     portal_url: str = "https://billing.stripe.test/portal"
     portals: list = field(default_factory=list)
+    expired: list = field(default_factory=list)
+    raise_on_expire: Exception | None = None
+
+    def expire_checkout_session(self, session_id):
+        if self.raise_on_expire is not None:
+            raise self.raise_on_expire
+        self.expired.append(session_id)
 
     def create_portal_session(self, *, customer_id, return_url):
         self.portals.append({"customer_id": customer_id, "return_url": return_url})
@@ -53,6 +67,12 @@ class FakeStripeGateway:
             active=True,
             recurring=False,
         )
+
+
+    def list_active_products_with_prices(self) -> list[ProductWithPrice]:
+        if self.raise_on_list_products is not None:
+            raise self.raise_on_list_products
+        return self.products
 
 
 def unavailable():

@@ -30,15 +30,35 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "IT": "Un annuncio usa il modello Altro e richiede una decisione.",
     "ES": "Un anuncio usa el modelo Otro y requiere una decision."
   },
+  "notification.listing_submission_received.title": {
+    "EN": "Your listing was submitted",
+    "IT": "Il tuo annuncio e stato inviato",
+    "ES": "Tu anuncio fue enviado"
+  },
+  "notification.listing_submission_received.body": {
+    "EN": "Your listing was received and is awaiting staff review.",
+    "IT": "Il tuo annuncio e stato ricevuto ed e in attesa di revisione.",
+    "ES": "Tu anuncio fue recibido y esta pendiente de revision."
+  },
+  "notification.inquiry_received.title": {
+    "EN": "New message",
+    "IT": "Nuovo messaggio",
+    "ES": "Nuevo mensaje"
+  },
+  "notification.inquiry_received.body": {
+    "EN": "A buyer wrote to you. Open the conversation in Messages.",
+    "IT": "Un acquirente ti ha scritto. Apri la conversazione in Messaggi.",
+    "ES": "Un comprador te ha escrito. Abre la conversación en Mensajes."
+  },
   "notification.listing_approved.title": {
     "EN": "Your listing was approved",
     "IT": "Il tuo annuncio e stato approvato",
     "ES": "Tu anuncio fue aprobado"
   },
   "notification.listing_approved.body": {
-    "EN": "Your listing is now public on NAUTA.",
-    "IT": "Il tuo annuncio e ora pubblico su NAUTA.",
-    "ES": "Tu anuncio ya es publico en NAUTA."
+    "EN": "Your listing is now public on Nautelo.",
+    "IT": "Il tuo annuncio e ora pubblico su Nautelo.",
+    "ES": "Tu anuncio ya es publico en Nautelo."
   },
   "notification.listing_changes_requested.title": {
     "EN": "Changes requested on your listing",
@@ -76,9 +96,9 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "ES": "Tu anuncio ha caducado"
   },
   "notification.listing_expired.body": {
-    "EN": "It is no longer public on NAUTA.",
-    "IT": "Non e piu pubblico su NAUTA.",
-    "ES": "Ya no es publico en NAUTA."
+    "EN": "It is no longer public on Nautelo.",
+    "IT": "Non e piu pubblico su Nautelo.",
+    "ES": "Ya no es publico en Nautelo."
   },
   "notification.professional_activated.title": {
     "EN": "Your professional profile is live",
@@ -86,9 +106,9 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "ES": "Tu perfil profesional esta activo"
   },
   "notification.professional_activated.body": {
-    "EN": "Your payment was received. Your profile is now listed on NAUTA.",
-    "IT": "Pagamento ricevuto. Il tuo profilo e ora pubblicato su NAUTA.",
-    "ES": "Pago recibido. Tu perfil ya esta publicado en NAUTA."
+    "EN": "Your payment was received. Your profile is now listed on Nautelo.",
+    "IT": "Pagamento ricevuto. Il tuo profilo e ora pubblicato su Nautelo.",
+    "ES": "Pago recibido. Tu perfil ya esta publicado en Nautelo."
   },
   "notification.professional_payment_failed.title": {
     "EN": "Payment not received",
@@ -109,6 +129,36 @@ export const NOTIFICATION_TEXT: Record<string, Record<"EN" | "IT" | "ES", string
     "EN": "Your membership is not active, so your profile is no longer listed. Pay to bring it back.",
     "IT": "L abbonamento non e attivo, quindi il profilo non e piu pubblicato. Paga per riattivarlo.",
     "ES": "La membresia no esta activa, asi que tu perfil ya no se muestra. Paga para reactivarlo."
+  },
+  "notification.broker_trial_started.title": {
+    "EN": "Your free trial has started",
+    "IT": "La tua prova gratuita e iniziata",
+    "ES": "Tu prueba gratuita ha empezado"
+  },
+  "notification.broker_trial_started.body": {
+    "EN": "Your brokerage plan is set. Staff approval is what puts your brokerage live.",
+    "IT": "Il piano della tua agenzia e attivo. L approvazione dello staff pubblica la tua agenzia.",
+    "ES": "El plan de tu agencia esta activo. La aprobacion del personal publica tu agencia."
+  },
+  "notification.broker_payment_failed.title": {
+    "EN": "Payment not received",
+    "IT": "Pagamento non ricevuto",
+    "ES": "Pago no recibido"
+  },
+  "notification.broker_payment_failed.body": {
+    "EN": "We could not collect your brokerage subscription. Pay within 24 hours to keep your brokerage online.",
+    "IT": "Non abbiamo potuto incassare l abbonamento della tua agenzia. Paga entro 24 ore per mantenerla online.",
+    "ES": "No pudimos cobrar la suscripcion de tu agencia. Paga en 24 horas para mantenerla en linea."
+  },
+  "notification.broker_suspended.title": {
+    "EN": "Your brokerage is suspended",
+    "IT": "La tua agenzia e sospesa",
+    "ES": "Tu agencia esta suspendida"
+  },
+  "notification.broker_suspended.body": {
+    "EN": "The subscription is not active, so your vessels are offline. Pay to bring them back.",
+    "IT": "L abbonamento non e attivo, quindi le tue imbarcazioni sono offline. Paga per riattivarle.",
+    "ES": "La suscripcion no esta activa, asi que tus embarcaciones estan fuera de linea. Paga para reactivarlas."
   },
   "notification.payment_fulfilled.title": {
     "EN": "Your purchase is ready",

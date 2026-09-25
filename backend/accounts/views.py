@@ -63,13 +63,15 @@ class RegisterView(APIView):
         # Every argument is named explicitly rather than splatted with
         # `register_user(**data)`. UserManager.create_user() forwards **extra_fields
         # straight onto the model by design, so the ONLY thing standing between a
-        # request body and `is_staff=True` is what reaches it here. Naming the five
-        # fields keeps that guarantee even if someone later adds a field to
+        # request body and `is_staff=True` is what reaches it here. Naming each
+        # field keeps that guarantee even if someone later adds a field to
         # RegistrationSerializer without re-reading create_user() (spec 2.2).
         user = register_user(
             email=data["email"],
             password=data["password"],
             full_name=data["full_name"],
+            phone_number=data["phone_number"],
+            newsletter_opt_in=data["newsletter_opt_in"],
             locale=data["locale"],
             primary_role=data["primary_role"],
         )

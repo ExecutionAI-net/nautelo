@@ -114,5 +114,8 @@ def test_public_profile_lists_visible_team_members(org):
     _add(profile, "shown@pro.example")
     res = APIClient().get(reverse("professional-detail", args=[profile.slug]))
     assert res.status_code == 200
-    emails = {m["email"] for m in res.json()["team"]}
-    assert emails == {"owner@pro.example", "shown@pro.example"}
+    team = res.json()["team"]
+    # Two visible members, the hidden one absent, and nobody's login e-mail on the public page.
+    assert len(team) == 2 and all("email" not in m for m in team)
+    body = res.content.decode()
+    assert "hide@pro.example" not in body and "shown@pro.example" not in body

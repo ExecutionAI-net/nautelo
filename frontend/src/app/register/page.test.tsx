@@ -11,8 +11,13 @@ vi.mock("next/link", () => ({
 }));
 
 function fill() {
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "S3cret-pass!" } });
+  fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: "Carlo Carmine" } });
+  fireEvent.click(screen.getByLabelText("Country code"));
+  fireEvent.click(screen.getByRole("option", { name: /^Spain/ }));
+  fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "600000000" } });
+  fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "a@b.co" } });
+  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "S3cret-pass!" } });
+  fireEvent.change(screen.getByLabelText(/^Confirm password/), { target: { value: "S3cret-pass!" } });
   fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 }
 
@@ -20,10 +25,30 @@ describe("RegisterPage", () => {
   it("has no role picker and posts no role", async () => {
     apiFetch.mockResolvedValue({});
     render(<RegisterPage />);
-    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.queryByLabelText(/role/i)).toBeNull();
     fill();
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
-    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({ email: "a@b.co", password: "S3cret-pass!", full_name: "" });
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
+      email: "a@b.co",
+      password: "S3cret-pass!",
+      full_name: "Carlo Carmine",
+      phone_number: "+34600000000",
+      newsletter_opt_in: false,
+    });
+  });
+
+  it("posts newsletter_opt_in true when the checkbox is checked", async () => {
+    apiFetch.mockResolvedValue({});
+    render(<RegisterPage />);
+    fireEvent.click(screen.getByLabelText("Send me occasional updates from Nautelo."));
+    fill();
+    await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
+    expect(JSON.parse(apiFetch.mock.calls[0][1].body).newsletter_opt_in).toBe(true);
+  });
+
+  it("requires a phone number before it can submit", () => {
+    render(<RegisterPage />);
+    expect(screen.getByLabelText("Phone number")).toBeRequired();
   });
 
   it("shows the server's field error", async () => {

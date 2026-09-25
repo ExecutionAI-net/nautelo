@@ -1,3 +1,4 @@
+import { testT } from "@/i18n/testing";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -26,7 +27,7 @@ function category(overrides: Partial<ServiceCategory> = {}): ServiceCategory {
 
 describe("CategoryGrid", () => {
   it("links each tile to the filtered directory", () => {
-    render(<CategoryGrid locale="en" categories={[category()]} />);
+    render(<CategoryGrid t={testT("en")} locale="en" categories={[category()]} />);
 
     expect(screen.getByRole("link", { name: /legal/i })).toHaveAttribute(
       "href",
@@ -35,12 +36,11 @@ describe("CategoryGrid", () => {
   });
 
   it("renders a description only when the record has one", () => {
-    const { rerender } = render(<CategoryGrid locale="en" categories={[category()]} />);
+    const { rerender } = render(<CategoryGrid t={testT("en")} locale="en" categories={[category()]} />);
     expect(screen.queryByText("Contract work.")).not.toBeInTheDocument();
 
     rerender(
-      <CategoryGrid
-        locale="en"
+      <CategoryGrid t={testT("en")} locale="en"
         categories={[category({ description: "Contract work." })]}
       />,
     );
@@ -48,7 +48,7 @@ describe("CategoryGrid", () => {
   });
 
   it("shows a true empty message rather than placeholder tiles", () => {
-    render(<CategoryGrid locale="en" categories={[]} />);
+    render(<CategoryGrid t={testT("en")} locale="en" categories={[]} />);
 
     expect(
       screen.getByText("No service categories are published yet."),

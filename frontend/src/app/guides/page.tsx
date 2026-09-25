@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import AdSlot from "@/components/content/AdSlot";
+import { getT } from "@/i18n/server";
 import { fetchGuides } from "@/lib/api/contentServer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Nautical guides",
-  description: "Practical guides on buying, selling and maintaining a boat in Spain and Italy.",
-  alternates: { canonical: "/guides/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return { title: t("guides.page.meta_title"), description: t("guides.page.meta_description") };
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -19,6 +19,7 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 export default async function GuidesPage({ searchParams }: { searchParams: SearchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const page = first(params.page);
   const category = first(params.category) ?? "";
@@ -43,17 +44,17 @@ export default async function GuidesPage({ searchParams }: { searchParams: Searc
           <div className="flex flex-col gap-space-sm max-w-4xl">
             <div className="flex items-center gap-space-xs font-label-md text-label-md text-secondary tracking-wider uppercase">
               <span className="material-symbols-outlined text-[16px]" aria-hidden="true">menu_book</span>
-              <span>Editorial intelligence &amp; maritime advisory</span>
+              <span>{t("guides.page.editorial_intelligence_maritime_advisory")}</span>
             </div>
-            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Nautical guides</h1>
+            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">{t("guides.page.nautical_guides")}</h1>
             <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl leading-relaxed">
-              Practical guides on buying, selling and maintaining a boat, with legal and maintenance advice for owners and sailors in Spain and Italy.
+              {t("guides.page.practical_guides_on_buying_selling_and")}
             </p>
           </div>
           {categories.length > 0 ? (
             <nav aria-label="Guides category filter" className="mt-space-lg flex flex-wrap items-center gap-space-xs">
               <Link href="/guides/" className={pill(!category)} aria-current={!category ? "true" : undefined}>
-                All guides
+                {t("guides.page.all_guides")}
               </Link>
               {categories.map((name) => (
                 <Link key={name} href={`/guides/?category=${encodeURIComponent(name)}`} className={pill(category.toLowerCase() === name.toLowerCase())}>
@@ -66,7 +67,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: Searc
       </section>
       <div className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop flex flex-col gap-space-2xl">
         {guides.results.length === 0 ? (
-          <p className="font-body-md text-on-surface-variant">No guides have been published yet.</p>
+          <p className="font-body-md text-on-surface-variant">{t("guides.page.no_guides_have_been_published_yet")}</p>
         ) : null}
 
         {featured ? (
@@ -79,7 +80,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: Searc
                 ) : null}
                 <div className="absolute inset-0 bg-gradient-to-t lg:bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
                 <div className="absolute top-space-md left-space-md">
-                  <span className="px-3 py-1 bg-surface-container-lowest/90 backdrop-blur-md rounded-full font-label-sm text-label-sm text-primary uppercase font-bold tracking-wider shadow-sm">Featured</span>
+                  <span className="px-3 py-1 bg-surface-container-lowest/90 backdrop-blur-md rounded-full font-label-sm text-label-sm text-primary uppercase font-bold tracking-wider shadow-sm">{t("guides.page.featured")}</span>
                 </div>
               </div>
               <div className="lg:col-span-5 p-space-lg lg:p-space-xl flex flex-col justify-between bg-surface-container-lowest">
@@ -98,7 +99,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: Searc
                 <div className="pt-space-lg mt-space-sm flex items-center justify-between gap-space-md">
                   {featured.author_name ? <span className="font-title-md text-title-md text-primary font-medium">{featured.author_name}</span> : <span />}
                   <Link href={`/guides/${featured.slug}/`} className="inline-flex items-center gap-space-xs bg-primary text-on-primary hover:bg-primary-container px-space-md py-space-sm rounded-lg font-title-md text-title-md transition-colors shadow-sm">
-                    Read guide
+                    {t("guides.page.read_guide")}
                     <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
                   </Link>
                 </div>
@@ -124,7 +125,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: Searc
                     ) : null}
                     <h2 className="mt-1 font-title-lg text-title-lg text-primary">{guide.title}</h2>
                     {guide.excerpt ? <p className="mt-space-xs font-body-md text-on-surface-variant">{guide.excerpt}</p> : null}
-                    <p className="mt-space-sm font-label-md text-secondary">Read guide →</p>
+                    <p className="mt-space-sm font-label-md text-secondary">{t("guides.page.read_guide_2")}</p>
                   </div>
                 </Link>
               </li>
@@ -136,8 +137,8 @@ export default async function GuidesPage({ searchParams }: { searchParams: Searc
 
         {previousPage || nextPage ? (
           <nav aria-label="Guides pages" className="flex items-center justify-center gap-space-sm">
-            {previousPage ? <Link href={href(previousPage)} rel="prev" className="px-space-md py-space-sm rounded bg-surface-container-lowest text-primary shadow-sm">Previous</Link> : null}
-            {nextPage ? <Link href={href(nextPage)} rel="next" className="px-space-md py-space-sm rounded bg-surface-container-lowest text-primary shadow-sm">Next</Link> : null}
+            {previousPage ? <Link href={href(previousPage)} rel="prev" className="px-space-md py-space-sm rounded bg-surface-container-lowest text-primary shadow-sm">{t("guides.page.previous")}</Link> : null}
+            {nextPage ? <Link href={href(nextPage)} rel="next" className="px-space-md py-space-sm rounded bg-surface-container-lowest text-primary shadow-sm">{t("guides.page.next")}</Link> : null}
           </nav>
         ) : null}
       </div>

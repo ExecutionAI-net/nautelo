@@ -670,3 +670,14 @@ def test_a_package_purchase_freezes_days_and_limits_on_the_right(seller):
     ListingPackage.objects.filter(pk=package.pk).update(image_limit=50)
     right.refresh_from_db()
     assert right.metadata["image_limit"] == 12
+
+
+def test_checkout_locale_follows_the_account_language_and_defaults_to_english():
+    from types import SimpleNamespace
+
+    from payments.checkout import checkout_locale
+
+    assert checkout_locale(SimpleNamespace(locale="IT")) == "it"
+    assert checkout_locale(SimpleNamespace(locale="es")) == "es"
+    assert checkout_locale(SimpleNamespace(locale="TR")) == "en"
+    assert checkout_locale(None) == "en"

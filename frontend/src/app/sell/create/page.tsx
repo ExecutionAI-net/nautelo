@@ -4,7 +4,7 @@ import AreaShell from "@/components/layout/AreaShell";
 
 export default function SellPage() {
   return (
-    <AreaShell area="seller" active="/dashboard/private-seller/listings/">
+    <AreaShell area="seller" active="/dashboard/private-seller/listings/" title="Sell your boat">
       <RequirePermission permission="create_private_listing">
         <SellListing />
       </RequirePermission>

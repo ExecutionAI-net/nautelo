@@ -343,6 +343,11 @@ def handle_checkout_session_paid(event) -> str:
         if result == WebhookResult.IGNORED:
             result = handle_broker_checkout(session)
         return result
+    from promotions.checkout import handle_checkout as handle_promotion_checkout
+
+    promo_result = handle_promotion_checkout(session)
+    if promo_result != WebhookResult.IGNORED:
+        return promo_result
     order = _locked_order_for(session)
     if order is None:
         return order_not_found(session)
@@ -405,6 +410,7 @@ HANDLERS.update(
         "invoice.paid": _membership("handle_invoice_paid"),
         "invoice.payment_failed": _membership("handle_invoice_payment_failed"),
         "customer.subscription.deleted": _membership("handle_subscription_deleted"),
+        "customer.subscription.updated": _membership("handle_subscription_updated"),
         "checkout.session.completed": handle_checkout_session_paid,
         "checkout.session.async_payment_succeeded": handle_checkout_session_paid,
         "checkout.session.async_payment_failed": handle_checkout_session_failed,

@@ -68,6 +68,16 @@ class TranslationSettings(models.Model):
         limit_choices_to=TEXT_MODELS,
         help_text="Only models that return text are offered. Type to search.",
     )
+    ui_enabled = models.BooleanField(default=True, help_text="Translate the site's interface text (buttons, headings, labels) into Italian and Spanish.")
+    ui_model = models.ForeignKey(
+        OpenRouterModel,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        limit_choices_to=TEXT_MODELS,
+        help_text="Model for the interface text. Leave empty to use the listing model above.",
+    )
     temperature = models.FloatField(default=0.2, help_text="0 = literal, 1 = creative. Translation works best low.")
     max_input_chars = models.PositiveIntegerField(default=6000)
     updated_at = models.DateTimeField(auto_now=True)

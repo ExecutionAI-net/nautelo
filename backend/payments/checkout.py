@@ -19,8 +19,11 @@ length of an HTTP round trip to a third party.
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from audit.models import AuditEvent
 from audit.services import record_audit_event
@@ -31,7 +34,18 @@ from listings.models import BoatListing
 from accounts.enums import SellerType
 
 from .enums import LISTING_BOUND_PRODUCTS, PaymentOrderStatus, ProductCode
+
+# Stripe Checkout's supported locales that the platform also speaks. Without
+# an explicit locale Stripe follows the browser, which showed a Turkish
+# checkout (and a TRY price under adaptive pricing) to an EN account.
+CHECKOUT_LOCALES = {"EN": "en", "IT": "it", "ES": "es"}
+
+
+def checkout_locale(user) -> str:
+    """The Stripe `locale` for this account: its own language, else English."""
+    return CHECKOUT_LOCALES.get((getattr(user, "locale", "") or "").upper(), "en")
 from .errors import (
+    CheckoutNotOpen,
     IdempotencyKeyRequired,
     ProductNotAvailable,
     IdempotencyKeyReused,
@@ -190,6 +204,16 @@ def create_checkout_session(
     if existing is not None:
         return _replay(existing, fingerprint, return_url, gateway, request_id)
 
+    # The same purchase started again (the buyer backed out of Stripe's page
+    # and clicked Buy once more) goes back to the session that is still open
+    # rather than opening a second one: one order per purchase in the ledger,
+    # and no stale link that could be paid later by mistake.
+    reusable = _open_session_for(user, fingerprint)
+    if reusable is not None:
+        return CheckoutResult(
+            order=reusable, checkout_url=reusable.metadata["checkout_url"], created=False
+        )
+
     try:
         with transaction.atomic():
             order = PaymentOrder(
@@ -236,6 +260,59 @@ def create_checkout_session(
     return CheckoutResult(order=order, checkout_url=url, created=True)
 
 
+# Stripe closes a Checkout 24 hours after creation; a session younger than this
+# is still payable and worth sending the buyer back to.
+OPEN_SESSION_REUSE_WINDOW = timedelta(hours=23)
+
+
+def _open_session_for(user, fingerprint):
+    return (
+        PaymentOrder.objects.filter(
+            user=user,
+            status=PaymentOrderStatus.CHECKOUT_OPEN,
+            metadata__request_fingerprint=fingerprint,
+            created_at__gt=timezone.now() - OPEN_SESSION_REUSE_WINDOW,
+        )
+        .exclude(metadata__checkout_url="")
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def cancel_checkout_session(*, user, order_id, gateway=None, request_id=None) -> PaymentOrder:
+    """The buyer left Stripe's page through its back link: close the session
+    there and record the order as expired here, so the ledger says what
+    happened now rather than when Stripe's 24-hour clock runs out."""
+    gateway = gateway or default_gateway()
+    with transaction.atomic():
+        order = (
+            PaymentOrder.objects.for_user(user).select_for_update().filter(pk=order_id).first()
+        )
+        if order is None or order.status != PaymentOrderStatus.CHECKOUT_OPEN:
+            raise CheckoutNotOpen()
+        try:
+            gateway.expire_checkout_session(order.stripe_checkout_session_id)
+        except StripeUnavailable as exc:
+            # Paid in the meantime, or Stripe is down: the webhook remains the
+            # authority, and the order is left as it is.
+            raise PaymentGatewayUnavailable() from exc
+        before = {"status": order.status}
+        order.status = PaymentOrderStatus.EXPIRED
+        order.save(update_fields=["status", "updated_at"])
+        record_audit_event(
+            actor_user=user,
+            actor_type=AuditEvent.ActorType.USER,
+            action="payment_order.cancelled",
+            target_type="payments.PaymentOrder",
+            target_id=str(order.pk),
+            source=AuditEvent.Source.API,
+            before=before,
+            after={"status": order.status},
+            request_id=request_id,
+        )
+    return order
+
+
 def _replay(order, fingerprint, return_url, gateway, request_id) -> CheckoutResult:
     """Spec §30.3's safe replay."""
     if order.metadata.get("request_fingerprint") != fingerprint:
@@ -267,6 +344,7 @@ def _open_stripe_session(order, return_url, gateway, request_id) -> str:
         ],
         "success_url": success_url,
         "cancel_url": cancel_url,
+        "locale": checkout_locale(order.user),
         "client_reference_id": str(order.pk),
         # Spec §23.2: "Store internal order/user/product identifiers in Stripe
         # metadata, not personal message content." No email, no name, no listing

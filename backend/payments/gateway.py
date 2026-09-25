@@ -32,6 +32,21 @@ class CheckoutSessionResult:
 
 
 @dataclass(frozen=True)
+class ProductWithPrice:
+    """One active Stripe Product together with its default Price, as returned
+    by `list_active_products_with_prices`. Used to reconcile the plans/packages
+    configured in Django admin against what Staff actually created in Stripe
+    (payments.management.commands.link_stripe_products) — never during a live
+    checkout, which always re-reads the specific price via `retrieve_price`."""
+
+    product_id: str
+    product_name: str
+    price_id: str
+    unit_amount: int | None
+    currency: str
+
+
+@dataclass(frozen=True)
 class PriceSnapshot:
     """The parts of a Stripe Price this system reconciles against.
 
@@ -59,6 +74,10 @@ class StripeGateway(Protocol):
     def retrieve_price(self, price_id: str) -> PriceSnapshot: ...
 
     def create_portal_session(self, *, customer_id: str, return_url: str) -> str: ...
+
+    def expire_checkout_session(self, session_id: str) -> None: ...
+
+    def list_active_products_with_prices(self) -> list[ProductWithPrice]: ...
 
 
 class StripeApiGateway:
@@ -89,6 +108,13 @@ class StripeApiGateway:
             raise StripeUnavailable("Stripe rejected the session creation.") from exc
         return CheckoutSessionResult(session_id=session.id, url=session.url)
 
+    def expire_checkout_session(self, session_id: str) -> None:
+        """Close an open Checkout so its link can no longer be paid."""
+        try:
+            self._client.v1.checkout.sessions.expire(session_id)
+        except stripe.StripeError as exc:
+            raise StripeUnavailable("Stripe rejected the session expiry.") from exc
+
     def create_portal_session(self, *, customer_id: str, return_url: str) -> str:
         """Stripe-hosted page for cards, tax details and invoices."""
         try:
@@ -114,6 +140,37 @@ class StripeApiGateway:
             active=bool(price.active),
             recurring=price.recurring is not None,
         )
+
+    def list_active_products_with_prices(self) -> list[ProductWithPrice]:
+        """Every active Product that has a default Price, for admin-time
+        reconciliation (see `link_stripe_products`). Never called from a
+        request path — Stripe's own pagination is walked to completion, which
+        a checkout endpoint must not wait on."""
+        try:
+            products = list(
+                self._client.v1.products.list(
+                    params={"active": True, "expand": ["data.default_price"], "limit": 100}
+                ).auto_paging_iter()
+            )
+        except stripe.StripeError as exc:
+            raise StripeUnavailable("Stripe rejected the product listing.") from exc
+        result = []
+        for product in products:
+            price = product.default_price
+            if price is None or isinstance(price, str):
+                # No default price, or Stripe did not expand it — either way
+                # there is nothing to reconcile against for this product.
+                continue
+            result.append(
+                ProductWithPrice(
+                    product_id=product.id,
+                    product_name=product.name,
+                    price_id=price.id,
+                    unit_amount=price.unit_amount,
+                    currency=price.currency,
+                )
+            )
+        return result
 
 
 def default_gateway() -> StripeGateway:

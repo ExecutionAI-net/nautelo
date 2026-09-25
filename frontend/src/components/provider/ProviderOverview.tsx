@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import { fetchConversations, type ConversationRow } from "@/lib/api/conversations";
 import { fetchProviderProfile, fetchProviderServices, type ProviderProfile, type ProviderService } from "@/lib/api/provider";
+import UnpaidNotice from "@/components/provider/UnpaidNotice";
 
 interface State {
   profile: ProviderProfile | null;
@@ -52,11 +53,13 @@ export default function ProviderOverview() {
   return (
     <div className="flex flex-col gap-space-xl">
       {error ? <p role="alert">The dashboard could not be loaded.</p> : null}
+      <UnpaidNotice status={state?.profile?.status} />
 
       <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
         <div className="max-w-3xl flex flex-col gap-space-xs">
-          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold">Service provider desk</span>
-          <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">{state?.profile?.display_name || "Provider dashboard"}</h1>
+          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Service provider / Dashboard</span>
+          <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Dashboard</h1>
+          {state?.profile?.display_name ? <p className="font-body-md text-on-surface-variant">{state.profile.display_name}</p> : null}
           {state?.profile?.short_description ? (
             <p className="font-body-lg text-body-lg text-on-surface-variant">{state.profile.short_description}</p>
           ) : null}

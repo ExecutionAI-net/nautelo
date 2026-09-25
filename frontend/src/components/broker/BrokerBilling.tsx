@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ManageBillingButton from "@/components/team/ManageBillingButton";
+import { useCheckoutReturn } from "@/lib/api/checkoutReturn";
 import { apiFetch } from "@/lib/api/client";
 import { formatPrice } from "@/lib/api/plans";
 
@@ -14,6 +15,7 @@ interface Billing {
   trial_available: boolean;
   trial_days: number;
   past_due_since: string | null;
+  cancel_at_period_end?: boolean;
   plan: { name: string; monthly_price: string; currency: string } | null;
 }
 
@@ -26,15 +28,30 @@ const STATUS_COPY: Record<Billing["status"], string> = {
   CANCELED: "Canceled",
 };
 
+const isLive = (status: Billing["status"]) => status === "TRIALING" || status === "ACTIVE" || status === "PAST_DUE";
+
 /** Subscription status and the Stripe checkout (free trial with a card up front). */
 export default function BrokerBilling({ brokerId }: { brokerId: string }) {
   const [billing, setBilling] = useState<Billing | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const returned = useCheckoutReturn();
+  const polls = useRef(0);
 
   useEffect(() => {
     apiFetch<Billing>(`/api/v1/brokers/${brokerId}/subscription/`).then(setBilling, () => setBilling(null));
   }, [brokerId]);
+
+  useEffect(() => {
+    // Back from a successful checkout, Stripe's webhook may still be in flight:
+    // re-read the status for up to half a minute until the subscription is live.
+    if (returned !== "success" || !billing || isLive(billing.status) || polls.current >= 10) return;
+    const timer = setTimeout(() => {
+      polls.current += 1;
+      apiFetch<Billing>(`/api/v1/brokers/${brokerId}/subscription/`).then(setBilling, () => undefined);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [returned, billing, brokerId]);
 
   async function start() {
     setBusy(true);
@@ -49,24 +66,48 @@ export default function BrokerBilling({ brokerId }: { brokerId: string }) {
   }
 
   if (!billing) return null;
-  const live = billing.status === "TRIALING" || billing.status === "ACTIVE" || billing.status === "PAST_DUE";
+  const live = isLive(billing.status);
   const date = (value: string | null) => (value ? new Date(value).toLocaleDateString("en-GB") : "");
 
   return (
     <section className="flex flex-col gap-space-sm rounded-xl bg-surface-container-lowest p-space-xl shadow-sm" aria-label="Billing">
+      {returned ? (
+        <p
+          role="status"
+          className={`rounded-lg p-space-sm font-body-md ${returned === "success" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-low text-on-surface-variant"}`}
+        >
+          {returned === "success"
+            ? live
+              ? "Thank you. Your subscription is set up: the details are below."
+              : "Thank you. Your subscription activates as soon as Stripe confirms the payment, usually within a minute."
+            : "Checkout cancelled. Nothing was charged."}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-space-sm">
         <span className="rounded-full bg-secondary-container px-space-sm py-0.5 font-label-sm font-semibold uppercase text-on-secondary-container">
           {STATUS_COPY[billing.status]}
         </span>
         <span className="rounded-full bg-surface-container-low px-space-sm py-0.5 font-label-sm">Brokerage: {billing.broker_status.toLowerCase()}</span>
       </div>
-      {billing.status === "TRIALING" ? (
+      {billing.status === "TRIALING" && billing.cancel_at_period_end ? (
+        <p role="status" className="font-body-md">
+          Cancellation scheduled: your free trial ends on {date(billing.trial_ends_at)} and your card will not be charged. You can
+          resume the subscription from Manage billing until then.
+        </p>
+      ) : null}
+      {billing.status === "TRIALING" && !billing.cancel_at_period_end ? (
         <p className="font-body-md">
           Your free trial runs until {date(billing.trial_ends_at)}. Your card is charged
           {billing.plan ? ` ${formatPrice(billing.plan.monthly_price, billing.plan.currency)}` : ""} then, and monthly after that. Cancel any time before.
         </p>
       ) : null}
-      {billing.status === "ACTIVE" && billing.current_period_end ? (
+      {billing.status === "ACTIVE" && billing.current_period_end && billing.cancel_at_period_end ? (
+        <p role="status" className="font-body-md">
+          Cancellation scheduled: your subscription ends on {date(billing.current_period_end)}. You keep full access until then and
+          can resume it from Manage billing.
+        </p>
+      ) : null}
+      {billing.status === "ACTIVE" && billing.current_period_end && !billing.cancel_at_period_end ? (
         <p className="font-body-md">Paid until {date(billing.current_period_end)}. Renews automatically.</p>
       ) : null}
       {billing.status === "PAST_DUE" ? (
@@ -77,6 +118,11 @@ export default function BrokerBilling({ brokerId }: { brokerId: string }) {
       {billing.broker_status === "PENDING" || billing.broker_status === "DRAFT" ? (
         <p className="font-body-sm text-on-surface-variant">The brokerage goes live after our team has reviewed and approved it.</p>
       ) : null}
+      {!live && !billing.plan ? (
+        <p role="status" className="rounded-lg bg-surface-container-low p-space-md font-body-md text-on-surface-variant">
+            Membership is not open yet. We will let you know as soon as plans are available.
+          </p>
+        ) : null}
       {!live && billing.plan ? (
         <div>
           <button

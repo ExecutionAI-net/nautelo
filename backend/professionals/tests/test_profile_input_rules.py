@@ -49,3 +49,17 @@ def test_service_title_refuses_markup(api):
     assert api.post(reverse("provider-service-list"), body, format="json").status_code == 400
     body["title_en"] = "Pre-purchase survey"
     assert api.post(reverse("provider-service-list"), body, format="json").status_code == 201
+
+
+def test_a_picked_place_sets_city_region_and_country(api):
+    from places.importer import load_cities, load_regions
+
+    regions = load_regions(["IT.07\tLiguria\tLiguria\t3174725\n"], {"IT"})
+    load_cities(["3176219\tGenoa\tGenoa\tGenova\t44.4\t8.9\tP\tPPLA\tIT\t\t07\t\t\t\t580223\t\t19\tEurope/Rome\t2024-01-01\n"], {"IT"}, regions)
+    response = api.patch(reverse("provider-profile"), {"place_id": 3176219, "city": "genova"}, format="json")
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert (body["city"], body["region"], body["country_code"], body["place_id"]) == ("Genoa", "Liguria", "IT", 3176219)
+    forgotten = api.patch(reverse("provider-profile"), {"city": "Elsewhere"}, format="json").json()
+    assert forgotten["place_id"] is None
+    assert api.patch(reverse("provider-profile"), {"place_id": 1}, format="json").status_code == 400

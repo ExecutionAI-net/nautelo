@@ -44,9 +44,9 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
   "messages.filter.label": { en: "Filter", it: "Filtro", es: "Filtro" },
 
   "messages.empty": {
-    en: "No conversations match this filter.",
-    it: "Nessuna conversazione corrisponde a questo filtro.",
-    es: "Ninguna conversación coincide con este filtro.",
+    en: "Nothing here yet. Enquiries from buyers appear here once your listings are live, so keep your vessels and public page complete.",
+    it: "Ancora niente qui. Le richieste degli acquirenti arrivano qui quando i tuoi annunci sono online: tieni completi imbarcazioni e pagina pubblica.",
+    es: "Todavía no hay nada. Las consultas de los compradores llegan aquí cuando tus anuncios estén publicados: mantén completos tus embarcaciones y tu página pública.",
   },
   "messages.loading": { en: "Loading…", it: "Caricamento…", es: "Cargando…" },
   "messages.unread_count": {
@@ -210,10 +210,21 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
     es: "Anuncios publicados",
   },
   "broker.dashboard.metric.pending_approvals": {
-    en: "Pending approvals",
-    it: "In attesa di approvazione",
-    es: "Pendientes de aprobación",
+    en: "Awaiting review",
+    it: "In attesa di revisione",
+    es: "Pendientes de revisión",
   },
+  "broker.dashboard.metric.pending_approvals_help": {
+    en: "Vessels waiting for staff approval",
+    it: "Imbarcazioni in attesa dell'approvazione dello staff",
+    es: "Embarcaciones a la espera de la aprobación del equipo",
+  },
+  "messages.thread.about_profile": {
+    en: "About your brokerage profile",
+    it: "Riguarda il profilo della tua agenzia",
+    es: "Sobre el perfil de tu agencia",
+  },
+  "messages.thread.about": { en: "About", it: "Riguarda", es: "Sobre" },
   "broker.dashboard.metric.unread_messages": {
     en: "Unread messages",
     it: "Messaggi non letti",

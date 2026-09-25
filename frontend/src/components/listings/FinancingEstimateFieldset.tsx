@@ -1,8 +1,9 @@
 "use client";
 
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
 import type { SellerType } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
-import { tf } from "@/lib/i18n/finance";
 
 export interface FinanceFieldsetState {
   show_finance_estimate: boolean;
@@ -87,6 +88,7 @@ export default function FinancingEstimateFieldset({
   value: FinanceFieldsetState;
   onChange: (next: FinanceFieldsetState) => void;
 }) {
+  const t = useT();
   if (sellerType !== "BROKER") {
     return null;
   }
@@ -107,7 +109,7 @@ export default function FinancingEstimateFieldset({
   ) {
     return (
       <label className="flex flex-col gap-space-xs font-body-sm">
-        <span>{tf(locale, labelKey)}</span>
+        <span>{t(labelKey as MessageKey)}</span>
         <input
           name={key}
           value={value[key]}
@@ -122,10 +124,10 @@ export default function FinancingEstimateFieldset({
   return (
     <fieldset className="flex flex-col gap-space-sm">
       <legend className="font-title-md text-title-md">
-        {tf(locale, "listing.finance_group_title")}
+        {t("listing.finance_group_title")}
       </legend>
       <p className="font-body-sm text-on-surface-variant">
-        {tf(locale, "listing.finance_group_help")}
+        {t("listing.finance_group_help")}
       </p>
 
       <label className="flex items-center gap-space-sm font-body-md">
@@ -134,21 +136,21 @@ export default function FinancingEstimateFieldset({
           checked={value.show_finance_estimate}
           onChange={(event) => set("show_finance_estimate", event.target.checked)}
         />
-        <span>{tf(locale, "listing.finance_toggle")}</span>
+        <span>{t("listing.finance_toggle")}</span>
       </label>
 
       {value.show_finance_estimate ? (
         <div className="flex flex-col gap-space-sm">
           <div className="font-body-sm text-on-surface-variant">
-            <p>{tf(locale, "listing.finance_platform_defaults")}</p>
+            <p>{t("listing.finance_platform_defaults")}</p>
             <dl className="mt-space-xs grid grid-cols-2 gap-x-space-sm gap-y-space-xs">
-              <dt>{tf(locale, "finance.annual_rate")}</dt>
+              <dt>{t("finance.annual_rate")}</dt>
               <dd className="text-right">{`${defaults.annual_rate_percent}%`}</dd>
-              <dt>{tf(locale, "finance.term")}</dt>
+              <dt>{t("finance.term")}</dt>
               <dd className="text-right">
-                {tf(locale, "finance.months", { count: defaults.term_months })}
+                {t("finance.months", { count: defaults.term_months })}
               </dd>
-              <dt>{tf(locale, "finance.down_payment")}</dt>
+              <dt>{t("finance.down_payment")}</dt>
               <dd className="text-right">{`${defaults.down_payment_percent}%`}</dd>
             </dl>
           </div>
@@ -161,7 +163,7 @@ export default function FinancingEstimateFieldset({
                 checked={value.use_custom_assumptions}
                 onChange={(event) => set("use_custom_assumptions", event.target.checked)}
               />
-              <span>{tf(locale, "listing.finance_custom_assumptions")}</span>
+              <span>{t("listing.finance_custom_assumptions")}</span>
             </label>
           ) : null}
 

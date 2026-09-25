@@ -2,7 +2,7 @@
 // GET /api/v1/listings/<id>/), plus the one POST the finance surfaces make.
 // Server-rendered pages call the fetch helpers; client components call
 // requestFinanceQuote through the browser client.
-import { directoryFetch, type Paginated } from "@/lib/api/directory";
+import { directoryFetch, type Paginated, type DirectoryFetchOptions } from "@/lib/api/directory";
 import {
   requestFinanceQuote,
   type AssumptionField,
@@ -35,13 +35,11 @@ export type ListingFinance =
 export interface ListingMedia {
   media_id: string;
   media_type: "IMAGE" | "VIDEO";
-  storage_key: string;
   mime_type: string;
   sort_order: number;
   width: number | null;
   height: number | null;
   duration_seconds: number | null;
-  checksum_sha256: string;
   /** CDN URL, or null until public media serving is configured. */
   url?: string | null;
 }
@@ -68,6 +66,7 @@ export interface PublicListing {
   price: { amount: string; currency: string };
   media: ListingMedia[];
   view_count: number;
+  is_featured?: boolean;
   finance: ListingFinance;
 }
 
@@ -88,9 +87,13 @@ export interface ListingSearch {
   page_size?: string;
   broker?: string;
   q?: string;
+  mode?: string;
+  query?: string;
   brand?: string;
   country?: string;
   region?: string;
+  place?: string;
+  featured?: string;
   seller_type?: string;
   boat_type?: string;
   condition?: string;
@@ -107,17 +110,37 @@ export interface ListingSearch {
   sort?: string;
 }
 
+/** One place boats are listed in, with how many. */
+export interface FacetLocation {
+  country: string;
+  region: string;
+  place_id: number | null;
+  city: string;
+  count: number;
+}
+
 export interface ListingFacets {
   brands: string[];
   countries: string[];
   regions: string[];
+  cities?: { id: number; name: string }[];
+  locations?: FacetLocation[];
   boat_types?: string[];
   fuel_types?: string[];
 }
 
-export async function fetchListingFacets(): Promise<ListingFacets> {
+/**
+ * `filters` is the search already in effect (e.g. the /boats/ page's own
+ * query string). Passed through, the backend excludes only each facet's own
+ * dimension (spec: see `facets()` in backend/listings/public_filters.py), so
+ * a city's count still reflects an already-selected boat_type/price/etc.
+ * instead of promising boats that combination does not have. Omitted (the
+ * home page's first paint, with nothing selected yet), the response is the
+ * platform-wide totals.
+ */
+export async function fetchListingFacets(filters?: ListingSearch, options: DirectoryFetchOptions = {}): Promise<ListingFacets> {
   try {
-    const body = await directoryFetch<ListingFacets>("/api/v1/listings/facets/");
+    const body = await directoryFetch<ListingFacets>(`/api/v1/listings/facets/${listingQuery(filters ?? {})}`, options);
     return body ?? { brands: [], countries: [], regions: [] };
   } catch {
     return { brands: [], countries: [], regions: [] };
@@ -149,9 +172,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // page. Callers decide what null means.
 export async function fetchPublishedListings(
   params: ListingSearch = {},
+  options: DirectoryFetchOptions = {},
 ): Promise<Paginated<PublicListing> | null> {
   const path = `/api/v1/listings/${listingQuery(params)}`;
-  const body = await directoryFetch<unknown>(path);
+  const body = await directoryFetch<unknown>(path, options);
   if (body === null) {
     return null;
   }
@@ -220,17 +244,7 @@ export async function fetchFinanceDefaults(): Promise<FinanceConfigurationDefaul
   }
 }
 
-/**
- * Spec §18.3's calculator target, exactly:
- * /financing/?listing=<uuid>&price=<server-formatted-price>&currency=EUR
- * The price is the server's own string and exists only as the finance page's
- * immediate display fallback while its authoritative quote loads.
- */
-export function financingHref(listing: PublicListing): string {
-  const search = new URLSearchParams({
-    listing: listing.id,
-    price: listing.price.amount,
-    currency: listing.price.currency,
-  });
-  return `/financing/?${search.toString()}`;
-}
+// Moved to listingLinks.ts (kept out of this file's module graph so a Client
+// Component can use it without pulling in directoryFetch's next/headers
+// dependency) - re-exported here so existing importers keep working.
+export { financingHref } from "@/lib/api/listingLinks";

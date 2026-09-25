@@ -18,6 +18,13 @@ const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET ?? "";
 // The single source of truth for the locale union in the whole frontend: it is
 // the API contract's ?locale= parameter. lib/i18n/directory.ts imports and
 // re-exports this type rather than declaring a second, drifting copy.
+//
+// A second, unrelated locale union lives at lib/auth/types.ts's LocaleCode
+// ("EN" | "IT" | "ES", uppercase) — that one is the session/user-preference
+// value from the auth API and is intentionally not merged with this one (see
+// the note there). resolveLocale() in lib/i18n/directory.ts is case-insensitive
+// and accepts either casing, so it doubles as the conversion from LocaleCode to
+// Locale until something needs more than that.
 export type Locale = "en" | "it" | "es";
 
 export interface ServiceCategory {
@@ -52,6 +59,7 @@ export interface ProfessionalCard {
   service_area: string[];
   categories: CategoryRef[];
   active_service_count: number;
+  is_featured?: boolean;
   url: string;
 }
 
@@ -61,6 +69,10 @@ export interface ProfessionalService {
   description: string;
   service_area: string[];
   category: CategoryRef;
+  price_from: string | null;
+  currency: string;
+  pricing_note: string;
+  photo_url: string | null;
 }
 
 export interface RelatedProfessional {
@@ -72,7 +84,6 @@ export interface RelatedProfessional {
 
 export interface TeamMember {
   name: string;
-  email: string;
   role: string;
 }
 
@@ -106,12 +117,16 @@ export interface Paginated<T> {
   results: T[];
 }
 
-export async function directoryFetch<T>(path: string): Promise<T | null> {
-  const clientIp = await forwardedClientIp();
-  // Runtime-only Docker address; public URLs remain the browser/API contract.
-  const internalBase = process.env.INTERNAL_API_BASE_URL;
-  const publicOrigin = new URL(DIRECTORY_API_BASE_URL);
-  const response = await fetch(`${internalBase ?? DIRECTORY_API_BASE_URL}${path}`, {
+export interface DirectoryFetchOptions {
+  /** Seconds a public, non-personalised read may be served from the server cache (home page sections). */
+  revalidate?: number;
+}
+
+export async function directoryFetch<T>(path: string, options: DirectoryFetchOptions = {}): Promise<T | null> {
+  // A cached read is the same for every visitor, so it carries no per-visitor header
+  // (the header would split the cache into one entry per address).
+  const clientIp = options.revalidate ? null : await forwardedClientIp();
+  const response = await fetch(`${DIRECTORY_API_BASE_URL}${path}`, {
     headers: {
       Accept: "application/json",
       // Preserve Django host validation, HTTPS detection and absolute URLs.
@@ -123,9 +138,8 @@ export async function directoryFetch<T>(path: string): Promise<T | null> {
       ...(clientIp ? { "X-Internal-Client-IP": clientIp } : {}),
     },
     // Directory content is staff-edited and provider-edited; never serve a
-    // stale grid from the build cache.
-    cache: "no-store",
-    redirect: "error",
+    // stale grid from the build cache, unless the caller asked for a short-lived cache.
+    ...(options.revalidate ? { next: { revalidate: options.revalidate } } : { cache: "no-store" as const }),
   });
 
   if (response.status === 404) {
@@ -181,9 +195,24 @@ export interface ProfessionalSearch {
   q?: string;
   category?: string;
   location?: string;
+  country?: string;
+  place?: string;
   sort?: string;
   page?: string;
   page_size?: string;
+}
+
+export interface ProfessionalLocationFacet {
+  country: string;
+  place_id: number | null;
+  city: string;
+  count: number;
+}
+
+export interface ProfessionalFacets {
+  countries: Record<string, number>;
+  locations: ProfessionalLocationFacet[];
+  categories: Record<string, number>;
 }
 
 // Same contract as fetchServiceCategories: null = flag off, an empty `results`
@@ -191,8 +220,8 @@ export interface ProfessionalSearch {
 export async function fetchProfessionals(
   search: ProfessionalSearch,
   locale: Locale,
-): Promise<Paginated<ProfessionalCard> | null> {
-  return directoryFetch<Paginated<ProfessionalCard>>(
+): Promise<(Paginated<ProfessionalCard> & { facets?: ProfessionalFacets }) | null> {
+  return directoryFetch<Paginated<ProfessionalCard> & { facets?: ProfessionalFacets }>(
     `/api/v1/professionals/${query({ ...search, locale })}`,
   );
 }

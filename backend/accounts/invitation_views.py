@@ -124,3 +124,89 @@ class OrganizationRegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = register_organization(serializer.validated_data)
         return Response(UserSummarySerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class _RegistrationUploadSerializer(serializers.Serializer):
+    registration_id = serializers.RegexField(r"^[0-9a-fA-F-]{16,64}$")
+    mime_type = serializers.CharField(max_length=60)
+    size = serializers.IntegerField(min_value=1)
+
+
+class _RegistrationUploadCompleteSerializer(serializers.Serializer):
+    registration_id = serializers.RegexField(r"^[0-9a-fA-F-]{16,64}$")
+    key = serializers.CharField(max_length=400)
+    mime_type = serializers.CharField(max_length=60)
+
+
+class OrganizationRegistrationLogoIntentView(APIView):
+    """POST /api/v1/auth/register/organization/uploads/logo/intent/
+
+    Unauthenticated - the org doesn't exist yet, only a client-minted
+    registration_id namespaces the temp key (accounts.registration_uploads).
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        from accounts.registration_uploads import create_logo_intent
+
+        data = _RegistrationUploadSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        return Response(create_logo_intent(**data.validated_data), status=status.HTTP_201_CREATED)
+
+
+class OrganizationRegistrationLogoCompleteView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        from accounts.registration_uploads import finish_logo_upload
+
+        data = _RegistrationUploadCompleteSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        key = finish_logo_upload(**data.validated_data)
+        return Response({"key": key})
+
+
+class OrganizationRegistrationDocumentIntentView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        from accounts.registration_uploads import create_document_intent
+
+        data = _RegistrationUploadSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        return Response(create_document_intent(**data.validated_data), status=status.HTTP_201_CREATED)
+
+
+class OrganizationRegistrationDocumentCompleteView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        from accounts.registration_uploads import finish_document_upload
+
+        data = _RegistrationUploadCompleteSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        key = finish_document_upload(registration_id=data.validated_data["registration_id"], key=data.validated_data["key"])
+        return Response({"key": key})
+
+
+class BrokerRoleListView(APIView):
+    """GET /api/v1/broker-roles/ - the dynamic role list for org registration."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def get(self, request):
+        from brokers.models import BrokerRole
+
+        roles = BrokerRole.objects.filter(is_active=True).order_by("display_order", "name")
+        return Response([{"slug": role.slug, "name": role.name} for role in roles])

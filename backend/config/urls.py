@@ -18,7 +18,8 @@ from django.contrib import admin
 from django.urls import include, path
 
 from common.views import HealthCheckView
-from finance.views import FinanceQuoteView
+from uitext.views import UiTextView
+from finance.views import FinanceQuoteView, SimulatorConfigView
 from payments.views import StripeWebhookView
 from platform_settings.views import PublicPlatformSettingsView
 
@@ -32,6 +33,8 @@ urlpatterns = [
         name="platform-public-settings",
     ),
     path("api/v1/finance/quotes/", FinanceQuoteView.as_view(), name="finance-quote"),
+    path("api/v1/ui-text/<str:locale>/", UiTextView.as_view(), name="ui-text"),
+    path("api/v1/finance/simulator-config/", SimulatorConfigView.as_view(), name="finance-simulator-config"),
     path("api/v1/", include("content.urls")),
     path("api/v1/", include("staffops.urls")),
     path("api/v1/", include("translation.urls")),
@@ -40,6 +43,8 @@ urlpatterns = [
     path("api/v1/", include("accounts.urls")),
     path("api/v1/", include("brokers.urls")),
     path("api/v1/", include("contactdesk.urls")),
+    path("api/v1/", include("places.urls")),
+    path("api/v1/", include("promotions.urls")),
     path("api/v1/", include("services_catalog.urls")),
     path("api/v1/", include("services_catalog.provider_urls")),
     path("api/v1/", include("professionals.urls")),
@@ -47,4 +52,5 @@ urlpatterns = [
     path("api/v1/", include("payments.urls")),
     path("api/v1/", include("messaging.urls")),
     path("api/v1/", include("notifications.urls")),
+    path("api/v1/", include("emailing.urls")),
 ]

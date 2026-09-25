@@ -7,9 +7,9 @@ export default function StaffTaxonomyPage() {
   return (
     <AreaShell area="staff" active="/dashboard/staff/taxonomy/">
       <RequirePermission permission="manage_taxonomy">
-        <OtherModelQueue />
+        <TaxonomyAdmin />
         <div className="mt-space-xl">
-          <TaxonomyAdmin />
+          <OtherModelQueue />
         </div>
       </RequirePermission>
     </AreaShell>

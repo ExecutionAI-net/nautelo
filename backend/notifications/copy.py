@@ -25,9 +25,13 @@ TEXT = {
         _t("New boat model to map", "Nuovo modello da mappare", "Nuevo modelo por asignar"),
         _t("A listing uses the Other model and needs a taxonomy decision.", "Un annuncio usa il modello Altro e richiede una decisione.", "Un anuncio usa el modelo Otro y requiere una decision."),
     ),
+    NotificationType.LISTING_SUBMISSION_RECEIVED: (
+        _t("Your listing was submitted", "Il tuo annuncio e stato inviato", "Tu anuncio fue enviado"),
+        _t("Your listing was received and is awaiting staff review.", "Il tuo annuncio e stato ricevuto ed e in attesa di revisione.", "Tu anuncio fue recibido y esta pendiente de revision."),
+    ),
     NotificationType.LISTING_APPROVED: (
         _t("Your listing was approved", "Il tuo annuncio e stato approvato", "Tu anuncio fue aprobado"),
-        _t("Your listing is now public on NAUTA.", "Il tuo annuncio e ora pubblico su NAUTA.", "Tu anuncio ya es publico en NAUTA."),
+        _t("Your listing is now public on Nautelo.", "Il tuo annuncio e ora pubblico su Nautelo.", "Tu anuncio ya es publico en Nautelo."),
     ),
     NotificationType.LISTING_CHANGES_REQUESTED: (
         _t("Changes requested on your listing", "Modifiche richieste al tuo annuncio", "Cambios solicitados en tu anuncio"),
@@ -43,11 +47,11 @@ TEXT = {
     ),
     NotificationType.LISTING_EXPIRED: (
         _t("Your listing has expired", "Il tuo annuncio e scaduto", "Tu anuncio ha caducado"),
-        _t("It is no longer public on NAUTA.", "Non e piu pubblico su NAUTA.", "Ya no es publico en NAUTA."),
+        _t("It is no longer public on Nautelo.", "Non e piu pubblico su Nautelo.", "Ya no es publico en Nautelo."),
     ),
     NotificationType.PROFESSIONAL_ACTIVATED: (
         _t("Your professional profile is live", "Il tuo profilo professionale e attivo", "Tu perfil profesional esta activo"),
-        _t("Your payment was received. Your profile is now listed on NAUTA.", "Pagamento ricevuto. Il tuo profilo e ora pubblicato su NAUTA.", "Pago recibido. Tu perfil ya esta publicado en NAUTA."),
+        _t("Your payment was received. Your profile is now listed on Nautelo.", "Pagamento ricevuto. Il tuo profilo e ora pubblicato su Nautelo.", "Pago recibido. Tu perfil ya esta publicado en Nautelo."),
     ),
     NotificationType.PROFESSIONAL_PAYMENT_FAILED: (
         _t("Payment not received", "Pagamento non ricevuto", "Pago no recibido"),
@@ -56,6 +60,18 @@ TEXT = {
     NotificationType.PROFESSIONAL_DEACTIVATED: (
         _t("Your professional profile is offline", "Il tuo profilo professionale e offline", "Tu perfil profesional esta fuera de linea"),
         _t("Your membership is not active, so your profile is no longer listed. Pay to bring it back.", "L abbonamento non e attivo, quindi il profilo non e piu pubblicato. Paga per riattivarlo.", "La membresia no esta activa, asi que tu perfil ya no se muestra. Paga para reactivarlo."),
+    ),
+    NotificationType.BROKER_TRIAL_STARTED: (
+        _t("Your free trial has started", "La tua prova gratuita e iniziata", "Tu prueba gratuita ha empezado"),
+        _t("Your brokerage plan is set. Staff approval is what puts your brokerage live.", "Il piano della tua agenzia e attivo. L approvazione dello staff pubblica la tua agenzia.", "El plan de tu agencia esta activo. La aprobacion del personal publica tu agencia."),
+    ),
+    NotificationType.BROKER_PAYMENT_FAILED: (
+        _t("Payment not received", "Pagamento non ricevuto", "Pago no recibido"),
+        _t("We could not collect your brokerage subscription. Pay within 24 hours to keep your brokerage online.", "Non abbiamo potuto incassare l abbonamento della tua agenzia. Paga entro 24 ore per mantenerla online.", "No pudimos cobrar la suscripcion de tu agencia. Paga en 24 horas para mantenerla en linea."),
+    ),
+    NotificationType.BROKER_SUSPENDED: (
+        _t("Your brokerage is suspended", "La tua agenzia e sospesa", "Tu agencia esta suspendida"),
+        _t("The subscription is not active, so your vessels are offline. Pay to bring them back.", "L abbonamento non e attivo, quindi le tue imbarcazioni sono offline. Paga per riattivarle.", "La suscripcion no esta activa, asi que tus embarcaciones estan fuera de linea. Paga para reactivarlas."),
     ),
     NotificationType.PAYMENT_FULFILLED: (
         _t("Your purchase is ready", "Il tuo acquisto e pronto", "Tu compra esta lista"),

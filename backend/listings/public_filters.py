@@ -9,11 +9,12 @@ parameter should still render a list.
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from django.db.models import Case, DecimalField, Q, QuerySet, When
+from django.db.models import Case, DecimalField, Exists, F, OuterRef, Q, QuerySet, When
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 
 SORTS = {
+    "featured": (F("featured_at").desc(nulls_last=True), "-published_at"),
     "newest": ("-published_at", "-created_at"),
     "price_asc": ("current_public_snapshot__price", "-published_at"),
     "price_desc": ("-current_public_snapshot__price", "-published_at"),
@@ -43,7 +44,26 @@ def _int(value: str | None) -> int | None:
         return None
 
 
-def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
+def apply_public_filters(queryset: QuerySet, params, *, exclude_dimensions: frozenset[str] = frozenset()) -> QuerySet:
+    """Apply every filter in `params` except the ones named in `exclude_dimensions`.
+
+    `exclude_dimensions` is how `facets()` computes a faceted count: a facet's
+    own dimension (e.g. "location") is left out so its own options never
+    self-restrict, while every OTHER already-active filter still narrows the
+    count. See `facets()` for why this matters.
+    """
+    if (params.get("featured") or "").strip() in ("1", "true"):
+        from django.utils import timezone
+
+        from listings.enums import MediaStatus
+        from listings.models import ListingMedia
+
+        # The featured strip is a photo strip: a promoted listing whose photos are
+        # not ready yet (still scanning, or none uploaded) would render as an empty
+        # card, so it waits until it has at least one ready photo.
+        has_photo = Exists(ListingMedia.objects.filter(listing=OuterRef("pk"), status=MediaStatus.READY))
+        queryset = queryset.filter(featured_until__gt=timezone.now()).filter(has_photo)
+
     exclude = (params.get("exclude") or "").strip()
     if exclude:
         try:
@@ -62,7 +82,7 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
         )
 
     brand = (params.get("brand") or "").strip()
-    if brand:
+    if brand and "brand" not in exclude_dimensions:
         queryset = queryset.filter(**{f"{SNAP}brand_name_snapshot__iexact": brand})
 
     model = (params.get("model") or "").strip()
@@ -72,13 +92,18 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
             | Q(**{f"{SNAP}custom_model_name_snapshot__iexact": model})
         )
 
-    country = (params.get("country") or "").strip().upper()
-    if country:
-        queryset = queryset.filter(**{f"{SNAP}location_country": country})
+    if "location" not in exclude_dimensions:
+        country = (params.get("country") or "").strip().upper()
+        if country:
+            queryset = queryset.filter(**{f"{SNAP}location_country": country})
 
-    region = (params.get("region") or "").strip()
-    if region:
-        queryset = queryset.filter(**{f"{SNAP}location_region__iexact": region})
+        place = _int(params.get("place"))
+        if place is not None:
+            queryset = queryset.filter(**{f"{SNAP}location_place_id": place})
+
+        region = (params.get("region") or "").strip()
+        if region:
+            queryset = queryset.filter(**{f"{SNAP}location_region__iexact": region})
 
     seller_type = (params.get("seller_type") or "").strip().upper()
     if seller_type in {"PRIVATE", "BROKER"}:
@@ -118,9 +143,17 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
             queryset = queryset.filter(_loa_m__lte=length_max)
 
     for key in ("boat_type", "condition", "fuel_type"):
+        if key in exclude_dimensions:
+            continue
         value = (params.get(key) or "").strip()
         if value:
             queryset = queryset.filter(**{f"{SNAP}specifications__{key}__iexact": value})
+
+    cabins_exact = _int(params.get("cabins"))
+    if cabins_exact is not None and cabins_exact > 0:
+        queryset = queryset.filter(
+            Q(**{f"{SNAP}specifications__cabins__in": [str(cabins_exact), cabins_exact]})
+        )
 
     cabins_min = _int(params.get("cabins_min"))
     if cabins_min is not None and cabins_min > 0:
@@ -130,24 +163,67 @@ def apply_public_filters(queryset: QuerySet, params) -> QuerySet:
             | Q(**{f"{SNAP}specifications__cabins__in": list(wanted)})
         )
 
-    order = SORTS.get((params.get("sort") or "newest").strip(), SORTS["newest"])
+    sort = (params.get("sort") or "newest").strip()
+    order = SORTS.get(sort, SORTS["newest"])
+    if sort not in ("featured", "price_asc", "price_desc"):
+        # Running promotions come first in the everyday listings, then the normal order.
+        from django.utils import timezone
+
+        queryset = queryset.annotate(
+            _promo_rank=Case(When(featured_until__gt=timezone.now(), then=0), default=1, output_field=DecimalField(max_digits=2, decimal_places=0))
+        )
+        return queryset.order_by("_promo_rank", *order)
     return queryset.order_by(*order)
 
 
-def facets(queryset: QuerySet) -> dict:
-    """Distinct filter choices present in the published catalogue."""
-    rows = queryset.values_list(
-        f"{SNAP}brand_name_snapshot", f"{SNAP}location_country", f"{SNAP}location_region"
-    ).order_by().distinct()
-    brands, countries, regions = set(), set(), set()
-    for brand, country, region in rows:
-        brands.add(brand)
+def facets(queryset: QuerySet, params=None) -> dict:
+    """Distinct filter choices present in the published catalogue.
+
+    `params` is the current search's active filters (if any). Each returned
+    facet excludes only its OWN dimension from those filters before counting:
+    a chosen boat_type still narrows which cities/countries are offered (and
+    their counts), but the location filter itself never hides other location
+    options. Without this, a city's shown count can promise boats that a
+    combination with the already-selected boat_type/price/etc. does not
+    actually have — see the professionals-directory facets in
+    services_catalog/views.py, which this mirrors, for the same bug fixed there.
+    """
+    params = params or {}
+    location_queryset = apply_public_filters(queryset, params, exclude_dimensions=frozenset({"location"}))
+    brand_queryset = apply_public_filters(queryset, params, exclude_dimensions=frozenset({"brand"}))
+
+    brands = set(brand_queryset.values_list(f"{SNAP}brand_name_snapshot", flat=True).order_by().distinct())
+    countries, regions = set(), set()
+    for country, region in (
+        location_queryset.values_list(f"{SNAP}location_country", f"{SNAP}location_region").order_by().distinct()
+    ):
         countries.add(country)
         if region:
             regions.add(region)
     from .form_options import BOAT_TYPES, FUEL_TYPES
 
+    cities = {
+        pid: name
+        for pid, name in location_queryset.filter(**{f"{SNAP}location_place_id__isnull": False})
+        .values_list(f"{SNAP}location_place_id", f"{SNAP}location_city")
+        .order_by()
+        .distinct()
+    }
+    # Country > region > city, with the number of boats in each city, so the filter can offer only what belongs together.
+    from django.db.models import Count
+
+    locations = [
+        {"country": country, "region": region or "", "place_id": pid, "city": city or "", "count": count}
+        for country, region, pid, city, count in location_queryset.order_by()
+        .values(f"{SNAP}location_country", f"{SNAP}location_region", f"{SNAP}location_place_id", f"{SNAP}location_city")
+        .annotate(n=Count("id"))
+        .values_list(f"{SNAP}location_country", f"{SNAP}location_region", f"{SNAP}location_place_id", f"{SNAP}location_city", "n")
+        if country
+    ]
+    locations.sort(key=lambda row: (row["country"], row["region"], row["city"]))
     return {
+        "locations": locations,
+        "cities": [{"id": pid, "name": name} for pid, name in sorted(cities.items(), key=lambda item: item[1])],
         "brands": sorted(brands),
         "countries": sorted(countries),
         "regions": sorted(regions),

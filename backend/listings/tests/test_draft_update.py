@@ -486,15 +486,16 @@ def test_a_rejected_listing_returns_to_draft_when_editing_resumes(api, workflow_
 
 @pytest.mark.parametrize(
     "status",
-    [ListingStatus.SUSPENDED, ListingStatus.EXPIRED, ListingStatus.ARCHIVED],
+    [ListingStatus.SUSPENDED, ListingStatus.PAUSED, ListingStatus.EXPIRED, ListingStatus.ARCHIVED],
 )
 @pytest.mark.django_db
 def test_a_listing_outside_the_edit_loop_cannot_open_a_new_revision(
     api, workflow_enabled, status
 ):
-    """SUSPENDED / EXPIRED / ARCHIVED are not part of the owner's edit loop, so a
-    new edit cycle is refused rather than silently carrying the status forward
-    onto a draft revision the moderation queue could never approve."""
+    """SUSPENDED / PAUSED / EXPIRED / ARCHIVED are not part of the owner's edit
+    loop, so a new edit cycle is refused rather than silently carrying the
+    status forward onto a draft revision the moderation queue could never
+    approve."""
     owner = _seller()
     listing = make_private_listing(owner=owner, status=status)
     listing.current_public_snapshot = make_snapshot(listing, approved_by=_staff())
@@ -573,3 +574,51 @@ def test_basic_information_is_frozen_once_a_private_listing_was_submitted(api, w
     assert changed_year.data["error"]["fields"]["manufacture_year"][0]["code"] == "immutable_after_submission"
     assert changed_type.status_code == 400
     assert repeated.status_code == 200
+
+
+@pytest.mark.django_db
+def test_the_workflow_of_a_published_listing_carries_its_live_content_for_the_edit_form(api, workflow_enabled):
+    owner = _seller()
+    listing = _published(owner)
+    api.force_authenticate(owner)
+
+    response = api.get(reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk}))
+
+    assert response.status_code == 200
+    assert response.data["revision"] is None
+    payload = response.data["published_payload"]
+    snapshot = listing.current_public_snapshot
+    assert payload["title_en"] == snapshot.title_en
+    assert payload["price"] == f"{snapshot.price:f}"
+    assert payload["brand_id"] == str(listing.brand_id)
+    assert payload["manufacture_year"] == listing.manufacture_year
+
+
+@pytest.mark.django_db
+def test_a_draft_listing_has_no_published_payload(api, workflow_enabled):
+    owner = _seller()
+    listing = make_private_listing(owner=owner)
+    make_revision(listing, payload={"title_en": "First"})
+    api.force_authenticate(owner)
+
+    response = api.get(reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk}))
+
+    assert response.data["published_payload"] is None
+
+
+@pytest.mark.django_db
+def test_the_workflow_reports_a_paid_promotion_from_the_server_not_the_return_url(api, workflow_enabled):
+    from promotions.models import ListingPromotion, PromotionPlan
+
+    owner = _seller()
+    listing = make_private_listing(owner=owner)
+    make_revision(listing, payload={"title_en": "First"})
+    api.force_authenticate(owner)
+    url = reverse("listing-workflow-detail", kwargs={"listing_id": listing.pk})
+
+    assert api.get(url).data["promotion"] == {"paid": False, "active_until": None}
+
+    plan = PromotionPlan.objects.create(code="qa-test-week", name_en="7 days", days=7, price="149.00", is_active=True)
+    ListingPromotion.objects.create(listing=listing, user=owner, plan=plan, days=7, amount="149.00", status="PAID")
+
+    assert api.get(url).data["promotion"]["paid"] is True

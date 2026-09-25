@@ -26,6 +26,9 @@ from .views import (
     StaffModerationQueueView,
     StaffRevisionDetailView,
     ListingWithdrawView,
+    ListingDeleteView,
+    ListingPauseView,
+    ListingResumeView,
     PublicListingBySlugView,
     PublicListingDetailView,
     PublicListingFacetsView,
@@ -33,7 +36,12 @@ from .views import (
     StaffRevisionDecisionView,
 )
 
-from .owner_views import ListingWorkflowDetailView, MyListingsSummaryView, MyListingsView
+from .owner_views import (
+    ListingPreviewView,
+    ListingWorkflowDetailView,
+    MyListingsSummaryView,
+    MyListingsView,
+)
 
 urlpatterns = [
     path("valuation/", ValuationView.as_view(), name="valuation"),
@@ -45,6 +53,11 @@ urlpatterns = [
         "listings/<uuid:listing_id>/workflow/",
         ListingWorkflowDetailView.as_view(),
         name="listing-workflow-detail",
+    ),
+    path(
+        "listings/<uuid:listing_id>/preview/",
+        ListingPreviewView.as_view(),
+        name="listing-preview",
     ),
     path("listings/drafts/", ListingDraftCreateView.as_view(), name="listing-draft-create"),
     path(
@@ -61,6 +74,21 @@ urlpatterns = [
         "listings/<uuid:listing_id>/withdraw/",
         ListingWithdrawView.as_view(),
         name="listing-withdraw",
+    ),
+    path(
+        "listings/<uuid:listing_id>/delete/",
+        ListingDeleteView.as_view(),
+        name="listing-delete",
+    ),
+    path(
+        "listings/<uuid:listing_id>/pause/",
+        ListingPauseView.as_view(),
+        name="listing-pause",
+    ),
+    path(
+        "listings/<uuid:listing_id>/resume/",
+        ListingResumeView.as_view(),
+        name="listing-resume",
     ),
     path(
         "listings/<uuid:listing_id>/renew/",

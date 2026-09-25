@@ -5,6 +5,7 @@ the Django admin and the dedicated moderation endpoints.
 """
 
 from django.db.models import Count, Prefetch, Q
+from common.money import display_money
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -40,6 +41,16 @@ class StaffListView(ListAPIView):
     pagination_class = StaffPagination
     search_fields: tuple[str, ...] = ()
     facet_field: str | None = None
+    #: `?ordering=` values a column header may ask for -> the model field they sort by.
+    ordering_fields: dict[str, str] = {}
+
+    def order_queryset(self, queryset):
+        raw = self.request.query_params.get("ordering", "").strip()
+        key = raw.lstrip("-")
+        field = self.ordering_fields.get(key)
+        if not field:
+            return queryset
+        return queryset.order_by(f"-{field}" if raw.startswith("-") else field, "pk")
 
     def filter_queryset(self, queryset):
         term = self.request.query_params.get("q", "").strip()
@@ -54,15 +65,22 @@ class StaffListView(ListAPIView):
         status = self.request.query_params.get("status", "").strip()
         if status and hasattr(self, "status_field"):
             queryset = queryset.filter(**{self.status_field: status})
-        return queryset
+        return self.order_queryset(queryset)
 
 
 class UserRowSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "email", "full_name", "primary_role", "is_active", "email_verified_at", "date_joined_at")
+        fields = ("id", "email", "full_name", "primary_role", "is_active", "email_verified_at", "date_joined_at", "account_state")
 
     date_joined_at = serializers.DateTimeField(source="created_at", read_only=True)
+    account_state = serializers.SerializerMethodField()
+
+    def get_account_state(self, user) -> str:
+        """One word a staff member can act on: the same three states the list filter offers."""
+        if not user.is_active:
+            return "SUSPENDED"
+        return "ACTIVE" if user.email_verified_at else "UNVERIFIED"
 
 
 class StaffUserListView(StaffListView):
@@ -71,6 +89,7 @@ class StaffUserListView(StaffListView):
     serializer_class = UserRowSerializer
     search_fields = ("email", "full_name")
     facet_field = "primary_role"
+    ordering_fields = {"email": "email", "full_name": "full_name", "primary_role": "primary_role", "date_joined_at": "created_at"}
     queryset = User.objects.order_by("-created_at")
 
     def filter_queryset(self, queryset):
@@ -105,6 +124,9 @@ class StaffBrokerListView(StaffListView):
     serializer_class = BrokerRowSerializer
     search_fields = ("name", "public_email")
     status_field = "status"
+    ordering_fields = {
+        "name": "name", "status": "status", "member_count": "member_count", "listing_count": "listing_count", "created_at": "created_at",
+    }
 
     def get_queryset(self):
         return BrokerOrganization.objects.select_related("plan").annotate(
@@ -125,6 +147,7 @@ class StaffProviderListView(StaffListView):
     facet_field = "status"
     serializer_class = ProviderRowSerializer
     search_fields = ("display_name", "owner_user__email", "city")
+    ordering_fields = {"display_name": "display_name", "status": "status", "city": "city", "created_at": "created_at"}
     status_field = "status"
     queryset = ProfessionalProfile.objects.select_related("owner_user").order_by("display_name")
 
@@ -144,6 +167,7 @@ class StaffLeadListView(StaffListView):
     serializer_class = LeadRowSerializer
     search_fields = ("subject", "initiator__email")
     status_field = "status"
+    ordering_fields = {"subject": "subject", "status": "status", "conversation_type": "conversation_type", "created_at": "created_at"}
 
     def get_queryset(self):
         qs = Conversation.objects.select_related("initiator", "broker", "professional").order_by("-created_at")
@@ -165,6 +189,7 @@ class StaffSubscriptionListView(StaffListView):
     serializer_class = SubscriptionRowSerializer
     search_fields = ("user__email",)
     status_field = "state"
+    ordering_fields = {"user_email": "user__email", "state": "state", "valid_until": "valid_until", "created_at": "created_at"}
     queryset = UserEntitlement.objects.select_related("user").order_by("-created_at")
 
 
@@ -236,13 +261,33 @@ class BoatRowSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source="owner_user.email", read_only=True, default=None)
     broker_name = serializers.CharField(source="broker.name", read_only=True, default=None)
     pending_revision_id = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    price_display = serializers.SerializerMethodField()
+    seller = serializers.SerializerMethodField()
 
     class Meta:
         model = BoatListing
         fields = (
-            "id", "slug", "status", "seller_type", "brand_name", "manufacture_year", "price", "currency",
-            "owner_email", "broker_name", "published_at", "created_at", "pending_revision_id",
+            "id", "slug", "status", "seller_type", "title", "brand_name", "manufacture_year", "price", "currency",
+            "price_display", "seller", "owner_email", "broker_name", "published_at", "created_at", "updated_at",
+            "pending_revision_id",
         )
+
+    def get_seller(self, listing) -> str:
+        """Who is selling: the brokerage, else the private owner's e-mail (one column instead of two half-empty ones)."""
+        if listing.broker_id and listing.broker:
+            return listing.broker.name
+        return listing.owner_user.email if listing.owner_user_id and listing.owner_user else ""
+
+    def get_title(self, listing) -> str:
+        """The published title, else the year/brand/model heading a buyer would see."""
+        snapshot = listing.current_public_snapshot if listing.current_public_snapshot_id else None
+        if snapshot is not None and snapshot.title_en:
+            return snapshot.title_en
+        return f"{listing.manufacture_year} {listing.brand.name} {listing.custom_model_name or listing.model.name}"
+
+    def get_price_display(self, listing) -> str:
+        return display_money(listing.price, listing.currency)
 
     def get_pending_revision_id(self, listing):
         """The submitted revision a moderator can approve, or None (prefetched by the list view)."""
@@ -253,10 +298,14 @@ class BoatRowSerializer(serializers.ModelSerializer):
 class StaffBoatListView(StaffListView):
     facet_field = "status"
     serializer_class = BoatRowSerializer
-    search_fields = ("brand__name", "owner_user__email", "broker__name", "slug")
+    search_fields = ("brand__name", "model__name", "owner_user__email", "broker__name", "slug")
     status_field = "status"
+    ordering_fields = {
+        "manufacture_year": "manufacture_year", "status": "status", "seller_type": "seller_type", "price_display": "price",
+        "created_at": "created_at", "updated_at": "updated_at", "brand_name": "brand__name",
+    }
     queryset = (
-        BoatListing.objects.select_related("brand", "owner_user", "broker")
+        BoatListing.objects.select_related("brand", "model", "owner_user", "broker", "current_public_snapshot")
         .prefetch_related(
             Prefetch(
                 "revisions",

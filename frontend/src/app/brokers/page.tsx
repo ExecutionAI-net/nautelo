@@ -1,14 +1,16 @@
+import { specialtyLabels } from "@/lib/i18n/specialties";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
+import { getT } from "@/i18n/server";
 import { fetchBrokers } from "@/lib/api/brokers";
+import LocationFacetFilter from "@/components/places/LocationFacetFilter";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Brokers",
-  alternates: { canonical: "/brokers/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT())("brokers.page.meta_title") };
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -30,19 +32,24 @@ function hrefWith(current: Record<string, string>, change: Record<string, string
 }
 
 export default async function BrokersPage({ searchParams }: { searchParams: SearchParams }) {
+  const t = await getT();
   const params = await searchParams;
-  const current = { q: first(params.q), country: first(params.country), specialty: first(params.specialty) };
+  const current = { q: first(params.q), country: first(params.country), place: first(params.place), specialty: first(params.specialty) };
   const page = first(params.page);
   const brokers = await fetchBrokers({ page, ...current });
   if (brokers === null) {
     throw new Error("GET /api/v1/brokers/ is unavailable");
   }
   const countries = Object.entries(brokers.facets?.countries ?? {});
+  const locations = brokers.facets?.locations ?? [];
   const specialties = Object.keys(brokers.facets?.specialties ?? {});
   const countryTotal = countries.reduce((sum, [, n]) => sum + n, 0);
+  const placeLabel = locations.find((row) => String(row.place_id) === current.place)?.city;
   const active = [
-    current.country ? { label: countryName(current.country), clear: hrefWith(current, { country: "", page: "" }) } : null,
-    current.specialty ? { label: current.specialty, clear: hrefWith(current, { specialty: "", page: "" }) } : null,
+    current.place && placeLabel ? { label: placeLabel, clear: hrefWith(current, { place: "", page: "" }) } : current.country
+      ? { label: countryName(current.country), clear: hrefWith(current, { country: "", place: "", page: "" }) }
+      : null,
+    current.specialty ? { label: specialtyLabels([current.specialty])[0] ?? current.specialty, clear: hrefWith(current, { specialty: "", page: "" }) } : null,
     current.q ? { label: `"${current.q}"`, clear: hrefWith(current, { q: "", page: "" }) } : null,
   ].filter((item): item is { label: string; clear: string } => item !== null);
 
@@ -53,23 +60,23 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
         <div className="absolute left-1/3 -bottom-32 w-80 h-80 rounded-full bg-primary-fixed opacity-25 blur-2xl pointer-events-none" />
         <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop relative z-10">
           <div className="flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider mb-space-sm">
-            <span className="text-secondary font-semibold">Directory</span>
+            <span className="text-secondary font-semibold">{t("brokers.page.directory")}</span>
             <span className="text-outline-variant">/</span>
-            <span>Western Mediterranean Maritime Network</span>
+            <span>{t("brokers.page.western_mediterranean_maritime_network")}</span>
           </div>
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md">
             <div className="max-w-3xl">
-              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Yacht brokers</h1>
+              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">{t("brokers.page.yacht_brokers")}</h1>
               <p className="mt-space-xs font-body-lg text-body-lg text-on-surface-variant">
-                Connect with licensed yacht brokers and maritime brokerage firms across Spain and Italy.
+                {t("brokers.page.find_brokerage_firms_that_sell_boats")}
               </p>
             </div>
           </div>
 
           <div className="mt-space-xl bg-surface-container-lowest p-space-md md:p-space-lg rounded-xl shadow-sm">
             <form method="get" action="/brokers/" className="grid grid-cols-1 md:grid-cols-12 gap-space-md items-center">
-              <div className="md:col-span-5 relative">
-                <label className="sr-only" htmlFor="broker-search-input">Search by broker or company name</label>
+              <div className="md:col-span-4 relative">
+                <label className="sr-only" htmlFor="broker-search-input">{t("brokers.page.search_by_broker_or_company_name")}</label>
                 <div className="absolute inset-y-0 left-0 pl-space-md flex items-center pointer-events-none text-primary">
                   <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">search</span>
                 </div>
@@ -81,37 +88,44 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                   className="w-full pl-11 pr-space-md py-3 rounded-lg bg-surface-container-low text-primary font-body-md text-body-md placeholder:text-on-surface-variant focus:bg-surface-container-lowest focus:outline-none transition-colors"
                 />
               </div>
-              <div className="md:col-span-3 relative">
-                <label className="sr-only" htmlFor="location-select">Location filter</label>
-                <div className="absolute inset-y-0 left-0 pl-space-md flex items-center pointer-events-none text-secondary">
-                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">location_on</span>
-                </div>
-                <select id="location-select" name="country" defaultValue={current.country} className="w-full appearance-none pl-11 pr-10 py-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none cursor-pointer">
-                  <option value="">All locations</option>
-                  {countries.map(([code, count]) => (
-                    <option key={code} value={code}>
-                      {countryName(code)} ({count})
-                    </option>
-                  ))}
-                </select>
+              <div className="md:col-span-3 grid grid-cols-2 gap-space-xs">
+                <LocationFacetFilter
+                  key={`${current.country}|${current.place}`}
+                  locations={locations}
+                  idPrefix="broker-location"
+                  wrapperClass=""
+                  labelClass="sr-only"
+                  fieldClass="w-full appearance-none px-space-sm py-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  initial={{ country: current.country, place: current.place }}
+                  labels={{
+                    country: t("brokers.page.location_filter"),
+                    allCountries: t("brokers.page.all_locations"),
+                    city: t("place.city"),
+                    allCities: t("place.all_cities"),
+                    chooseCountry: t("place.choose_country"),
+                    searchCity: t("place.search_city"),
+                    searchCountry: t("place.search_country"),
+                  }}
+                />
               </div>
               <div className="md:col-span-3 relative">
-                <label className="sr-only" htmlFor="speciality-select">Boat speciality filter</label>
+                <label className="sr-only" htmlFor="speciality-select">{t("brokers.page.boat_speciality_filter")}</label>
                 <div className="absolute inset-y-0 left-0 pl-space-md flex items-center pointer-events-none text-secondary">
                   <span className="material-symbols-outlined text-[20px]" aria-hidden="true">sailing</span>
                 </div>
                 <select id="speciality-select" name="specialty" defaultValue={current.specialty} className="w-full appearance-none pl-11 pr-10 py-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none cursor-pointer">
-                  <option value="">All specialities</option>
+                  <option value="">{t("brokers.page.all_specialities")}</option>
                   {specialties.map((name) => (
                     <option key={name} value={name}>
-                      {name}
+                      {specialtyLabels([name])[0] ?? name}
                     </option>
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-1 flex">
-                <button aria-label="Filter results" type="submit" className="w-full h-12 flex items-center justify-center rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-sm">
-                  <span className="material-symbols-outlined text-[22px]" aria-hidden="true">tune</span>
+              <div className="md:col-span-2 flex">
+                <button type="submit" className="w-full h-12 flex items-center justify-center gap-space-xs rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-sm font-body-md">
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">tune</span>
+                  {t("brokers.page.apply_filters")}
                 </button>
               </div>
             </form>
@@ -119,7 +133,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
               <div className="flex flex-wrap items-center gap-space-xs">
                 {active.length > 0 ? (
                   <>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mr-space-xs">Active filters:</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mr-space-xs">{t("brokers.page.active_filters")}</span>
                     {active.map((item) => (
                       <Link key={item.label} href={item.clear} className="inline-flex items-center gap-space-xs pl-space-sm pr-space-xs py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-label-md" aria-label={`Remove ${item.label} filter`}>
                         {item.label}
@@ -127,14 +141,14 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                       </Link>
                     ))}
                     <Link href="/brokers/" className="font-label-sm text-label-sm text-secondary hover:text-primary transition-colors underline ml-space-xs">
-                      Clear all
+                      {t("brokers.page.clear_all")}
                     </Link>
                   </>
                 ) : null}
               </div>
               <div className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
                 <span className="font-spec-num text-spec-num text-primary font-semibold">Showing {brokers.count}</span>
-                <span>registered brokerage firms</span>
+                <span>{t("brokers.page.registered_brokerage_firms")}</span>
               </div>
             </div>
           </div>
@@ -149,8 +163,8 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                 <span className="material-symbols-outlined text-[20px]" aria-hidden="true">hub</span>
               </span>
               <div>
-                <div className="font-title-md text-title-md text-primary">Coverage across the network</div>
-                <div className="font-body-sm text-body-sm text-on-surface-variant">Where our registered brokerage firms are based.</div>
+                <div className="font-title-md text-title-md text-primary">{t("brokers.page.coverage_across_the_network")}</div>
+                <div className="font-body-sm text-body-sm text-on-surface-variant">{t("brokers.page.the_countries_where_most_of_our")}</div>
               </div>
             </div>
             <div className="flex flex-col gap-1 w-full md:w-72">
@@ -171,11 +185,17 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
         ) : null}
 
         {brokers.results.length === 0 ? (
-          <p className="font-body-md text-on-surface-variant">No brokers match these filters.</p>
+          <p className="font-body-md text-on-surface-variant">{t("brokers.page.no_brokers_match_these_filters")}</p>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg">
             {brokers.results.map((broker) => (
-              <li key={broker.id} className="group flex flex-col justify-between bg-surface-container-lowest rounded-xl shadow-sm hover:shadow-md transition-shadow p-space-lg">
+              <li key={broker.id} className="group relative flex flex-col justify-between bg-surface-container-lowest rounded-xl shadow-sm hover:shadow-md transition-shadow p-space-lg">
+                {/* Whole-card click target: every part of the card opens the
+                    broker's profile, not just the "View profile" button.
+                    aria-hidden + tabIndex=-1 because that button remains the
+                    card's one accessible/keyboard link; this is a mouse/touch
+                    convenience only. */}
+                <Link href={broker.url} aria-hidden="true" tabIndex={-1} className="absolute inset-0 rounded-xl" />
                 <div>
                   <div className="flex items-start gap-space-md">
                     <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">
@@ -205,7 +225,7 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                   {broker.tagline ? <p className="mt-space-md font-body-sm text-body-sm text-on-surface-variant line-clamp-2">{broker.tagline}</p> : null}
                   {broker.specialties.length > 0 ? (
                     <div className="mt-space-md flex flex-wrap gap-space-xs">
-                      {broker.specialties.map((tag) => (
+                      {specialtyLabels(broker.specialties).map((tag) => (
                         <span key={tag} className="px-2.5 py-1 rounded bg-surface-container font-label-md text-label-md text-on-surface">
                           {tag}
                         </span>
@@ -219,8 +239,8 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
                     <span className="font-spec-num text-spec-num text-primary font-semibold">{broker.listing_count}</span>
                     active {broker.listing_count === 1 ? "listing" : "listings"}
                   </span>
-                  <Link href={broker.url} className="inline-flex items-center gap-1 rounded bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
-                    View profile
+                  <Link href={broker.url} className="relative inline-flex items-center gap-1 rounded bg-primary px-space-md py-space-sm font-body-md text-on-primary hover:bg-primary-container">
+                    {t("brokers.page.view_profile")}
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
                   </Link>
                 </div>
@@ -233,12 +253,12 @@ export default async function BrokersPage({ searchParams }: { searchParams: Sear
           <nav aria-label="Pagination" className="mt-space-xl flex items-center justify-center gap-space-sm">
             {brokers.previous ? (
               <Link href={hrefWith(current, { page: String(Math.max(1, Number(page || 1) - 1)) })} className="px-space-md py-space-sm rounded bg-surface-container-lowest text-primary shadow-sm">
-                Previous
+                {t("brokers.page.previous")}
               </Link>
             ) : null}
             {brokers.next ? (
               <Link href={hrefWith(current, { page: String(Number(page || 1) + 1) })} className="px-space-md py-space-sm rounded bg-surface-container-lowest text-primary shadow-sm">
-                Next
+                {t("brokers.page.next")}
               </Link>
             ) : null}
           </nav>

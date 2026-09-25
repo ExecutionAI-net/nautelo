@@ -49,6 +49,19 @@ class User(UUIDTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     )
     locale = models.CharField(max_length=2, choices=Locale.choices, default=Locale.EN)
     full_name = models.CharField(max_length=150, blank=True)
+    # Personal contact number, distinct from a broker/professional
+    # organization's own public_phone (BrokerOrganization/ProfessionalProfile) -
+    # this one is private to the account, editable from Account Settings.
+    phone_number = models.CharField(max_length=32, blank=True, default="")
+    # Marketing opt-in, tracked as an explicit yes/no on the account (not
+    # inferred from any one inquiry's own "send me updates" checkbox), so it
+    # can be set at signup and changed later from Account Settings.
+    newsletter_opt_in = models.BooleanField(default=False)
+    # When this account accepted the Terms and Conditions at registration
+    # (customer feedback, 2026-09-25: the org registration forms require
+    # this and record when). Null for accounts created before this field
+    # existed.
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(
         default=False, help_text="Can sign in to the Django admin site."

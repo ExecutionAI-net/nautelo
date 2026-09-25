@@ -2,15 +2,21 @@
 
 import { useEffect, useState } from "react";
 
+import Link from "@/components/layout/LocaleLink";
+import PromotionDialog from "@/components/promotion/PromotionDialog";
+import PlacePicker from "@/components/places/PlacePicker";
 import SearchSelect from "@/components/forms/SearchSelect";
 import type { Locale } from "@/lib/i18n/directory";
-import { tSell } from "@/lib/i18n/sell";
+import { useT } from "@/i18n/client";
+import type { Translate } from "@/i18n";
 import { ApiError } from "@/lib/api/client";
 import { fetchEligibility, fetchFormOptions, type Eligibility, type FormOptions } from "@/lib/api/listingForm";
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
+import { safeMoney } from "@/components/listings/money";
 import { fetchTranslationEnabled, translateListingText } from "@/lib/api/translation";
 import {
   createDraft,
+  fetchWorkflowListing,
   listMedia,
   listModels,
   removeMedia,
@@ -53,17 +59,46 @@ const SPEC_KEYS = [
   "berth",
 ] as const;
 
-function describe(error: unknown, locale: Locale): string {
+// Measurements take a decimal part (comma or dot, shown as typed); counts are whole numbers.
+const NUMERIC_SPECS: Record<string, boolean> = {
+  loa_m: true,
+  beam_m: true,
+  draft_m: true,
+  power_hp: true,
+  engine_hours: false,
+  cabins: false,
+  bathrooms: false,
+  berth: false,
+};
+
+/** Keeps digits and, for decimals, a single comma or dot, so letters can never be typed in. */
+export function numericOnly(value: string, decimal: boolean): string {
+  if (!decimal) return value.replace(/\D/g, "");
+  const cleaned = value.replace(/[^\d.,]/g, "");
+  const at = cleaned.search(/[.,]/);
+  return at === -1 ? cleaned : cleaned.slice(0, at + 1) + cleaned.slice(at + 1).replace(/[.,]/g, "");
+}
+
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiError) {
     const first = Object.values(error.fields)[0]?.[0]?.message;
-    return first || error.message || tSell(locale, "sell.request_failed");
+    return first || error.message || t("sell.request_failed");
   }
-  return tSell(locale, "sell.request_failed");
+  return t("sell.request_failed");
 }
 
 function text(payload: Record<string, unknown>, key: string): string {
   const value = payload[key];
   return value === null || value === undefined ? "" : String(value);
+}
+
+function Req() {
+  return (
+    <span aria-hidden="true" className="text-error">
+      {" "}
+      *
+    </span>
+  );
 }
 
 function StepHeading({ n, id, children }: { n: number; id: string; children: React.ReactNode }) {
@@ -85,17 +120,25 @@ export default function SellListingForm({
   /** An existing listing (from GET listings/<id>/workflow/) to keep editing. */
   initial?: WorkflowListing;
 }) {
-  const seed = initial?.revision?.payload ?? {};
+  const seed = initial?.revision?.payload ?? initial?.published_payload ?? {};
   const seedSpecs = (typeof seed.specifications === "object" && seed.specifications !== null
     ? seed.specifications
     : {}) as Record<string, unknown>;
-  const t = (key: string, vars?: Record<string, string | number>) => tSell(locale, key, vars);
+  const t = useT();
   const [brands, setBrands] = useState<TaxonomyItem[]>([]);
   const [models, setModels] = useState<TaxonomyItem[]>([]);
   const [other, setOther] = useState<{ id: string; label: string } | null>(null);
   const [brandQuery, setBrandQuery] = useState("");
   const [brandId, setBrandId] = useState(text(seed, "brand_id"));
   const [modelId, setModelId] = useState(text(seed, "model_id"));
+  // Names for chosen ids, so a locked or previously saved brand/model reads as
+  // its name instead of a placeholder. Seeded from the listing, then from picks.
+  const [names, setNames] = useState<Record<string, string>>(() => {
+    const known: Record<string, string> = {};
+    if (initial?.brand_name && text(seed, "brand_id")) known[text(seed, "brand_id")] = initial.brand_name;
+    if (initial?.model_name && text(seed, "model_id")) known[text(seed, "model_id")] = initial.custom_model_name || initial.model_name;
+    return known;
+  });
   const [customModel, setCustomModel] = useState(text(seed, "custom_model_name"));
   const [year, setYear] = useState(text(seed, "manufacture_year"));
   const [lang, setLang] = useState<Lang>("en");
@@ -105,6 +148,7 @@ export default function SellListingForm({
   const [translatedLangs, setTranslatedLangs] = useState<Lang[]>([]);
   const [options, setOptions] = useState<FormOptions | null>(null);
   const [eligibility, setEligibility] = useState<Eligibility | null>(null);
+  const [wantedPackage, setWantedPackage] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
   const [modelQuery, setModelQuery] = useState("");
   const [titles, setTitles] = useState<Record<Lang, string>>({
@@ -123,7 +167,9 @@ export default function SellListingForm({
   const [country, setCountry] = useState(text(seed, "location_country"));
   const [region, setRegion] = useState(text(seed, "location_region"));
   const [city, setCity] = useState(text(seed, "location_city"));
+  const [placeId, setPlaceId] = useState<number | null>(typeof seed.location_place_id === "number" ? seed.location_place_id : null);
   const [price, setPrice] = useState(text(seed, "price"));
+  const [currency, setCurrency] = useState(text(seed, "currency") || "EUR");
   const [showFinance, setShowFinance] = useState(seed.show_finance_estimate === true);
   const [downOverride, setDownOverride] = useState(text(seed, "finance_down_payment_override_percent"));
   const [rateOverride, setRateOverride] = useState(text(seed, "finance_rate_override_percent"));
@@ -132,9 +178,34 @@ export default function SellListingForm({
   const [listing, setListing] = useState<WorkflowListing | null>(initial ?? null);
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [pending, setPending] = useState<{ file: File; url: string }[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [askPromo, setAskPromo] = useState(false);
+  // The server decides whether a promotion is paid; the ?promotion=success
+  // return flag only tells us to ask again, since the webhook may land a
+  // moment after Stripe sends the seller back.
+  const promoPaid = listing?.promotion?.paid === true;
+  const returnedFromPromotion = initial?.id;
+  useEffect(() => {
+    if (!returnedFromPromotion || new URLSearchParams(window.location.search).get("promotion") !== "success") return;
+    let cancelled = false;
+    let attempts = 0;
+    const check = () => {
+      fetchWorkflowListing(returnedFromPromotion)
+        .then((fresh) => {
+          if (cancelled) return;
+          if (fresh.promotion?.paid) setListing(fresh);
+          else if (++attempts < 5) window.setTimeout(check, 2000);
+        })
+        .catch(() => {});
+    };
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [returnedFromPromotion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,6 +312,13 @@ export default function SellListingForm({
   }, [initialId, brokerId]);
 
   useEffect(() => {
+    // The pricing page sends a seller here with ?package=<slug>: offer that package
+    // up front even when a free listing or an unused paid one would do.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the address bar once
+    setWantedPackage(new URLSearchParams(window.location.search).get("package") ?? "");
+  }, []);
+
+  useEffect(() => {
     let active = true;
     void fetchTranslationEnabled().then((enabled) => {
       if (active) setTranslateEnabled(enabled);
@@ -282,7 +360,8 @@ export default function SellListingForm({
   const locked = (listing?.policy.immutable_fields.length ?? 0) > 0;
   // The server names what it froze (private seller after submission adds condition and boat type).
   const frozenSpecs = listing?.policy.immutable_fields ?? [];
-  const setSpec = (key: string, value: string) => setSpecs((current) => ({ ...current, [key]: value }));
+  const setSpec = (key: string, value: string) =>
+    setSpecs((current) => ({ ...current, [key]: key in NUMERIC_SPECS ? numericOnly(value, NUMERIC_SPECS[key]) : value }));
 
   function payload(): Record<string, unknown> {
     // Specification entries are flat lowercase keys; blanks are dropped, and
@@ -292,7 +371,7 @@ export default function SellListingForm({
       if (!(SPEC_KEYS as readonly string[]).includes(key)) merged[key] = value as string | number | boolean | null;
     }
     for (const key of SPEC_KEYS) {
-      if (specs[key].trim()) merged[key] = specs[key].trim();
+      if (specs[key].trim()) merged[key] = key in NUMERIC_SPECS ? specs[key].trim().replace(",", ".") : specs[key].trim();
     }
     const body: Record<string, unknown> = {
       title_en: titles.en,
@@ -305,8 +384,9 @@ export default function SellListingForm({
       location_country: country.toUpperCase(),
       location_region: region,
       location_city: city,
+      ...(placeId !== null ? { location_place_id: placeId } : {}),
       price,
-      currency: "EUR",
+      currency,
     };
     if (brokerId) {
       body.show_finance_estimate = showFinance;
@@ -343,7 +423,7 @@ export default function SellListingForm({
           // ignore
         }
         // The draft now lives on the server: a refresh reopens it instead of a blank form.
-        window.history.replaceState(null, "", `/sell/${saved.id}/`);
+        window.history.replaceState(null, "", brokerId ? `/dashboard/broker/fleet/${saved.id}/` : `/sell/${saved.id}/`);
       }
       // Files picked before the draft existed upload now; one that fails stays queued so the next save retries it.
       for (const item of pending) {
@@ -358,7 +438,7 @@ export default function SellListingForm({
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 3000);
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
@@ -412,7 +492,7 @@ export default function SellListingForm({
     try {
       await uploadAll(listing.id, accepted);
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
@@ -425,18 +505,32 @@ export default function SellListingForm({
     });
   }
 
-  async function move(row: MediaRow, delta: number) {
+  async function reorderTo(row: MediaRow, toPosition: number) {
     if (!listing) return;
     const ids = media.filter((item) => item.media_type === row.media_type).map((item) => item.id);
     const from = ids.indexOf(row.id);
-    const to = from + delta;
-    if (to < 0 || to >= ids.length) return;
-    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    if (from === -1 || toPosition < 0 || toPosition >= ids.length || toPosition === from) return;
+    ids.splice(toPosition, 0, ids.splice(from, 1)[0]);
     try {
       setMedia(await reorderMedia(listing.id, row.media_type, ids));
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     }
+  }
+
+  async function move(row: MediaRow, delta: number) {
+    const siblings = media.filter((item) => item.media_type === row.media_type);
+    await reorderTo(row, siblings.indexOf(row) + delta);
+  }
+
+  function dropOnto(targetRow: MediaRow) {
+    const draggedId = dragId;
+    setDragId(null);
+    if (!draggedId || draggedId === targetRow.id) return;
+    const dragged = media.find((item) => item.id === draggedId);
+    if (!dragged || dragged.media_type !== targetRow.media_type) return;
+    const siblings = media.filter((item) => item.media_type === targetRow.media_type);
+    void reorderTo(dragged, siblings.indexOf(targetRow));
   }
 
   async function remove(row: MediaRow) {
@@ -445,7 +539,7 @@ export default function SellListingForm({
       await removeMedia(listing.id, row.id);
       setMedia(await listMedia(listing.id));
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     }
   }
 
@@ -465,7 +559,7 @@ export default function SellListingForm({
       await submitListing(listing.id, withMedia.revision?.version ?? withMedia.version);
       setSubmitted(true);
     } catch (caught) {
-      setError(describe(caught, locale));
+      setError(describe(caught, t));
     } finally {
       setBusy(false);
     }
@@ -473,9 +567,26 @@ export default function SellListingForm({
 
   if (submitted) {
     return (
-      <p role="status" className="font-body-md">
-        {t("sell.submitted")}
-      </p>
+      <div role="status" className="flex max-w-2xl flex-col gap-space-sm rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
+        <p className="font-title-md text-title-md text-primary">{t("sell.submitted")}</p>
+        <p className="font-body-md text-on-surface-variant">{t("sell.submitted_next")}</p>
+        <div className="flex flex-wrap gap-space-sm">
+          <Link
+            href={brokerId ? "/dashboard/broker/fleet/" : "/dashboard/private-seller/listings/"}
+            className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container"
+          >
+            {brokerId ? t("nav.fleet") : t("nav.my_listings")}
+          </Link>
+          {listing ? (
+            <Link
+              href={`/dashboard/listings/${listing.id}/preview/`}
+              className="rounded-lg border border-primary px-space-lg py-space-sm font-body-md text-primary hover:bg-surface-container-low"
+            >
+              {t("sell.preview_link")}
+            </Link>
+          ) : null}
+        </div>
+      </div>
     );
   }
 
@@ -492,7 +603,12 @@ export default function SellListingForm({
   const yearOptions = (options?.years ?? []).map((year) => ({ value: String(year), label: String(year) }));
   const pick = (label: string, key: string, values: string[] | undefined) => (
     <SearchSelect
-      label={label}
+      label={
+        <>
+          {label}
+          <Req />
+        </>
+      }
       labelClassName={LABEL}
       value={specs[key]}
       options={toOptions(values)}
@@ -501,8 +617,11 @@ export default function SellListingForm({
       placeholder={t("sell.select")}
       searchPlaceholder={t("sell.search")}
       emptyText={t("sell.no_results")}
+      required
     />
   );
+  // The card preview shows the price the way the marketplace will ("€189,000"), not the raw input.
+  const previewPrice = price ? (safeMoney(locale, price.trim(), currency) ?? `${currency} ${price}`) : "—";
   const blocked = eligibility !== null && !eligibility.can_start_listing && !listing;
 
   const steps = [
@@ -515,8 +634,43 @@ export default function SellListingForm({
   ];
   const brandName = brands.find((b) => b.id === brandId)?.name ?? "";
   const modelLabel = isOther ? customModel : (models.find((m) => m.id === modelId)?.name ?? "");
-  const previewTitle = titles.en || [year, brandName, modelLabel].filter(Boolean).join(" ") || t(brokerId ? "sell.title_broker" : "sell.title");
+  const titleKey = brokerId ? (initial ? "sell.title_broker_edit" : "sell.title_broker") : "sell.title";
+  const previewTitle = titles.en || [year, brandName, modelLabel].filter(Boolean).join(" ") || t(titleKey);
+  // Defense in depth for drafts saved before every field became mandatory:
+  // even if the draft itself is stale, "submit for review" stays blocked
+  // until every field this form owns is actually filled in.
+  const formComplete = Boolean(
+    titles[lang].trim() &&
+      descriptions[lang].trim() &&
+      specs.condition &&
+      specs.boat_type &&
+      brandId &&
+      modelId &&
+      (!isOther || customModel.trim()) &&
+      year &&
+      specs.loa_m.trim() &&
+      specs.beam_m.trim() &&
+      specs.draft_m.trim() &&
+      specs.hull_material &&
+      specs.engine_type &&
+      specs.engine_model.trim() &&
+      specs.power_hp.trim() &&
+      specs.engine_hours.trim() &&
+      specs.fuel_type &&
+      specs.cabins &&
+      specs.bathrooms &&
+      specs.berth.trim() &&
+      price.trim() &&
+      country.trim() &&
+      placeId !== null,
+  );
   const previewImage = media.find((row) => row.status === "READY" && row.media_type === "IMAGE");
+  // The preview card shows the cover the seller sees in the media grid: a ready photo,
+  // else any uploaded photo with a preview, else a photo picked but not saved yet.
+  const previewUrl =
+    previewImage?.preview_url ??
+    media.find((row) => row.media_type === "IMAGE" && row.preview_url)?.preview_url ??
+    pending.find((item) => !item.file.type.startsWith("video/"))?.url;
 
   if (blocked) {
     const next = eligibility?.free.next_available_at;
@@ -524,8 +678,8 @@ export default function SellListingForm({
     return (
       <div className="flex flex-col gap-space-lg">
         <header>
-          <span className="font-label-sm uppercase tracking-widest text-secondary">{t("sell.eyebrow")}</span>
-          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(brokerId ? "sell.title_broker" : "sell.title")}</h1>
+          <span className="font-label-sm uppercase tracking-widest text-secondary">{t(brokerId ? "sell.eyebrow_broker" : "sell.eyebrow")}</span>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(titleKey)}</h1>
         </header>
         <section role="alert" className={`${CARD} border-l-4 border-secondary`}>
           <h2 className="font-headline-sm text-headline-sm text-primary">{t("sell.allowance_title")}</h2>
@@ -542,10 +696,25 @@ export default function SellListingForm({
   return (
     <div className="flex flex-col gap-space-lg">
       <header>
-        <span className="font-label-sm uppercase tracking-widest text-secondary">{t("sell.eyebrow")}</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(brokerId ? "sell.title_broker" : "sell.title")}</h1>
-        <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{t("sell.lead")}</p>
+        <span className="font-label-sm uppercase tracking-widest text-secondary">{t(brokerId ? "sell.eyebrow_broker" : "sell.eyebrow")}</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{t(titleKey)}</h1>
+        <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{t(brokerId ? "sell.lead_broker" : "sell.lead")}</p>
+        <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("auth.required_hint")}</p>
       </header>
+
+      {wantedPackage && !listing && !brokerId && eligibility ? (
+        <section className={`${CARD} border-l-4 border-secondary`} aria-label={t("sell.package_chosen_title")}>
+          <h2 className="font-headline-sm text-headline-sm text-primary">{t("sell.package_chosen_title")}</h2>
+          <p className="mt-space-xs font-body-md text-on-surface-variant">
+            {eligibility.paid_listing_rights_available > 0
+              ? t("sell.package_chosen_owned", { count: eligibility.paid_listing_rights_available })
+              : t("sell.package_chosen_lead")}
+          </p>
+          <div className="mt-space-md">
+            <PaidListingBuy label={t("sell.allowance_buy")} />
+          </div>
+        </section>
+      ) : null}
 
       <ol className="flex flex-wrap gap-space-xs rounded-xl bg-surface-container-lowest p-space-sm shadow-sm" aria-label="Steps">
         {steps.map(([anchor, label], index) => (
@@ -585,7 +754,10 @@ export default function SellListingForm({
               </div>
 
               <div className="mt-space-md">
-                <span className={LABEL}>{t("sell.condition")}</span>
+                <span className={LABEL}>
+                  {t("sell.condition")}
+                  <Req />
+                </span>
                 <div className="mt-space-xs inline-flex rounded-lg bg-surface-container p-1">
                   {[
                     ["new", t("sell.condition.new")],
@@ -603,12 +775,25 @@ export default function SellListingForm({
                     </button>
                   ))}
                 </div>
+                <input
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute h-0 w-0 opacity-0"
+                  value={specs.condition}
+                  onChange={() => {}}
+                  required
+                />
               </div>
 
               <div className="mt-space-md grid gap-space-md sm:grid-cols-2">
                 {pick(t("sell.boat_type"), "boat_type", options?.boat_types)}
                 <SearchSelect
-                  label={t("sell.brand")}
+                  label={
+                    <>
+                      {t("sell.brand")}
+                      <Req />
+                    </>
+                  }
                   labelClassName={LABEL}
                   value={brandId}
                   options={brands.map((b) => ({ value: b.id, label: b.name }))}
@@ -616,9 +801,11 @@ export default function SellListingForm({
                     setBrandId(value);
                     setModelId("");
                     setModelQuery("");
+                    const picked = brands.find((b) => b.id === value);
+                    if (picked) setNames((known) => ({ ...known, [value]: picked.name }));
                   }}
                   onSearch={setBrandQuery}
-                  selectedLabel={t("sell.current_brand")}
+                  selectedLabel={names[brandId] ?? t("sell.current_brand")}
                   placeholder={t("sell.select")}
                   searchPlaceholder={t("sell.search")}
                   emptyText={t("sell.no_results")}
@@ -626,13 +813,22 @@ export default function SellListingForm({
                   required
                 />
                 <SearchSelect
-                  label={t("sell.model")}
+                  label={
+                    <>
+                      {t("sell.model")}
+                      <Req />
+                    </>
+                  }
                   labelClassName={LABEL}
                   value={modelId}
                   options={[...models.map((m) => ({ value: m.id, label: m.name })), ...(other ? [{ value: other.id, label: other.label }] : [])]}
-                  onChange={setModelId}
+                  onChange={(value) => {
+                    setModelId(value);
+                    const picked = models.find((m) => m.id === value)?.name ?? (other && other.id === value ? other.label : undefined);
+                    if (picked) setNames((known) => ({ ...known, [value]: picked }));
+                  }}
                   onSearch={setModelQuery}
-                  selectedLabel={t("sell.current_brand")}
+                  selectedLabel={names[modelId] ?? t("sell.current_model")}
                   placeholder={t("sell.select")}
                   searchPlaceholder={t("sell.search")}
                   emptyText={t("sell.no_results")}
@@ -642,11 +838,17 @@ export default function SellListingForm({
                 {isOther ? (
                   <label className={LABEL}>
                     {t("sell.model_name")}
+                    <Req />
                     <input className={FIELD} value={customModel} onChange={(e) => setCustomModel(e.target.value)} minLength={2} required />
                   </label>
                 ) : null}
                 <SearchSelect
-                  label={t("sell.year")}
+                  label={
+                    <>
+                      {t("sell.year")}
+                      <Req />
+                    </>
+                  }
                   labelClassName={LABEL}
                   value={year}
                   options={yearOptions}
@@ -696,22 +898,24 @@ export default function SellListingForm({
               ) : null}
               <label className={`${LABEL} mt-space-md`}>
                 {lang === "en" ? t("sell.listing_title") : `${t("sell.listing_title")} (${lang.toUpperCase()})`}
+                <Req />
                 <input
                   className={FIELD}
                   value={titles[lang]}
                   onChange={(e) => setTitles((current) => ({ ...current, [lang]: e.target.value }))}
                   maxLength={200}
-                  required={lang === "en"}
+                  required
                 />
               </label>
               <label className={`${LABEL} mt-space-md`}>
                 {lang === "en" ? t("sell.description") : `${t("sell.description")} (${lang.toUpperCase()})`}
+                <Req />
                 <textarea
                   className={FIELD}
                   rows={6}
                   value={descriptions[lang]}
                   onChange={(e) => setDescriptions((current) => ({ ...current, [lang]: e.target.value }))}
-                  required={lang === "en"}
+                  required
                 />
               </label>
             </section>
@@ -719,9 +923,9 @@ export default function SellListingForm({
             <section className={CARD} aria-labelledby="step-specs">
               <StepHeading n={2} id="step-specs">{t("sell.step.specs")}</StepHeading>
               <div className="grid gap-space-md sm:grid-cols-2">
-                <label className={LABEL}>{t("sell.loa")}<input className={FIELD} inputMode="decimal" value={specs.loa_m} onChange={(e) => setSpec("loa_m", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.beam")}<input className={FIELD} inputMode="decimal" value={specs.beam_m} onChange={(e) => setSpec("beam_m", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.draft")}<input className={FIELD} inputMode="decimal" value={specs.draft_m} onChange={(e) => setSpec("draft_m", e.target.value)} /></label>
+                <label className={LABEL}>{t("sell.loa")}<Req /><input className={FIELD} inputMode="decimal" required value={specs.loa_m} onChange={(e) => setSpec("loa_m", e.target.value)} /></label>
+                <label className={LABEL}>{t("sell.beam")}<Req /><input className={FIELD} inputMode="decimal" required value={specs.beam_m} onChange={(e) => setSpec("beam_m", e.target.value)} /></label>
+                <label className={LABEL}>{t("sell.draft")}<Req /><input className={FIELD} inputMode="decimal" required value={specs.draft_m} onChange={(e) => setSpec("draft_m", e.target.value)} /></label>
                 {pick(t("sell.hull"), "hull_material", options?.hull_materials)}
               </div>
             </section>
@@ -730,9 +934,9 @@ export default function SellListingForm({
               <StepHeading n={3} id="step-engine">{t("sell.step.engine")}</StepHeading>
               <div className="grid gap-space-md sm:grid-cols-2">
                 {pick(t("sell.engine_type"), "engine_type", options?.engine_types)}
-                <label className={LABEL}>{t("sell.engine_model")}<input className={FIELD} value={specs.engine_model} onChange={(e) => setSpec("engine_model", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.power")}<input className={FIELD} inputMode="numeric" value={specs.power_hp} onChange={(e) => setSpec("power_hp", e.target.value)} /></label>
-                <label className={LABEL}>{t("sell.hours")}<input className={FIELD} inputMode="numeric" value={specs.engine_hours} onChange={(e) => setSpec("engine_hours", e.target.value)} /></label>
+                <label className={LABEL}>{t("sell.engine_model")}<Req /><input className={FIELD} required value={specs.engine_model} onChange={(e) => setSpec("engine_model", e.target.value)} /></label>
+                <label className={LABEL}>{t("sell.power")}<Req /><input className={FIELD} inputMode="numeric" required value={specs.power_hp} onChange={(e) => setSpec("power_hp", e.target.value)} /></label>
+                <label className={LABEL}>{t("sell.hours")}<Req /><input className={FIELD} inputMode="numeric" required value={specs.engine_hours} onChange={(e) => setSpec("engine_hours", e.target.value)} /></label>
                 {pick(t("sell.fuel"), "fuel_type", options?.fuel_types)}
                 {pick(t("sell.cabins"), "cabins", options?.cabins)}
                 {pick(t("sell.bathrooms"), "bathrooms", options?.bathrooms)}
@@ -744,10 +948,36 @@ export default function SellListingForm({
               <div className="grid gap-space-md sm:grid-cols-2">
                 <label className={LABEL}>
                   {t("sell.price")}
-                  <input className={FIELD} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required />
+                  <Req />
+                  <div className="mt-space-xs flex gap-space-xs">
+                    <input
+                      className={`${FIELD} mt-0 min-w-0 flex-1`}
+                      inputMode="decimal"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
+                    />
+                    <select
+                      className={`${FIELD} mt-0 w-28 shrink-0`}
+                      aria-label={t("sell.currency")}
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                    >
+                      {(options?.currencies ?? ["EUR", "USD", "GBP"]).map((code) => (
+                        <option key={code} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <SearchSelect
-                  label={t("sell.country")}
+                  label={
+                    <>
+                      {t("sell.country")}
+                      <Req />
+                    </>
+                  }
                   labelClassName={LABEL}
                   value={country.toUpperCase()}
                   options={countryOptions}
@@ -757,12 +987,18 @@ export default function SellListingForm({
                   emptyText={t("sell.no_results")}
                   required
                 />
-                <label className={LABEL}>{t("sell.region")}<input className={FIELD} value={region} onChange={(e) => setRegion(e.target.value)} /></label>
-                <label className={LABEL}>
-                  {t("sell.city")}
-                  <input className={FIELD} value={city} onChange={(e) => setCity(e.target.value)} required />
-                </label>
-                <label className={LABEL}>{t("sell.berth")}<input className={FIELD} value={specs.berth} onChange={(e) => setSpec("berth", e.target.value)} /></label>
+                <PlacePicker
+                  country={country}
+                  locale={locale}
+                  value={{ placeId, city, region }}
+                  onChange={(next) => {
+                    setPlaceId(next.placeId);
+                    setCity(next.city);
+                    setRegion(next.region);
+                  }}
+                  labels={{ region: `${t("sell.region")} *`, city: `${t("sell.city")} *`, hint: t("sell.city_hint") }}
+                />
+                <label className={LABEL}>{t("sell.berth")}<Req /><input className={FIELD} required value={specs.berth} onChange={(e) => setSpec("berth", e.target.value)} /></label>
               </div>
               {brokerId ? (
                 <fieldset className="mt-space-md flex flex-col gap-space-sm rounded-lg bg-surface-container-low p-space-md">
@@ -832,9 +1068,10 @@ export default function SellListingForm({
                 <p className="font-body-sm text-on-surface-variant">
                   {t("sell.media_free_note", { images: mediaLimits.images, paid_images: options?.media_limits.paid_images ?? 20, paid_videos: options?.media_limits.paid_videos ?? 1 })}
                 </p>
-                <div className="mt-space-xs">
-                  <PaidListingBuy label={t("sell.allowance_buy")} />
-                </div>
+                <p className="mt-space-xs font-body-sm text-on-surface-variant">{t("sell.media_free_continue")}</p>
+                <Link href="/pricing/" className="mt-space-sm inline-block rounded-lg border border-primary px-space-md py-space-xs font-body-md text-primary hover:bg-surface-container">
+                  {t("sell.media_see_paid")}
+                </Link>
               </div>
             ) : null}
             <ul className="mt-space-sm grid grid-cols-2 gap-space-sm sm:grid-cols-3">
@@ -842,7 +1079,19 @@ export default function SellListingForm({
                 const siblings = media.filter((item) => item.media_type === row.media_type);
                 const position = siblings.indexOf(row);
                 return (
-                  <li key={row.id} className="overflow-hidden rounded-lg bg-surface-container-low">
+                  <li
+                    key={row.id}
+                    data-testid={`media-${row.id}`}
+                    draggable
+                    onDragStart={() => setDragId(row.id)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      dropOnto(row);
+                    }}
+                    onDragEnd={() => setDragId(null)}
+                    className={`overflow-hidden rounded-lg bg-surface-container-low cursor-grab active:cursor-grabbing ${dragId === row.id ? "opacity-50" : ""}`}
+                  >
                     <div className="relative aspect-[4/3] bg-primary-container">
                       {row.preview_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -857,10 +1106,10 @@ export default function SellListingForm({
                     {row.rejection_reason ? <p role="note" className="px-space-xs font-body-sm text-error">{row.rejection_reason}</p> : null}
                     <div className="flex items-center justify-between gap-1 p-space-xs font-label-md">
                       <span className="flex gap-1">
-                        <button type="button" aria-label={t("sell.move_earlier")} disabled={position === 0} onClick={() => void move(row, -1)} className="rounded px-2 text-primary disabled:opacity-30">←</button>
-                        <button type="button" aria-label={t("sell.move_later")} disabled={position === siblings.length - 1} onClick={() => void move(row, 1)} className="rounded px-2 text-primary disabled:opacity-30">→</button>
+                        <button type="button" draggable={false} aria-label={t("sell.move_earlier")} disabled={position === 0} onClick={() => void move(row, -1)} className="rounded px-2 text-primary disabled:opacity-30">←</button>
+                        <button type="button" draggable={false} aria-label={t("sell.move_later")} disabled={position === siblings.length - 1} onClick={() => void move(row, 1)} className="rounded px-2 text-primary disabled:opacity-30">→</button>
                       </span>
-                      <button type="button" onClick={() => void remove(row)} className="text-primary underline">
+                      <button type="button" draggable={false} onClick={() => void remove(row)} className="text-primary underline">
                         {t("sell.remove")}
                       </button>
                     </div>
@@ -896,22 +1145,52 @@ export default function SellListingForm({
           </section>
 
           {listing ? (
-            <div>
+            <div className="flex items-center gap-space-md">
               <button
                 type="button"
-                disabled={busy || media.every((row) => row.status !== "READY")}
-                onClick={() => void submit()}
+                disabled={busy || media.every((row) => row.status !== "READY") || !formComplete}
+                onClick={() => (promoPaid ? void submit() : setAskPromo(true))}
                 className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container disabled:opacity-50"
               >
                 {t("sell.submit")}
               </button>
+              <Link
+                href={`/dashboard/listings/${listing.id}/preview/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-primary px-space-lg py-space-sm font-body-md text-primary hover:bg-surface-container-low"
+              >
+                {t("sell.preview_link")}
+              </Link>
             </div>
+          ) : null}
+          {listing && media.every((row) => row.status !== "READY") ? (
+            <p className="font-body-sm text-on-surface-variant">
+              {media.length === 0 && pending.length === 0 ? t("sell.submit_needs_photo") : t("sell.submit_wait_media")}
+            </p>
+          ) : null}
+          {listing && !formComplete && media.some((row) => row.status === "READY") ? (
+            <p className="font-body-sm text-on-surface-variant">{t("sell.submit_needs_fields")}</p>
           ) : null}
 
           {error ? (
             <p role="alert" className="text-error">
               {error}
             </p>
+          ) : null}
+          {promoPaid ? <p role="status" className="font-body-md text-secondary">{t("promo.paid")}</p> : null}
+          {askPromo && listing ? (
+            <PromotionDialog
+              listingId={listing.id}
+              title={titles.en || titles.it || titles.es}
+              imageUrl={previewImage?.preview_url}
+              locale={locale}
+              returnPath={`/sell/${listing.id}/`}
+              onSkip={() => {
+                setAskPromo(false);
+                void submit();
+              }}
+            />
           ) : null}
         </div>
 
@@ -922,9 +1201,9 @@ export default function SellListingForm({
               <span className="rounded bg-surface-container-lowest px-2 py-0.5 font-label-sm text-label-sm text-on-surface-variant">{t("sell.live_sync")}</span>
             </div>
             <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary-container" data-testid="preview-image">
-              {previewImage?.preview_url ? (
+              {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" className="h-full w-full object-cover" src={previewImage.preview_url} />
+                <img alt="" className="h-full w-full object-cover" src={previewUrl} />
               ) : null}
               {city || country ? (
                 <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded bg-surface-container-lowest/90 px-2.5 py-1 font-label-sm text-label-sm text-primary shadow-sm backdrop-blur">
@@ -946,7 +1225,7 @@ export default function SellListingForm({
               </p>
               <div className="mt-space-md pt-space-sm">
                 <span className="block font-label-sm text-label-sm uppercase text-outline">{t("sell.asking_price")}</span>
-                <span className="font-spec-num text-lg font-semibold text-primary">{price ? `€ ${price}` : "—"}</span>
+                <span className="font-spec-num text-lg font-semibold text-primary">{previewPrice}</span>
               </div>
               <div className="mt-space-lg rounded-lg bg-surface-container p-space-sm">
                 <span className="mb-1 block font-label-sm text-label-sm uppercase text-on-surface-variant">{t("sell.translation_health")}</span>

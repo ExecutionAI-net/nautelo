@@ -62,7 +62,7 @@ export default function StaffReports() {
     { title: "Registered users", value: report.users, delta: growth(report.new_users_30d, report.new_users_prev_30d), note: `${report.new_users_30d} joined in the last 30 days`, icon: "group" },
     { title: "Boat listings", value: report.listings, delta: `+${report.new_listings_30d} / 30d`, note: `${report.listings_by_status.PUBLISHED ?? 0} published`, icon: "anchor" },
     { title: "Conversations", value: report.conversations, delta: `+${report.new_conversations_30d} / 30d`, note: "Buyer enquiries and messages", icon: "mail" },
-    { title: "Entitlements", value: report.entitlements, delta: `${report.brokers} brokers`, note: `${report.providers} service providers`, icon: "verified_user" },
+    { title: "Directory", value: report.brokers + report.providers, delta: `${report.brokers} brokers`, note: `${report.providers} service providers`, icon: "storefront" },
   ];
 
   const maxBar = Math.max(1, ...report.monthly.flatMap((m) => [m.users, m.listings, m.conversations]));
@@ -87,8 +87,8 @@ export default function StaffReports() {
         <div className="absolute -right-20 -top-24 w-96 h-96 rounded-full bg-secondary/5 blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
           <div className="max-w-3xl flex flex-col gap-space-xs">
-            <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-bold">Staff Admin / Analytics</span>
-            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Marketplace Analytics</h1>
+            <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-bold">Staff / Reports</span>
+            <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Reports</h1>
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
               Supervise registrations, listing inventory, enquiry volume and account health across the platform.
             </p>

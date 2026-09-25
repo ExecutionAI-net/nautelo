@@ -1,3 +1,4 @@
+import { testT } from "@/i18n/testing";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -49,13 +50,11 @@ function media(overrides: Partial<ListingMedia> = {}): ListingMedia {
   return {
     media_id: "9c1d2c4e-0000-4000-8000-0000000000aa",
     media_type: "IMAGE",
-    storage_key: "listings/3f1d/primary.jpg",
     mime_type: "image/jpeg",
     sort_order: 0,
     width: 1600,
     height: 1200,
     duration_seconds: null,
-    checksum_sha256: "a".repeat(64),
     ...overrides,
   };
 }
@@ -81,7 +80,7 @@ function renderInRegion(
 ) {
   return render(
     <div>
-      <BoatCard locale={locale} listing={value} disclaimerId={disclaimerId} />
+      <BoatCard t={testT(locale)} locale={locale} listing={value} disclaimerId={disclaimerId} />
       <p id={disclaimerId}>{tf(locale, "finance.illustrative_disclaimer")}</p>
     </div>,
   );
@@ -89,7 +88,7 @@ function renderInRegion(
 
 describe("BoatCard", () => {
   it("compacts the visible view count above 9,999 but keeps the exact value in the label", () => {
-    render(<BoatCard locale="en" listing={listing({ view_count: 12345 })} disclaimerId="d" />);
+    render(<BoatCard t={testT("en")} locale="en" listing={listing({ view_count: 12345 })} disclaimerId="d" />);
 
     expect(screen.getByRole("img", { name: "12,345 views" })).toBeInTheDocument();
     expect(screen.queryByText("12,345")).not.toBeInTheDocument();
@@ -97,15 +96,15 @@ describe("BoatCard", () => {
   });
 
   it("does not compact at exactly 9,999", () => {
-    render(<BoatCard locale="en" listing={listing({ view_count: 9999 })} disclaimerId="d" />);
+    render(<BoatCard t={testT("en")} locale="en" listing={listing({ view_count: 9999 })} disclaimerId="d" />);
 
     expect(screen.getByText("9,999")).toBeInTheDocument();
   });
 
   it("shows the price and the view count for every card", () => {
-    render(<BoatCard locale="en" listing={listing()} disclaimerId="d" />);
+    render(<BoatCard t={testT("en")} locale="en" listing={listing()} disclaimerId="d" />);
 
-    expect(screen.getByText("€459,000.00")).toBeInTheDocument();
+    expect(screen.getByText("€459,000")).toBeInTheDocument();
     expect(screen.getByText("149")).toBeInTheDocument();
     expect(screen.getByLabelText("149 views")).toBeInTheDocument();
     // ARIA 1.2 forbids aria-label on a generic role (axe: aria-prohibited-attr),
@@ -114,7 +113,7 @@ describe("BoatCard", () => {
   });
 
   it("titles the card with year, brand and model", () => {
-    render(<BoatCard locale="en" listing={listing()} disclaimerId="d" />);
+    render(<BoatCard t={testT("en")} locale="en" listing={listing()} disclaimerId="d" />);
 
     expect(
       screen.getByRole("heading", { name: "2021 Beneteau Oceanis 46.1" }),
@@ -123,8 +122,7 @@ describe("BoatCard", () => {
 
   it("uses the custom model text when the Other model was selected", () => {
     render(
-      <BoatCard
-        locale="en"
+      <BoatCard t={testT("en")} locale="en"
         listing={listing({ model_name: "Other", custom_model_name: "Yard One-Off 52" })}
         disclaimerId="d"
       />,
@@ -136,7 +134,7 @@ describe("BoatCard", () => {
   });
 
   it("removes the whole finance column when the listing is not eligible", () => {
-    render(<BoatCard locale="en" listing={listing()} disclaimerId="d" />);
+    render(<BoatCard t={testT("en")} locale="en" listing={listing()} disclaimerId="d" />);
 
     expect(screen.queryByText("Estimated payment")).not.toBeInTheDocument();
     expect(
@@ -150,7 +148,7 @@ describe("BoatCard", () => {
 
   it("shows the estimated payment when the listing is eligible", () => {
     render(
-      <BoatCard locale="en" listing={listing({ finance: ELIGIBLE })} disclaimerId="d" />,
+      <BoatCard t={testT("en")} locale="en" listing={listing({ finance: ELIGIBLE })} disclaimerId="d" />,
     );
 
     expect(screen.getByText("Estimated payment")).toBeInTheDocument();
@@ -160,7 +158,7 @@ describe("BoatCard", () => {
 
   it("opens the calculator in a new tab without granting opener access", () => {
     render(
-      <BoatCard locale="en" listing={listing({ finance: ELIGIBLE })} disclaimerId="d" />,
+      <BoatCard t={testT("en")} locale="en" listing={listing({ finance: ELIGIBLE })} disclaimerId="d" />,
     );
 
     const cta = screen.getByRole("link", { name: /Calculate your financing/ });
@@ -174,8 +172,7 @@ describe("BoatCard", () => {
 
   it("builds the calculator link from this listing's own id and price", () => {
     render(
-      <BoatCard
-        locale="en"
+      <BoatCard t={testT("en")} locale="en"
         listing={listing({
           id: "11112222-0000-4000-8000-000000000009",
           price: { amount: "125500.50", currency: "EUR" },
@@ -239,7 +236,7 @@ describe("BoatCard", () => {
     ["es" as const, "Cuota estimada", "8456,36 €/mes", "Calcula tu financiación"],
   ])("renders every finance string in %s", (locale, label, money, cta) => {
     render(
-      <BoatCard locale={locale} listing={listing({ finance: ELIGIBLE })} disclaimerId="d" />,
+      <BoatCard t={testT(locale)} locale={locale} listing={listing({ finance: ELIGIBLE })} disclaimerId="d" />,
     );
 
     expect(screen.getByText(label)).toBeInTheDocument();
@@ -248,12 +245,12 @@ describe("BoatCard", () => {
   });
 
   it.each([
-    ["en" as const, "€459,000.00", "1,490 views"],
-    ["it" as const, "459.000,00 €", "1490 visualizzazioni"],
-    ["es" as const, "459.000,00 €", "1490 visualizaciones"],
+    ["en" as const, "€459,000", "1,490 views"],
+    ["it" as const, "459.000 €", "1490 visualizzazioni"],
+    ["es" as const, "459.000 €", "1490 visualizaciones"],
   ])("localises the price and the view count in %s", (locale, price, views) => {
     render(
-      <BoatCard locale={locale} listing={listing({ view_count: 1490 })} disclaimerId="d" />,
+      <BoatCard t={testT(locale)} locale={locale} listing={listing({ view_count: 1490 })} disclaimerId="d" />,
     );
 
     expect(screen.getByText((content) => norm(content) === price)).toBeInTheDocument();
@@ -267,7 +264,7 @@ describe("BoatCard", () => {
     const broken = { ...ELIGIBLE, monthly_payment: "8,456.36" } as ListingFinance;
 
     expect(() =>
-      render(<BoatCard locale="en" listing={listing({ finance: broken })} disclaimerId="d" />),
+      render(<BoatCard t={testT("en")} locale="en" listing={listing({ finance: broken })} disclaimerId="d" />),
     ).not.toThrow();
 
     expect(screen.queryByTestId("finance-estimate")).not.toBeInTheDocument();
@@ -284,7 +281,7 @@ describe("BoatCard", () => {
     const value = listing({ price: { amount: "not-a-number", currency: "EUR" } });
 
     expect(() =>
-      render(<BoatCard locale="en" listing={value} disclaimerId="d" />),
+      render(<BoatCard t={testT("en")} locale="en" listing={value} disclaimerId="d" />),
     ).not.toThrow();
 
     expect(screen.queryByText("not-a-number")).not.toBeInTheDocument();
@@ -298,7 +295,7 @@ describe("BoatCard", () => {
     const value = listing({ price: { amount: "459000.00", currency: "EURO" } });
 
     expect(() =>
-      render(<BoatCard locale="en" listing={value} disclaimerId="d" />),
+      render(<BoatCard t={testT("en")} locale="en" listing={value} disclaimerId="d" />),
     ).not.toThrow();
 
     expect(
@@ -319,8 +316,7 @@ describe("BoatCard", () => {
   ])("drops the entire finance column for %s", (_label, price) => {
     expect(() =>
       render(
-        <BoatCard
-          locale="en"
+        <BoatCard t={testT("en")} locale="en"
           listing={listing({ price, finance: ELIGIBLE })}
           disclaimerId="finance-disclaimer"
         />,
@@ -341,8 +337,7 @@ describe("BoatCard", () => {
 
   it("still shows a formattable price in a currency the platform does not finance", () => {
     render(
-      <BoatCard
-        locale="en"
+      <BoatCard t={testT("en")} locale="en"
         listing={listing({
           price: { amount: "125500.50", currency: "USD" },
           finance: ELIGIBLE,
@@ -362,7 +357,7 @@ describe("BoatCard", () => {
 
     expect(() =>
       render(
-        <BoatCard locale="en" listing={value as PublicListing} disclaimerId="d" />,
+        <BoatCard t={testT("en")} locale="en" listing={value as PublicListing} disclaimerId="d" />,
       ),
     ).not.toThrow();
 
@@ -374,7 +369,7 @@ describe("BoatCard", () => {
     const broken = { visible: true } as unknown as ListingFinance;
 
     expect(() =>
-      render(<BoatCard locale="en" listing={listing({ finance: broken })} disclaimerId="d" />),
+      render(<BoatCard t={testT("en")} locale="en" listing={listing({ finance: broken })} disclaimerId="d" />),
     ).not.toThrow();
 
     expect(screen.queryByTestId("finance-estimate")).not.toBeInTheDocument();
@@ -385,8 +380,7 @@ describe("BoatCard", () => {
 
   it("shows the defined placeholder when the listing has no image", () => {
     render(
-      <BoatCard
-        locale="en"
+      <BoatCard t={testT("en")} locale="en"
         listing={listing({ media: [media({ media_type: "VIDEO" })] })}
         disclaimerId="d"
       />,
@@ -398,7 +392,7 @@ describe("BoatCard", () => {
 
   it("uses the image slot when the listing carries an approved image", () => {
     render(
-      <BoatCard locale="en" listing={listing({ media: [media()] })} disclaimerId="d" />,
+      <BoatCard t={testT("en")} locale="en" listing={listing({ media: [media()] })} disclaimerId="d" />,
     );
 
     expect(screen.getByTestId("boat-image-slot")).toBeInTheDocument();
@@ -406,7 +400,7 @@ describe("BoatCard", () => {
   });
 
   it("shows the city and region of the listing", () => {
-    render(<BoatCard locale="en" listing={listing()} disclaimerId="d" />);
+    render(<BoatCard t={testT("en")} locale="en" listing={listing()} disclaimerId="d" />);
 
     expect(screen.getByText("Palma, Illes Balears")).toBeInTheDocument();
   });
@@ -417,19 +411,17 @@ describe("BoatCard media", () => {
     const media = {
       media_id: "m1",
       media_type: "IMAGE" as const,
-      storage_key: "k",
       mime_type: "image/jpeg",
       sort_order: 0,
       width: 1,
       height: 1,
       duration_seconds: null,
-      checksum_sha256: "x",
     };
     const { rerender } = render(
-      <BoatCard locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: "https://cdn.x/k" }] })} />,
+      <BoatCard t={testT("en")} locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: "https://cdn.x/k" }] })} />,
     );
     expect(screen.getByTestId("boat-image").getAttribute("src")).toBe("https://cdn.x/k");
-    rerender(<BoatCard locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: null }] })} />);
+    rerender(<BoatCard t={testT("en")} locale="en" disclaimerId="d" listing={listing({ media: [{ ...media, url: null }] })} />);
     expect(screen.getByTestId("boat-image-slot")).toBeTruthy();
   });
 });

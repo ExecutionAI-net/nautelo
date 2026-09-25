@@ -64,3 +64,46 @@ jobs:
           exit 1
       - name: Deploy to EC2 and await health checks through SSM
         run: python3 deploy/ssm_deploy.py "$DEPLOY_ENV" "$IMAGE_TAG" --instance-id "$EC2_INSTANCE_ID"
+  notify:
+    needs: [ci, images]
+    if: always() && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PUMBLE_WEBHOOK_URL: ${{ secrets.PUMBLE_WEBHOOK_URL }}
+      BRANCH: ${{ github.ref_name }}
+      CI_RESULT: ${{ needs.ci.result }}
+      DEPLOY_RESULT: ${{ needs.images.result }}
+      COMMIT_TITLE: ${{ github.event.head_commit.message }}
+      ACTOR: ${{ github.actor }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Tell Pumble how the deploy went
+        run: |
+          # Without the webhook secret this step does nothing, so it can never break a deploy.
+          [ -n "$PUMBLE_WEBHOOK_URL" ] || exit 0
+          python3 - <<'PY'
+          import json, os, urllib.request
+
+          env = os.environ
+          env_name = "prod" if env["BRANCH"] == "main" else "dev"
+          if env["CI_RESULT"] != "success":
+              icon, outcome = "❌", "CI failed, nothing was deployed"
+          elif env["DEPLOY_RESULT"] == "success":
+              icon, outcome = "✅", "deployed"
+          elif env["DEPLOY_RESULT"] == "cancelled":
+              icon, outcome = "⚪", "cancelled"
+          else:
+              icon, outcome = "❌", "deploy failed"
+          title = (env.get("COMMIT_TITLE") or "").splitlines()[0][:150]
+          text = f"{icon} {env_name}: {outcome}\n{title}\nby {env['ACTOR']} - {env['RUN_URL']}"
+          request = urllib.request.Request(
+              env["PUMBLE_WEBHOOK_URL"],
+              data=json.dumps({"text": text}).encode(),
+              headers={"Content-Type": "application/json"},
+          )
+          try:
+              urllib.request.urlopen(request, timeout=15)
+          except Exception as error:
+              print(f"Pumble notification failed: {error}")
+          PY

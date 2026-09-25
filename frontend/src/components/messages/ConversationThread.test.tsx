@@ -80,7 +80,7 @@ describe("ConversationThread", () => {
         onToggleArchive={vi.fn()}
       />,
     );
-    expect(screen.getByText("A NAUTA user")).toBeInTheDocument();
+    expect(screen.getByText("A Nautelo user")).toBeInTheDocument();
   });
 
   it("marks a system note as one", () => {

@@ -40,10 +40,15 @@ class ProfessionalProfile(UUIDTimeStampedModel):
     address_line1 = models.CharField(max_length=200, blank=True)
     address_line2 = models.CharField(max_length=200, blank=True)
     city = models.CharField(max_length=120, blank=True)
+    # GeoNames id of the city picked from places.City; null while only free text exists.
+    place_geoname_id = models.PositiveBigIntegerField(null=True, blank=True, db_index=True)
     postal_code = models.CharField(max_length=20, blank=True)
     region = models.CharField(max_length=120, blank=True)
     country_code = models.CharField(max_length=2)
     service_area = models.JSONField(default=list, blank=True, validators=[validate_service_area])
+    # Paid promotion: featured in the directory while `featured_until` is in the future.
+    featured_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    featured_at = models.DateTimeField(null=True, blank=True)
     logo_key = models.CharField(max_length=300, blank=True, default="")
     cover_key = models.CharField(max_length=300, blank=True, default="")
     status = models.CharField(
@@ -111,6 +116,8 @@ class ProfessionalSubscription(UUIDTimeStampedModel):
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     # Set by the first failed invoice; the profile goes offline 24 hours later.
     past_due_since = models.DateTimeField(null=True, blank=True)
+    # Customer asked Stripe (billing portal) to stop at current_period_end.
+    cancel_at_period_end = models.BooleanField(default=False)
 
     class Meta:
         constraints = [

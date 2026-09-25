@@ -2,8 +2,24 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8020";
 
 const REFRESH_PATH = "/api/v1/auth/token/refresh/";
+// Set by the backend (accounts/cookies.py) alongside the HttpOnly refresh cookie,
+// readable on purpose: it lets a fresh page load tell "never signed in" from "may
+// still have a valid refresh cookie" without a network round trip.
+const SESSION_HINT_COOKIE_NAME = "nauta_session_hint";
 
 let accessToken: string | null = null;
+
+/** True only when the backend has evidence this browser might have a live session
+ * (a current or recently-expired refresh cookie). A guest who has never signed in
+ * never gets this cookie, so bootstrap() can skip attempting a silent refresh -
+ * which would otherwise always 401 for them and log a benign-but-noisy console error
+ * on every single page load. */
+export function hasSessionHint(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie
+    .split("; ")
+    .some((entry) => entry.startsWith(`${SESSION_HINT_COOKIE_NAME}=`));
+}
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
@@ -145,10 +161,26 @@ async function performRefresh(): Promise<boolean> {
   return true;
 }
 
+// After a failed silent refresh, do not retry it on every request: the hint
+// cookie can outlive the refresh token, and the first 401 handles it anyway.
+const SILENT_REFRESH_RETRY_MS = 60_000;
+let silentRefreshBlockedUntil = 0;
+
+/** A fresh page load has no access token in memory but may hold a live refresh
+ * cookie. Refreshing first spares a guaranteed 401 (and its console error) on
+ * the very first authenticated request of every full page load. */
+async function refreshBeforeFirstRequest(path: string): Promise<void> {
+  if (accessToken !== null || path === REFRESH_PATH || !hasSessionHint()) return;
+  if (Date.now() < silentRefreshBlockedUntil) return;
+  const refreshed = await tryRefreshAccessToken();
+  if (!refreshed) silentRefreshBlockedUntil = Date.now() + SILENT_REFRESH_RETRY_MS;
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  await refreshBeforeFirstRequest(path);
   let response = await rawFetch(path, init);
 
   if (response.status === 401 && path !== REFRESH_PATH) {
@@ -164,5 +196,9 @@ export async function apiFetch<T>(
   if (response.status === 204) {
     return undefined as T;
   }
-  return (await response.json()) as T;
+  // Some 2xx responses (e.g. the 202s from password-reset/resend-verification)
+  // carry no body at all. response.json() throws on an empty string, which
+  // this call's try/catch would otherwise mistake for a failed request.
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }

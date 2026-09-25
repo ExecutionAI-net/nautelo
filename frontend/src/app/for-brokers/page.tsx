@@ -1,58 +1,60 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import PageBand from "@/components/layout/PageBand";
+import { getT } from "@/i18n/server";
+import type { MessageKey } from "@/i18n";
 
-export const metadata: Metadata = {
-  title: "Nauta for brokers and dealers",
-  description: "Reach buyers across Italy and Spain, manage your fleet and leads, and add your team. 30-day free trial.",
-  alternates: { canonical: "/for-brokers/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return { title: t("for_brokers.meta_title"), description: t("for_brokers.meta_description") };
+}
 
-const BENEFITS = [
-  ["Real buyers", "Reach boat buyers in Italy, Spain and across Europe, with listings in English, Italian and Spanish."],
-  ["Easy fleet management", "Add vessels with photos and video, edit any time, and see status at a glance."],
-  ["Leads in one inbox", "Every enquiry lands in a shared inbox your whole team can answer."],
-  ["Your team, your rules", "Invite colleagues by email and set who can edit listings, manage the team or read messages."],
-  ["Your own brokerage page", "A public profile with logo, cover, specialties and your team, ready to share."],
-  ["Flexible terms", "30-day free trial and no minimum term. Change plan when your fleet grows."],
+const BENEFITS: [MessageKey, MessageKey][] = [
+  ["for_brokers.benefit1_title", "for_brokers.benefit1_text"],
+  ["for_brokers.benefit2_title", "for_brokers.benefit2_text"],
+  ["for_brokers.benefit3_title", "for_brokers.benefit3_text"],
+  ["for_brokers.benefit4_title", "for_brokers.benefit4_text"],
+  ["for_brokers.benefit5_title", "for_brokers.benefit5_text"],
+  ["for_brokers.benefit6_title", "for_brokers.benefit6_text"],
 ];
 
-const FAQ = [
-  ["How much does it cost?", "Plans depend on how many listings you keep online. See the pricing page for the current plans."],
-  ["Is there a free trial?", "Yes, 30 days. A card is required up front and you are only charged when the trial ends."],
-  ["Can my colleagues use the account?", "Yes. Invite them by email; each plan includes a number of team seats."],
-  ["Who approves my brokerage page?", "Our team reviews each new brokerage before it appears in the directory, usually within a day."],
+const FAQ: [MessageKey, MessageKey][] = [
+  ["for_brokers.faq1_q", "for_brokers.faq1_a"],
+  ["for_brokers.faq2_q", "for_brokers.faq2_a"],
+  ["for_brokers.faq3_q", "for_brokers.faq3_a"],
+  ["for_brokers.faq4_q", "for_brokers.faq4_a"],
 ];
 
-export default function ForBrokersPage() {
+export default async function ForBrokersPage() {
+  const t = await getT();
   return (
     <main className="w-full bg-surface">
-      <PageBand eyebrow="For brokers" title="Sell more boats with Nauta" subtitle="Everything a brokerage needs to list, manage and win buyers." />
+      <PageBand eyebrow={t("for_brokers.eyebrow")} title={t("for_brokers.title")} subtitle={t("for_brokers.subtitle")} />
       <section className="mx-auto max-w-[1440px] px-margin-mobile py-space-xl md:px-margin lg:px-margin-desktop">
         <div className="flex flex-wrap gap-space-sm">
-          <Link href="/register/broker/" className="rounded-lg bg-primary px-space-lg py-space-sm font-label-md text-on-primary">Open a broker account</Link>
-          <Link href="/pricing/" className="rounded-lg bg-surface-container-low px-space-lg py-space-sm font-label-md">See pricing</Link>
+          <Link href="/register/broker/" className="rounded-lg bg-primary px-space-lg py-space-sm font-label-md text-on-primary">{t("for_brokers.open_account")}</Link>
+          <Link href="/pricing/" className="rounded-lg bg-surface-container-low px-space-lg py-space-sm font-label-md">{t("for_brokers.see_pricing")}</Link>
         </div>
         <ul className="mt-space-xl grid gap-space-md md:grid-cols-2 lg:grid-cols-3">
-          {BENEFITS.map(([title, text]) => (
-            <li key={title} className="rounded-xl bg-surface-container-lowest p-space-md">
-              <h2 className="font-title-md">{title}</h2>
-              <p className="font-body-sm text-on-surface-variant">{text}</p>
+          {BENEFITS.map(([titleKey, textKey]) => (
+            <li key={titleKey} className="rounded-xl bg-surface-container-lowest p-space-md">
+              <h2 className="font-title-md">{t(titleKey)}</h2>
+              <p className="font-body-sm text-on-surface-variant">{t(textKey)}</p>
             </li>
           ))}
         </ul>
-        <h2 className="mt-space-2xl font-headline-sm">Questions</h2>
+        <h2 className="mt-space-2xl font-headline-sm">{t("for_brokers.questions")}</h2>
         <dl className="mt-space-md grid max-w-3xl gap-space-md">
-          {FAQ.map(([q, a]) => (
-            <div key={q}>
-              <dt className="font-title-md">{q}</dt>
-              <dd className="font-body-md text-on-surface-variant">{a}</dd>
+          {FAQ.map(([qKey, aKey]) => (
+            <div key={qKey}>
+              <dt className="font-title-md">{t(qKey)}</dt>
+              <dd className="font-body-md text-on-surface-variant">{t(aKey)}</dd>
             </div>
           ))}
         </dl>
         <p className="mt-space-xl font-body-md">
-          Questions before you start? <Link className="text-secondary underline" href="/contact/">Contact us</Link>.
+          {t("for_brokers.questions_before_you_start")} <Link className="text-secondary underline" href="/contact/">{t("for_brokers.contact_us")}</Link>.
         </p>
       </section>
     </main>

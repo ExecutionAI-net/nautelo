@@ -30,7 +30,7 @@ describe("SellerOverview", () => {
       results: [{ id: "c1", subject: "Solaris 50", counterparty_name: "Marco Bellini", last_message_excerpt: "Request for survey", unread_count: 2 }],
     });
     render(<SellerOverview />);
-    expect(await screen.findByText("Welcome back, Capt. Santiago")).toBeTruthy();
+    expect(await screen.findByText(/Welcome back, Capt\. Santiago/)).toBeTruthy();
     expect(await screen.findByText("1,420", { selector: "p" })).toBeTruthy();
     expect(await screen.findByText("€685,000")).toBeTruthy();
     expect(await screen.findByText("Marco Bellini")).toBeTruthy();

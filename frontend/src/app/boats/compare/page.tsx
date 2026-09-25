@@ -1,380 +1,164 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
-export default function ComparePage() {
+import { getT } from "@/i18n/server";
+import Link from "@/components/layout/LocaleLink";
+import { readableSpecs } from "@/components/listings/BoatDetailView";
+import { askingPrice } from "@/components/listings/money";
+import { fetchPublishedListing, listingPath, type PublicListing } from "@/lib/api/listings";
+import { COMPARE_MAX, comparePath, parseCompareIds } from "@/lib/compare";
+import { placeLabel } from "@/lib/i18n/places";
+import { getRequestLocale } from "@/lib/i18n/requestLocale";
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return { title: t("boats.compare.meta_title"), robots: { index: false } };
+}
+
+interface Row {
+  key: string;
+  label: string;
+  values: string[];
+  differs: boolean;
+}
+
+/** `/boats/compare/?ids=a,b,c` - up to COMPARE_MAX published listings side by side. Every cell is API data. */
+export default async function ComparePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [t, locale, params] = await Promise.all([getT(), getRequestLocale(), searchParams]);
+  const ids = parseCompareIds(params.ids);
+  const fetched = await Promise.all(ids.map((id) => fetchPublishedListing(id)));
+  const listings = fetched.filter((item): item is PublicListing => item !== null);
+
+  const specRows = listings.map((listing) => readableSpecs(listing.specifications, t));
+  const order: { key: string; label: string }[] = [];
+  for (const rows of specRows) {
+    for (const row of rows) if (!order.some((item) => item.key === row.key)) order.push({ key: row.key, label: row.label });
+  }
+  const missing = t("boats.compare.not_specified");
+  const rows: Row[] = [
+    {
+      key: "price",
+      label: t("boats.compare.price"),
+      values: listings.map((listing) => askingPrice(locale, listing.price.amount, listing.price.currency) ?? missing),
+    },
+    { key: "year", label: t("boats.compare.year"), values: listings.map((listing) => String(listing.manufacture_year)) },
+    { key: "location", label: t("boats.compare.location"), values: listings.map((listing) => placeLabel(listing.location) || missing) },
+    {
+      key: "seller",
+      label: t("boats.compare.seller"),
+      values: listings.map((listing) =>
+        listing.seller_type === "BROKER" ? listing.broker?.name || t("boats.compare.professional_seller") : t("boats.compare.private_seller"),
+      ),
+    },
+    ...order.map(({ key, label }) => ({
+      key,
+      label,
+      values: specRows.map((specs) => specs.find((row) => row.key === key)?.value ?? missing),
+    })),
+  ].map((row) => ({ ...row, differs: new Set(row.values).size > 1 }));
+
   return (
     <main className="w-full bg-surface">
-<div className="flex flex-col w-full">
-<section className="w-full bg-surface-container-low pt-space-xl pb-space-lg">
-<div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
-<div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-<div>
-<nav className="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-space-xs">
-<Link href="/boats/" className="hover:text-primary transition-colors" >Vessels</Link>
-<span className="text-outline-variant">/</span>
-<span className="text-primary font-semibold">Technical Comparison</span>
-</nav>
-<div className="flex items-baseline gap-space-md">
-<h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Boat Comparison</h1>
-<span className="font-label-md text-label-md px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-medium">
-              Comparing 3 of 3 vessels
-            </span>
-</div>
-</div>
-<div className="flex items-center gap-space-sm self-start md:self-auto shrink-0">
-<button className="inline-flex items-center gap-1.5 px-space-md py-space-xs rounded bg-surface-container-lowest text-primary shadow-sm hover:bg-surface-container-high transition-colors font-body-sm text-body-sm font-medium" id="toggle-diff-btn" type="button">
-<span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
-<span id="toggle-diff-label">Highlight differences</span>
-</button>
-<button className="inline-flex items-center gap-1.5 px-space-md py-space-xs rounded bg-surface-container-lowest text-primary shadow-sm hover:bg-surface-container-high transition-colors font-body-sm text-body-sm font-medium" type="button">
-<span className="material-symbols-outlined text-[18px]">print</span>
-<span>Print specification</span>
-</button>
-<button className="inline-flex items-center gap-1.5 px-space-md py-space-xs rounded bg-surface-container-lowest text-primary shadow-sm hover:bg-surface-container-high transition-colors font-body-sm text-body-sm font-medium" type="button">
-<span className="material-symbols-outlined text-[18px]">share</span>
-<span id="share-btn-text">Share sheet</span>
-</button>
-</div>
-</div>
-</div>
-</section>
-<section className="w-full pb-space-2xl">
-<div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop">
-<div className="w-full overflow-x-auto">
-<div className="min-w-[1040px] flex flex-col">
-<div className="sticky top-20 z-40 bg-surface/95 backdrop-blur-md pt-space-lg pb-space-md">
-<div className="grid grid-cols-12 gap-gutter-desktop items-start">
-<div className="col-span-3 flex flex-col justify-end h-full pb-space-sm pr-space-md">
-<span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary font-semibold mb-space-xs">Maritime Matrix</span>
-<p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-                  Direct structural, mechanical, and legal specifications across three selected Mediterranean charter and private hulls.
-                </p>
-<div className="mt-space-md pt-space-sm flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
-<span className="w-2 h-2 rounded-full bg-secondary"></span>
-<span>Legal registry verified via Nauta API</span>
-</div>
-</div>
+      <section className="w-full bg-surface-container-low pb-space-lg pt-space-xl">
+        <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
+          <nav className="mb-space-xs flex items-center gap-space-xs font-label-md uppercase tracking-wider text-on-surface-variant">
+            <Link href="/boats/" className="transition-colors hover:text-primary">
+              {t("boats.title")}
+            </Link>
+            <span className="text-outline-variant">/</span>
+            <span className="font-semibold text-primary">{t("boats.compare.title")}</span>
+          </nav>
+          <div className="flex flex-wrap items-baseline gap-space-md">
+            <h1 className="font-headline-lg text-headline-lg tracking-tight text-primary">{t("boats.compare.title")}</h1>
+            {listings.length ? (
+              <span className="rounded-full bg-surface-container-high px-2.5 py-0.5 font-label-md text-on-surface-variant">
+                {t("boats.compare.count", { count: listings.length })}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-space-xs max-w-2xl font-body-md text-on-surface-variant">{t("boats.compare.intro")}</p>
+        </div>
+      </section>
 
-<div className="col-span-3 flex flex-col bg-surface-container-lowest rounded-xl shadow-sm p-space-md relative transition-all" id="boat-col-1">
-<div className="relative w-full aspect-[16/10] overflow-hidden rounded-lg bg-surface-container-high mb-space-sm">
-<img alt="" className="w-full h-full object-cover" src="/design/24fcaabe59.jpg"/>
-<span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-primary/80 backdrop-blur-sm text-on-primary font-label-sm text-label-sm">
-                    Palma, ES
-                  </span>
-</div>
-<div className="flex items-start justify-between gap-space-xs mb-space-xs">
-<div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Sanlorenzo</span>
-<h2 className="font-headline-sm text-headline-sm text-primary leading-tight">SX88</h2>
-</div>
-<button className="text-on-surface-variant hover:text-error transition-colors p-1 -mr-1" title="Remove Sanlorenzo SX88">
-<span className="material-symbols-outlined text-[20px]">close</span>
-</button>
-</div>
-<div className="mb-space-md">
-<div className="font-title-lg text-title-lg text-primary font-semibold">€5,200,000</div>
-<span className="font-body-sm text-body-sm text-on-surface-variant">EU VAT Paid</span>
-</div>
-<div className="flex flex-col gap-space-xs mt-auto">
-<Link href="/boats/" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
-                    View listing
-                  </Link>
-<button className="w-full text-center text-on-surface-variant hover:text-error py-1.5 font-label-md text-label-md transition-colors flex items-center justify-center gap-1">
-<span className="material-symbols-outlined text-[15px]">delete</span>
-<span>Remove</span>
-</button>
-</div>
-</div>
-
-<div className="col-span-3 flex flex-col bg-surface-container-lowest rounded-xl shadow-sm p-space-md relative transition-all" id="boat-col-2">
-<div className="relative w-full aspect-[16/10] overflow-hidden rounded-lg bg-surface-container-high mb-space-sm">
-<img alt="" className="w-full h-full object-cover" src="/design/83c349273c.jpg"/>
-<span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-primary/80 backdrop-blur-sm text-on-primary font-label-sm text-label-sm">
-                    Capri, IT
-                  </span>
-</div>
-<div className="flex items-start justify-between gap-space-xs mb-space-xs">
-<div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Arcadia</span>
-<h2 className="font-headline-sm text-headline-sm text-primary leading-tight">Sherpa 80</h2>
-</div>
-<button className="text-on-surface-variant hover:text-error transition-colors p-1 -mr-1" title="Remove Arcadia Sherpa 80">
-<span className="material-symbols-outlined text-[20px]">close</span>
-</button>
-</div>
-<div className="mb-space-md">
-<div className="font-title-lg text-title-lg text-primary font-semibold">€4,150,000</div>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Excl. VAT</span>
-</div>
-<div className="flex flex-col gap-space-xs mt-auto">
-<Link href="/boats/" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
-                    View listing
-                  </Link>
-<button className="w-full text-center text-on-surface-variant hover:text-error py-1.5 font-label-md text-label-md transition-colors flex items-center justify-center gap-1">
-<span className="material-symbols-outlined text-[15px]">delete</span>
-<span>Remove</span>
-</button>
-</div>
-</div>
-
-<div className="col-span-3 flex flex-col bg-surface-container-lowest rounded-xl shadow-sm p-space-md relative transition-all" id="boat-col-3">
-<div className="relative w-full aspect-[16/10] overflow-hidden rounded-lg bg-surface-container-high mb-space-sm">
-<img alt="" className="w-full h-full object-cover" src="/design/ac3baa53ad.jpg"/>
-<span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-primary/80 backdrop-blur-sm text-on-primary font-label-sm text-label-sm">
-                    Ibiza, ES
-                  </span>
-</div>
-<div className="flex items-start justify-between gap-space-xs mb-space-xs">
-<div>
-<span className="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Princess</span>
-<h2 className="font-headline-sm text-headline-sm text-primary leading-tight">Y85</h2>
-</div>
-<button className="text-on-surface-variant hover:text-error transition-colors p-1 -mr-1" title="Remove Princess Y85">
-<span className="material-symbols-outlined text-[20px]">close</span>
-</button>
-</div>
-<div className="mb-space-md">
-<div className="font-title-lg text-title-lg text-primary font-semibold">€5,450,000</div>
-<span className="font-body-sm text-body-sm text-on-surface-variant">EU VAT Paid</span>
-</div>
-<div className="flex flex-col gap-space-xs mt-auto">
-<Link href="/boats/" className="w-full text-center bg-primary-container hover:bg-primary text-on-primary py-2 px-space-md rounded font-body-sm text-body-sm font-medium transition-colors shadow-sm" >
-                    View listing
-                  </Link>
-<button className="w-full text-center text-on-surface-variant hover:text-error py-1.5 font-label-md text-label-md transition-colors flex items-center justify-center gap-1">
-<span className="material-symbols-outlined text-[15px]">delete</span>
-<span>Remove</span>
-</button>
-</div>
-</div>
-</div>
-</div>
-
-<div className="flex flex-col mt-space-md">
-
-<div className="w-full py-space-sm px-space-md bg-surface-container rounded font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold mb-1">
-              Dimensions &amp; Hull Architecture
+      <section className="w-full pb-space-2xl pt-space-lg">
+        <div className="mx-auto max-w-[1440px] px-margin-mobile md:px-margin lg:px-margin-desktop">
+          {listings.length === 0 ? (
+            <div className="rounded-xl bg-surface-container-lowest p-space-lg text-center shadow-sm">
+              <h2 className="font-headline-sm text-headline-sm text-primary">{t("boats.compare.empty_title")}</h2>
+              <p className="mt-space-xs font-body-md text-on-surface-variant">{t("boats.compare.empty_text", { max: COMPARE_MAX })}</p>
+              <Link
+                href="/boats/"
+                className="mt-space-md inline-flex rounded bg-primary-container px-space-md py-2 font-body-sm font-medium text-on-primary shadow-sm hover:bg-primary"
+              >
+                {t("boats.compare.browse")}
+              </Link>
             </div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">calendar_today</span>
-<span>Year of Build</span>
-</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface font-semibold">2021</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface font-semibold">2020</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface font-semibold">2021</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-low transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">straighten</span>
-<span>Length Overall (LOA)</span>
-</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">26.70 m <span className="text-on-surface-variant font-body-sm">(87 ft 7 in)</span></div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">24.00 m <span className="text-on-surface-variant font-body-sm">(78 ft 9 in)</span></div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">26.20 m <span className="text-on-surface-variant font-body-sm">(86 ft 0 in)</span></div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">arrows_outward</span>
-<span>Maximum Beam</span>
-</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">7.20 m</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">6.95 m</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">6.30 m</div>
-</div>
-
-<div className="grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-low transition-colors rounded-sm">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium">Beam Ratio (Stability)</div>
-<div className="col-span-3 flex items-center gap-2">
-<div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
-<div className="bg-secondary h-full rounded-full" style={{"width": "27%"}}></div>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface-variant">0.27</span>
-</div>
-<div className="col-span-3 flex items-center gap-2">
-<div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
-<div className="bg-secondary h-full rounded-full" style={{"width": "29%"}}></div>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface-variant">0.29</span>
-</div>
-<div className="col-span-3 flex items-center gap-2">
-<div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
-<div className="bg-secondary h-full rounded-full" style={{"width": "24%"}}></div>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface-variant">0.24</span>
-</div>
-</div>
-
-<div className="w-full py-space-sm px-space-md bg-surface-container rounded font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold mt-space-md mb-1">
-              Propulsion &amp; Engineering
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left">
+                <caption className="sr-only">{t("boats.compare.title")}</caption>
+                <thead>
+                  <tr className="align-top">
+                    <th scope="col" className="w-48 pb-space-md pr-space-md font-label-sm uppercase tracking-widest text-secondary">
+                      {t("boats.compare.spec")}
+                    </th>
+                    {listings.map((listing) => {
+                      const modelName = listing.custom_model_name || listing.model_name;
+                      const heading = `${listing.manufacture_year} ${listing.brand_name} ${modelName}`;
+                      const image = listing.media.find((item) => item.media_type === "IMAGE" && item.url);
+                      const href = listingPath(listing);
+                      const others = listings.filter((item) => item.id !== listing.id).map((item) => item.id);
+                      return (
+                        <th key={listing.id} scope="col" className="pb-space-md pr-space-sm font-normal">
+                          <div className="flex h-full flex-col rounded-xl bg-surface-container-lowest p-space-sm shadow-sm">
+                            <div className="mb-space-sm aspect-[16/10] w-full overflow-hidden rounded-lg bg-surface-container-high">
+                              {image ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- CDN URL
+                                <img src={image.url ?? ""} alt={heading} className="h-full w-full object-cover" />
+                              ) : null}
+                            </div>
+                            <span className="font-label-sm uppercase tracking-wider text-secondary">{listing.brand_name}</span>
+                            <span className="font-headline-sm text-headline-sm leading-tight text-primary">{listing.title[locale] || heading}</span>
+                            <div className="mt-space-sm flex flex-col gap-space-xs">
+                              {href ? (
+                                <Link
+                                  href={href}
+                                  className="rounded bg-primary-container px-space-md py-2 text-center font-body-sm font-medium text-on-primary shadow-sm hover:bg-primary"
+                                >
+                                  {t("boats.compare.view_listing")}
+                                </Link>
+                              ) : null}
+                              <Link href={comparePath(others)} className="py-1 text-center font-label-md text-on-surface-variant hover:text-error">
+                                {t("boats.compare.remove")}
+                              </Link>
+                            </div>
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.key} className={row.differs ? "bg-surface-container-low" : ""}>
+                      <th scope="row" className="border-t border-outline-variant py-space-sm pr-space-md font-label-md text-on-surface-variant">
+                        {row.label}
+                      </th>
+                      {row.values.map((value, index) => (
+                        <td key={listings[index].id} className="border-t border-outline-variant py-space-sm pr-space-sm font-body-md text-primary">
+                          {value}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-space-sm font-body-sm text-on-surface-variant">{t("boats.compare.differences_note")}</p>
             </div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">settings</span>
-<span>Engine Configuration</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">3x Volvo Penta IPS 1050</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">2x Volvo Penta IPS 800</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">2x Twin MAN V12 1900 HP</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-low transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">bolt</span>
-<span>Total Output</span>
-</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">2,400 HP</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">1,600 HP</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">3,800 HP</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">schedule</span>
-<span>Engine Hours</span>
-</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">420 hrs</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">310 hrs</div>
-<div className="col-span-3 font-spec-num text-spec-num text-on-surface">550 hrs</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-low transition-colors rounded-sm" data-diff="false">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">local_gas_station</span>
-<span>Fuel Type</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Diesel</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Diesel</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Diesel</div>
-</div>
-
-<div className="w-full py-space-sm px-space-md bg-surface-container rounded font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold mt-space-md mb-1">
-              Accommodation &amp; Living Spaces
-            </div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">bed</span>
-<span>Guest Cabins</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface font-semibold">4 Cabins (8 Guests)</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface font-semibold">3 Cabins (6 Guests)</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface font-semibold">4 Cabins (8 Guests)</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-low transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">shower</span>
-<span>Bathrooms / Heads</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">4 En-suite + 1 Day head</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">3 En-suite</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">4 En-suite</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">group</span>
-<span>Crew Berths</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">2 Cabins (3 Crew)</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">1 Cabin (2 Crew)</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">2 Cabins (3 Crew)</div>
-</div>
-
-<div className="w-full py-space-sm px-space-md bg-surface-container rounded font-label-sm text-label-sm uppercase tracking-widest text-primary font-semibold mt-space-md mb-1">
-              Registry, Berth &amp; Representation
-            </div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">pin_drop</span>
-<span>Current Mooring Location</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Palma de Mallorca, ES</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Capri (Marina Grande), IT</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Ibiza (Marina Botafoch), ES</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-low transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">verified_user</span>
-<span>Representation / Seller Type</span>
-</div>
-<div className="col-span-3">
-<span className="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-on-surface font-body-sm text-body-sm font-medium">
-                  Professional Broker (Exclusive)
-                </span>
-</div>
-<div className="col-span-3">
-<span className="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-on-surface font-body-sm text-body-sm font-medium">
-                  Professional Broker (Central)
-                </span>
-</div>
-<div className="col-span-3">
-<span className="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-on-surface font-body-sm text-body-sm font-medium">
-                  Private Seller
-                </span>
-</div>
-</div>
-
-<div className="spec-row grid grid-cols-12 gap-gutter-desktop items-center py-space-sm px-space-md bg-surface-container-lowest transition-colors rounded-sm" data-diff="true">
-<div className="col-span-3 font-body-sm text-body-sm text-on-surface-variant font-medium flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] text-secondary">flag</span>
-<span>Flag State</span>
-</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Spain (Lista 6ª)</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Italy (Registro Naviglio)</div>
-<div className="col-span-3 font-body-md text-body-md text-on-surface">Malta Commercial</div>
-</div>
-
-<div className="grid grid-cols-12 gap-gutter-desktop items-center pt-space-xl pb-space-md">
-<div className="col-span-3 flex flex-col justify-center">
-<span className="font-title-md text-title-md text-primary">Inquiry &amp; Survey</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Request surveyor records or arrange dockside inspection</span>
-</div>
-<div className="col-span-3">
-<Link href="/contact/" className="w-full inline-flex items-center justify-center gap-1.5 bg-primary text-on-primary py-2.5 px-space-md rounded shadow-sm hover:bg-primary-container transition-colors font-body-sm text-body-sm font-semibold" >
-<span>Contact Broker</span>
-<span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-</Link>
-</div>
-<div className="col-span-3">
-<Link href="/contact/" className="w-full inline-flex items-center justify-center gap-1.5 bg-primary text-on-primary py-2.5 px-space-md rounded shadow-sm hover:bg-primary-container transition-colors font-body-sm text-body-sm font-semibold" >
-<span>Contact Broker</span>
-<span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-</Link>
-</div>
-<div className="col-span-3">
-<Link href="/contact/" className="w-full inline-flex items-center justify-center gap-1.5 bg-primary text-on-primary py-2.5 px-space-md rounded shadow-sm hover:bg-primary-container transition-colors font-body-sm text-body-sm font-semibold" >
-<span>Contact Owner</span>
-<span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-</Link>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</section>
-
-<div className="hidden w-full bg-surface-container-high py-space-md border-t border-outline-variant" id="add-slot-bar">
-<div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin lg:px-margin-desktop flex items-center justify-between">
-<div className="flex items-center gap-space-sm">
-<span className="material-symbols-outlined text-secondary">add_circle</span>
-<span className="font-body-md text-body-md text-primary font-medium">Comparison slot open. Browse our Mediterranean fleet to compare another vessel.</span>
-</div>
-<Link href="/boats/" className="inline-flex items-center gap-1 px-space-md py-1.5 rounded bg-primary text-on-primary font-body-sm text-body-sm hover:bg-primary-container transition-colors" >
-<span>Browse inventory</span>
-<span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</Link>
-</div>
-</div>
-</div>
-
+          )}
+        </div>
+      </section>
     </main>
   );
 }

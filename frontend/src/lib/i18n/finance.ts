@@ -94,9 +94,9 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
     es: "Calculadora de financiación",
   },
   "finance.page.intro": {
-    en: "Estimate a monthly payment from a price, a rate, a term and a down payment.",
-    it: "Stima una rata mensile a partire da prezzo, tasso, durata e anticipo.",
-    es: "Estima una cuota mensual a partir del precio, la tasa, el plazo y la entrada.",
+    en: "See the monthly payment for a loan or a leasing in Spain or Italy. Move the sliders and ask for a study when it looks right.",
+    it: "Scopri la rata mensile di un finanziamento o di un leasing in Spagna o in Italia. Muovi i cursori e chiedi uno studio quando ti convince.",
+    es: "Descubre la cuota mensual de un préstamo o un leasing en España o Italia. Mueve los deslizadores y pide un estudio cuando te encaje.",
   },
   "finance.page.listing_context": {
     en: "Values are taken from this listing. Change them below to explore other assumptions.",
@@ -127,6 +127,7 @@ export const FINANCE_MESSAGES: Record<string, Translations> = {
   "listing.condition.new": { en: "New", it: "Nuova", es: "Nueva" },
   "listing.condition.used": { en: "Used", it: "Usata", es: "Usada" },
   "listing.asking_price": { en: "Asking price", it: "Prezzo richiesto", es: "Precio solicitado" },
+  "listing.cabin": { en: "{count} cabin", it: "{count} cabina", es: "{count} camarote" },
   "listing.cabins": { en: "{count} cabins", it: "{count} cabine", es: "{count} camarotes" },
   "listing.views": { en: "views", it: "visualizzazioni", es: "visualizaciones" },
   "listing.views_label": {
@@ -211,7 +212,7 @@ export function tf(
 // needs a tag. Spain and Italy are exact; en-IE is the euro-native English
 // locale, so an English reader of a Spanish or Italian listing does not get
 // British or American grouping over a euro amount.
-const INTL_LOCALES: Record<Locale, string> = {
+export const INTL_LOCALES: Record<Locale, string> = {
   en: "en-IE",
   it: "it-IT",
   es: "es-ES",

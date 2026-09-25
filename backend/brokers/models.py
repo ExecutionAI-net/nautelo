@@ -46,6 +46,23 @@ class BrokerPlan(UUIDTimeStampedModel):
         return self.name
 
 
+class BrokerRole(UUIDTimeStampedModel):
+    """The registering owner's role within the brokerage (customer feedback,
+    2026-09-25). Staff-editable in Django admin so the list can grow without a
+    deploy - this is the whole point of a table instead of a TextChoices enum."""
+
+    slug = models.SlugField(max_length=60, unique=True)
+    name = models.CharField(max_length=80)
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("display_order", "name")
+
+    def __str__(self):
+        return self.name
+
+
 class BrokerOrganization(UUIDTimeStampedModel):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True)
@@ -60,6 +77,8 @@ class BrokerOrganization(UUIDTimeStampedModel):
     tagline = models.CharField(max_length=300, blank=True, default="")
     about = models.TextField(max_length=4000, blank=True, default="")
     city = models.CharField(max_length=120, blank=True, default="")
+    # GeoNames id of the city picked from places.City; null while only free text exists.
+    place_geoname_id = models.PositiveBigIntegerField(null=True, blank=True, db_index=True)
     country_code = models.CharField(max_length=2, blank=True, default="")
     logo_url = models.URLField(max_length=500, blank=True, default="")
     cover_image_url = models.URLField(max_length=500, blank=True, default="")
@@ -80,6 +99,16 @@ class BrokerOrganization(UUIDTimeStampedModel):
         blank=True,
     )
     auto_approve_changed_at = models.DateTimeField(null=True, blank=True)
+    # The commercial brand, when it differs from `name` (the registered legal
+    # company name) - customer feedback, 2026-09-25: "the commercial brand is
+    # different from the registered company name" in many agencies.
+    trading_name = models.CharField(max_length=200, blank=True, default="")
+    # The registering owner's role within the company (customer feedback,
+    # 2026-09-25). A FK to a staff-editable table, not a hardcoded enum, so the
+    # list of roles can grow without a deploy.
+    owner_role = models.ForeignKey(
+        "BrokerRole", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
 
     class Meta:
         ordering = ("name",)
@@ -97,6 +126,23 @@ class BrokerOrganization(UUIDTimeStampedModel):
     @property
     def is_active(self) -> bool:
         return self.status == BrokerOrganizationStatus.ACTIVE
+
+
+class BrokerVerificationDocument(UUIDTimeStampedModel):
+    """An identity/NIF-VAT/company document uploaded at registration (customer
+    feedback, 2026-09-25). At least one is required to register; staff review
+    them from the Django admin (no separate broker-approval screen exists yet)."""
+
+    broker = models.ForeignKey(
+        BrokerOrganization, related_name="verification_documents", on_delete=models.CASCADE
+    )
+    storage_key = models.CharField(max_length=300)
+
+    class Meta:
+        ordering = ("created_at",)
+
+    def __str__(self):
+        return self.storage_key
 
 
 class BrokerMembership(UUIDTimeStampedModel):
@@ -195,6 +241,8 @@ class BrokerSubscription(UUIDTimeStampedModel):
     trial_used_at = models.DateTimeField(null=True, blank=True)
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     past_due_since = models.DateTimeField(null=True, blank=True)
+    # Customer asked Stripe (billing portal) to stop at current_period_end.
+    cancel_at_period_end = models.BooleanField(default=False)
 
     class Meta:
         constraints = [

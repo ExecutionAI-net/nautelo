@@ -1,9 +1,15 @@
-import Link from "next/link";
+import type { Translate } from "@/i18n";
+import { tPromo } from "@/lib/i18n/promotion";
+import Link from "@/components/layout/LocaleLink";
+
+import PromoTracker from "@/components/promotion/PromoTracker";
 
 import FinanceDetailsDisclosure from "@/components/listings/FinanceDetailsDisclosure";
-import { isFinanceablePrice, safeMoney } from "@/components/listings/money";
+import { askingPrice, isFinanceablePrice, safeMoney } from "@/components/listings/money";
 import { financingHref, listingPath, type ListingFinance, type PublicListing } from "@/lib/api/listings";
 import type { Locale } from "@/lib/i18n/directory";
+import { placeLabel } from "@/lib/i18n/places";
+import { specValueLabel } from "@/lib/i18n/specValues";
 import { formatCount, formatViewCount, tf } from "@/lib/i18n/finance";
 
 type EligibleFinance = Extract<ListingFinance, { visible: true }>;
@@ -37,21 +43,28 @@ export default function BoatCard({
   locale,
   listing,
   disclaimerId,
+  t,
+  priority = false,
 }: {
+  t: Translate;
   locale: Locale;
   listing: PublicListing;
   disclaimerId: string;
+  /** True for the cards that render above the fold on first paint (e.g. the
+   * first row of /boats/'s grid) so their image is eager and high-priority
+   * instead of lazy — one of them is usually the page's LCP element, and a
+   * lazy-loaded LCP image is exactly what Lighthouse's "LCP request
+   * discovery" audit flags. Every other card stays lazy. */
+  priority?: boolean;
 }) {
   const modelName = listing.custom_model_name || listing.model_name;
   const heading = `${listing.manufacture_year} ${listing.brand_name} ${modelName}`;
-  const location = [listing.location.city, listing.location.region]
-    .filter(Boolean)
-    .join(", ");
+  const location = placeLabel({ city: listing.location.city, region: listing.location.region });
   const primaryImage = listing.media.find((item) => item.media_type === "IMAGE");
   // Compact above 9,999 (spec §19.5); the accessible label keeps the exact value.
   const views = formatViewCount(locale, listing.view_count);
   const exactViews = formatCount(locale, listing.view_count);
-  const price = safeMoney(locale, listing.price.amount, listing.price.currency);
+  const price = askingPrice(locale, listing.price.amount, listing.price.currency);
   const finance = eligibleFinance(listing.finance);
   // Spec §18.2's price half of the eligibility conjunction, re-checked here:
   // the server decides visibility, but a card that cannot render its own price
@@ -64,25 +77,41 @@ export default function BoatCard({
   const href = listingPath(listing);
   const specs = listing.specifications;
   const condition = specs.condition === "new" ? "new" : specs.condition === "used" ? "used" : null;
-  const boatType = typeof specs.boat_type === "string" ? specs.boat_type : "";
+  const boatType = typeof specs.boat_type === "string" ? specValueLabel(t, specs.boat_type) : "";
   const specLine = [
     String(listing.manufacture_year),
     specs.loa_m ? `${specs.loa_m} m` : "",
-    specs.cabins ? tf(locale, "listing.cabins", { count: String(specs.cabins) }) : "",
+    specs.cabins ? t(String(specs.cabins) === "1" ? "listing.cabin" : "listing.cabins", { count: String(specs.cabins) }) : "",
   ]
     .filter(Boolean)
     .join(" · ");
 
-  return (
-    <article className="flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
+  const card = (
+    <article className="relative flex h-full flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm transition-shadow hover:shadow-md">
+      {/* Whole-card click target: every part of the card opens the listing,
+          not just the image/title. aria-hidden + tabIndex=-1 because the
+          visible title link below already gives this listing its one
+          accessible/keyboard link; this is a mouse/touch convenience only.
+          z-20 keeps it above the image and its decorative badges (z-10 or
+          unset); the financing link, disclaimer anchor and finance
+          disclosure toggle stay independently clickable via `relative z-30`. */}
+      {href ? (
+        <Link href={href} aria-hidden="true" tabIndex={-1} className="absolute inset-0 z-20" />
+      ) : null}
       {/* Spec §29.1: primary approved image or a defined placeholder. */}
       <div className="relative">
+        {listing.is_featured ? (
+          <span className="absolute right-3 top-3 z-10 rounded bg-secondary px-2 py-0.5 font-label-sm uppercase text-on-secondary">
+            {t("promo.badge")}
+          </span>
+        ) : null}
         {primaryImage?.url ? (
           // eslint-disable-next-line @next/next/no-img-element -- CDN URL, size unknown
           <img
             src={primaryImage.url}
             alt={heading}
-            loading="lazy"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
             data-testid="boat-image"
             className="aspect-[16/10] w-full bg-surface-container-high object-cover"
           />
@@ -97,7 +126,7 @@ export default function BoatCard({
           <div className="absolute left-3 top-3 flex gap-1 font-label-sm text-label-sm uppercase">
             {condition ? (
               <span className="rounded bg-primary/80 px-2 py-0.5 text-on-primary backdrop-blur">
-                {tf(locale, `listing.condition.${condition}`)}
+                {t(`listing.condition.${condition}`)}
               </span>
             ) : null}
             {boatType ? <span className="rounded bg-surface-container-lowest/90 px-2 py-0.5 text-primary backdrop-blur">{boatType}</span> : null}
@@ -122,8 +151,9 @@ export default function BoatCard({
             labelled image rather than a bare span with a label. */}
         <span
           role="img"
+          title={t("listing.views_label", { count: exactViews })}
           className="inline-flex items-center gap-space-xs"
-          aria-label={tf(locale, "listing.views_label", { count: exactViews })}
+          aria-label={t("listing.views_label", { count: exactViews })}
         >
           <svg
             aria-hidden="true"
@@ -141,7 +171,7 @@ export default function BoatCard({
         </span>
       </div>
 
-      <h3 className="mt-space-xs font-title-lg text-title-lg text-primary">{href ? (
+      <h3 className="relative z-30 mt-space-xs font-title-lg text-title-lg text-primary">{href ? (
           <Link href={href} className="underline-offset-2 hover:underline">
             {heading}
           </Link>
@@ -154,10 +184,10 @@ export default function BoatCard({
 
       {/* Spec §29.5: this row stacks cleanly below a breakpoint and neither
           value truncates ambiguously. */}
-      <div className="mt-space-sm flex flex-col gap-space-xs sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-space-sm flex flex-wrap items-end justify-between gap-x-space-md gap-y-space-xs">
         {price ? (
           <div>
-            <span className="block font-label-sm text-label-sm uppercase text-outline">{tf(locale, "listing.asking_price")}</span>
+            <span className="block font-label-sm text-label-sm uppercase text-outline">{t("listing.asking_price")}</span>
             <p className="font-spec-num text-headline-sm font-semibold text-primary">{price}</p>
           </div>
         ) : null}
@@ -168,15 +198,15 @@ export default function BoatCard({
           <p
             data-testid="finance-estimate"
             aria-describedby={disclaimerId}
-            className="text-right font-body-sm text-on-surface-variant"
+            className="relative z-30 text-right font-body-sm text-on-surface-variant"
           >
-            <span className="block">{tf(locale, "finance.estimated_payment")}</span>
+            <span className="block">{t("finance.estimated_payment")}</span>
             <span className="font-title-sm text-title-sm text-on-surface">
-              {`${monthly}${tf(locale, "finance.per_month")}`}
+              {`${monthly}${t("finance.per_month")}`}
               <sup>
                 {/* WCAG 2.4.4: "*" is not a link purpose, so the mark stays
                     visible and the announced name is the translated sentence. */}
-                <a href={`#${disclaimerId}`} aria-label={tf(locale, "finance.disclaimer_link")}>
+                <a href={`#${disclaimerId}`} aria-label={t("finance.disclaimer_link")}>
                   *
                 </a>
               </sup>
@@ -186,20 +216,21 @@ export default function BoatCard({
       </div>
 
       {monthly ? (
-        <>
+        <div className="relative z-30">
           <a
             className="mt-space-sm inline-flex items-center gap-space-xs font-body-md text-primary underline"
             href={financingHref(listing)}
             target="_blank"
             rel="noopener noreferrer"
           >
-            {tf(locale, "finance.calculate")}
+            {t("finance.calculate")}
             <span aria-hidden="true">→</span>
           </a>
           <FinanceDetailsDisclosure locale={locale} listingId={listing.id} />
-        </>
+        </div>
       ) : null}
       </div>
     </article>
   );
+  return listing.is_featured ? <PromoTracker target="listing" id={listing.id}>{card}</PromoTracker> : card;
 }

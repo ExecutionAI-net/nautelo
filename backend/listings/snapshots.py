@@ -79,6 +79,7 @@ def create_snapshot_from_revision(
         location_country=cleaned_payload["location_country"],
         location_region=cleaned_payload.get("location_region", ""),
         location_city=cleaned_payload["location_city"],
+        location_place_id=cleaned_payload.get("location_place_id") or None,
         currency=cleaned_payload.get("currency", listing.currency),
         price=Decimal(cleaned_payload["price"]),
         show_finance_estimate=listing.show_finance_estimate,

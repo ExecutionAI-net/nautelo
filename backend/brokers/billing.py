@@ -20,6 +20,8 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 
+from notifications.enums import NotificationType
+from notifications.fanout import notify
 from professionals.enums import SubscriptionStatus
 
 from .enums import BrokerOrganizationStatus
@@ -46,7 +48,7 @@ def _url(outcome: str) -> str:
     return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{SUBSCRIPTION_PATH}?{urlencode({'checkout': outcome})}"
 
 
-def create_subscription_checkout(*, broker, gateway=None) -> str:
+def create_subscription_checkout(*, broker, customer_email: str = "", locale: str = "en", gateway=None) -> str:
     from payments.gateway import StripeUnavailable, default_gateway
 
     plan = broker.plan
@@ -61,9 +63,19 @@ def create_subscription_checkout(*, broker, gateway=None) -> str:
         "success_url": _url("success"),
         "cancel_url": _url("cancelled"),
         "client_reference_id": str(broker.pk),
+        "locale": locale,
         "metadata": metadata,
         "subscription_data": subscription_data,
     }
+    # Same rule as professionals/billing.py: an existing Stripe customer is
+    # reused (no second customer per brokerage); otherwise Checkout is opened
+    # with the payer's email so the field is not blank and the payment is
+    # attributable in the Stripe dashboard.
+    existing = BrokerSubscription.objects.filter(broker=broker).first()
+    if existing and existing.stripe_customer_id:
+        params["customer"] = existing.stripe_customer_id
+    elif customer_email:
+        params["customer_email"] = customer_email
     if trial:
         params["payment_method_collection"] = "always"
         subscription_data["trial_period_days"] = plan.trial_days
@@ -76,6 +88,21 @@ def create_subscription_checkout(*, broker, gateway=None) -> str:
     except StripeUnavailable as exc:
         raise SubscriptionUnavailable() from exc
     return result.url
+
+
+def _notify(broker, notification_type, key):
+    """Tell everyone who can manage the brokerage's team (owner and admins)."""
+    from .models import BrokerMembership
+
+    managers = BrokerMembership.objects.filter(broker=broker, is_active=True, can_manage_team=True).select_related("user")
+    for membership in managers:
+        notify(
+            membership.user,
+            notification_type,
+            target_url=SUBSCRIPTION_PATH,
+            payload={"broker_id": str(broker.pk)},
+            dedupe_key=f"{key}:{membership.user_id}",
+        )
 
 
 def _from_unix(value):
@@ -93,7 +120,25 @@ def _refs(invoice: dict) -> dict:
         "subscription_id": subscription,
         "customer_id": customer if isinstance(customer, str) else "",
         "broker_id": metadata.get("broker_id", ""),
+        "trial": metadata.get("trial") == "1",
     }
+
+
+def _period_end_from(stripe_sub: dict):
+    """`current_period_end` moved from the subscription onto its items in
+    newer Stripe API versions; accept either shape."""
+    items = (stripe_sub.get("items") or {}).get("data") or []
+    return _from_unix(stripe_sub.get("current_period_end") or (items[0] if items else {}).get("current_period_end"))
+
+
+def _is_trial_checkout(session: dict, metadata: dict) -> bool:
+    """Stripe reports a trial checkout as "no_payment_required", but the €0
+    first invoice can also surface as "paid"; a zero total settles it either
+    way. Reading only payment_status recorded trials as paid ACTIVE rows
+    (trial_used_at empty), which re-offered the trial."""
+    return metadata.get("trial") == "1" and (
+        session.get("payment_status") == "no_payment_required" or not session.get("amount_total")
+    )
 
 
 def _subscription_for(*, subscription_id="", customer_id="", broker_id=""):
@@ -128,7 +173,9 @@ def _activate(subscription, *, period_end=None, now=None):
     subscription.last_paid_at = now
     if period_end:
         subscription.current_period_end = period_end
-    subscription.save()
+    # Named fields only: a full save() would write back whatever this instance
+    # was loaded with, including trial_* values another handler just set.
+    subscription.save(update_fields=[*STRIPE_REF_FIELDS, "status", "past_due_since", "last_paid_at", "current_period_end", "updated_at"])
     _sync_plan_renewal(subscription)
     broker = subscription.broker
     if was_offline and broker.status == BrokerOrganizationStatus.SUSPENDED:
@@ -136,15 +183,25 @@ def _activate(subscription, *, period_end=None, now=None):
         broker.save(update_fields=["status", "updated_at"])
 
 
+STRIPE_REF_FIELDS = ("stripe_customer_id", "stripe_subscription_id")
+TRIAL_FIELDS = ("status", "trial_used_at", "trial_ends_at", "current_period_end")
+
+
 def _start_trial(subscription, *, now=None):
     now = now or timezone.now()
+    if subscription.status == SubscriptionStatus.TRIALING:
+        # checkout.session.completed and the €0 invoice.paid both describe the
+        # same trial; whichever lands second must not restart or extend it.
+        subscription.save(update_fields=[*STRIPE_REF_FIELDS, "updated_at"])
+        return
     days = subscription.broker.plan.trial_days if subscription.broker.plan else 0
     subscription.status = SubscriptionStatus.TRIALING
     subscription.trial_used_at = subscription.trial_used_at or now
     subscription.trial_ends_at = now + timedelta(days=days)
     subscription.current_period_end = subscription.trial_ends_at
-    subscription.save()
+    subscription.save(update_fields=[*STRIPE_REF_FIELDS, *TRIAL_FIELDS, "updated_at"])
     _sync_plan_renewal(subscription)
+    _notify(subscription.broker, NotificationType.BROKER_TRIAL_STARTED, f"{subscription.pk}:trial:{now.date()}")
 
 
 def _deactivate(subscription, *, status):
@@ -154,6 +211,7 @@ def _deactivate(subscription, *, status):
     if broker.status == BrokerOrganizationStatus.ACTIVE:
         broker.status = BrokerOrganizationStatus.SUSPENDED
         broker.save(update_fields=["status", "updated_at"])
+        _notify(broker, NotificationType.BROKER_SUSPENDED, f"{subscription.pk}:suspended:{timezone.now().date()}")
 
 
 def handle_checkout(session: dict) -> str:
@@ -169,7 +227,7 @@ def handle_checkout(session: dict) -> str:
     subscription.stripe_customer_id = session.get("customer") or subscription.stripe_customer_id
     sub_id = session.get("subscription") or ""
     subscription.stripe_subscription_id = sub_id if isinstance(sub_id, str) else sub_id.get("id", "")
-    if metadata.get("trial") == "1" and status == "no_payment_required":
+    if _is_trial_checkout(session, metadata):
         _start_trial(subscription)
     elif status == "paid":
         _activate(subscription)
@@ -183,22 +241,57 @@ def handle_invoice_paid(event) -> str:
 
     invoice = event["data"]["object"]
     refs = _refs(invoice)
+    trial = refs.pop("trial")
     subscription = _subscription_for(**refs)
     if subscription is None:
         return WebhookResult.IGNORED
     if not subscription.stripe_subscription_id:
         subscription.stripe_subscription_id = refs["subscription_id"]
-    if subscription.status == SubscriptionStatus.TRIALING and not invoice.get("amount_paid"):
-        return WebhookResult.FULFILLED
+    if not invoice.get("amount_paid"):
+        if subscription.status == SubscriptionStatus.TRIALING:
+            return WebhookResult.FULFILLED
+        if trial and subscription.trial_used_at is None:
+            # Stripe's €0 trial invoice can land before checkout.session.completed;
+            # it opens the trial rather than a paid period.
+            _start_trial(subscription)
+            return WebhookResult.FULFILLED
     lines = (invoice.get("lines") or {}).get("data") or []
     _activate(subscription, period_end=_from_unix(((lines[0] if lines else {}).get("period") or {}).get("end")))
+    return WebhookResult.FULFILLED
+
+
+def handle_subscription_updated(event) -> str:
+    """Mirror what the customer did in Stripe's billing portal: a scheduled
+    cancellation (`cancel_at_period_end`), its reversal, the period end, and
+    the trial rolling into a paid period."""
+    from payments.enums import WebhookResult
+
+    stripe_sub = event["data"]["object"]
+    subscription = _subscription_for(
+        subscription_id=stripe_sub.get("id", ""),
+        broker_id=(stripe_sub.get("metadata") or {}).get("broker_id", ""),
+    )
+    if subscription is None:
+        return WebhookResult.IGNORED
+    subscription.cancel_at_period_end = bool(stripe_sub.get("cancel_at_period_end"))
+    period_end = _period_end_from(stripe_sub)
+    if period_end:
+        subscription.current_period_end = period_end
+    if stripe_sub.get("status") == "active" and subscription.status == SubscriptionStatus.TRIALING:
+        subscription.status = SubscriptionStatus.ACTIVE
+    subscription.save(update_fields=["cancel_at_period_end", "current_period_end", "status", "updated_at"])
+    _sync_plan_renewal(subscription)
     return WebhookResult.FULFILLED
 
 
 def handle_invoice_payment_failed(event) -> str:
     from payments.enums import WebhookResult
 
-    subscription = _subscription_for(**_refs(event["data"]["object"]))
+    invoice = event["data"]["object"]
+    invoice_id = invoice.get("id", "")
+    refs = _refs(invoice)
+    refs.pop("trial")
+    subscription = _subscription_for(**refs)
     if subscription is None:
         return WebhookResult.IGNORED
     if subscription.past_due_since is None:
@@ -206,6 +299,7 @@ def handle_invoice_payment_failed(event) -> str:
     if subscription.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING):
         subscription.status = SubscriptionStatus.PAST_DUE
     subscription.save()
+    _notify(subscription.broker, NotificationType.BROKER_PAYMENT_FAILED, f"{subscription.pk}:failed:{invoice_id}")
     return WebhookResult.FULFILLED
 
 

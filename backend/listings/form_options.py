@@ -77,6 +77,8 @@ def media_limits() -> dict:
 
 
 def form_options(now=None) -> dict:
+    from .models import SUPPORTED_CURRENCIES
+
     return {
         "media_limits": media_limits(),
         "years": year_choices(now),
@@ -87,4 +89,5 @@ def form_options(now=None) -> dict:
         "cabins": CABINS,
         "bathrooms": BATHROOMS,
         "countries": COUNTRIES,
+        "currencies": sorted(SUPPORTED_CURRENCIES),
     }

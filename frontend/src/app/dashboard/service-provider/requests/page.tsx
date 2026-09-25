@@ -10,7 +10,13 @@ export default function ProviderRequestsPage() {
   return (
     <AreaShell area="provider" active="/dashboard/service-provider/requests/">
       <RequirePermission>
-        <MessagesScreen basePath="/dashboard/private-seller/messages/" filter="ALL" />
+        <MessagesScreen
+          basePath="/dashboard/private-seller/messages/"
+          filter="ALL"
+          eyebrow="Service provider / Requests"
+          heading="Requests"
+          intro="Requests from boat owners and buyers who contacted your profile. Reply here; contact details are shared only with the person who wrote to you."
+        />
       </RequirePermission>
     </AreaShell>
   );

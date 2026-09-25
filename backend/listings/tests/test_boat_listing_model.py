@@ -244,7 +244,7 @@ def test_clean_accepts_next_year_as_a_manufacture_year():
 @pytest.mark.django_db
 def test_clean_rejects_an_unsupported_currency():
     listing = make_private_listing(owner=make_user())
-    listing.currency = "USD"
+    listing.currency = "JPY"
 
     with pytest.raises(ValidationError) as exc_info:
         listing.clean()

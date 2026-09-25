@@ -1,12 +1,15 @@
-import Link from "next/link";
+"use client";
+
+import { useT } from "@/i18n/client";
+import Link from "@/components/layout/LocaleLink";
 
 import type { ConversationRow } from "@/lib/api/conversations";
 import {
   formatConversationMessage,
   tConversations,
 } from "@/lib/i18n/conversations";
+import { formatDateTime } from "@/lib/i18n/datetime";
 import type { Locale } from "@/lib/i18n/directory";
-import { tInquiry } from "@/lib/i18n/inquiry";
 
 interface Props {
   locale: Locale;
@@ -21,9 +24,10 @@ interface Props {
  * ConversationRow has no field that could hold one — contact reveal is Phase 7's
  * own endpoint, after a grant. */
 export default function ConversationRowCard({ locale, row, href }: Props) {
+  const t = useT();
   const senderName =
     row.counterparty_name.trim() ||
-    tInquiry(locale, "inquiry.sender_unnamed");
+    t("inquiry.sender_unnamed");
 
   return (
     <Link
@@ -89,7 +93,7 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
             dateTime={row.last_message_at}
             className="ml-auto font-body-sm text-on-surface-variant"
           >
-            {new Date(row.last_message_at).toLocaleString(locale)}
+            {formatDateTime(locale, row.last_message_at)}
           </time>
         ) : null}
       </div>

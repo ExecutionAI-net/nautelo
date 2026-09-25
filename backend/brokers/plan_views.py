@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsActiveUser, IsStaffAdmin
 from brokers.models import BrokerOrganization, BrokerPlan
+from services_catalog.services import localized, resolve_locale
 
 
 class PublicPlanSerializer(serializers.ModelSerializer):
@@ -37,6 +38,8 @@ class PublicPricingView(APIView):
         from payments.models import ListingPackage
 
         packages = ListingPackage.objects.filter(is_active=True)
+        # Package and product names are stored per language; the page asks for its own (F18).
+        locale = resolve_locale(request.query_params.get("locale"))
         return Response(
             {
                 "professional_plan": (
@@ -52,8 +55,8 @@ class PublicPricingView(APIView):
                 "listing_packages": [
                     {
                         "slug": package.slug,
-                        "name": package.name_en,
-                        "description": package.description_en,
+                        "name": localized(package, "name", locale),
+                        "description": localized(package, "description", locale),
                         "amount": str(package.display_amount),
                         "currency": package.currency,
                         "publication_days": package.publication_days,
@@ -66,8 +69,8 @@ class PublicPricingView(APIView):
                 "individual_products": [
                     {
                         "code": product.code,
-                        "name": product.name_en,
-                        "description": product.description_en,
+                        "name": localized(product, "name", locale),
+                        "description": localized(product, "description", locale),
                         "amount": str(product.display_amount),
                         "currency": product.currency,
                         "publication_days": product.publication_days,

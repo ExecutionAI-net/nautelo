@@ -38,7 +38,9 @@ class BoatListingAdmin(admin.ModelAdmin):
         "owner_user",
         "broker",
         "published_at",
-        "expires_at",
+        # `expires_at` stays editable: it is the one lifecycle date staff legitimately
+        # adjust (a goodwill extension, or bringing an expiry forward so the daily
+        # sweep and its reminder e-mails can be exercised on a test system).
         "publication_source",
         "consumed_entitlement",
         "view_count_cached",

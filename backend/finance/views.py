@@ -192,3 +192,48 @@ class FinanceQuoteView(APIView):
             "disclaimer_key": DISCLAIMER_KEY,
             "assumption_sources": sources,
         }
+
+
+class SimulatorConfigView(APIView):
+    """GET /api/v1/finance/simulator-config/ - the rulebook the browser runs the simulator on."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "public_settings"
+
+    def get(self, request):
+        from .models import FinanceRule
+
+        def num(value):
+            return None if value is None else float(value)
+
+        rules = [
+            {
+                "id": rule.pk,
+                "country_code": rule.country_code,
+                "product": rule.product,
+                "condition": rule.condition,
+                "use": rule.use,
+                "tin_percent": num(rule.tin_percent),
+                "tae_percent": num(rule.tae_percent),
+                "opening_fee_percent": num(rule.opening_fee_percent),
+                "residual_percent": num(rule.residual_percent),
+                "min_price": num(rule.min_price),
+                "max_price": num(rule.max_price),
+                "min_down_percent": num(rule.min_down_percent),
+                "max_down_percent": num(rule.max_down_percent),
+                "default_down_percent": num(rule.default_down_percent),
+                "terms_years": rule.terms_years,
+                "max_age_at_end_years": rule.max_age_at_end_years,
+                "age_plus_term_limit": rule.age_plus_term_limit,
+                "vat_percent": num(rule.vat_percent),
+                "vat_on_installment": rule.vat_on_installment,
+                "vat_recoverable": rule.vat_recoverable,
+                "representative_months": rule.representative_months,
+                "note": {"en": rule.note_en, "it": rule.note_it, "es": rule.note_es},
+            }
+            for rule in FinanceRule.objects.filter(is_active=True)
+        ]
+        response = Response({"rules": rules})
+        response["Cache-Control"] = "public, max-age=300"
+        return response

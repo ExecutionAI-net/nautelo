@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import AdSlot from "@/components/content/AdSlot";
+import { getT } from "@/i18n/server";
 import { fetchGuide } from "@/lib/api/contentServer";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return {
     title: guide.title,
     description: guide.excerpt || undefined,
-    alternates: { canonical: `/guides/${slug}/` },
   };
 }
 
@@ -27,6 +27,7 @@ export default async function GuidePage({ params }: { params: Params }) {
   if (!guide) {
     notFound();
   }
+  const t = await getT();
   const paragraphs = guide.body.split(/\n{2,}/).filter((part) => part.trim());
 
   return (
@@ -34,14 +35,14 @@ export default async function GuidePage({ params }: { params: Params }) {
       <article className="mx-auto max-w-3xl px-margin-mobile py-space-xl md:px-margin">
         <nav aria-label="Breadcrumb" className="font-body-sm text-on-surface-variant">
           <Link href="/guides/" className="hover:text-primary">
-            Guides
+            {t("guides.detail.breadcrumb")}
           </Link>
           {guide.category ? <span> / {guide.category}</span> : null}
         </nav>
         <h1 className="mt-space-md font-headline-lg text-headline-lg text-primary">{guide.title}</h1>
         <p className="mt-space-xs font-body-sm text-on-surface-variant">
           {guide.author_name ? `${guide.author_name} · ` : ""}
-          {guide.published_at ? new Date(guide.published_at).toLocaleDateString("en") : ""}
+          {guide.published_at ? new Date(guide.published_at).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" }) : ""}
         </p>
         {guide.hero_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- editorial image, size unknown

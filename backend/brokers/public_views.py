@@ -79,6 +79,9 @@ class _PublicBrokerBase:
         country = params.get("country", "").strip().upper()
         if country:
             queryset = queryset.filter(country_code=country)
+        place = params.get("place", "").strip()
+        if place.isdigit():
+            queryset = queryset.filter(place_geoname_id=int(place))
         specialty = params.get("specialty", "").strip()
         if specialty:
             queryset = queryset.filter(specialties__contains=[specialty])
@@ -99,12 +102,24 @@ class PublicBrokerListView(_PublicBrokerBase, ListAPIView):
         everyone = active_brokers()
         countries = {}
         specialties = {}
-        for code, tags in everyone.values_list("country_code", "specialties"):
+        # Keyed by place_geoname_id, same as listings' own location facet (spec
+        # precedent: listings/public_filters.facets()) - a broker without a real
+        # place (free text only, not yet run through the standard picker) counts
+        # toward its country but is not offered as a city choice.
+        locations = {}
+        for code, tags, place_id, city in everyone.values_list("country_code", "specialties", "place_geoname_id", "city"):
             if code:
                 countries[code] = countries.get(code, 0) + 1
             for tag in tags or []:
                 specialties[tag] = specialties.get(tag, 0) + 1
-        response.data["facets"] = {"countries": countries, "specialties": specialties}
+            if place_id:
+                entry = locations.setdefault(place_id, {"country": code, "place_id": place_id, "city": city, "count": 0})
+                entry["count"] += 1
+        response.data["facets"] = {
+            "countries": countries,
+            "specialties": specialties,
+            "locations": sorted(locations.values(), key=lambda row: (row["country"], row["city"])),
+        }
         return response
 
 

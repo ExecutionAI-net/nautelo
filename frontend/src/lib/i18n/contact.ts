@@ -18,14 +18,14 @@ export const CONTACT_MESSAGES: Record<string, Translations> = {
   },
   "contact.locked_explanation": {
     // Spec 16 fixes this sentence exactly.
-    en: "Send a message through NAUTA to unlock business contact details.",
-    it: "Invia un messaggio tramite NAUTA per sbloccare i dati di contatto aziendali.",
-    es: "Envía un mensaje a través de NAUTA para desbloquear los datos de contacto profesionales.",
+    en: "Send a message through Nautelo to unlock business contact details.",
+    it: "Invia un messaggio tramite Nautelo per sbloccare i dati di contatto aziendali.",
+    es: "Envía un mensaje a través de Nautelo para desbloquear los datos de contacto profesionales.",
   },
   "contact.blur_reason": {
-    en: "These details are partly hidden on purpose: they protect businesses from spam and keep conversations on NAUTA. They become visible as soon as you send a message.",
-    it: "Questi dati sono parzialmente nascosti di proposito: proteggono le aziende dallo spam e mantengono le conversazioni su NAUTA. Diventano visibili non appena invii un messaggio.",
-    es: "Estos datos están parcialmente ocultos a propósito: protegen a las empresas del spam y mantienen las conversaciones en NAUTA. Se muestran en cuanto envías un mensaje.",
+    en: "These details are partly hidden on purpose: they protect businesses from spam and keep conversations on Nautelo. They become visible as soon as you send a message.",
+    it: "Questi dati sono parzialmente nascosti di proposito: proteggono le aziende dallo spam e mantengono le conversazioni su Nautelo. Diventano visibili non appena invii un messaggio.",
+    es: "Estos datos están parcialmente ocultos a propósito: protegen a las empresas del spam y mantienen las conversaciones en Nautelo. Se muestran en cuanto envías un mensaje.",
   },
   "contact.unlocked": {
     en: "Contact details unlocked",

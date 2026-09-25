@@ -47,6 +47,7 @@ from professionals.enums import ProfessionalProfileStatus
 from professionals.models import ProfessionalProfile
 from services_catalog.models import ProfessionalService, ServiceCategory
 from taxonomy.models import BoatBrand, BoatModel
+from taxonomy.services import normalize_taxonomy_name
 
 DEMO_DOMAIN = "demo.nauta.test"
 ASSETS = Path(__file__).resolve().parents[2] / "demo_assets"
@@ -190,6 +191,8 @@ PRO_REPLY = [
 
 class Command(BaseCommand):
     help = "Create a large demo dataset for filtering and UI review (dev/staging only)."
+    models = MODELS
+    locations = LOCATIONS
 
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true", help="Delete previous demo data first.")
@@ -303,9 +306,10 @@ class Command(BaseCommand):
     # ------------------------------------------------------------- listings
     def taxonomy(self):
         rows = []
-        for brand_name, model_name, kind, length, hp, engines, price in MODELS:
-            brand, _ = BoatBrand.objects.get_or_create(name=brand_name)
-            model, _ = BoatModel.objects.get_or_create(brand=brand, name=model_name)
+        for brand_name, model_name, kind, length, hp, engines, price in self.models:
+            # Match on the normalised name: "Bwa" and an existing "BWA" are the same brand.
+            brand = BoatBrand.objects.filter(normalized_name=normalize_taxonomy_name(brand_name)).first() or BoatBrand.objects.create(name=brand_name)
+            model = BoatModel.objects.filter(brand=brand, normalized_name=normalize_taxonomy_name(model_name)).first() or BoatModel.objects.create(brand=brand, name=model_name)
             rows.append((brand, model, kind, length, hp, engines, price))
         return rows
 
@@ -377,7 +381,7 @@ class Command(BaseCommand):
         year = self.rng.randint(1999, self.now.year)
         age = self.now.year - year
         price = Decimal(int(new_price * max(0.25, 1 - 0.045 * age) * self.rng.uniform(0.9, 1.1) / 500) * 500)
-        country, region, city = self.rng.choice(LOCATIONS)
+        country, region, city = self.rng.choice(self.locations)
         spec = self.specs(kind, length, hp, engines, year)
         tagline = self.rng.choice(TAGLINES)
         title = f"{year} {brand.name} {model.name} - {tagline}"

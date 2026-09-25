@@ -6,6 +6,7 @@ their own read path to find a draft, see its state and reopen it.
 
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,7 +18,7 @@ from .drafts import open_revision_for
 from .enums import ListingStatus
 from .models import BoatListing
 from .permissions import ListingWorkflowEnabled
-from .serializers import ListingWorkflowSerializer, _with_url
+from .serializers import ListingPreviewSerializer, ListingWorkflowSerializer, _with_url
 
 
 def _title(listing) -> str:
@@ -43,10 +44,11 @@ class MyListingsView(APIView):
         ).values_list("broker_id", flat=True)
         rows = (
             BoatListing.objects.filter(
-                Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
+                Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids)),
+                deleted_at__isnull=True,
             )
             .select_related("brand", "model", "current_public_snapshot")
-            .prefetch_related("media")
+            .prefetch_related("media", "promo_stats")
             .order_by("-updated_at")
         )
         return Response([_row(item) for item in rows])
@@ -72,10 +74,12 @@ def _row(item) -> dict:
         "id": str(item.pk),
         "title": _title(item),
         "status": item.status,
+        "version": item.version,
         "seller_type": item.seller_type,
         "slug": item.slug,
         "updated_at": item.updated_at,
         "expires_at": item.expires_at,
+        "featured_until": item.featured_until if item.featured_until and item.featured_until > timezone.now() else None,
         "price": price,
         "currency": payload.get("currency") or (snapshot.currency if snapshot else "EUR"),
         "year": payload.get("manufacture_year") or (snapshot.manufacture_year_snapshot if snapshot else None),
@@ -87,6 +91,8 @@ def _row(item) -> dict:
         "beam_m": specs.get("beam_m") or "",
         "engine": specs.get("engine_model") or specs.get("engine_type") or "",
         "views": item.view_count_cached,
+        "promo_impressions": sum(stat.impressions for stat in item.promo_stats.all()),
+        "promo_clicks": sum(stat.clicks for stat in item.promo_stats.all()),
         "image_url": _with_url({"storage_key": image.storage_key})["url"] if image else None,
     }
 
@@ -103,7 +109,8 @@ class MyListingsSummaryView(APIView):
             user=request.user, is_active=True, can_edit_listings=True
         ).values_list("broker_id", flat=True)
         mine = BoatListing.objects.filter(
-            Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids))
+            Q(owner_user=request.user) | Q(broker_id__in=list(broker_ids)),
+            deleted_at__isnull=True,
         )
         counts = dict(mine.values_list("status").annotate(total=Count("pk")))
         return Response(
@@ -131,3 +138,24 @@ class ListingWorkflowDetailView(APIView):
         listing = get_object_or_404(BoatListing, pk=listing_id)
         self.check_object_permissions(request, listing)
         return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingPreviewView(APIView):
+    """GET /api/v1/listings/<id>/preview/ - the owner's own listing rendered in
+    the exact shape a buyer will eventually see, built from the current draft
+    rather than the approved snapshot (see ListingPreviewSerializer). Backs the
+    "Preview" link in the sell form and the dashboard card thumbnail for a
+    listing that isn't published yet."""
+
+    permission_classes = [
+        IsAuthenticated,
+        IsActiveUser,
+        ListingWorkflowEnabled,
+        IsOwnerOrBrokerEditor,
+    ]
+    throttle_scope = "listing_workflow"
+
+    def get(self, request, listing_id):
+        listing = get_object_or_404(BoatListing, pk=listing_id)
+        self.check_object_permissions(request, listing)
+        return Response(ListingPreviewSerializer().to_representation(listing))

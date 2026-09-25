@@ -1,6 +1,7 @@
+import { getT } from "@/i18n/server";
 import { getRequestLocale } from "@/lib/i18n/requestLocale";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { notFound } from "next/navigation";
 
 import ContactPanel from "@/components/contact/ContactPanel";
@@ -8,7 +9,8 @@ import InquiryForm from "@/components/inquiry/InquiryForm";
 import ProfileMonogram from "@/components/directory/ProfileMonogram";
 import { fetchProfessional, formatProfessionalLocation } from "@/lib/api/directory";
 import { fetchInquiryConfig } from "@/lib/api/inquiry-config";
-import { DEFAULT_LOCALE, t } from "@/lib/i18n/directory";
+import { formatPrice } from "@/lib/api/plans";
+import { DEFAULT_LOCALE } from "@/lib/i18n/directory";
 
 export const dynamic = "force-dynamic";
 
@@ -20,17 +22,20 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { slug } = await params;
   const professional = await fetchProfessional(slug, DEFAULT_LOCALE);
   if (!professional) {
-    return { title: t(DEFAULT_LOCALE, "directory.services_professionals.title") };
+    return { title: (await getT())("directory.services_professionals.title") };
   }
   return {
     title: professional.display_name,
     description: professional.short_description || undefined,
     // Spec 1: /services/professionals/<professional-slug>/ is the canonical URL.
-    alternates: { canonical: professional.url },
   };
 }
 
+// The API speaks in enum values; the page speaks to visitors.
+const TEAM_ROLE_LABEL: Record<string, string> = { ADMIN: "Admin", MANAGER: "Manager", AGENT: "Agent", VIEWER: "Viewer" };
+
 export default async function ProfessionalDetailPage({ params }: { params: Params }) {
+  const t = await getT();
   const { slug } = await params;
   const locale = await getRequestLocale();
   const professional = await fetchProfessional(slug, locale);
@@ -83,7 +88,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
                 </p>
               ) : null}
               <p className="mt-space-sm max-w-xl font-body-sm text-on-surface-variant">
-                {t(locale, "professional.status.active")}
+                {t("professional.status.active")}
               </p>
             </div>
           </header>
@@ -96,7 +101,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
           {professional.description ? (
             <section aria-labelledby="about-heading" className="mt-space-xl">
               <h2 id="about-heading" className="font-title-lg text-title-lg text-primary">
-                {t(locale, "professional.about.heading")}
+                {t("professional.about.heading")}
               </h2>
               <p className="mt-space-sm whitespace-pre-line font-body-md text-on-surface">
                 {professional.description}
@@ -107,16 +112,13 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
           {professional.team?.length > 0 ? (
             <section aria-labelledby="team-heading" className="mt-space-xl">
               <h2 id="team-heading" className="font-title-lg text-title-lg text-primary">
-                {t(locale, "professional.team.heading")}
+                {t("professional.team.heading")}
               </h2>
               <ul className="mt-space-sm grid gap-space-sm sm:grid-cols-2">
-                {professional.team.map((member) => (
-                  <li key={member.email} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+                {professional.team.map((member, index) => (
+                  <li key={`${member.name}-${index}`} className="rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
                     <p className="font-title-md text-primary">{member.name}</p>
-                    <p className="font-label-md text-on-surface-variant">{member.role}</p>
-                    <a className="font-body-sm text-secondary underline" href={`mailto:${member.email}`}>
-                      {member.email}
-                    </a>
+                    <p className="font-label-md text-on-surface-variant">{TEAM_ROLE_LABEL[member.role] ?? member.role}</p>
                   </li>
                 ))}
               </ul>
@@ -126,25 +128,36 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
           {professional.services.length > 0 ? (
             <section aria-labelledby="services-heading" className="mt-space-xl">
               <h2 id="services-heading" className="font-title-lg text-title-lg text-primary">
-                {t(locale, "professional.services.heading")}
+                {t("professional.services.heading")}
               </h2>
               <ul className="mt-space-md space-y-space-md">
                 {professional.services.map((service) => (
                   <li
                     key={service.id}
-                    className="rounded-xl border border-outline-variant p-space-md"
+                    className="flex gap-space-md rounded-xl border border-outline-variant p-space-md"
                   >
+                    {service.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
+                      <img alt="" src={service.photo_url} className="h-20 w-28 shrink-0 rounded-lg object-cover" />
+                    ) : null}
+                    <div>
                     <h3 className="font-title-lg text-title-lg text-on-surface">
                       {service.title}
                     </h3>
                     <p className="mt-space-xs font-body-sm text-on-surface-variant">
                       {service.category.name}
                     </p>
+                    <p className="mt-space-xs font-body-sm font-semibold text-primary">
+                      {service.price_from
+                        ? `${t("professional.services.price_from")} ${formatPrice(service.price_from, service.currency || "EUR")}${service.pricing_note ? ` ${service.pricing_note}` : ""}`
+                        : t("professional.services.quote_on_request")}
+                    </p>
                     {service.description ? (
                       <p className="mt-space-sm font-body-md text-on-surface">
                         {service.description}
                       </p>
                     ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -154,7 +167,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
           {professional.service_area.length > 0 ? (
             <section aria-labelledby="area-heading" className="mt-space-xl">
               <h2 id="area-heading" className="font-title-lg text-title-lg text-primary">
-                {t(locale, "professional.service_area.heading")}
+                {t("professional.service_area.heading")}
               </h2>
               <ul className="mt-space-sm flex flex-wrap gap-space-xs">
                 {professional.service_area.map((area) => (
@@ -200,7 +213,7 @@ export default async function ProfessionalDetailPage({ params }: { params: Param
           {professional.related.length > 0 ? (
             <section aria-labelledby="related-heading">
               <h2 id="related-heading" className="font-title-lg text-title-lg text-primary">
-                {t(locale, "professional.related.heading")}
+                {t("professional.related.heading")}
               </h2>
               <ul className="mt-space-md space-y-space-sm">
                 {professional.related.map((peer) => (

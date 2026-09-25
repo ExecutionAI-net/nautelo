@@ -1,11 +1,12 @@
 "use client";
 
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { safeMoney } from "@/components/listings/money";
 import { requestFinanceQuote, type FinanceQuote } from "@/lib/api/finance-quote";
 import type { Locale } from "@/lib/i18n/directory";
-import { tf } from "@/lib/i18n/finance";
 
 /**
  * Spec §18.1's optional details disclosure. "It must use live calculation
@@ -28,6 +29,7 @@ export default function FinanceDetailsDisclosure({
   locale: Locale;
   listingId: string;
 }) {
+  const t = useT();
   const panelId = useId();
   const disclaimerId = useId();
   const [open, setOpen] = useState(false);
@@ -91,7 +93,7 @@ export default function FinanceDetailsDisclosure({
           [
             ["finance.down_payment", money(quote.down_payment_amount)],
             ["finance.amount_financed", money(quote.principal)],
-            ["finance.term", tf(locale, "finance.months", { count: quote.term_months })],
+            ["finance.term", t("finance.months", { count: quote.term_months })],
             ["finance.annual_rate", `${quote.annual_rate_percent}%`],
             ["finance.total_installments", money(quote.total_payment)],
             ["finance.total_interest", money(quote.total_interest)],
@@ -109,7 +111,7 @@ export default function FinanceDetailsDisclosure({
         aria-controls={panelId}
         className="font-body-sm text-on-surface-variant underline"
       >
-        {tf(locale, open ? "finance.details.hide" : "finance.details.show")}
+        {t(open ? "finance.details.hide" : "finance.details.show")}
       </button>
       {/* The panel element exists whether or not it is open, so aria-controls
           always resolves, and it is the one polite live region: the result, the
@@ -122,9 +124,9 @@ export default function FinanceDetailsDisclosure({
       >
         {open ? (
           <>
-            {loading ? <p>{tf(locale, "finance.details.loading")}</p> : null}
+            {loading ? <p>{t("finance.details.loading")}</p> : null}
             {unavailable ? (
-              <p className="text-error">{tf(locale, "finance.details.error")}</p>
+              <p className="text-error">{t("finance.details.error")}</p>
             ) : null}
             {rows.length > 0 ? (
               <>
@@ -135,13 +137,13 @@ export default function FinanceDetailsDisclosure({
                 >
                   {rows.map(([key, value]) => (
                     <div key={key} className="contents">
-                      <dt>{tf(locale, key)}</dt>
+                      <dt>{t(key as MessageKey)}</dt>
                       <dd className="text-right">{value}</dd>
                     </div>
                   ))}
                 </dl>
                 <p id={disclaimerId} className="mt-space-xs">
-                  {tf(locale, "finance.illustrative_disclaimer")}
+                  {t("finance.illustrative_disclaimer")}
                 </p>
               </>
             ) : null}

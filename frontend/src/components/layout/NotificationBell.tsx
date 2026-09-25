@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -34,7 +34,8 @@ function safeTarget(url: string): string | null {
   return url.startsWith("/") && !url.startsWith("//") ? url : null;
 }
 
-export default function NotificationBell({ locale }: { locale: Locale }) {
+/** `align` is the edge the popover hangs from: "left" when the bell sits near the left edge of the screen (dashboard sidebar). */
+export default function NotificationBell({ locale, align = "right" }: { locale: Locale; align?: "left" | "right" }) {
   const ui = UI[locale] ?? UI.en;
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [unread, setUnread] = useState(0);
@@ -122,7 +123,7 @@ export default function NotificationBell({ locale }: { locale: Locale }) {
         ) : null}
       </button>
       {open ? (
-        <div className="absolute right-0 z-10 mt-space-xs w-80 max-w-[90vw] rounded-lg border border-outline-variant bg-surface p-space-sm shadow-lg">
+        <div className={`absolute z-10 mt-space-xs w-80 max-w-[90vw] rounded-lg border border-outline-variant bg-surface p-space-sm shadow-lg ${align === "left" ? "left-0" : "right-0"}`}>
           {emailOn !== null ? (
             <label className="mb-space-sm block font-body-sm">
               <input type="checkbox" checked={emailOn} onChange={(e) => void toggleEmail(e.target.checked)} />{" "}

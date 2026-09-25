@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 
 import { formatPrice, type PlanSummary } from "@/lib/api/plans";
 
@@ -36,7 +36,7 @@ export default function PlanCards({
           >
             {current ? (
               <div className="absolute top-0 right-0 bg-secondary px-space-md py-1 rounded-bl-lg font-label-sm uppercase tracking-widest text-on-secondary font-semibold">
-                Active Tier
+                Current plan
               </div>
             ) : null}
             <div className="flex flex-col gap-space-md">
@@ -53,11 +53,11 @@ export default function PlanCards({
               <ul className={`flex flex-col gap-space-sm text-body-md pt-space-sm ${current ? "text-on-primary" : "text-on-surface"}`}>
                 <li className="flex items-center gap-space-sm">
                   <span className={`material-symbols-outlined ${tick} text-[18px]`} aria-hidden="true">check</span>
-                  <span>{limitText(plan.listing_limit, "Active Vessel Listing", "Active Vessel Listings")}</span>
+                  <span>{limitText(plan.listing_limit, "published vessel", "published vessels")}</span>
                 </li>
                 <li className="flex items-center gap-space-sm">
                   <span className={`material-symbols-outlined ${tick} text-[18px]`} aria-hidden="true">check</span>
-                  <span>{limitText(plan.seat_limit, "Team Seat", "Team Seats")}</span>
+                  <span>{limitText(plan.seat_limit, "team seat", "team seats")}</span>
                 </li>
                 <li className="flex items-center gap-space-sm">
                   <span className={`material-symbols-outlined ${tick} text-[18px]`} aria-hidden="true">check</span>
@@ -69,7 +69,7 @@ export default function PlanCards({
             </div>
             {current ? (
               <button type="button" disabled className="w-full bg-surface-container-lowest/15 text-on-primary font-body-md py-space-sm px-space-md rounded cursor-default text-center font-medium">
-                Currently Enrolled
+                Current plan
               </button>
             ) : (
               <Link href={ctaHref} className="w-full bg-surface-container-high hover:bg-surface-container text-primary font-body-md py-space-sm px-space-md rounded transition-colors text-center">

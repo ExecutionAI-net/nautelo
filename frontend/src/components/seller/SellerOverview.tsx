@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/layout/LocaleLink";
 import { useEffect, useState } from "react";
 
 import { ListingCard } from "@/components/listings/MyListings";
@@ -41,9 +41,11 @@ export default function SellerOverview() {
     <div className="flex flex-col gap-space-lg">
       <header className="flex flex-wrap items-end justify-between gap-space-md">
         <div>
-          <span className="font-label-sm text-label-sm uppercase tracking-widest text-secondary">Owner portal</span>
-          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary">{name ? `Welcome back, ${name}` : "Welcome back"}</h1>
-          <p className="mt-space-xs font-body-md text-on-surface-variant">Your listings, enquiries and account in one place.</p>
+          <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Seller area / Overview</span>
+          <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">Overview</h1>
+          <p className="mt-space-xs font-body-md text-on-surface-variant">
+            {name ? `Welcome back, ${name}. ` : ""}Your listings, enquiries and account in one place.
+          </p>
         </div>
         <Link href="/sell/create/" className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
           Create new listing

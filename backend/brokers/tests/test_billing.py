@@ -105,12 +105,16 @@ def test_checkout_sets_card_up_front_and_never_offers_a_second_trial(broker):
             captured.update(params)
             return SimpleNamespace(url="https://stripe.example/b")
 
-    billing.create_subscription_checkout(broker=broker, gateway=Gateway())
+    billing.create_subscription_checkout(broker=broker, customer_email="owner@b.example", locale="it", gateway=Gateway())
+    assert captured["locale"] == "it"
     assert captured["payment_method_collection"] == "always"
     assert captured["subscription_data"]["trial_period_days"] == 30
-    BrokerSubscription.objects.create(broker=broker, trial_used_at=timezone.now())
-    billing.create_subscription_checkout(broker=broker, gateway=Gateway())
+    # First checkout: the payer's email is prefilled; a later one reuses the Stripe customer instead.
+    assert captured["customer_email"] == "owner@b.example" and "customer" not in captured
+    BrokerSubscription.objects.create(broker=broker, trial_used_at=timezone.now(), stripe_customer_id="cus_b")
+    billing.create_subscription_checkout(broker=broker, customer_email="owner@b.example", gateway=Gateway())
     assert "trial_period_days" not in captured["subscription_data"]
+    assert captured["customer"] == "cus_b" and "customer_email" not in captured
 
 
 def test_subscription_endpoint_permissions(broker):
@@ -161,3 +165,83 @@ def test_a_brokerage_submits_for_review_only_when_complete_and_subscribed(broker
     BrokerSubscription.objects.create(broker=broker, status="TRIALING")
     res = api.post(url)
     assert res.status_code == 200 and res.json()["status"] == "PENDING"
+
+
+def test_team_managers_are_told_about_trial_payment_failure_and_suspension(broker):
+    from notifications.models import Notification
+
+    admin = make_user("admin@notify.example", role=UserRole.BROKER, verified=True)
+    make_membership(admin, broker, can_manage_team=True)
+    agent = make_user("agent@notify.example", role=UserRole.BROKER, verified=True)
+    make_membership(agent, broker)
+
+    handle_checkout_session_paid(_session(broker))
+    broker.status = "ACTIVE"
+    broker.save()
+    HANDLERS["invoice.payment_failed"](_invoice("invoice.payment_failed", broker))
+    billing.lapse_unpaid_brokers(now=timezone.now() + timezone.timedelta(hours=25))
+
+    kinds = set(Notification.objects.filter(recipient=admin).values_list("notification_type", flat=True))
+    assert {"broker.trial_started", "broker.payment_failed", "broker.suspended"} <= kinds
+    assert not Notification.objects.filter(recipient=agent).exists()
+
+
+def _stripe_subscription_event(broker, **extra):
+    payload = {
+        "id": "sub_b",
+        "status": "trialing",
+        "cancel_at_period_end": False,
+        "metadata": {"kind": "broker_subscription", "broker_id": str(broker.pk), "trial": "1"},
+        "items": {"data": [{"current_period_end": int((timezone.now() + timezone.timedelta(days=30)).timestamp())}]},
+    }
+    payload.update(extra)
+    return {"id": "evt_upd", "type": "customer.subscription.updated", "data": {"object": payload}}
+
+
+def test_a_trial_invoice_arriving_before_the_checkout_event_opens_the_trial_not_a_paid_period(broker):
+    invoice = _invoice("invoice.paid", broker, amount=0)
+    invoice["data"]["object"]["parent"]["subscription_details"]["metadata"]["trial"] = "1"
+
+    assert HANDLERS["invoice.paid"](invoice) == WebhookResult.FULFILLED
+    sub = BrokerSubscription.objects.get(broker=broker)
+    assert sub.status == "TRIALING"
+    assert sub.trial_used_at is not None and sub.trial_ends_at is not None
+    first_trial_end = sub.trial_ends_at
+
+    assert handle_checkout_session_paid(_session(broker)) == WebhookResult.FULFILLED
+    sub.refresh_from_db()
+    assert (sub.status, sub.trial_ends_at) == ("TRIALING", first_trial_end)
+    assert billing.trial_available(broker) is False
+
+
+def test_a_zero_total_checkout_reported_as_paid_is_still_a_trial(broker):
+    event = _session(broker, payment_status="paid", amount_total=0)
+
+    assert handle_checkout_session_paid(event) == WebhookResult.FULFILLED
+    sub = BrokerSubscription.objects.get(broker=broker)
+    assert sub.status == "TRIALING" and sub.trial_used_at is not None
+    assert billing.trial_available(broker) is False
+
+
+def test_a_portal_cancellation_is_mirrored_and_can_be_reversed(broker):
+    handle_checkout_session_paid(_session(broker))
+    api = APIClient()
+    owner = make_user("b-owner@example.com", role=UserRole.BROKER, verified=True)
+    make_membership(owner, broker, role="ADMIN", can_manage_team=True)
+    api.force_authenticate(owner)
+    url = reverse("broker-subscription", kwargs={"broker_id": broker.pk})
+
+    assert HANDLERS["customer.subscription.updated"](_stripe_subscription_event(broker, cancel_at_period_end=True)) == WebhookResult.FULFILLED
+    assert api.get(url).data["cancel_at_period_end"] is True
+    assert BrokerSubscription.objects.get(broker=broker).status == "TRIALING"
+
+    HANDLERS["customer.subscription.updated"](_stripe_subscription_event(broker, cancel_at_period_end=False))
+    assert api.get(url).data["cancel_at_period_end"] is False
+
+
+def test_the_trial_rolling_into_a_paid_period_activates_the_subscription(broker):
+    handle_checkout_session_paid(_session(broker))
+
+    HANDLERS["customer.subscription.updated"](_stripe_subscription_event(broker, status="active"))
+
+    assert BrokerSubscription.objects.get(broker=broker).status == "ACTIVE"
