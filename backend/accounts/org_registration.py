@@ -9,6 +9,7 @@ next, once the owner is signed in.
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import serializers
 
@@ -45,6 +46,15 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
     document_keys = serializers.ListField(
         child=serializers.CharField(max_length=400), required=False, default=list
     )
+    # Required for every org registration, not just BROKER (customer
+    # feedback, 2026-09-25); register_organization() stamps the acceptance
+    # time onto the new user.
+    accept_terms = serializers.BooleanField()
+
+    def validate_accept_terms(self, value):
+        if not value:
+            raise serializers.ValidationError("You must accept the Terms and Conditions.")
+        return value
 
     def validate_email(self, value):
         normalized = UserManager.normalize_email(value)
@@ -137,6 +147,7 @@ def register_organization(data: dict) -> User:
         newsletter_opt_in=data["newsletter_opt_in"],
         locale=data["locale"],
         primary_role=org_type,
+        terms_accepted_at=timezone.now(),
     )
     if org_type == UserRole.BROKER:
         from brokers.enums import ROLE_DEFAULT_CAPABILITIES, BrokerMembershipRole

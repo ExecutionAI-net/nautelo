@@ -26,7 +26,8 @@ describe("NewPasswordFields", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect((screen.getByTestId("form") as HTMLFormElement).checkValidity()).toBe(true);
 
-    fireEvent.click(screen.getByLabelText("Show password"));
+    fireEvent.click(screen.getAllByLabelText("Show password")[0]);
     expect((password as HTMLInputElement).type).toBe("text");
+    expect((confirm as HTMLInputElement).type).toBe("text");
   });
 });

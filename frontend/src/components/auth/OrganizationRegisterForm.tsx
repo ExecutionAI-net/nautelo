@@ -19,6 +19,7 @@ import {
   type ServiceCategoryOption,
 } from "@/lib/api/plans";
 import { uploadRegistrationDocument, uploadRegistrationLogo } from "@/lib/api/orgRegistrationUploads";
+import FileInput from "@/components/forms/FileInput";
 
 const INPUT =
   "mt-space-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md";
@@ -54,8 +55,10 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [country, setCountry] = useState("ES");
   const [logoKey, setLogoKey] = useState("");
+  const [logoFileName, setLogoFileName] = useState("");
   const [logoState, setLogoState] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [documentKeys, setDocumentKeys] = useState<string[]>([]);
   const [documentState, setDocumentState] = useState<"idle" | "uploading" | "done" | "error">("idle");
@@ -95,10 +98,17 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
     try {
       const key = await uploadRegistrationLogo(registrationId, file);
       setLogoKey(key);
+      setLogoFileName(file.name);
       setLogoState("done");
     } catch {
       setLogoState("error");
     }
+  }
+
+  function removeLogo() {
+    setLogoKey("");
+    setLogoFileName("");
+    setLogoState("idle");
   }
 
   async function handleDocumentChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -126,7 +136,7 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
     orgType !== "BROKER" ||
     (Boolean(plan) && tradingName.trim() !== "" && role !== "" && logoKey !== "" && documentKeys.length > 0);
   const professionalValid = orgType !== "PROFESSIONAL" || selectedCategories.length > 0;
-  const canSubmit = organizationName.trim() !== "" && step1Valid && brokerValid && professionalValid;
+  const canSubmit = organizationName.trim() !== "" && step1Valid && brokerValid && professionalValid && acceptTerms;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -151,6 +161,7 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
           registration_id: registrationId,
           logo_key: logoKey,
           document_keys: documentKeys,
+          accept_terms: acceptTerms,
         }),
       });
       setDone(true);
@@ -212,26 +223,32 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
           ))}
         </select>
       </label>
-      <label className="block font-label-md text-label-md">
+      <div className="block font-label-md text-label-md">
         {t("auth.org_register.logo_legend")} <span aria-hidden="true" className="text-error">*</span>
-        <input
-          className={INPUT}
-          type="file"
+        <FileInput
           accept="image/png,image/jpeg,image/webp"
           required={!logoKey}
+          fileName={logoFileName}
+          ariaLabel={t("auth.org_register.logo_legend")}
           onChange={(e) => void handleLogoChange(e)}
         />
         {logoState === "uploading" ? <span className="mt-space-xs block font-body-sm">{t("auth.org_register.logo_uploading")}</span> : null}
-        {logoState === "done" ? <span className="mt-space-xs block font-body-sm text-primary">{t("auth.org_register.logo_uploaded")}</span> : null}
+        {logoState === "done" ? (
+          <span className="mt-space-xs flex items-center gap-space-sm font-body-sm text-primary">
+            {t("auth.org_register.logo_uploaded")}
+            <button type="button" className="text-error underline" onClick={removeLogo}>
+              {t("auth.org_register.logo_remove")}
+            </button>
+          </span>
+        ) : null}
         {logoState === "error" ? <span className="mt-space-xs block font-body-sm text-error">{t("auth.org_register.logo_error")}</span> : null}
-      </label>
-      <label className="block font-label-md text-label-md">
+      </div>
+      <div className="block font-label-md text-label-md">
         {t("auth.org_register.documents_legend")} <span aria-hidden="true" className="text-error">*</span>
-        <input
-          className={INPUT}
-          type="file"
+        <FileInput
           accept="image/png,image/jpeg,application/pdf"
           required={documentKeys.length === 0}
+          ariaLabel={t("auth.org_register.documents_legend")}
           onChange={(e) => void handleDocumentChange(e)}
         />
         <span className="mt-space-xs block font-body-sm text-on-surface-variant">{t("auth.org_register.documents_hint")}</span>
@@ -249,27 +266,45 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
             ))}
           </ul>
         ) : null}
-      </label>
-      <fieldset className="space-y-space-xs">
+      </div>
+      <fieldset className="space-y-space-sm">
         <legend className="font-label-md text-label-md">{t("auth.org_register.plan_legend")}</legend>
-        {plans.map((item) => (
-          <label key={item.slug} className="flex cursor-pointer items-center justify-between gap-space-sm rounded-lg bg-surface-container-lowest px-space-sm py-space-xs">
-            <span className="flex items-center gap-space-xs">
-              <input type="radio" name="plan" value={item.slug} checked={plan === item.slug} onChange={() => setPlan(item.slug)} />
-              <span className="font-body-md">
-                {item.name}
-                {item.listing_limit
-                  ? ` ${t("auth.org_register.listings_limit", { count: item.listing_limit })}`
-                  : ` ${t("auth.org_register.listings_unlimited")}`}
-                {item.seat_limit ? ` ${t("auth.org_register.seats", { count: item.seat_limit })}` : ""}
+        {plans.map((item) => {
+          const selected = plan === item.slug;
+          return (
+            <label
+              key={item.slug}
+              className={`flex cursor-pointer items-center justify-between gap-space-md rounded-xl border px-space-md py-space-sm transition-colors ${
+                selected ? "border-primary bg-primary-container" : "border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low"
+              }`}
+            >
+              <span className="flex items-center gap-space-sm">
+                <input type="radio" name="plan" value={item.slug} checked={selected} onChange={() => setPlan(item.slug)} />
+                <span className="flex flex-col">
+                  <span className="font-title-sm text-title-sm text-primary">{item.name}</span>
+                  <span className="flex flex-wrap items-center gap-space-sm font-body-sm text-on-surface-variant">
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px] text-secondary" aria-hidden="true">check</span>
+                      {item.listing_limit
+                        ? t("auth.org_register.listings_limit", { count: item.listing_limit })
+                        : t("auth.org_register.listings_unlimited")}
+                    </span>
+                    {item.seat_limit ? (
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px] text-secondary" aria-hidden="true">check</span>
+                        {t("auth.org_register.seats", { count: item.seat_limit })}
+                      </span>
+                    ) : null}
+                  </span>
+                </span>
               </span>
-            </span>
-            <span className="font-label-md font-semibold">
-              {formatPrice(item.monthly_price, item.currency)}
-              {t("auth.org_register.per_month")}
-            </span>
-          </label>
-        ))}
+              <span className="whitespace-nowrap font-label-lg font-semibold text-primary">
+                {formatPrice(item.monthly_price, item.currency)}
+                {t("auth.org_register.per_month")}
+              </span>
+            </label>
+          );
+        })}
       </fieldset>
     </>
   );
@@ -301,6 +336,14 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
       </label>
       {brokerFields}
       {professionalFields}
+      <label className="flex items-start gap-space-xs font-body-sm">
+        <input type="checkbox" required checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
+        {t("auth.org_register.accept_terms_prefix")}{" "}
+        <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+          {t("auth.org_register.accept_terms_link")}
+        </Link>
+        <span aria-hidden="true" className="text-error">*</span>
+      </label>
       <label className="flex items-start gap-space-xs font-body-sm">
         <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
         {t("auth.org_register.newsletter")}

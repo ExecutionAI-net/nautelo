@@ -41,6 +41,7 @@ describe("OrganizationRegisterForm (PROFESSIONAL)", () => {
     await goToStep2();
     fireEvent.change(screen.getByLabelText(/^business name/i, { selector: "input" }), { target: { value: "Blue Rigging" } });
     fireEvent.click(await screen.findByLabelText("Rigging"));
+    fireEvent.click(screen.getByLabelText(/accept the/i));
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
     const registerCall = apiFetch.mock.calls.find(([url]) => url.includes("register/organization"));
@@ -50,7 +51,18 @@ describe("OrganizationRegisterForm (PROFESSIONAL)", () => {
       email: "m@b.co",
       newsletter_opt_in: false,
       categories: ["rigging"],
+      accept_terms: true,
     });
+  });
+
+  it("cannot submit without accepting the terms", async () => {
+    mockCategoriesThenRegister();
+    render(<OrganizationRegisterForm orgType="PROFESSIONAL" />);
+    fillPersonalStep();
+    await goToStep2();
+    fireEvent.change(screen.getByLabelText(/^business name/i, { selector: "input" }), { target: { value: "Blue Rigging" } });
+    fireEvent.click(await screen.findByLabelText("Rigging"));
+    expect(screen.getByRole("button", { name: "Create account" })).toBeDisabled();
   });
 
   it("cannot continue to step 2 with an incomplete personal step", () => {
@@ -85,6 +97,7 @@ describe("OrganizationRegisterForm (PROFESSIONAL)", () => {
     await goToStep2();
     fireEvent.change(screen.getByLabelText(/^business name/i, { selector: "input" }), { target: { value: "Blue Rigging" } });
     fireEvent.click(await screen.findByLabelText("Rigging"));
+    fireEvent.click(screen.getByLabelText(/accept the/i));
     fireEvent.click(screen.getByLabelText("Send me occasional updates from Nautelo."));
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
@@ -106,7 +119,7 @@ describe("OrganizationRegisterForm (BROKER)", () => {
   }
 
   function fillBrokerCommon() {
-    fireEvent.change(screen.getByLabelText(/^brokerage name/i, { selector: "input" }), { target: { value: "Blue Rigging" } });
+    fireEvent.change(screen.getByLabelText(/^legal company name/i, { selector: "input" }), { target: { value: "Blue Rigging" } });
     fillPersonalStep();
     fireEvent.change(screen.getByLabelText(/trading name/i), { target: { value: "Blue Rigging Yachts" } });
     fireEvent.change(screen.getByLabelText(/your role in the company/i), { target: { value: "ceo" } });
@@ -135,6 +148,7 @@ describe("OrganizationRegisterForm (BROKER)", () => {
     fireEvent.change(docInput, { target: { files: [new File(["x"], "doc.pdf", { type: "application/pdf" })] } });
     await waitFor(() => expect(uploadRegistrationDocument).toHaveBeenCalled());
 
+    fireEvent.click(screen.getByLabelText(/accept the/i));
     await waitFor(() => expect(screen.getByRole("button", { name: "Create account" })).not.toBeDisabled());
 
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));

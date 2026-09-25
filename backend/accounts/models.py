@@ -57,6 +57,11 @@ class User(UUIDTimeStampedModel, AbstractBaseUser, PermissionsMixin):
     # inferred from any one inquiry's own "send me updates" checkbox), so it
     # can be set at signup and changed later from Account Settings.
     newsletter_opt_in = models.BooleanField(default=False)
+    # When this account accepted the Terms and Conditions at registration
+    # (customer feedback, 2026-09-25: the org registration forms require
+    # this and record when). Null for accounts created before this field
+    # existed.
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(
         default=False, help_text="Can sign in to the Django admin site."
