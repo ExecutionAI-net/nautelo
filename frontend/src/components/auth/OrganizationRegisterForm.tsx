@@ -268,7 +268,18 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
         ) : null}
       </div>
       <fieldset className="space-y-space-sm">
-        <legend className="font-label-md text-label-md">{t("auth.org_register.plan_legend")}</legend>
+        <div className="flex items-center justify-between gap-space-sm">
+          <legend className="font-label-md text-label-md">{t("auth.org_register.plan_legend")}</legend>
+          <Link
+            href="/pricing/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-lg border border-outline px-space-sm py-1 font-label-sm text-primary hover:bg-surface-container-low"
+          >
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">open_in_new</span>
+            {t("auth.org_register.compare_plans")}
+          </Link>
+        </div>
         {plans.map((item) => {
           const selected = plan === item.slug;
           return (
