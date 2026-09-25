@@ -8,6 +8,22 @@ const LOCALE_COOKIE = "nauta_locale";
 const PREFIXED = ["it", "es"];
 const PREFIX_RE = /^\/(it|es)(\/.*)?$/;
 
+// A visitor with no saved choice yet is matched against their browser's
+// language (customer feedback, 2026-09-25); anything we don't have falls
+// back to English. `Accept-Language` lists tags most-preferred first, each
+// optionally weighted with `;q=`, e.g. "it-IT,it;q=0.9,en;q=0.8".
+function preferredFromAcceptLanguage(header: string | null): string {
+  if (!header) return "en";
+  const ranked = header
+    .split(",")
+    .map((part) => {
+      const [tag, q] = part.trim().split(";q=");
+      return { tag: tag.split("-")[0].toLowerCase(), q: q ? parseFloat(q) : 1 };
+    })
+    .sort((a, b) => b.q - a.q);
+  return ranked.find((entry) => PREFIXED.includes(entry.tag))?.tag ?? "en";
+}
+
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const match = PREFIX_RE.exec(pathname);
@@ -25,13 +41,17 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
+  const hasCookie = request.cookies.has(LOCALE_COOKIE);
   const saved = request.cookies.get(LOCALE_COOKIE)?.value ?? "";
-  if (PREFIXED.includes(saved) && request.method === "GET") {
+  const preferred = hasCookie ? saved : preferredFromAcceptLanguage(request.headers.get("accept-language"));
+  if (PREFIXED.includes(preferred) && request.method === "GET") {
     const target = request.nextUrl.clone();
-    target.pathname = `/${saved}${pathname}`;
+    target.pathname = `/${preferred}${pathname}`;
     target.search = search;
     const response = NextResponse.redirect(target, 307);
-    response.headers.append("Vary", "Cookie");
+    response.headers.append("Vary", "Cookie, Accept-Language");
+    // A browser-language match is saved too, so it only has to be computed once.
+    if (!hasCookie) response.cookies.set(LOCALE_COOKIE, preferred, { path: "/", maxAge: 31_536_000, sameSite: "lax" });
     return response;
   }
 
