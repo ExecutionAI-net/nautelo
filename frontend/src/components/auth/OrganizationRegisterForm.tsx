@@ -275,30 +275,30 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
             <label
               key={item.slug}
               className={`flex cursor-pointer items-center justify-between gap-space-md rounded-xl border px-space-md py-space-sm transition-colors ${
-                selected ? "border-primary bg-primary-container" : "border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low"
+                selected ? "border-primary bg-primary text-on-primary" : "border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low"
               }`}
             >
               <span className="flex items-center gap-space-sm">
                 <input type="radio" name="plan" value={item.slug} checked={selected} onChange={() => setPlan(item.slug)} />
                 <span className="flex flex-col">
-                  <span className="font-title-sm text-title-sm text-primary">{item.name}</span>
-                  <span className="flex flex-wrap items-center gap-space-sm font-body-sm text-on-surface-variant">
+                  <span className={`font-title-sm text-title-sm ${selected ? "text-on-primary" : "text-primary"}`}>{item.name}</span>
+                  <span className={`flex flex-wrap items-center gap-space-sm font-body-sm ${selected ? "text-on-primary" : "text-on-surface-variant"}`}>
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px] text-secondary" aria-hidden="true">check</span>
+                      <span className={`material-symbols-outlined text-[14px] ${selected ? "text-secondary-fixed" : "text-secondary"}`} aria-hidden="true">check</span>
                       {item.listing_limit
                         ? t("auth.org_register.listings_limit", { count: item.listing_limit })
                         : t("auth.org_register.listings_unlimited")}
                     </span>
                     {item.seat_limit ? (
                       <span className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[14px] text-secondary" aria-hidden="true">check</span>
+                        <span className={`material-symbols-outlined text-[14px] ${selected ? "text-secondary-fixed" : "text-secondary"}`} aria-hidden="true">check</span>
                         {t("auth.org_register.seats", { count: item.seat_limit })}
                       </span>
                     ) : null}
                   </span>
                 </span>
               </span>
-              <span className="whitespace-nowrap font-label-lg font-semibold text-primary">
+              <span className={`whitespace-nowrap font-label-lg font-semibold ${selected ? "text-on-primary" : "text-primary"}`}>
                 {formatPrice(item.monthly_price, item.currency)}
                 {t("auth.org_register.per_month")}
               </span>
@@ -337,16 +337,16 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
       {brokerFields}
       {professionalFields}
       <label className="flex items-start gap-space-xs font-body-sm">
+        <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
+        {t("auth.org_register.newsletter")}
+      </label>
+      <label className="flex items-start gap-space-xs font-body-sm">
         <input type="checkbox" required checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
         {t("auth.org_register.accept_terms_prefix")}{" "}
         <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
           {t("auth.org_register.accept_terms_link")}
         </Link>
         <span aria-hidden="true" className="text-error">*</span>
-      </label>
-      <label className="flex items-start gap-space-xs font-body-sm">
-        <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
-        {t("auth.org_register.newsletter")}
       </label>
     </>
   );
