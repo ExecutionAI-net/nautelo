@@ -172,7 +172,7 @@ export default function ProviderServicesManager() {
           Price from (optional)
           <div className="mt-space-xs flex gap-space-xs">
             <input
-              className={`${FIELD} mt-0`}
+              className={`${FIELD} mt-0 min-w-0 flex-1`}
               type="number"
               min="0"
               step="0.01"

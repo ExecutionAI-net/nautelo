@@ -951,7 +951,7 @@ export default function SellListingForm({
                   <Req />
                   <div className="mt-space-xs flex gap-space-xs">
                     <input
-                      className={`${FIELD} mt-0`}
+                      className={`${FIELD} mt-0 min-w-0 flex-1`}
                       inputMode="decimal"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
