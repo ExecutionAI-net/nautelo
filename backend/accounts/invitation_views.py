@@ -203,6 +203,7 @@ class BrokerRoleListView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_scope = "auth"
 
     def get(self, request):
         from brokers.models import BrokerRole

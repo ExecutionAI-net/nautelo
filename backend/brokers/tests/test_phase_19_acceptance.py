@@ -246,7 +246,17 @@ def test_this_phase_added_no_second_message_store(api, two_brokerages):
     broker_models = sorted(
         model.__name__ for model in apps.get_app_config("brokers").get_models()
     )
-    assert broker_models == ["BrokerMembership", "BrokerOrganization", "BrokerPlan", "BrokerSubscription"]
+    # BrokerRole (customer feedback, 2026-09-25: a staff-editable role list for
+    # registration) and BrokerVerificationDocument (uploaded registration
+    # documents) are plain lookup/record tables, not a second message store.
+    assert broker_models == [
+        "BrokerMembership",
+        "BrokerOrganization",
+        "BrokerPlan",
+        "BrokerRole",
+        "BrokerSubscription",
+        "BrokerVerificationDocument",
+    ]
 
 
 def test_the_broker_inbox_query_count_is_constant_in_the_number_of_rows(

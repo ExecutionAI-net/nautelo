@@ -9,6 +9,7 @@ onboarding chain.
 
 import hashlib
 import io
+import uuid
 
 import pytest
 from django.core import mail
@@ -119,6 +120,23 @@ def _upload_logo(api, intent, complete, storage):
     assert api.post(complete, {"kind": "logo", "key": key, "mime_type": "image/png"}, format="json").status_code == 200
 
 
+def _broker_registration_uploads(storage):
+    """A logo and a document for a new BROKER registration, written straight
+    to the fake storage (customer feedback, 2026-09-25 - both are now
+    mandatory before register_organization() will accept a broker)."""
+    from accounts import registration_uploads
+
+    registration_id = uuid.uuid4().hex
+    logo_intent = registration_uploads.create_logo_intent(registration_id=registration_id, mime_type="image/png", size=1)
+    storage.objects[logo_intent["key"]] = _png()
+    logo_key = registration_uploads.finish_logo_upload(registration_id=registration_id, key=logo_intent["key"], mime_type="image/png")
+
+    doc_intent = registration_uploads.create_document_intent(registration_id=registration_id, mime_type="application/pdf", size=1)
+    storage.objects[doc_intent["key"]] = b"%PDF-1.4 fake document"
+    doc_key = registration_uploads.finish_document_upload(registration_id=registration_id, key=doc_intent["key"])
+    return registration_id, logo_key, [doc_key]
+
+
 def _inquiry(target_type, target_id, email="buyer@visitor.example"):
     visitor = make_user(email, verified=True)
     api = APIClient()
@@ -154,7 +172,7 @@ def test_professional_journey(django_capture_on_commit_callbacks, storage):
         slug="m", name="Membership", monthly_price=49, trial_days=30, is_active=True, stripe_product_id="prod_p", stripe_price_id="price_p"
     )
     ServiceCategory.objects.create(name_en="General", slug="general-scn")
-    _register_org("PROFESSIONAL", "owner@blue-rigging.example", "Blue Rigging", django_capture_on_commit_callbacks, category="general-scn")
+    _register_org("PROFESSIONAL", "owner@blue-rigging.example", "Blue Rigging", django_capture_on_commit_callbacks, categories=["general-scn"])
     owner_user = User.objects.get(email="owner@blue-rigging.example")
     assert owner_user.primary_role == UserRole.PROFESSIONAL
 
@@ -249,10 +267,25 @@ def test_professional_journey(django_capture_on_commit_callbacks, storage):
 
 
 def test_broker_journey(django_capture_on_commit_callbacks, storage):
+    from brokers.models import BrokerRole
+
     plan = BrokerPlan.objects.create(
         slug="scn-plan", name="Scenario", monthly_price=99, seat_limit=2, trial_days=30, stripe_product_id="prod_b", stripe_price_id="price_b"
     )
-    _register_org("BROKER", "owner@harbour.example", "Harbour Brokers", django_capture_on_commit_callbacks, plan=plan.slug)
+    role = BrokerRole.objects.create(slug="scn-ceo", name="CEO")
+    registration_id, logo_key, document_keys = _broker_registration_uploads(storage)
+    _register_org(
+        "BROKER",
+        "owner@harbour.example",
+        "Harbour Brokers",
+        django_capture_on_commit_callbacks,
+        plan=plan.slug,
+        trading_name="Harbour Brokers Yachts",
+        role=role.slug,
+        registration_id=registration_id,
+        logo_key=logo_key,
+        document_keys=document_keys,
+    )
     _verify("owner@harbour.example")
     api = _login("owner@harbour.example")
     broker = BrokerOrganization.objects.get(name="Harbour Brokers")
