@@ -31,6 +31,7 @@ from .decisions import (
 from .staff_queue import TABS, queue_rows, revision_detail
 from .media_upgrade import apply_media_upgrade
 from .deletion import delete_listing
+from .pausing import pause_listing, resume_listing
 from .renewal import renew_listing
 from .media_uploads import complete_upload, create_upload_intent, remove_media
 from .drafts import create_listing_draft, update_listing_draft
@@ -176,6 +177,47 @@ class ListingDeleteView(ListingDraftUpdateView):
         envelope = ListingVersionSerializer(data=request.data)
         envelope.is_valid(raise_exception=True)
         delete_listing(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingPauseView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/pause/ - owner-initiated pause.
+
+    Unlike delete, the listing stays visible on the owner's own dashboard;
+    it only drops out of public read paths (those only ever serve
+    status=PUBLISHED). Only a PUBLISHED listing can be paused.
+    """
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        pause_listing(
+            listing=listing,
+            actor=request.user,
+            expected_version=envelope.validated_data["version"],
+        )
+        listing.refresh_from_db()
+        return Response(ListingWorkflowSerializer().to_representation(listing))
+
+
+class ListingResumeView(ListingDraftUpdateView):
+    """POST /api/v1/listings/<id>/resume/ - the PAUSED -> PUBLISHED return edge."""
+
+    http_method_names = ["post", "options"]
+
+    def post(self, request, listing_id):
+        listing = self.get_listing(request, listing_id)
+        envelope = ListingVersionSerializer(data=request.data)
+        envelope.is_valid(raise_exception=True)
+        resume_listing(
             listing=listing,
             actor=request.user,
             expected_version=envelope.validated_data["version"],

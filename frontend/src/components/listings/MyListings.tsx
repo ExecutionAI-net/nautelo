@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
 import PromotionDialog from "@/components/promotion/PromotionDialog";
-import { deleteListing, fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout, cancelPromotionCheckout } from "@/lib/api/sellerListings";
+import { deleteListing, fetchMyListings, fetchMyPaidListings, pauseListing, resumeListing, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout, cancelPromotionCheckout } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING_APPROVAL: "In review",
   DRAFT: "Draft",
   EXPIRED: "Expired",
+  PAUSED: "Paused",
 };
 
 const RENEW_WINDOW_MS = 7 * 24 * 3600 * 1000;
@@ -121,6 +122,7 @@ export function ListingCard({
   const [promoting, setPromoting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteState, setDeleteState] = useState<"idle" | "busy" | "error" | "done">("idle");
+  const [pauseState, setPauseState] = useState<"idle" | "busy" | "error">("idle");
   const featuredUntil = row.featured_until ?? null; // the API sends it only while the promotion runs
   const promotable = row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL";
   const price = money(row);
@@ -139,6 +141,17 @@ export function ListingCard({
       onDeleted?.(row.id);
     } catch {
       setDeleteState("error");
+    }
+  }
+
+  async function togglePause() {
+    setPauseState("busy");
+    try {
+      if (row.status === "PAUSED") await resumeListing(row.id, row.version);
+      else await pauseListing(row.id, row.version);
+      window.location.reload();
+    } catch {
+      setPauseState("error");
     }
   }
 
@@ -227,6 +240,17 @@ export function ListingCard({
           />
         ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
+        {row.status === "PUBLISHED" || row.status === "PAUSED" ? (
+          <button
+            type="button"
+            onClick={() => void togglePause()}
+            disabled={pauseState === "busy"}
+            className="rounded-lg border border-outline px-space-md py-space-sm text-center font-body-md text-on-surface disabled:opacity-50"
+          >
+            {row.status === "PAUSED" ? "Resume listing" : "Pause listing"}
+          </button>
+        ) : null}
+        {pauseState === "error" ? <p role="alert" className="font-body-sm text-error">This listing could not be updated.</p> : null}
         {confirmingDelete ? (
           <div role="dialog" aria-modal="true" aria-label="Delete this listing" className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm">
             <p className="font-body-sm text-on-surface">Are you sure? This listing will no longer be visible.</p>

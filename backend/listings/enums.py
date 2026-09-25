@@ -14,6 +14,11 @@ class ListingStatus(models.TextChoices):
     PUBLISHED = "PUBLISHED", "Published"
     REJECTED = "REJECTED", "Rejected"
     SUSPENDED = "SUSPENDED", "Suspended"
+    # Owner-initiated pause (customer feedback, 2026-09-25), distinct from
+    # SUSPENDED: SUSPENDED is staff-only moderation and feeds the staff
+    # console's "suspended" queue (spec 6.1, 36.4); PAUSED is the seller's own
+    # action, never a moderation concern, and staff_queue.py must not surface it.
+    PAUSED = "PAUSED", "Paused"
     EXPIRED = "EXPIRED", "Expired"
     ARCHIVED = "ARCHIVED", "Archived"
 
@@ -65,12 +70,15 @@ LISTING_TRANSITIONS: dict[str, frozenset[str]] = {
         {ListingStatus.PUBLISHED, ListingStatus.REJECTED, ListingStatus.DRAFT}
     ),
     ListingStatus.PUBLISHED: frozenset(
-        {ListingStatus.SUSPENDED, ListingStatus.EXPIRED}
+        {ListingStatus.SUSPENDED, ListingStatus.PAUSED, ListingStatus.EXPIRED}
     ),
     ListingStatus.REJECTED: frozenset({ListingStatus.DRAFT}),
     ListingStatus.SUSPENDED: frozenset(
         {ListingStatus.PUBLISHED, ListingStatus.ARCHIVED}
     ),
+    # PAUSED <-> PUBLISHED is the seller's own pause/resume toggle
+    # (customer feedback, 2026-09-25); not part of the original spec 6.1 chain.
+    ListingStatus.PAUSED: frozenset({ListingStatus.PUBLISHED}),
     ListingStatus.EXPIRED: frozenset({ListingStatus.ARCHIVED}),
     ListingStatus.ARCHIVED: frozenset(),
 }

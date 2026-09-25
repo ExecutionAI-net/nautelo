@@ -69,7 +69,20 @@ def test_delete_listing_sets_deleted_at_and_bumps_version():
 
     listing.refresh_from_db()
     assert listing.deleted_at is not None
+    assert listing.status == ListingStatus.ARCHIVED
     assert listing.version == 2
+
+
+def test_deleting_a_published_listing_also_archives_it():
+    """A deleted listing must be discoverable as ARCHIVED in the backend, not
+    just carry a `deleted_at` timestamp with its old status still attached."""
+    owner = _owner()
+    listing = _published(owner)
+
+    delete_listing(listing=listing, actor=owner, expected_version=listing.version)
+
+    listing.refresh_from_db()
+    assert listing.status == ListingStatus.ARCHIVED
 
 
 def test_delete_listing_rejects_a_stale_version():

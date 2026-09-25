@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import MyListings from "@/components/listings/MyListings";
 
-const api = vi.hoisted(() => ({ fetchMyListings: vi.fn(), deleteListing: vi.fn() }));
+const api = vi.hoisted(() => ({
+  fetchMyListings: vi.fn(),
+  deleteListing: vi.fn(),
+  pauseListing: vi.fn(),
+  resumeListing: vi.fn(),
+}));
 vi.mock("@/lib/api/sellerListings", () => api);
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -78,6 +83,41 @@ describe("MyListings", () => {
 
     await waitFor(() => expect(api.deleteListing).toHaveBeenCalledWith("a", 1));
     await waitFor(() => expect(screen.queryByText("Draft boat")).toBeNull());
+  });
+
+  it("pauses a published listing", async () => {
+    api.fetchMyListings.mockResolvedValue([
+      { ...base, id: "b", title: "Live boat", status: "PUBLISHED", slug: "live-1" },
+    ]);
+    api.pauseListing.mockResolvedValue({});
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, reload: vi.fn() },
+      writable: true,
+    });
+    render(<MyListings />);
+    await screen.findByText("Live boat");
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause listing" }));
+
+    await waitFor(() => expect(api.pauseListing).toHaveBeenCalledWith("b", 1));
+  });
+
+  it("shows a resume button for a paused listing", async () => {
+    api.fetchMyListings.mockResolvedValue([
+      { ...base, id: "b", title: "Paused boat", status: "PAUSED", slug: "live-1" },
+    ]);
+    api.resumeListing.mockResolvedValue({});
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, reload: vi.fn() },
+      writable: true,
+    });
+    render(<MyListings />);
+    await screen.findByText("Paused boat");
+    expect(screen.getByText("Paused")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume listing" }));
+
+    await waitFor(() => expect(api.resumeListing).toHaveBeenCalledWith("b", 1));
   });
 
   it("cancels the delete confirmation without calling the API", async () => {
