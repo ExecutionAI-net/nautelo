@@ -126,9 +126,18 @@ export async function directoryFetch<T>(path: string, options: DirectoryFetchOpt
   // A cached read is the same for every visitor, so it carries no per-visitor header
   // (the header would split the cache into one entry per address).
   const clientIp = options.revalidate ? null : await forwardedClientIp();
-  const response = await fetch(`${DIRECTORY_API_BASE_URL}${path}`, {
+  const internalBase = process.env.INTERNAL_API_BASE_URL?.replace(/\/$/, "");
+  const publicOrigin = new URL(DIRECTORY_API_BASE_URL);
+  const response = await fetch(`${internalBase || DIRECTORY_API_BASE_URL}${path}`, {
+    // Surface routing mistakes instead of following redirects with internal headers.
+    redirect: "error",
     headers: {
       Accept: "application/json",
+      // Preserve Django host validation, HTTPS detection and absolute URLs.
+      ...(internalBase ? {
+        Host: publicOrigin.host,
+        "X-Forwarded-Proto": publicOrigin.protocol.slice(0, -1),
+      } : {}),
       "X-Internal-Service-Secret": INTERNAL_SERVICE_SECRET,
       ...(clientIp ? { "X-Internal-Client-IP": clientIp } : {}),
     },
@@ -142,6 +151,12 @@ export async function directoryFetch<T>(path: string, options: DirectoryFetchOpt
   }
   if (!response.ok) {
     throw new Error(`Directory API ${path} failed: ${response.status}`);
+  }
+  const contentType = response.headers.get("content-type") ?? "missing";
+  if (!/^application\/(?:[\w.-]+\+)?json(?:\s*;|$)/i.test(contentType)) {
+    throw new Error(
+      `Directory API ${path} returned ${contentType} (status ${response.status}); expected JSON. Check API routing.`,
+    );
   }
   return (await response.json()) as T;
 }

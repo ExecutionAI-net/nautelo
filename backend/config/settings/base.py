@@ -319,6 +319,7 @@ MEDIA_IMAGE_SANITIZER = "listings.media_sanitize.strip_image_metadata"
 # Malware scanning is on whenever a clamd host is configured (spec 24.2 step 7).
 CLAMAV_HOST = env("CLAMAV_HOST", default="")
 CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
+CLAMAV_TIMEOUT = env.float("CLAMAV_TIMEOUT", default=300.0)
 MEDIA_SCANNER = "listings.media_scan.clamd_scan" if CLAMAV_HOST else None
 # ffprobe video checks (spec 24.3); needs ffmpeg in the image.
 MEDIA_VIDEO_INSPECTOR = (

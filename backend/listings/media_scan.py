@@ -30,7 +30,7 @@ def _reply(sock: socket.socket) -> str:
     return data.decode("utf-8", "replace").strip("\0\n ")
 
 
-def scan_stream(chunks, *, host: str, port: int, timeout: float = 30.0) -> str:
+def scan_stream(chunks, *, host: str, port: int, timeout: float = 300.0) -> str:
     """Return clamd's verdict line for an iterable of byte chunks."""
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:
@@ -59,6 +59,7 @@ def clamd_scan(storage, key: str) -> None:
         (data[i : i + CHUNK] for i in range(0, len(data), CHUNK)),
         host=settings.CLAMAV_HOST,
         port=settings.CLAMAV_PORT,
+        timeout=settings.CLAMAV_TIMEOUT,
     )
     if verdict.endswith("FOUND"):
         raise RejectedMedia("The file failed the security scan.")

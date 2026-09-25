@@ -40,6 +40,14 @@ services:
       retries: 20
   clamav:
     image: clamav/clamav:stable
+    environment:
+      # Allow the application's 250 MiB videos with room for format overhead.
+      CLAMD_CONF_StreamMaxLength: "300M"
+      CLAMD_CONF_MaxFileSize: "300M"
+      CLAMD_CONF_MaxScanSize: "600M"
+      CLAMD_CONF_MaxScanTime: "240000" # milliseconds; below the client timeout
+      CLAMD_CONF_ReadTimeout: "300" # seconds waiting for stream data
+      CLAMD_CONF_AlertExceedsMax: "yes" # never treat a size-limited scan as clean
     volumes: [clamav_data:/var/lib/clamav]
     restart: unless-stopped
     logging: *logging

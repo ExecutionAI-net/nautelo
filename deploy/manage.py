@@ -148,6 +148,7 @@ def environments(secret, region, environment="prod"):
         "CLAMAV_HOST": "clamav", "MEDIA_VIDEO_PROBE": "True",
     })
     frontend = {"NEXT_PUBLIC_BASE_URL": web, "NEXT_PUBLIC_API_BASE_URL": api,
+                "INTERNAL_API_BASE_URL": "http://api:8000",
                 "INTERNAL_SERVICE_SECRET": secret["INTERNAL_SERVICE_SECRET"]}
     postgres = {"POSTGRES_DB": "nautelo", "POSTGRES_USER": "nautelo", "POSTGRES_PASSWORD": secret["POSTGRES_PASSWORD"]}
     return {"backend": backend, "frontend": frontend, "postgres": postgres}
@@ -233,8 +234,9 @@ def main():
         run(compose + ["pull"], env=process_env)
         run(compose + ["up", "-d", "--wait", "postgres", "redis"], env=process_env)
         # The malware scanner backs every media upload (CLAMAV_HOST=clamav). Not awaited: it needs minutes to load
-        # its signatures, and the worker retries the scan until it answers.
-        run(compose + ["up", "-d", "--no-recreate", "clamav"], env=process_env)
+        # its signatures, and the worker retries the scan until it answers. Allow Compose to recreate
+        # the container when scanner configuration or its image changes.
+        run(compose + ["up", "-d", "clamav"], env=process_env)
         # Run migrations for EVERY deployment; completed one-shot containers must not be reused.
         run(compose + ["run", "--rm", "--no-deps", "migrate"], env=process_env)
         if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
