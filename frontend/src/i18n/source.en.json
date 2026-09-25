@@ -2066,6 +2066,7 @@
   "sell.current_model": "Current model",
   "sell.submit_needs_photo": "Add at least one photo to submit your listing for review.",
   "sell.submit_wait_media": "Your photos are still being processed; you can submit as soon as one is ready.",
+  "sell.submit_needs_fields": "Fill in every field marked * before you can submit your listing for review.",
   "sell.submitted_next": "Our team reviews new listings within one business day. You will get an email and a notification here as soon as it is approved or if anything needs changing.",
   "sell.package.legend": "Package",
   "sell.package.summary": "{days} days · {photos} photos",
