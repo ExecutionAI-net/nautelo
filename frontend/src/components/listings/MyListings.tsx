@@ -228,13 +228,13 @@ export function ListingCard({
         ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
         {confirmingDelete ? (
-          <div role="dialog" aria-modal="true" aria-label="Delete this listing" className="rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm">
+          <div role="dialog" aria-modal="true" aria-label="Delete this listing" className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm">
             <p className="font-body-sm text-on-surface">Are you sure? This listing will no longer be visible.</p>
-            <div className="mt-space-xs flex gap-space-xs">
-              <button type="button" onClick={() => void confirmDelete()} className="rounded-lg bg-error px-space-md py-space-xs font-label-md text-on-error">
+            <div className="mt-space-xs flex flex-col gap-space-xs">
+              <button type="button" onClick={() => void confirmDelete()} className="w-full rounded-lg bg-error px-space-md py-space-xs font-label-md text-on-error">
                 Yes, delete
               </button>
-              <button type="button" onClick={() => setConfirmingDelete(false)} className="rounded-lg border border-outline px-space-md py-space-xs font-label-md text-on-surface">
+              <button type="button" onClick={() => setConfirmingDelete(false)} className="w-full rounded-lg border border-outline px-space-md py-space-xs font-label-md text-on-surface">
                 Cancel
               </button>
             </div>
