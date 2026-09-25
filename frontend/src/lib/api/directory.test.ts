@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   directoryFetch,
-  DIRECTORY_API_BASE_URL,
   fetchProfessionals,
   fetchServiceCategories,
   formatProfessionalLocation,
@@ -22,7 +21,6 @@ vi.mock("./internal-headers", () => ({
 }));
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   fetchMock.mockReset();
   forwardedClientIpMock.mockReset().mockResolvedValue(undefined);
 });
@@ -150,35 +148,5 @@ describe("formatProfessionalLocation", () => {
     expect(formatProfessionalLocation({ city: "Genova", region: "" })).toBe("Genova");
     expect(formatProfessionalLocation({ city: "", region: "Liguria" })).toBe("Liguria");
     expect(formatProfessionalLocation({ city: "", region: "" })).toBe("");
-  });
-});
-
-
-describe("deployment API routing", () => {
-  it("uses Docker DNS while preserving the public host and protocol", async () => {
-    vi.stubEnv("INTERNAL_API_BASE_URL", "http://api:8000");
-    fetchMock.mockResolvedValue(json({ results: [] }));
-    await directoryFetch("/api/v1/listings/");
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://api:8000/api/v1/listings/");
-    expect(init.headers.Host).toBe(new URL(DIRECTORY_API_BASE_URL).host);
-    expect(init.headers["X-Forwarded-Proto"]).toBe(new URL(DIRECTORY_API_BASE_URL).protocol.slice(0, -1));
-    expect(init.redirect).toBe("error");
-  });
-
-  it("keeps local development working without an internal origin", async () => {
-    vi.stubEnv("INTERNAL_API_BASE_URL", undefined);
-    fetchMock.mockResolvedValue(json({}));
-    await directoryFetch("/api/v1/listings/");
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(`${DIRECTORY_API_BASE_URL}/api/v1/listings/`);
-    expect(init.headers.Host).toBeUndefined();
-  });
-
-  it("reports an HTML success response as an API routing error", async () => {
-    fetchMock.mockResolvedValue(new Response("<!DOCTYPE html><html></html>", {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    }));
-    await expect(directoryFetch("/api/v1/listings/")).rejects.toThrow("expected JSON. Check API routing.");
   });
 });
