@@ -8,9 +8,14 @@ from common.org_image_views import (
 )
 from accounts.invitation_views import (
     BrokerInvitationView,
+    BrokerRoleListView,
     InvitationAcceptView,
     InvitationPreviewView,
     OrganizationRegisterView,
+    OrganizationRegistrationDocumentCompleteView,
+    OrganizationRegistrationDocumentIntentView,
+    OrganizationRegistrationLogoCompleteView,
+    OrganizationRegistrationLogoIntentView,
     ProfessionalInvitationView,
 )
 
@@ -47,6 +52,27 @@ urlpatterns = [
     path("provider/images/intent/", ProfessionalImageIntentView.as_view(), name="provider-image-intent"),
     path("provider/images/complete/", ProfessionalImageCompleteView.as_view(), name="provider-image-complete"),
     path("auth/register/organization/", OrganizationRegisterView.as_view(), name="auth-register-organization"),
+    path(
+        "auth/register/organization/uploads/logo/intent/",
+        OrganizationRegistrationLogoIntentView.as_view(),
+        name="auth-register-organization-logo-intent",
+    ),
+    path(
+        "auth/register/organization/uploads/logo/complete/",
+        OrganizationRegistrationLogoCompleteView.as_view(),
+        name="auth-register-organization-logo-complete",
+    ),
+    path(
+        "auth/register/organization/uploads/document/intent/",
+        OrganizationRegistrationDocumentIntentView.as_view(),
+        name="auth-register-organization-document-intent",
+    ),
+    path(
+        "auth/register/organization/uploads/document/complete/",
+        OrganizationRegistrationDocumentCompleteView.as_view(),
+        name="auth-register-organization-document-complete",
+    ),
+    path("broker-roles/", BrokerRoleListView.as_view(), name="broker-roles"),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/verify-email/", VerifyEmailView.as_view(), name="auth-verify-email"),
     path(
