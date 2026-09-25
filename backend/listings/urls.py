@@ -26,6 +26,7 @@ from .views import (
     StaffModerationQueueView,
     StaffRevisionDetailView,
     ListingWithdrawView,
+    ListingDeleteView,
     PublicListingBySlugView,
     PublicListingDetailView,
     PublicListingFacetsView,
@@ -71,6 +72,11 @@ urlpatterns = [
         "listings/<uuid:listing_id>/withdraw/",
         ListingWithdrawView.as_view(),
         name="listing-withdraw",
+    ),
+    path(
+        "listings/<uuid:listing_id>/delete/",
+        ListingDeleteView.as_view(),
+        name="listing-delete",
     ),
     path(
         "listings/<uuid:listing_id>/renew/",

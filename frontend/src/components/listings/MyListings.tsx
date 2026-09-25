@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import PaidListingBuy from "@/components/listings/PaidListingBuy";
 import PromotionDialog from "@/components/promotion/PromotionDialog";
-import { fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout, cancelPromotionCheckout } from "@/lib/api/sellerListings";
+import { deleteListing, fetchMyListings, fetchMyPaidListings, renewListing, type MyListingRow, type OwnedPackage, cancelCheckout, cancelPromotionCheckout } from "@/lib/api/sellerListings";
 
 type Filter = "all" | "active" | "review" | "drafts";
 
@@ -107,8 +107,20 @@ function Spec({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ListingCard({ row, returnPath = "/dashboard/private-seller/listings/" }: { row: MyListingRow; returnPath?: string }) {
+export function ListingCard({
+  row,
+  returnPath = "/dashboard/private-seller/listings/",
+  onDeleted,
+}: {
+  row: MyListingRow;
+  returnPath?: string;
+  /** Notifies the parent list so its own state/counters stay in sync;
+   *  the card removes itself either way. */
+  onDeleted?: (id: string) => void;
+}) {
   const [promoting, setPromoting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteState, setDeleteState] = useState<"idle" | "busy" | "error" | "done">("idle");
   const featuredUntil = row.featured_until ?? null; // the API sends it only while the promotion runs
   const promotable = row.status === "PUBLISHED" || row.status === "PENDING_APPROVAL";
   const price = money(row);
@@ -117,6 +129,21 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
   const heading = row.year && !row.title.includes(String(row.year)) ? `${row.year} ${row.title}` : row.title;
   const published = row.status === "PUBLISHED" && row.slug;
   const viewHref = published ? `/boats/${row.slug}/` : `/dashboard/listings/${row.id}/preview/`;
+
+  async function confirmDelete() {
+    setConfirmingDelete(false);
+    setDeleteState("busy");
+    try {
+      await deleteListing(row.id, row.version);
+      setDeleteState("done");
+      onDeleted?.(row.id);
+    } catch {
+      setDeleteState("error");
+    }
+  }
+
+  if (deleteState === "done") return null;
+
   return (
     <li className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-md shadow-sm md:flex-row">
       <Link
@@ -200,6 +227,24 @@ export function ListingCard({ row, returnPath = "/dashboard/private-seller/listi
           />
         ) : null}
         {renewable(row) ? <RenewPanel row={row} /> : null}
+        {confirmingDelete ? (
+          <div role="dialog" aria-modal="true" aria-label="Delete this listing" className="rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm">
+            <p className="font-body-sm text-on-surface">Are you sure? This listing will no longer be visible.</p>
+            <div className="mt-space-xs flex gap-space-xs">
+              <button type="button" onClick={() => void confirmDelete()} className="rounded-lg bg-error px-space-md py-space-xs font-label-md text-on-error">
+                Yes, delete
+              </button>
+              <button type="button" onClick={() => setConfirmingDelete(false)} className="rounded-lg border border-outline px-space-md py-space-xs font-label-md text-on-surface">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setConfirmingDelete(true)} disabled={deleteState === "busy"} className="rounded-lg px-space-md py-space-sm text-center font-body-md text-error disabled:opacity-50">
+            Delete listing
+          </button>
+        )}
+        {deleteState === "error" ? <p role="alert" className="font-body-sm text-error">This listing could not be deleted.</p> : null}
       </div>
     </li>
   );
@@ -368,7 +413,12 @@ export default function MyListings({
           </div>
           <ul className="mt-space-md flex flex-col gap-space-md">
             {visible.map((row) => (
-              <ListingCard key={row.id} row={row} returnPath={fleet ? "/dashboard/broker/fleet/" : undefined} />
+              <ListingCard
+                key={row.id}
+                row={row}
+                returnPath={fleet ? "/dashboard/broker/fleet/" : undefined}
+                onDeleted={(id) => setRows((current) => (current ?? []).filter((item) => item.id !== id))}
+              />
             ))}
           </ul>
         </>

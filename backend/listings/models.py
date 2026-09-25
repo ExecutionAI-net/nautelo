@@ -119,6 +119,15 @@ class BoatListing(UUIDTimeStampedModel):
         on_delete=models.SET_NULL,
         related_name="+",
     )
+    # Owner-initiated soft delete. Independent of `status`: settable from any
+    # workflow state, never read by the state machine. A deleted listing is
+    # excluded from the owner's dashboard and its counters, and from every
+    # public read path (published_listings_queryset), but the row - and the
+    # FREE_LISTING entitlement its publication consumed - is never removed,
+    # so a deleted listing still counts against the owner's free-listing quota
+    # until that entitlement ages out on its own (entitlements.policy computes
+    # the quota purely from the entitlement ledger, never from this table).
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]
