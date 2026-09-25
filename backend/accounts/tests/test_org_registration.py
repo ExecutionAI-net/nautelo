@@ -26,6 +26,7 @@ BASE = {
     "password": "Str0ng-Org-Pass!",
     "phone": "+34600000000",
     "country_code": "es",
+    "accept_terms": True,
 }
 
 
@@ -129,11 +130,18 @@ def test_professional_registration_creates_owner_org_and_seat(django_capture_on_
     assert user.primary_role == UserRole.PROFESSIONAL and not user.is_email_verified
     assert user.phone_number == "+34600000000"
     assert user.newsletter_opt_in is False
+    assert user.terms_accepted_at is not None
     profile = ProfessionalProfile.objects.get(owner_user=user)
     assert (profile.status, profile.country_code, profile.display_name) == ("DRAFT", "ES", "Blue Rigging")
     seat = ProfessionalMembership.objects.get(user=user)
     assert (seat.role, seat.is_owner) == ("ADMIN", True)
     assert mail.outbox and "verify-email" in mail.outbox[-1].body
+
+
+def test_registration_requires_accepting_the_terms():
+    res = _post(org_type="PROFESSIONAL", accept_terms=False)
+    assert res.status_code == 400
+    assert "accept_terms" in res.data["error"]["fields"]
 
 
 def test_professional_registration_requires_a_category():

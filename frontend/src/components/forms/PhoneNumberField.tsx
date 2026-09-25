@@ -82,7 +82,7 @@ export default function PhoneNumberField({
 
   return (
     <div className="flex gap-space-sm">
-      <div className="relative w-2/5" ref={containerRef}>
+      <div className="relative w-28 shrink-0" ref={containerRef}>
         <label className={labelClassName}>
           {countryLabel}
           <button

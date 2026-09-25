@@ -143,6 +143,7 @@ export const MATERIAL_SYMBOLS_ICONS: readonly string[] = [
   "videocam",
   "view_in_ar",
   "visibility",
+  "visibility_off",
   "watch",
   "water",
   "water_drop",

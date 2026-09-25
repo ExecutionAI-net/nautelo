@@ -105,7 +105,7 @@ def _register_org(org_type, email, name, django_capture_on_commit_callbacks, **e
             reverse("auth-register-organization"),
             {
                 "org_type": org_type, "organization_name": name, "full_name": "Owner Person", "email": email,
-                "password": PASSWORD, "phone": "+34600111222", "country_code": "ES", **extra,
+                "password": PASSWORD, "phone": "+34600111222", "country_code": "ES", "accept_terms": True, **extra,
             },
             format="json",
         )
