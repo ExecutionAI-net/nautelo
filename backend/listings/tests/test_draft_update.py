@@ -486,15 +486,16 @@ def test_a_rejected_listing_returns_to_draft_when_editing_resumes(api, workflow_
 
 @pytest.mark.parametrize(
     "status",
-    [ListingStatus.SUSPENDED, ListingStatus.EXPIRED, ListingStatus.ARCHIVED],
+    [ListingStatus.SUSPENDED, ListingStatus.PAUSED, ListingStatus.EXPIRED, ListingStatus.ARCHIVED],
 )
 @pytest.mark.django_db
 def test_a_listing_outside_the_edit_loop_cannot_open_a_new_revision(
     api, workflow_enabled, status
 ):
-    """SUSPENDED / EXPIRED / ARCHIVED are not part of the owner's edit loop, so a
-    new edit cycle is refused rather than silently carrying the status forward
-    onto a draft revision the moderation queue could never approve."""
+    """SUSPENDED / PAUSED / EXPIRED / ARCHIVED are not part of the owner's edit
+    loop, so a new edit cycle is refused rather than silently carrying the
+    status forward onto a draft revision the moderation queue could never
+    approve."""
     owner = _seller()
     listing = make_private_listing(owner=owner, status=status)
     listing.current_public_snapshot = make_snapshot(listing, approved_by=_staff())

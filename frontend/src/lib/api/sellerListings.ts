@@ -225,6 +225,24 @@ export function deleteListing(listingId: string, version: number) {
   });
 }
 
+/** Owner-initiated pause: unlike delete, stays visible on the owner's own
+ *  dashboard, but drops out of every public page until resumed. */
+export function pauseListing(listingId: string, version: number) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(listingId)}/pause/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ version }),
+  });
+}
+
+export function resumeListing(listingId: string, version: number) {
+  return apiFetch<WorkflowListing>(`/api/v1/listings/${encodeURIComponent(listingId)}/resume/`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ version }),
+  });
+}
+
 export function renewListing(listingId: string, pkg = "") {
   return apiFetch<{ listing_id: string; status: string; expires_at: string }>(
     `/api/v1/listings/${encodeURIComponent(listingId)}/renew/`,

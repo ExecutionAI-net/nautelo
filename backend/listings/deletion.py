@@ -1,13 +1,20 @@
 """Owner-initiated listing deletion.
 
-A soft delete, not a row delete: `deleted_at` is independent of `status` and
-settable from any workflow state. The row - and the FREE_LISTING entitlement
-its publication may have consumed - is never removed, so a deleted listing
-still counts against the owner's free-listing quota (entitlements.policy
-computes that purely from the entitlement ledger, never from this table).
-Once deleted, the listing disappears from the owner's dashboard and its
-counters, and - if it was published - from every public read path too, since
-published_listings_queryset() excludes deleted_at rows.
+A soft delete, not a row delete: `deleted_at` is settable from any workflow
+state, and moves `status` straight to ARCHIVED regardless of what
+LISTING_TRANSITIONS would otherwise allow from the current state - deletion
+is an out-of-band action, not a step in the normal moderation workflow (the
+same reasoning that already applied to `deleted_at` before `status` joined
+it here, customer feedback 2026-09-25: sellers could not find any backend
+trace that a "deleted" listing had actually changed state).
+
+The row - and the FREE_LISTING entitlement its publication may have
+consumed - is never removed, so a deleted listing still counts against the
+owner's free-listing quota (entitlements.policy computes that purely from
+the entitlement ledger, never from this table). Once deleted, the listing
+disappears from the owner's dashboard and its counters, and - if it was
+published - from every public read path too, since published_listings_queryset()
+excludes deleted_at rows.
 """
 
 from django.db import transaction
@@ -18,6 +25,7 @@ from rest_framework import status
 from audit.models import AuditEvent
 from audit.services import record_audit_event
 
+from .enums import ListingStatus
 from .locking import bump_version
 from .models import BoatListing
 
@@ -39,6 +47,7 @@ def delete_listing(*, listing: BoatListing, actor, expected_version: int) -> Boa
         listing,
         expected_version=expected_version,
         resource="listing",
+        status=ListingStatus.ARCHIVED,
         deleted_at=timezone.now(),
         updated_by=actor,
     )
