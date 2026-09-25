@@ -70,6 +70,7 @@ export interface ProfessionalService {
   service_area: string[];
   category: CategoryRef;
   price_from: string | null;
+  currency: string;
   pricing_note: string;
   photo_url: string | null;
 }

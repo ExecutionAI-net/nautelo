@@ -28,8 +28,12 @@ CUSTOM_MODEL_NAME_MIN_LENGTH = 2
 CUSTOM_MODEL_NAME_MAX_LENGTH = 100
 # Spec §11.4: "currency ISO-4217, initially EUR". Spec §18.2 requires an
 # eligibility check for "listing.currency is supported", so the supported set is
-# explicit rather than implied.
-SUPPORTED_CURRENCIES = frozenset({"EUR"})
+# explicit rather than implied. Extended to USD/GBP (customer feedback,
+# 2026-09-25): sellers price boats in their own currency; this has no effect
+# on Stripe (the platform never takes payment for a boat itself) or on
+# finance quotes, which stay EUR-only (finance/serializers.py's own,
+# deliberately narrower SUPPORTED_CURRENCIES).
+SUPPORTED_CURRENCIES = frozenset({"EUR", "USD", "GBP"})
 
 
 class BoatListing(UUIDTimeStampedModel):

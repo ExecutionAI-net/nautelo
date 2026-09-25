@@ -284,7 +284,7 @@ def test_an_unsupported_currency_is_rejected():
 
     with pytest.raises(ValidationError) as exc_info:
         validate_revision_payload(
-            {"currency": "USD"}, listing=listing,
+            {"currency": "JPY"}, listing=listing,
             origin=RevisionOrigin.OWNER, for_submission=False,
         )
 

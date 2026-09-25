@@ -373,9 +373,13 @@ export default function MyListings({
           <KpiCard
             label="Published value"
             value={new Intl.NumberFormat("en", { style: "currency", currency: "EUR", notation: "compact", maximumFractionDigits: 1 }).format(
-              rows.filter((row) => row.status === "PUBLISHED").reduce((sum, row) => sum + (Number(row.price) || 0), 0),
+              // Only EUR listings are summed - adding a USD or GBP asking
+              // price to a EUR total would be a made-up number, not a total.
+              rows
+                .filter((row) => row.status === "PUBLISHED" && (row.currency ?? "EUR") === "EUR")
+                .reduce((sum, row) => sum + (Number(row.price) || 0), 0),
             )}
-            note="Asking prices of the published vessels"
+            note="Asking prices of the published vessels priced in EUR"
             icon="euro"
             accent="bg-secondary-fixed-dim"
             onClick={() => setFilter("active")}

@@ -76,8 +76,10 @@ export function fetchBrokerRolesClient(): Promise<BrokerRoleOption[]> {
   return apiFetch<BrokerRoleOption[]>("/api/v1/broker-roles/");
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = { EUR: "€", USD: "$", GBP: "£" };
+
 export function formatPrice(amount: string, currency: string): string {
   const value = Number(amount);
-  const symbol = currency === "EUR" ? "€" : `${currency} `;
+  const symbol = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
   return `${symbol}${value.toLocaleString("en", { maximumFractionDigits: 2 })}`;
 }

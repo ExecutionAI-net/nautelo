@@ -9,6 +9,7 @@ export interface FormOptions {
   cabins: string[];
   bathrooms: string[];
   countries: string[];
+  currencies: string[];
   media_limits: {
     free_images: number;
     free_videos: number;

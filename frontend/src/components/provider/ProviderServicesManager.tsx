@@ -13,9 +13,11 @@ import {
   type ProviderService,
 } from "@/lib/api/provider";
 
+const CURRENCIES = ["EUR", "USD", "GBP"];
+
 function priceLabel(service: ProviderService): string {
   if (!service.price_from) return "Quote on request";
-  const price = `From ${formatPrice(service.price_from, "EUR")}`;
+  const price = `From ${formatPrice(service.price_from, service.currency || "EUR")}`;
   return service.pricing_note ? `${price} ${service.pricing_note}` : price;
 }
 
@@ -31,7 +33,7 @@ export default function ProviderServicesManager() {
   const [services, setServices] = useState<ProviderService[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ category: "", title_en: "", description_en: "", price_from: "", pricing_note: "" });
+  const [draft, setDraft] = useState({ category: "", title_en: "", description_en: "", price_from: "", currency: "EUR", pricing_note: "" });
 
   const reload = useCallback(async () => {
     try {
@@ -148,7 +150,7 @@ export default function ProviderServicesManager() {
             () => createProviderService({ ...draft, price_from: draft.price_from.trim() || undefined }),
             "Service added.",
           );
-          setDraft({ category: draft.category, title_en: "", description_en: "", price_from: "", pricing_note: "" });
+          setDraft({ category: draft.category, title_en: "", description_en: "", price_from: "", currency: draft.currency, pricing_note: "" });
         }}
       >
         <label className="font-label-sm uppercase text-on-surface-variant">
@@ -167,16 +169,30 @@ export default function ProviderServicesManager() {
           <input className={FIELD} required maxLength={160} value={draft.title_en} onChange={(e) => setDraft({ ...draft, title_en: e.target.value })} />
         </label>
         <label className="font-label-sm uppercase text-on-surface-variant">
-          Price from (EUR, optional)
-          <input
-            className={FIELD}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Quote on request"
-            value={draft.price_from}
-            onChange={(e) => setDraft({ ...draft, price_from: e.target.value })}
-          />
+          Price from (optional)
+          <div className="mt-space-xs flex gap-space-xs">
+            <input
+              className={`${FIELD} mt-0`}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Quote on request"
+              value={draft.price_from}
+              onChange={(e) => setDraft({ ...draft, price_from: e.target.value })}
+            />
+            <select
+              className={`${FIELD} mt-0 w-24 shrink-0`}
+              aria-label="Currency"
+              value={draft.currency}
+              onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
+            >
+              {CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
         </label>
         <label className="font-label-sm uppercase text-on-surface-variant">
           Pricing note (optional)
