@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 export interface SelectOption {
   value: string;
@@ -29,7 +29,7 @@ export default function SearchSelect({
   required,
   labelClassName,
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
