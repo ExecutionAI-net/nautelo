@@ -279,7 +279,9 @@
     "category.browse_professionals": "Sfoglia i professionisti di questa categoria",
     "inquiry.business_cannot_start": "Gli account aziendali rispondono ai messaggi ricevuti ma non possono avviare nuove conversazioni.",
     "auth.invite.private_warning_title": "Importante: perderai la tua area di venditore privato.",
-    "auth.invite.private_warning_body": "Se accetti, questo account diventerà definitivamente un account aziendale: i tuoi annunci privati ({listings}) saranno archiviati e rimossi dal sito, i tuoi diritti di pubblicazione non utilizzati ({rights}) andranno persi e le conversazioni con gli acquirenti saranno chiuse. L'operazione non è reversibile."
+    "auth.invite.private_warning_body": "Se accetti, questo account diventerà definitivamente un account aziendale: i tuoi annunci privati ({listings}) saranno archiviati e rimossi dal sito, i tuoi diritti di pubblicazione non utilizzati ({rights}) andranno persi e le conversazioni con gli acquirenti saranno chiuse. L'operazione non è reversibile.",
+    "sell.media_checking": "Verifica in corso…",
+    "sell.media_checking_note": "Stiamo verificando la sicurezza delle tue foto. Di solito serve meno di un minuto; se ci vuole di più, la verifica si completa da sola e questa pagina si aggiorna automaticamente. Puoi anche uscire e tornare più tardi. Potrai inviare l'annuncio in revisione quando almeno una foto sarà pronta."
   },
   "es": {
     "finance.estimated_payment": "Cuota estimada",
@@ -561,6 +563,8 @@
     "category.browse_professionals": "Ver profesionales de esta categoría",
     "inquiry.business_cannot_start": "Las cuentas de empresa responden a los mensajes recibidos pero no pueden iniciar nuevas conversaciones.",
     "auth.invite.private_warning_title": "Importante: perderás tu área de vendedor particular.",
-    "auth.invite.private_warning_body": "Si aceptas, esta cuenta pasará a ser una cuenta de empresa de forma permanente: tus anuncios particulares ({listings}) se archivarán y se retirarán del sitio, perderás tus derechos de publicación sin usar ({rights}) y se cerrarán tus conversaciones con compradores. No se puede deshacer."
+    "auth.invite.private_warning_body": "Si aceptas, esta cuenta pasará a ser una cuenta de empresa de forma permanente: tus anuncios particulares ({listings}) se archivarán y se retirarán del sitio, perderás tus derechos de publicación sin usar ({rights}) y se cerrarán tus conversaciones con compradores. No se puede deshacer.",
+    "sell.media_checking": "Comprobando…",
+    "sell.media_checking_note": "Estamos comprobando la seguridad de tus fotos. Normalmente tarda menos de un minuto; si tarda más, termina por sí solo y esta página se actualiza automáticamente. También puedes salir y volver más tarde. Podrás enviar el anuncio a revisión cuando al menos una foto esté lista."
   }
 }

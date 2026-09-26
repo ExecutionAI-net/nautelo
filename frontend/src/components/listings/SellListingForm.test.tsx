@@ -13,6 +13,7 @@ vi.mock("@/lib/api/sellerListings", () => ({
   updateDraft: vi.fn(),
   submitListing: vi.fn(),
   listMedia: vi.fn(),
+  isMediaProcessing: (status: string) => ["UPLOADING", "SCANNING", "PROCESSING"].includes(status),
   removeMedia: vi.fn(),
   uploadMedia: vi.fn(),
   reorderMedia: vi.fn(),
@@ -106,6 +107,25 @@ describe("SellListingForm", () => {
     const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
     fireEvent.change(screen.getByLabelText("Add media"), { target: { files: [file] } });
     expect(screen.getByText("Photos 1 / 1")).toBeTruthy();
+  });
+
+  it("explains a photo that is still being checked and picks up the verdict by itself", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const scanning = { ...photo("s"), status: "SCANNING", preview_url: null };
+      vi.mocked(listMedia).mockResolvedValueOnce([scanning]).mockResolvedValue([photo("s")]);
+      render(<SellListingForm initial={WORKFLOW_LISTING} />);
+
+      expect(await screen.findByText("Checking…")).toBeTruthy();
+      expect(screen.queryByText(/IMAGE · SCANNING/)).toBeNull();
+      expect(screen.getByText(/being checked for security/)).toBeTruthy();
+
+      await vi.advanceTimersByTimeAsync(15000);
+      await waitFor(() => expect(screen.queryByText("Checking…")).toBeNull());
+      expect(screen.queryByText(/being checked for security/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reorders photos by dragging one thumbnail onto another", async () => {

@@ -24,6 +24,7 @@ import {
   searchBrands,
   submitListing,
   updateDraft,
+  isMediaProcessing,
   uploadMedia,
   type MediaRow,
   type TaxonomyItem,
@@ -109,6 +110,8 @@ function StepHeading({ n, id, children }: { n: number; id: string; children: Rea
     </h2>
   );
 }
+
+const MEDIA_POLL_MS = 15000;
 
 export default function SellListingForm({
   brokerId,
@@ -291,6 +294,21 @@ export default function SellListingForm({
       cancelled = true;
     };
   }, [initialId]);
+
+  // The virus scan and conversion run on the server and can take a while (or wait for the
+  // scanner to come back). Keep asking until every photo has a verdict, so the page never
+  // sits on "checking" after a refresh while the server has already finished.
+  const mediaListingId = listing?.id ?? initialId;
+  const mediaProcessing = media.some((row) => isMediaProcessing(row.status));
+  useEffect(() => {
+    if (!mediaListingId || !mediaProcessing) return;
+    const timer = setInterval(() => {
+      listMedia(mediaListingId)
+        .then(setMedia)
+        .catch(() => {});
+    }, MEDIA_POLL_MS);
+    return () => clearInterval(timer);
+  }, [mediaListingId, mediaProcessing]);
 
   useEffect(() => {
     let active = true;
@@ -1111,7 +1129,9 @@ export default function SellListingForm({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" src={row.preview_url} className="h-full w-full object-cover" />
                       ) : (
-                        <span className="absolute inset-0 flex items-center justify-center font-label-sm text-on-primary">{row.media_type} · {row.status}</span>
+                        <span className="absolute inset-0 flex items-center justify-center p-space-xs text-center font-label-sm text-on-primary">
+                          {isMediaProcessing(row.status) ? t("sell.media_checking") : `${row.media_type} · ${row.status}`}
+                        </span>
                       )}
                       {position === 0 && row.media_type === "IMAGE" ? (
                         <span className="absolute left-1 top-1 rounded bg-primary px-2 py-0.5 font-label-sm text-on-primary">{t("sell.cover")}</span>
@@ -1148,6 +1168,11 @@ export default function SellListingForm({
                 </li>
               ))}
             </ul>
+            {mediaProcessing ? (
+              <p role="status" className="mt-space-sm rounded-lg bg-surface-container-low p-space-sm font-body-sm text-on-surface-variant">
+                {t("sell.media_checking_note")}
+              </p>
+            ) : null}
           </section>
 
           <section className="rounded-lg bg-surface-container-low p-space-md" aria-labelledby="step-contact">

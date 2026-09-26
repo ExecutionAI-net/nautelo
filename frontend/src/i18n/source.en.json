@@ -333,6 +333,8 @@
   "sell.move_earlier": "Move earlier",
   "sell.move_later": "Move later",
   "sell.remove": "Remove",
+  "sell.media_checking": "Checking…",
+  "sell.media_checking_note": "Your photos are being checked for security. This usually takes less than a minute; if it takes longer, it finishes on its own and this page updates by itself. You can also leave and come back later. You can send the listing for review once at least one photo is ready.",
   "sell.finance_title": "Financing estimate",
   "sell.finance_toggle": "Show an estimated monthly payment on this listing",
   "sell.finance_help": "Leave blank to use the platform defaults. The estimate is illustrative and not a credit offer.",

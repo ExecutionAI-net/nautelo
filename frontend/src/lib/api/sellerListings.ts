@@ -152,6 +152,11 @@ export async function uploadMedia(listingId: string, file: File): Promise<MediaR
 
 const PROCESSING = new Set(["UPLOADING", "SCANNING", "PROCESSING"]);
 
+/** Still being uploaded, virus-scanned or converted: not usable yet, but not failed either. */
+export function isMediaProcessing(status: string): boolean {
+  return PROCESSING.has(status);
+}
+
 /** Server-side checks (scan, size, format) run asynchronously; wait for the verdict. */
 async function waitForMedia(listingId: string, row: MediaRow): Promise<MediaRow> {
   let current = row;

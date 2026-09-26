@@ -295,7 +295,9 @@ def reorder_media(*, listing: BoatListing, media_type: str, ordered_ids: list) -
 # outage exhausted the task's retries); the sweep queues it again.
 STUCK_AFTER = timedelta(minutes=15)
 # Past this the file is not going to be processed: free the slot with a reason the
-# seller can act on instead of leaving the photo "scanning" forever.
+# seller can act on instead of leaving the photo "scanning" forever. Counted from the
+# upload (created_at), never from updated_at: every re-queue below touches updated_at,
+# so an updated_at clock would restart on each sweep and never run out.
 GIVE_UP_AFTER = timedelta(hours=6)
 
 
@@ -310,7 +312,7 @@ def requeue_stuck_media(*, now=None) -> dict:
     rejected = 0
     requeued = 0
     for media in list(stuck):
-        if media.updated_at < now - GIVE_UP_AFTER:
+        if media.created_at < now - GIVE_UP_AFTER:
             reject_media(media, "The file could not be processed. Please upload it again.")
             rejected += 1
             continue
