@@ -1921,6 +1921,8 @@
   "auth.org_register.error_fallback": "Registration failed. Please check the details and try again.",
   "auth.org_register.compare_plans": "Compare plans",
   "auth.account_settings.breadcrumb": "Seller area / My account",
+  "auth.account_settings.breadcrumb_broker": "Brokerage area / My account",
+  "auth.account_settings.breadcrumb_provider": "Service provider area / My account",
   "auth.account_settings.title": "My account",
   "auth.account_settings.subtitle": "Your personal details, language and sign-in security.",
   "auth.account_settings.profile_kicker": "Profile",

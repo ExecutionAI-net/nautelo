@@ -42,6 +42,15 @@ describe("AccountSettings", () => {
     document.cookie = "nauta_locale=; path=/; max-age=0";
   });
 
+  it.each([
+    [undefined, "Seller area / My account"],
+    ["broker", "Brokerage area / My account"],
+    ["provider", "Service provider area / My account"],
+  ] as const)("names the area it sits in (%s)", (area, breadcrumb) => {
+    render(<AccountSettings area={area} />);
+    expect(screen.getByText(breadcrumb)).toBeInTheDocument();
+  });
+
   it("patches only the editable fields, reloads the session and does not navigate when the language is unchanged", async () => {
     const assign = mockLocation();
     render(<AccountSettings />);

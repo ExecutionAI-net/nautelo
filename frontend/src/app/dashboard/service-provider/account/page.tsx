@@ -8,7 +8,7 @@ export default function ProviderAccountPage() {
   return (
     <AreaShell area="provider" active="/dashboard/service-provider/account/">
       <RequirePermission>
-        <AccountSettings />
+        <AccountSettings area="provider" />
       </RequirePermission>
     </AreaShell>
   );

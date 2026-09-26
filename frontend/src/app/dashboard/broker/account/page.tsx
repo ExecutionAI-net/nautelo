@@ -9,7 +9,7 @@ export default function BrokerAccountPage() {
   return (
     <AreaShell area="broker" active="/dashboard/broker/account/">
       <RequirePermission>
-        <AccountSettings />
+        <AccountSettings area="broker" />
       </RequirePermission>
     </AreaShell>
   );
