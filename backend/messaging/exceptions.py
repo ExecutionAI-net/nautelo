@@ -32,6 +32,15 @@ class RecipientUnavailable(APIException):
     default_code = "recipient_unavailable"
 
 
+class InquiryInitiatorNotAllowed(APIException):
+    """Only private sellers start conversations. Broker and professional
+    accounts answer the threads they receive but never open new ones."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Business accounts can reply to messages but cannot start new conversations."
+    default_code = "inquiry_initiator_not_allowed"
+
+
 class SelfInquiryNotAllowed(APIException):
     """Addition to spec 15.5's open list; see the plan's ruling."""
 

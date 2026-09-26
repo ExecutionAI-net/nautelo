@@ -108,12 +108,11 @@ def test_seat_limit_blocks_adding_a_member(api):
     admin = make_user("seat-admin@example.com", role=UserRole.BROKER, verified=True)
     make_membership(admin, broker, role=BrokerMembershipRole.ADMIN)
     make_membership(make_user("seat-two@example.com", role=UserRole.BROKER), broker)
-    make_user("seat-three@example.com", role=UserRole.BROKER)
     api.force_authenticate(admin)
 
     response = api.post(
-        f"/api/v1/brokers/{broker.pk}/members/",
-        {"user_email": "seat-three@example.com", "role": BrokerMembershipRole.AGENT},
+        f"/api/v1/brokers/{broker.pk}/invitations/",
+        {"email": "seat-three@example.com", "role": BrokerMembershipRole.AGENT},
         format="json",
     )
 

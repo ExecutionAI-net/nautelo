@@ -144,13 +144,24 @@ def test_expired_and_revoked_tokens_are_refused(org):
     assert _client().post(reverse("invitation-preview"), {"token": "nonsense"}, format="json").status_code == 400
 
 
-def test_removing_the_last_seat_returns_the_account_to_private_seller(org):
+def test_removing_the_last_seat_never_turns_the_account_into_a_private_seller(org):
     owner, profile = org
     member = make_user("m@pro.example", role=UserRole.PROFESSIONAL, verified=True)
     seat = ProfessionalMembership.objects.create(user=member, profile=profile, role="AGENT")
     assert _client(owner).delete(reverse("provider-team-member", args=[seat.pk])).status_code == 204
     member.refresh_from_db()
-    assert member.primary_role == UserRole.PRIVATE_SELLER
+    assert member.primary_role == UserRole.PROFESSIONAL
+
+
+def test_a_deactivated_broker_seat_keeps_the_broker_role():
+    from brokers.tests.factories import make_broker, make_membership
+
+    member = make_user("kept@br.example", role=UserRole.BROKER, verified=True)
+    seat = make_membership(member, make_broker(), role="AGENT")
+    seat.is_active = False
+    seat.save()
+    member.refresh_from_db()
+    assert member.primary_role == UserRole.BROKER
 
 
 def test_broker_invitation_end_to_end(django_capture_on_commit_callbacks):
@@ -176,3 +187,69 @@ def test_broker_invitation_end_to_end(django_capture_on_commit_callbacks):
     )
     outsider = make_user("out@x.example", role=UserRole.BROKER, verified=True)
     assert _client(outsider).get(reverse("broker-invitations", args=[broker.pk])).status_code == 403
+
+
+def _broker_with_admin():
+    from brokers.tests.factories import make_broker, make_membership
+
+    admin = make_user("admin@join.example", role=UserRole.BROKER, verified=True)
+    broker = make_broker()
+    make_membership(admin, broker, role="ADMIN", can_edit_listings=True, can_manage_team=True, can_read_messages=True)
+    return admin, broker
+
+
+def test_a_private_seller_joining_a_brokerage_is_warned_and_loses_the_private_space(django_capture_on_commit_callbacks):
+    from brokers.models import BrokerMembership
+    from entitlements.enums import EntitlementState
+    from entitlements.tests.factories import make_entitlement
+    from listings.enums import ListingStatus
+    from listings.tests.factories import make_private_listing
+    from messaging.enums import ConversationStatus, ConversationType
+    from messaging.models import Conversation
+
+    admin, broker = _broker_with_admin()
+    seller = make_user("seller@join.example", role=UserRole.PRIVATE_SELLER, verified=True, locale="IT")
+    listing = make_private_listing(owner=seller, status=ListingStatus.PUBLISHED)
+    buyer = make_user("buyer@join.example", verified=True)
+    conversation = Conversation.objects.create(
+        conversation_type=ConversationType.LISTING_INQUIRY, initiator=buyer, listing=listing, subject="Hi"
+    )
+    right = make_entitlement(user=seller)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        res = _client(admin).post(
+            reverse("broker-invitations", args=[broker.pk]), {"email": "seller@join.example", "role": "AGENT"}, format="json"
+        )
+    assert res.status_code == 201
+    message = mail.outbox[-1]
+    # The recipient's own language, and a loud warning with the counts.
+    assert message.subject.startswith("Sei stato invitato")
+    html = message.alternatives[0][0]
+    assert "#b3261e" in html and "perderai la tua area di venditore privato" in html
+    assert "1 annunci privati" in html and "1 diritti di pubblicazione" in html
+    token = _token_from_mail()
+    preview = _client().post(reverse("invitation-preview"), {"token": token}, format="json").json()
+    assert preview["private_seller_warning"] == {"listings": 1, "unused_rights": 1}
+
+    assert _client(seller).post(reverse("invitation-accept"), {"token": token}, format="json").status_code == 201
+    seller.refresh_from_db()
+    listing.refresh_from_db()
+    conversation.refresh_from_db()
+    right.refresh_from_db()
+    assert seller.primary_role == UserRole.BROKER
+    assert BrokerMembership.objects.get(user=seller).broker == broker
+    assert (listing.status, listing.deleted_at is not None) == (ListingStatus.ARCHIVED, True)
+    assert conversation.status == ConversationStatus.BLOCKED
+    assert right.state == EntitlementState.EXPIRED
+
+
+def test_a_new_address_gets_no_private_seller_warning(django_capture_on_commit_callbacks):
+    admin, broker = _broker_with_admin()
+    with django_capture_on_commit_callbacks(execute=True):
+        _client(admin).post(
+            reverse("broker-invitations", args=[broker.pk]), {"email": "fresh@join.example", "role": "AGENT"}, format="json"
+        )
+    message = mail.outbox[-1]
+    assert "#b3261e" not in message.alternatives[0][0]
+    preview = _client().post(reverse("invitation-preview"), {"token": _token_from_mail()}, format="json").json()
+    assert preview["private_seller_warning"] is None

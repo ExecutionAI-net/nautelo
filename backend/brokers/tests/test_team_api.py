@@ -6,10 +6,7 @@ from accounts.enums import StaffGroup, UserRole
 from accounts.tests.factories import DEFAULT_TEST_PASSWORD, make_user
 from brokers.enums import BrokerMembershipRole, BrokerOrganizationStatus
 from brokers.models import BrokerMembership
-from brokers.serializers import (
-    BrokerMembershipCreateSerializer,
-    BrokerMembershipUpdateSerializer,
-)
+from brokers.serializers import BrokerMembershipUpdateSerializer
 from brokers.tests.factories import make_broker, make_membership
 
 LOGIN_URL = "/api/v1/auth/login/"
@@ -82,53 +79,16 @@ def test_a_member_of_another_broker_is_forbidden(api, broker_with_admin):
 
 
 @pytest.mark.django_db
-def test_a_team_manager_adds_an_existing_user(api, broker_with_admin):
+def test_members_cannot_be_added_directly_only_invited(api, broker_with_admin):
+    """Joining a team goes through an invitation, which makes the account a broker."""
     broker, admin = broker_with_admin
-    newcomer = make_user("newcomer@example.com", role=UserRole.BROKER)
+    make_user("direct@example.com", role=UserRole.PRIVATE_SELLER)
     _authenticate(api, admin)
 
-    response = api.post(
-        members_url(broker),
-        {"user_email": "newcomer@example.com", "role": BrokerMembershipRole.AGENT,
-         "can_edit_listings": True},
-        format="json",
-    )
+    response = api.post(members_url(broker), {"user_email": "direct@example.com"}, format="json")
 
-    assert response.status_code == 201
-    membership = BrokerMembership.objects.get(user=newcomer, broker=broker)
-    assert membership.role == BrokerMembershipRole.AGENT
-    assert membership.can_edit_listings is True
-    assert membership.can_manage_team is False
-
-
-@pytest.mark.django_db
-def test_adding_an_unknown_email_returns_a_stable_code(api, broker_with_admin):
-    broker, admin = broker_with_admin
-    _authenticate(api, admin)
-
-    response = api.post(
-        members_url(broker), {"user_email": "ghost@example.com"}, format="json"
-    )
-
-    assert response.status_code == 400
-    assert response.data["error"]["fields"]["user_email"] == [
-        {"message": "user_not_found", "code": "invalid"}
-    ]
-
-
-@pytest.mark.django_db
-def test_adding_the_same_user_twice_is_rejected(api, broker_with_admin):
-    broker, admin = broker_with_admin
-    make_user("twice@example.com", role=UserRole.BROKER)
-    _authenticate(api, admin)
-    api.post(members_url(broker), {"user_email": "twice@example.com"}, format="json")
-
-    response = api.post(members_url(broker), {"user_email": "twice@example.com"}, format="json")
-
-    assert response.status_code == 400
-    assert response.data["error"]["fields"]["user_email"] == [
-        {"message": "membership_exists", "code": "invalid"}
-    ]
+    assert response.status_code == 405
+    assert not BrokerMembership.objects.filter(user__email="direct@example.com").exists()
 
 
 @pytest.mark.django_db
@@ -253,28 +213,6 @@ def test_a_manager_cannot_hand_out_can_manage_team(api, broker_with_admin_and_ma
     ]
     agent_membership.refresh_from_db()
     assert agent_membership.can_manage_team is False
-
-
-@pytest.mark.django_db
-def test_a_manager_cannot_create_an_admin_membership(api, broker_with_admin_and_manager):
-    """The same rank rule applies on the create path, not just on update."""
-    broker, _admin, manager, _mm = broker_with_admin_and_manager
-    make_user("freshadmin@example.com", role=UserRole.BROKER)
-    _authenticate(api, manager)
-
-    response = api.post(
-        members_url(broker),
-        {"user_email": "freshadmin@example.com", "role": BrokerMembershipRole.ADMIN},
-        format="json",
-    )
-
-    assert response.status_code == 400
-    assert response.data["error"]["fields"]["role"] == [
-        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
-    ]
-    assert not BrokerMembership.objects.filter(
-        broker=broker, user__email="freshadmin@example.com"
-    ).exists()
 
 
 @pytest.mark.django_db
@@ -450,34 +388,6 @@ def test_an_unverified_team_manager_is_rejected(api):
 
 
 @pytest.mark.django_db
-def test_a_manager_cannot_create_a_membership_holding_can_manage_team(
-    api, broker_with_admin_and_manager
-):
-    """The can_manage_team branch of the rank rule on the CREATE path.
-
-    The brief pins the role=ADMIN branch of create; this pins the other one, so
-    minting an ADMIN-equivalent peer is closed on both paths and both fields.
-    """
-    broker, _admin, manager, _mm = broker_with_admin_and_manager
-    make_user("freshmanager@example.com", role=UserRole.BROKER)
-    _authenticate(api, manager)
-
-    response = api.post(
-        members_url(broker),
-        {"user_email": "freshmanager@example.com", "can_manage_team": True},
-        format="json",
-    )
-
-    assert response.status_code == 400
-    assert response.data["error"]["fields"]["can_manage_team"] == [
-        {"message": "broker_admin_grant_requires_admin", "code": "invalid"}
-    ]
-    assert not BrokerMembership.objects.filter(
-        broker=broker, user__email="freshmanager@example.com"
-    ).exists()
-
-
-@pytest.mark.django_db
 def test_a_manager_cannot_touch_an_admins_membership_even_for_an_unrelated_flag(
     api, broker_with_admin_and_manager
 ):
@@ -626,15 +536,6 @@ def test_the_write_serializers_refuse_to_run_without_an_actor_in_context(broker_
     """A missing `actor` must fail loudly rather than skip the rank checks."""
     broker, admin = broker_with_admin
     membership = BrokerMembership.objects.get(user=admin, broker=broker)
-    make_user("contextless@example.com", role=UserRole.BROKER)
-
-    create_serializer = BrokerMembershipCreateSerializer(
-        data={"user_email": "contextless@example.com", "role": BrokerMembershipRole.ADMIN},
-        context={"broker": broker},
-    )
-    with pytest.raises(KeyError):
-        create_serializer.is_valid(raise_exception=True)
-
     update_serializer = BrokerMembershipUpdateSerializer(
         membership, data={"role": BrokerMembershipRole.VIEWER}, partial=True, context={}
     )

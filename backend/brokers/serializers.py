@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ErrorDetail
 
-from accounts.models import User, UserManager
 from accounts.services import is_staff_admin
 from brokers.enums import BrokerMembershipRole
 from brokers.models import BrokerMembership
@@ -59,53 +58,6 @@ def _grants_admin_authority(role, can_manage_team) -> bool:
     # bool(), not `is True`: a caller passing a truthy non-True value (1, or a
     # DB backend's integer 0/1) must not slip past this check.
     return role == BrokerMembershipRole.ADMIN or bool(can_manage_team)
-
-
-class BrokerMembershipCreateSerializer(serializers.Serializer):
-    user_email = serializers.EmailField(max_length=254)
-    role = serializers.ChoiceField(
-        choices=BrokerMembershipRole.choices, default=BrokerMembershipRole.VIEWER
-    )
-    can_edit_listings = serializers.BooleanField(default=False)
-    can_manage_team = serializers.BooleanField(default=False)
-    can_read_messages = serializers.BooleanField(default=False)
-
-    def validate_user_email(self, value):
-        normalized = UserManager.normalize_email(value)
-        user = User.objects.filter(email=normalized, is_active=True).first()
-        if user is None:
-            raise serializers.ValidationError("user_not_found")
-        broker = self.context["broker"]
-        if BrokerMembership.objects.filter(user=user, broker=broker).exists():
-            raise serializers.ValidationError("membership_exists")
-        self.context["target_user"] = user
-        return normalized
-
-    def validate(self, attrs):
-        # Rank check: a non-ADMIN may not create an ADMIN, nor hand out
-        # can_manage_team (which is ADMIN-equivalent authority over the team).
-        role = attrs.get("role", BrokerMembershipRole.VIEWER)
-        manage_team = attrs.get("can_manage_team", False)
-        if _grants_admin_authority(role, manage_team) and not _actor_may_grant_admin(
-            self.context["actor"], self.context["broker"]
-        ):
-            # Key the error under the field that actually carries the grant.
-            field = "role" if role == BrokerMembershipRole.ADMIN else "can_manage_team"
-            raise serializers.ValidationError(
-                {field: ["broker_admin_grant_requires_admin"]}
-            )
-        return attrs
-
-    def create(self, validated_data):
-        from brokers.plans import ensure_seat_capacity
-
-        ensure_seat_capacity(self.context["broker"])
-        validated_data.pop("user_email")
-        return BrokerMembership.objects.create(
-            user=self.context["target_user"],
-            broker=self.context["broker"],
-            **validated_data,
-        )
 
 
 class BrokerMembershipUpdateSerializer(serializers.ModelSerializer):

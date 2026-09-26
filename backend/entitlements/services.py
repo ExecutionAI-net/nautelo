@@ -138,6 +138,47 @@ def expire_due_entitlements(*, now: datetime | None = None) -> int:
     return moved
 
 
+def forfeit_unused_listing_rights(*, user, actor, reason: str) -> int:
+    """Expire every listing right `user` has not spent yet. Returns how many.
+
+    Used when a private seller joins a brokerage: the account stops being a
+    private seller for good, so rights bought or granted for private listings
+    can never be used again. A RESERVED right is first released (spec §6.3's
+    RESERVED -> AVAILABLE) so it can take the only legal edge into EXPIRED.
+    """
+    rows = UserEntitlement.objects.for_user(user).listing_rights().filter(
+        state__in=(EntitlementState.AVAILABLE, EntitlementState.RESERVED)
+    )
+    moved = 0
+    for entitlement_id, state in list(rows.values_list("pk", "state")):
+        common = {
+            "actor": actor,
+            "actor_type": AuditEvent.ActorType.USER,
+            "source": AuditEvent.Source.API,
+            "extra_metadata": {"reason": reason},
+        }
+        if state == EntitlementState.RESERVED:
+            _transition(
+                entitlement_id=entitlement_id,
+                target_state=EntitlementState.AVAILABLE,
+                action="entitlement.reservation_released",
+                updates={"reserved_at": None, "listing": None},
+                **common,
+            )
+        if (
+            _transition(
+                entitlement_id=entitlement_id,
+                target_state=EntitlementState.EXPIRED,
+                action="entitlement.forfeited",
+                updates={},
+                **common,
+            )
+            is not None
+        ):
+            moved += 1
+    return moved
+
+
 def release_reservation(
     *,
     entitlement,

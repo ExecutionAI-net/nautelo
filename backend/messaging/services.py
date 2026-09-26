@@ -15,6 +15,7 @@ from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from accounts.enums import UserRole
 from audit.models import AuditEvent
 from audit.services import record_audit_event
 from common.text import normalize_comparison_text
@@ -33,6 +34,7 @@ from messaging.exceptions import (
     ConversationClosed,
     ConversationFilingForbidden,
     ConversationSuperseded,
+    InquiryInitiatorNotAllowed,
     InvalidConversationStatus,
     MessagingThrottled,
 )
@@ -282,6 +284,9 @@ def submit_inquiry(
     # Step 1 - validate. The consent version is checked before the context is
     # resolved, so a submission with stale consent cannot be used to probe which
     # context ids exist.
+    if actor.primary_role != UserRole.PRIVATE_SELLER:
+        # Brokers and professionals only ever reply; see InquiryInitiatorNotAllowed.
+        raise InquiryInitiatorNotAllowed()
     if privacy_policy_version != CURRENT_PRIVACY_POLICY_VERSION:
         raise ConsentRequired()
     context = resolve_inquiry_context(

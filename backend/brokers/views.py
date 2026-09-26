@@ -21,7 +21,6 @@ from brokers.permissions import IsBrokerBilling, IsBrokerMember
 from brokers.serializers import (
     BrokerApprovalPolicySerializer,
     BrokerBulkApproveSerializer,
-    BrokerMembershipCreateSerializer,
     BrokerMembershipSerializer,
     BrokerMembershipUpdateSerializer,
     StaffBrokerDetailSerializer,
@@ -66,18 +65,6 @@ class BrokerMemberListView(BrokerTeamBaseView):
         broker = self.get_broker()
         memberships = BrokerMembership.objects.select_related("user").filter(broker=broker)
         return Response(BrokerMembershipSerializer(memberships, many=True).data)
-
-    @transaction.atomic
-    def post(self, request, broker_id):
-        broker = self.get_locked_broker()
-        serializer = BrokerMembershipCreateSerializer(
-            data=request.data, context={"broker": broker, "actor": request.user}
-        )
-        serializer.is_valid(raise_exception=True)
-        membership = serializer.save()
-        return Response(
-            BrokerMembershipSerializer(membership).data, status=status.HTTP_201_CREATED
-        )
 
 
 class BrokerMemberDetailView(BrokerTeamBaseView):
