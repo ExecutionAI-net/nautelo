@@ -51,6 +51,7 @@ const SPEC_KEYS = [
   "hull_material",
   "engine_type",
   "engine_model",
+  "engines",
   "power_hp",
   "engine_hours",
   "fuel_type",
@@ -68,7 +69,6 @@ const NUMERIC_SPECS: Record<string, boolean> = {
   engine_hours: false,
   cabins: false,
   bathrooms: false,
-  berth: false,
 };
 
 /** Keeps digits and, for decimals, a single comma or dot, so letters can never be typed in. */
@@ -654,6 +654,7 @@ export default function SellListingForm({
       specs.hull_material &&
       specs.engine_type &&
       specs.engine_model.trim() &&
+      specs.engines &&
       specs.power_hp.trim() &&
       specs.engine_hours.trim() &&
       specs.fuel_type &&
@@ -935,6 +936,7 @@ export default function SellListingForm({
               <div className="grid gap-space-md sm:grid-cols-2">
                 {pick(t("sell.engine_type"), "engine_type", options?.engine_types)}
                 <label className={LABEL}>{t("sell.engine_model")}<Req /><input className={FIELD} required value={specs.engine_model} onChange={(e) => setSpec("engine_model", e.target.value)} /></label>
+                {pick(t("sell.engines"), "engines", options?.engines)}
                 <label className={LABEL}>{t("sell.power")}<Req /><input className={FIELD} inputMode="numeric" required value={specs.power_hp} onChange={(e) => setSpec("power_hp", e.target.value)} /></label>
                 <label className={LABEL}>{t("sell.hours")}<Req /><input className={FIELD} inputMode="numeric" required value={specs.engine_hours} onChange={(e) => setSpec("engine_hours", e.target.value)} /></label>
                 {pick(t("sell.fuel"), "fuel_type", options?.fuel_types)}
@@ -998,7 +1000,19 @@ export default function SellListingForm({
                   }}
                   labels={{ region: `${t("sell.region")} *`, city: `${t("sell.city")} *`, hint: t("sell.city_hint") }}
                 />
-                <label className={LABEL}>{t("sell.berth")}<Req /><input className={FIELD} required value={specs.berth} onChange={(e) => setSpec("berth", e.target.value)} /></label>
+                <label className={LABEL}>
+                  {t("sell.berth")}
+                  <Req />
+                  <input
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    className={FIELD}
+                    required
+                    value={specs.berth}
+                    onChange={(e) => setSpec("berth", e.target.value)}
+                  />
+                </label>
               </div>
               {brokerId ? (
                 <fieldset className="mt-space-md flex flex-col gap-space-sm rounded-lg bg-surface-container-low p-space-md">

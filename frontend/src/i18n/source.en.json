@@ -388,6 +388,7 @@
   "sell.hull": "Hull material",
   "sell.engine_type": "Engine type",
   "sell.engine_model": "Brand & model",
+  "sell.engines": "Number of engines",
   "sell.power": "Total power (HP)",
   "sell.hours": "Operating hours",
   "sell.fuel": "Fuel type",
