@@ -169,6 +169,22 @@ describe("ConversationThread", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("disables the composer on a thread closed by an account change and says so", () => {
+    render(
+      <ConversationThread
+        locale="en"
+        conversation={{ ...CONVERSATION, status: "CLOSED" }}
+        messages={[]}
+        onSend={vi.fn()}
+        onToggleArchive={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Reply")).toBeDisabled();
+    expect(screen.getByText("Closed – account changed")).toBeInTheDocument();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+  });
+
   it("shows a real empty state for a thread with no messages", () => {
     render(
       <ConversationThread

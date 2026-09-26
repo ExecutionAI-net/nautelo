@@ -239,7 +239,7 @@ def test_a_private_seller_joining_a_brokerage_is_warned_and_loses_the_private_sp
     assert seller.primary_role == UserRole.BROKER
     assert BrokerMembership.objects.get(user=seller).broker == broker
     assert (listing.status, listing.deleted_at is not None) == (ListingStatus.ARCHIVED, True)
-    assert conversation.status == ConversationStatus.BLOCKED
+    assert conversation.status == ConversationStatus.CLOSED
     assert right.state == EntitlementState.EXPIRED
 
 
@@ -253,3 +253,56 @@ def test_a_new_address_gets_no_private_seller_warning(django_capture_on_commit_c
     assert "#b3261e" not in message.alternatives[0][0]
     preview = _client().post(reverse("invitation-preview"), {"token": _token_from_mail()}, format="json").json()
     assert preview["private_seller_warning"] is None
+
+def test_a_private_seller_joining_a_professional_team_also_loses_the_private_space(org, django_capture_on_commit_callbacks):
+    from entitlements.enums import EntitlementState
+    from entitlements.tests.factories import make_entitlement
+    from listings.enums import ListingStatus
+    from listings.tests.factories import make_private_listing
+    from messaging.enums import ConversationStatus, ConversationType
+    from messaging.models import Conversation
+    from messaging.services import post_reply
+
+    owner, profile = org
+    seller = make_user("pseller@pro.example", role=UserRole.PRIVATE_SELLER, verified=True)
+    listing = make_private_listing(owner=seller, status=ListingStatus.PUBLISHED)
+    buyer = make_user("pbuyer@pro.example", verified=True)
+    conversation = Conversation.objects.create(
+        conversation_type=ConversationType.LISTING_INQUIRY, initiator=buyer, listing=listing, subject="Hi"
+    )
+    right = make_entitlement(user=seller)
+    with django_capture_on_commit_callbacks(execute=True):
+        _invite(owner, email="pseller@pro.example")
+    assert "#b3261e" in mail.outbox[-1].alternatives[0][0]
+    token = _token_from_mail()
+    assert _client().post(reverse("invitation-preview"), {"token": token}, format="json").json()["private_seller_warning"] == {
+        "listings": 1, "unused_rights": 1,
+    }
+
+    assert _client(seller).post(reverse("invitation-accept"), {"token": token}, format="json").status_code == 201
+    seller.refresh_from_db()
+    listing.refresh_from_db()
+    conversation.refresh_from_db()
+    right.refresh_from_db()
+    assert seller.primary_role == UserRole.PROFESSIONAL
+    assert listing.status == ListingStatus.ARCHIVED and listing.deleted_at is not None
+    assert conversation.status == ConversationStatus.CLOSED
+    assert right.state == EntitlementState.EXPIRED
+    # A closed thread takes no new messages from the buyer either.
+    from messaging.exceptions import ConversationClosed
+
+    with pytest.raises(ConversationClosed):
+        post_reply(actor=buyer, conversation=conversation, body="Are you still there?")
+
+
+def test_a_professional_recipient_reads_requests_in_the_provider_area(org):
+    from messaging.enums import ConversationType
+    from messaging.models import Conversation
+    from messaging.services import recipient_conversation_url
+
+    owner, profile = org
+    buyer = make_user("req-buyer@pro.example", verified=True)
+    conversation = Conversation.objects.create(
+        conversation_type=ConversationType.PROFESSIONAL_INQUIRY, initiator=buyer, professional=profile, subject="Hi"
+    )
+    assert recipient_conversation_url(conversation, owner) == f"/dashboard/service-provider/requests/{conversation.pk}/"

@@ -28,6 +28,7 @@ from messaging.enums import (
     ConversationStatus,
     broker_conversation_url,
     conversation_url,
+    professional_conversation_url,
 )
 from messaging.exceptions import (
     ConsentRequired,
@@ -186,13 +187,16 @@ def grant_contact_access(*, viewer, context, conversation, request_id=None):
 def recipient_conversation_url(conversation, user) -> str:
     """Where this recipient reads the thread: a member of the brokerage the
     conversation belongs to has a broker seat (spec 28); everyone else uses
-    the role-neutral messages page."""
+    the role-neutral messages page. A professional's team reads it under the
+    service provider's Requests, never in the private seller area."""
     from brokers.models import BrokerMembership
 
     if conversation.broker_id and BrokerMembership.objects.filter(
         broker_id=conversation.broker_id, user=user, is_active=True
     ).exists():
         return broker_conversation_url(conversation.pk)
+    if conversation.professional_id and user.primary_role == UserRole.PROFESSIONAL:
+        return professional_conversation_url(conversation.pk)
     return conversation_url(conversation.pk)
 
 
@@ -504,7 +508,7 @@ def set_conversation_status(*, actor, conversation, new_status: str) -> Conversa
         raise ConversationFilingForbidden()
 
     locked = Conversation.objects.select_for_update().get(pk=conversation.pk)
-    if locked.status == ConversationStatus.BLOCKED:
+    if locked.status in (ConversationStatus.BLOCKED, ConversationStatus.CLOSED):
         # Spec 36.6: blocking "prevents new messages". Un-blocking is a
         # moderation act this phase does not build.
         raise ConversationClosed()

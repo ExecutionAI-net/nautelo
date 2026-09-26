@@ -77,6 +77,11 @@ export default function ConversationRowCard({ locale, row, href }: Props) {
             {tConversations(locale, "messages.blocked_badge")}
           </span>
         ) : null}
+        {row.status === "CLOSED" ? (
+          <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
+            {tConversations(locale, "messages.closed_badge")}
+          </span>
+        ) : null}
         {row.unread_count > 0 ? (
           <span className="rounded-full bg-primary px-space-sm font-label-sm text-label-sm text-on-primary">
             {formatConversationMessage(

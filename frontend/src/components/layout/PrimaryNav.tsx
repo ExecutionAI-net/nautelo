@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import NotificationBell from "@/components/layout/NotificationBell";
-import { accountHrefFor, isBrokerAccount } from "@/lib/auth/home";
+import { accountHrefFor, businessAreaFor, isBrokerAccount } from "@/lib/auth/home";
 import { useSession } from "@/lib/auth/session";
 import type { PermissionKey } from "@/lib/auth/types";
 import { tConversations } from "@/lib/i18n/conversations";
@@ -76,6 +76,8 @@ export default function PrimaryNav() {
   const authenticated = session?.authenticated === true;
 
   const isBrokerMember = isBrokerAccount(session);
+  // Business accounts (brokers, professionals) never list a boat as a private seller.
+  const isBusiness = businessAreaFor(session) !== null;
   // PrimaryNav is already a client component holding the session, so the
   // viewer's own locale is available here. resolveLocale is the shared helper
   // (lib/i18n/directory.ts:15) — the session's LocaleCode is "EN"/"IT"/"ES"
@@ -87,7 +89,7 @@ export default function PrimaryNav() {
     if (link.permission !== undefined && !can(link.permission)) return false;
     if (link.requiresBrokerMembership && !isBrokerMember) return false;
     // Brokers manage vessels under Fleet; the private-seller entries would only confuse them.
-    if (link.requiresListingRight && (isBrokerMember || !can("create_private_listing"))) return false;
+    if (link.requiresListingRight && (isBusiness || !can("create_private_listing"))) return false;
     return true;
   });
 
@@ -152,7 +154,7 @@ export default function PrimaryNav() {
             {t("nav.sign_in")}
           </Link>
         )}
-        {isBrokerMember ? null : (
+        {isBusiness ? null : (
         <Link
           href="/sell/"
           className="inline-flex items-center justify-center rounded-lg bg-primary-container px-space-md py-space-sm font-body-md text-on-primary shadow-sm transition-colors hover:bg-primary"

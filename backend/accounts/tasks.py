@@ -84,12 +84,12 @@ INVITE_BODIES = {
 }
 INVITE_BUTTONS = {"EN": "Accept the invitation", "IT": "Accetta l'invito", "ES": "Aceptar la invitacion"}
 #: Shown only when the invited address already belongs to a private seller who
-#: is being invited into a brokerage: accepting retires their private space
+#: is being invited into an organization: accepting retires their private space
 #: for good (accounts.private_exit).
 INVITE_PRIVATE_WARNINGS = {
     "EN": (
         "Important: you will lose your private seller area.",
-        "This email address already has a private seller account on Nautelo. If you accept, it becomes a broker "
+        "This email address already has a private seller account on Nautelo. If you accept, it becomes a business "
         "account permanently: your {listings} private listing(s) will be archived and removed from the site, your "
         "{rights} unused listing right(s) will be forfeited, and your conversations with buyers will be closed. "
         "This cannot be undone.",
@@ -97,14 +97,14 @@ INVITE_PRIVATE_WARNINGS = {
     "IT": (
         "Importante: perderai la tua area di venditore privato.",
         "Questo indirizzo email ha gia un account da venditore privato su Nautelo. Se accetti, diventera "
-        "definitivamente un account broker: i tuoi {listings} annunci privati saranno archiviati e rimossi dal sito, "
+        "definitivamente un account aziendale: i tuoi {listings} annunci privati saranno archiviati e rimossi dal sito, "
         "i tuoi {rights} diritti di pubblicazione non utilizzati andranno persi e le conversazioni con gli acquirenti "
         "saranno chiuse. L'operazione non e reversibile.",
     ),
     "ES": (
         "Importante: perderas tu area de vendedor particular.",
         "Esta direccion de correo ya tiene una cuenta de vendedor particular en Nautelo. Si aceptas, pasara a ser "
-        "una cuenta de broker de forma permanente: tus {listings} anuncios particulares se archivaran y se retiraran "
+        "una cuenta de empresa de forma permanente: tus {listings} anuncios particulares se archivaran y se retiraran "
         "del sitio, perderas tus {rights} derechos de publicacion sin usar y se cerraran tus conversaciones con "
         "compradores. No se puede deshacer.",
     ),

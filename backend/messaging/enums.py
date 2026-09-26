@@ -19,6 +19,10 @@ class ConversationStatus(models.TextChoices):
     OPEN = "OPEN", "Open"
     ARCHIVED = "ARCHIVED", "Archived"
     BLOCKED = "BLOCKED", "Blocked"
+    # Closed because the recipient's account changed type (a private seller who
+    # joined a brokerage or a professional team, accounts.private_exit). Like
+    # BLOCKED it takes no new messages, but it is not a moderation outcome.
+    CLOSED = "CLOSED", "Closed (account changed)"
 
 
 class ContactTargetType(models.TextChoices):
@@ -112,6 +116,8 @@ HONEYPOT_FIELD_NAME = "company_website"
 SENDER_CONVERSATION_URL_TEMPLATE = "/dashboard/private-seller/messages/{conversation_id}/"
 # Spec 28: the RECIPIENT broker's seat on the same conversation.
 BROKER_CONVERSATION_URL_TEMPLATE = "/dashboard/broker/messages/{conversation_id}/"
+# The RECIPIENT professional's seat: the service provider area's Requests.
+PROFESSIONAL_CONVERSATION_URL_TEMPLATE = "/dashboard/service-provider/requests/{conversation_id}/"
 
 
 def conversation_url(conversation_id) -> str:
@@ -120,3 +126,7 @@ def conversation_url(conversation_id) -> str:
 
 def broker_conversation_url(conversation_id) -> str:
     return BROKER_CONVERSATION_URL_TEMPLATE.format(conversation_id=conversation_id)
+
+
+def professional_conversation_url(conversation_id) -> str:
+    return PROFESSIONAL_CONVERSATION_URL_TEMPLATE.format(conversation_id=conversation_id)

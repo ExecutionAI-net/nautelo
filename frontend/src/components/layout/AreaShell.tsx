@@ -40,6 +40,7 @@ const AREAS = {
       { href: "/dashboard/service-provider/profile/", label: "Profile" },
       { href: "/dashboard/service-provider/team/", label: "Team" },
       { href: "/dashboard/service-provider/membership/", label: "My plan" },
+      { href: "/dashboard/service-provider/account/", label: "My account" },
       { href: "/dashboard/service-provider/notifications/", label: "Notifications" },
     ] as Tab[],
   },
@@ -73,7 +74,7 @@ const AREAS = {
 const GROUPS: Record<string, [string, string[]][]> = {
   seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Messages"]], ["Account", ["Services", "My account", "Notifications"]]],
   broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan"]], ["Account", ["My account", "Notifications"]]],
-  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan", "Notifications"]]],
+  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan"]], ["Account", ["My account", "Notifications"]]],
   staff: [
     ["Overview", ["Dashboard"]],
     ["Moderation", ["Boats", "Contact grants"]],

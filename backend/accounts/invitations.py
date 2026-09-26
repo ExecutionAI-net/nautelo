@@ -138,9 +138,7 @@ def _resolve(raw_token: str) -> OrganizationInvitation:
 
 
 def private_seller_warning(invitation) -> dict | None:
-    """What an existing private seller loses by accepting a broker invitation."""
-    if invitation.org_type != UserRole.BROKER:
-        return None
+    """What an existing private seller loses by accepting an organization invitation."""
     from accounts.private_exit import private_footprint
 
     return private_footprint(User.objects.filter(email=invitation.email).first())
@@ -190,11 +188,11 @@ def accept_invitation(*, raw_token, user=None, password="", full_name="", locale
         if has_live_seat(existing):
             raise ValidationError({"token": ["already_member"]})
         user = existing
-        if invitation.org_type == UserRole.BROKER and user.primary_role == UserRole.PRIVATE_SELLER:
-            # A broker account is never a private seller again; see private_exit.
+        if user.primary_role == UserRole.PRIVATE_SELLER:
+            # A broker or professional account is never a private seller again; see private_exit.
             from accounts.private_exit import retire_private_space
 
-            retire_private_space(user)
+            retire_private_space(user, new_role=invitation.org_type)
         user.primary_role = invitation.org_type
         user.save(update_fields=["primary_role", "updated_at"])
 

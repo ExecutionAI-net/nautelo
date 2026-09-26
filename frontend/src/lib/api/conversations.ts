@@ -10,7 +10,7 @@ import type { Paginated } from "@/lib/api/directory";
 
 export type { Paginated };
 
-export type ConversationStatus = "OPEN" | "ARCHIVED" | "BLOCKED";
+export type ConversationStatus = "OPEN" | "ARCHIVED" | "BLOCKED" | "CLOSED";
 
 export type ConversationType =
   | "LISTING_INQUIRY"

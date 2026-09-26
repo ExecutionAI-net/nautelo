@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import PrivateAreaGuard, { brokerPathFor } from "./PrivateAreaGuard";
+import PrivateAreaGuard, { businessPathFor } from "./PrivateAreaGuard";
 
 const replaceMock = vi.fn();
 let pathname = "/dashboard/private-seller/";
@@ -21,16 +21,25 @@ beforeEach(() => {
   session = null;
 });
 
-describe("brokerPathFor", () => {
+describe("businessPathFor", () => {
   it("sends each private seller page to its brokerage counterpart", () => {
-    expect(brokerPathFor("/dashboard/private-seller/")).toBe("/dashboard/broker/");
-    expect(brokerPathFor("/dashboard/private-seller/listings/")).toBe("/dashboard/broker/fleet/");
-    expect(brokerPathFor("/sell/create/")).toBe("/dashboard/broker/fleet/");
-    expect(brokerPathFor(`/sell/${ID}/`)).toBe(`/dashboard/broker/fleet/${ID}/`);
-    expect(brokerPathFor("/dashboard/private-seller/account/")).toBe("/dashboard/broker/account/");
-    expect(brokerPathFor("/dashboard/private-seller/notifications/")).toBe("/dashboard/broker/notifications/");
-    expect(brokerPathFor("/dashboard/private-seller/messages/")).toBe("/dashboard/broker/messages/");
-    expect(brokerPathFor(`/dashboard/private-seller/messages/${ID}/`)).toBe(`/dashboard/broker/messages/${ID}/`);
+    expect(businessPathFor("/dashboard/private-seller/")).toBe("/dashboard/broker/");
+    expect(businessPathFor("/dashboard/private-seller/listings/")).toBe("/dashboard/broker/fleet/");
+    expect(businessPathFor("/sell/create/")).toBe("/dashboard/broker/fleet/");
+    expect(businessPathFor(`/sell/${ID}/`)).toBe(`/dashboard/broker/fleet/${ID}/`);
+    expect(businessPathFor("/dashboard/private-seller/account/")).toBe("/dashboard/broker/account/");
+    expect(businessPathFor("/dashboard/private-seller/notifications/")).toBe("/dashboard/broker/notifications/");
+    expect(businessPathFor("/dashboard/private-seller/messages/")).toBe("/dashboard/broker/messages/");
+    expect(businessPathFor(`/dashboard/private-seller/messages/${ID}/`)).toBe(`/dashboard/broker/messages/${ID}/`);
+  });
+
+  it("maps the same pages into the service provider area for professionals", () => {
+    expect(businessPathFor("/dashboard/private-seller/", "provider")).toBe("/dashboard/service-provider/");
+    expect(businessPathFor("/sell/create/", "provider")).toBe("/dashboard/service-provider/");
+    expect(businessPathFor(`/sell/${ID}/`, "provider")).toBe("/dashboard/service-provider/");
+    expect(businessPathFor("/dashboard/private-seller/account/", "provider")).toBe("/dashboard/service-provider/account/");
+    expect(businessPathFor("/dashboard/private-seller/messages/", "provider")).toBe("/dashboard/service-provider/requests/");
+    expect(businessPathFor(`/dashboard/private-seller/messages/${ID}/`, "provider")).toBe(`/dashboard/service-provider/requests/${ID}/`);
   });
 });
 
@@ -49,8 +58,16 @@ describe("PrivateAreaGuard", () => {
     expect(replaceMock).toHaveBeenCalledWith("/dashboard/broker/");
   });
 
-  it.each(["PRIVATE_SELLER", "PROFESSIONAL"])("lets a %s account through", (role) => {
-    session = { authenticated: true, user: { primary_role: role }, broker_memberships: [] };
+  it("sends a professional to the service provider area", () => {
+    session = { authenticated: true, user: { primary_role: "PROFESSIONAL" }, broker_memberships: [] };
+    pathname = `/dashboard/private-seller/messages/${ID}/`;
+    render(<PrivateAreaGuard>private content</PrivateAreaGuard>);
+    expect(screen.queryByText("private content")).toBeNull();
+    expect(replaceMock).toHaveBeenCalledWith(`/dashboard/service-provider/requests/${ID}/`);
+  });
+
+  it("lets a private seller through", () => {
+    session = { authenticated: true, user: { primary_role: "PRIVATE_SELLER" }, broker_memberships: [] };
     render(<PrivateAreaGuard>private content</PrivateAreaGuard>);
     expect(screen.getByText("private content")).toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();

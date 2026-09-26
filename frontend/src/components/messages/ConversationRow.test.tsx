@@ -101,6 +101,12 @@ describe("ConversationRowCard", () => {
     expect(screen.queryByText("Archived")).not.toBeInTheDocument();
   });
 
+  it("labels a row closed by an account change as such", () => {
+    render(<ConversationRowCard locale="en" row={{ ...ROW, status: "CLOSED" }} href="/x/" />);
+    expect(screen.getByText("Closed – account changed")).toBeInTheDocument();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+  });
+
   it("shows no status badge at all on an open row", () => {
     render(<ConversationRowCard locale="en" row={ROW} href="/x/" />);
     expect(screen.queryByText("Archived")).not.toBeInTheDocument();

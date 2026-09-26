@@ -1,10 +1,10 @@
-"""Closing a private seller's own space when the account joins a brokerage.
+"""Closing a private seller's own space when the account joins an organization.
 
-A broker account never goes back to being a private seller, so whatever it
-owned as a private seller is retired for good when it accepts a broker
-invitation: its private listings are archived (soft-deleted, exactly like an
-owner deletion), their open buyer conversations are closed, and every listing
-right it has not spent yet is forfeited. The invitation e-mail and the
+A broker or professional account never goes back to being a private seller,
+so whatever it owned as a private seller is retired for good when it accepts
+an organization invitation: its private listings are archived (soft-deleted,
+exactly like an owner deletion), their open buyer conversations are closed
+(CLOSED, not BLOCKED) and every listing right it has not spent yet is forfeited. The invitation e-mail and the
 accept page warn about this beforehand, using `private_footprint()`.
 """
 
@@ -16,7 +16,7 @@ from accounts.enums import SellerType, UserRole
 from audit.models import AuditEvent
 from audit.services import record_audit_event
 
-RETIRE_REASON = "joined_brokerage"
+RETIRE_REASON = "joined_organization"
 
 
 def _private_listings(user):
@@ -40,7 +40,7 @@ def private_footprint(user) -> dict | None:
 
 
 @transaction.atomic
-def retire_private_space(user) -> dict:
+def retire_private_space(user, *, new_role) -> dict:
     from entitlements.services import forfeit_unused_listing_rights
     from listings.enums import ListingStatus, RevisionStatus
     from listings.models import BoatListing, ListingRevision
@@ -56,7 +56,7 @@ def retire_private_space(user) -> dict:
         status=ListingStatus.ARCHIVED, deleted_at=now, updated_by=user, version=F("version") + 1, updated_at=now
     )
     closed = Conversation.objects.filter(listing_id__in=listing_ids, status=ConversationStatus.OPEN).update(
-        status=ConversationStatus.BLOCKED, updated_at=now
+        status=ConversationStatus.CLOSED, updated_at=now
     )
     forfeited = forfeit_unused_listing_rights(user=user, actor=user, reason=RETIRE_REASON)
 
@@ -69,7 +69,7 @@ def retire_private_space(user) -> dict:
         target_id=str(user.pk),
         source=AuditEvent.Source.API,
         before={"primary_role": UserRole.PRIVATE_SELLER},
-        after={"primary_role": UserRole.BROKER},
+        after={"primary_role": new_role},
         metadata={**summary, "listing_ids": [str(pk) for pk in listing_ids]},
     )
     return summary

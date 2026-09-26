@@ -279,7 +279,7 @@
     "category.browse_professionals": "Sfoglia i professionisti di questa categoria",
     "inquiry.business_cannot_start": "Gli account aziendali rispondono ai messaggi ricevuti ma non possono avviare nuove conversazioni.",
     "auth.invite.private_warning_title": "Importante: perderai la tua area di venditore privato.",
-    "auth.invite.private_warning_body": "Se accetti, questo account diventerà definitivamente un account broker: i tuoi {listings} annunci privati saranno archiviati e rimossi dal sito, i tuoi {rights} diritti di pubblicazione non utilizzati andranno persi e le conversazioni con gli acquirenti saranno chiuse. L'operazione non è reversibile."
+    "auth.invite.private_warning_body": "Se accetti, questo account diventerà definitivamente un account aziendale: i tuoi {listings} annunci privati saranno archiviati e rimossi dal sito, i tuoi {rights} diritti di pubblicazione non utilizzati andranno persi e le conversazioni con gli acquirenti saranno chiuse. L'operazione non è reversibile."
   },
   "es": {
     "finance.estimated_payment": "Cuota estimada",
@@ -561,6 +561,6 @@
     "category.browse_professionals": "Ver profesionales de esta categoría",
     "inquiry.business_cannot_start": "Las cuentas de empresa responden a los mensajes recibidos pero no pueden iniciar nuevas conversaciones.",
     "auth.invite.private_warning_title": "Importante: perderás tu área de vendedor particular.",
-    "auth.invite.private_warning_body": "Si aceptas, esta cuenta pasará a ser una cuenta de broker de forma permanente: tus {listings} anuncios particulares se archivarán y se retirarán del sitio, perderás tus {rights} derechos de publicación sin usar y se cerrarán tus conversaciones con compradores. No se puede deshacer."
+    "auth.invite.private_warning_body": "Si aceptas, esta cuenta pasará a ser una cuenta de empresa de forma permanente: tus {listings} anuncios particulares se archivarán y se retirarán del sitio, perderás tus {rights} derechos de publicación sin usar y se cerrarán tus conversaciones con compradores. No se puede deshacer."
   }
 }

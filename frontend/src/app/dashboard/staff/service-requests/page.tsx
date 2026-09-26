@@ -19,7 +19,7 @@ export default function StaffServiceRequestsPage() {
             { key: "professional_name", label: "Provider" },
             { key: "created_at", label: "Created" },
           ]}
-          statusOptions={["OPEN", "ARCHIVED", "BLOCKED"]}
+          statusOptions={["OPEN", "ARCHIVED", "BLOCKED", "CLOSED"]}
         />
       </RequirePermission>
     </AreaShell>

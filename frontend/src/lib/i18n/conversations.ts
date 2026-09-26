@@ -82,6 +82,13 @@ export const CONVERSATION_MESSAGES: Record<string, Translations> = {
     it: "Bloccata",
     es: "Bloqueada",
   },
+  "messages.closed_badge": {
+    // The seller's account changed type (joined a brokerage or a professional
+    // team), so the thread takes no new messages. Not a moderation outcome.
+    en: "Closed – account changed",
+    it: "Chiusa – account modificato",
+    es: "Cerrada – cuenta modificada",
+  },
 
   "messages.thread.back": {
     en: "Back to messages",
