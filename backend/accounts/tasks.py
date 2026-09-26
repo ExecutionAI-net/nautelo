@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 SUBJECTS = {
     "EN": "Confirm your Nautelo email address",
     "IT": "Conferma il tuo indirizzo email Nautelo",
-    "ES": "Confirma tu direccion de correo Nautelo",
+    "ES": "Confirma tu dirección de correo de Nautelo",
 }
 BODIES = {
     "EN": "Hello {name},\n\nConfirm your Nautelo account by opening:\n{url}\n\nThis link expires in 24 hours.",
@@ -45,12 +45,12 @@ def send_email_verification_email(user_id: str, raw_token: str) -> None:
 RESET_SUBJECTS = {
     "EN": "Reset your Nautelo password",
     "IT": "Reimposta la tua password Nautelo",
-    "ES": "Restablece tu contrasena Nautelo",
+    "ES": "Restablece tu contraseña de Nautelo",
 }
 RESET_BODIES = {
     "EN": "Hello {name},\n\nChoose a new password by opening:\n{url}\n\nThis link expires in 1 hour. If you did not ask for it, ignore this email.",
     "IT": "Ciao {name},\n\nScegli una nuova password aprendo:\n{url}\n\nIl link scade tra 1 ora. Se non l'hai richiesto, ignora questa email.",
-    "ES": "Hola {name},\n\nElige una nueva contrasena abriendo:\n{url}\n\nEl enlace caduca en 1 hora. Si no lo pediste, ignora este correo.",
+    "ES": "Hola {name},\n\nElige una nueva contraseña abriendo:\n{url}\n\nEl enlace caduca en 1 hora. Si no lo pediste, ignora este correo.",
 }
 
 
@@ -80,9 +80,9 @@ INVITE_SUBJECTS = {
 INVITE_BODIES = {
     "EN": "Hello,\n\n{inviter} invited you to join {org} on Nautelo as {role}.\nAccept the invitation:\n{url}\n\nThe link expires in 7 days.",
     "IT": "Ciao,\n\n{inviter} ti ha invitato a unirti a {org} su Nautelo come {role}.\nAccetta l'invito:\n{url}\n\nIl link scade tra 7 giorni.",
-    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en Nautelo como {role}.\nAcepta la invitacion:\n{url}\n\nEl enlace caduca en 7 dias.",
+    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en Nautelo como {role}.\nAcepta la invitación:\n{url}\n\nEl enlace caduca en 7 días.",
 }
-INVITE_BUTTONS = {"EN": "Accept the invitation", "IT": "Accetta l'invito", "ES": "Aceptar la invitacion"}
+INVITE_BUTTONS = {"EN": "Accept the invitation", "IT": "Accetta l'invito", "ES": "Aceptar la invitación"}
 #: Shown only when the invited address already belongs to a private seller who
 #: is being invited into an organization: accepting retires their private space
 #: for good (accounts.private_exit).
@@ -90,23 +90,23 @@ INVITE_PRIVATE_WARNINGS = {
     "EN": (
         "Important: you will lose your private seller area.",
         "This email address already has a private seller account on Nautelo. If you accept, it becomes a business "
-        "account permanently: your {listings} private listing(s) will be archived and removed from the site, your "
-        "{rights} unused listing right(s) will be forfeited, and your conversations with buyers will be closed. "
+        "account permanently: your private listings ({listings}) will be archived and removed from the site, your "
+        "unused listing rights ({rights}) will be forfeited, and your conversations with buyers will be closed. "
         "This cannot be undone.",
     ),
     "IT": (
         "Importante: perderai la tua area di venditore privato.",
-        "Questo indirizzo email ha gia un account da venditore privato su Nautelo. Se accetti, diventera "
-        "definitivamente un account aziendale: i tuoi {listings} annunci privati saranno archiviati e rimossi dal sito, "
-        "i tuoi {rights} diritti di pubblicazione non utilizzati andranno persi e le conversazioni con gli acquirenti "
-        "saranno chiuse. L'operazione non e reversibile.",
+        "Questo indirizzo email ha già un account da venditore privato su Nautelo. Se accetti, diventerà "
+        "definitivamente un account aziendale: i tuoi annunci privati ({listings}) saranno archiviati e rimossi dal "
+        "sito, i tuoi diritti di pubblicazione non utilizzati ({rights}) andranno persi e le conversazioni con gli "
+        "acquirenti saranno chiuse. L'operazione non è reversibile.",
     ),
     "ES": (
-        "Importante: perderas tu area de vendedor particular.",
-        "Esta direccion de correo ya tiene una cuenta de vendedor particular en Nautelo. Si aceptas, pasara a ser "
-        "una cuenta de empresa de forma permanente: tus {listings} anuncios particulares se archivaran y se retiraran "
-        "del sitio, perderas tus {rights} derechos de publicacion sin usar y se cerraran tus conversaciones con "
-        "compradores. No se puede deshacer.",
+        "Importante: perderás tu área de vendedor particular.",
+        "Esta dirección de correo ya tiene una cuenta de vendedor particular en Nautelo. Si aceptas, pasará a ser "
+        "una cuenta de empresa de forma permanente: tus anuncios particulares ({listings}) se archivarán y se "
+        "retirarán del sitio, perderás tus derechos de publicación sin usar ({rights}) y se cerrarán tus "
+        "conversaciones con compradores. No se puede deshacer.",
     ),
 }
 

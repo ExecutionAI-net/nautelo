@@ -226,7 +226,8 @@ def test_a_private_seller_joining_a_brokerage_is_warned_and_loses_the_private_sp
     assert message.subject.startswith("Sei stato invitato")
     html = message.alternatives[0][0]
     assert "#b3261e" in html and "perderai la tua area di venditore privato" in html
-    assert "1 annunci privati" in html and "1 diritti di pubblicazione" in html
+    assert "annunci privati (1)" in html and "non utilizzati (1)" in html
+    assert "già" in html and "non è reversibile" in html
     token = _token_from_mail()
     preview = _client().post(reverse("invitation-preview"), {"token": token}, format="json").json()
     assert preview["private_seller_warning"] == {"listings": 1, "unused_rights": 1}

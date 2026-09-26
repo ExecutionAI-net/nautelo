@@ -42,8 +42,8 @@ describe("AcceptInvitePage", () => {
     const warning = await screen.findByRole("note");
     expect(warning.className).toContain("text-error");
     expect(warning.textContent).toMatch(/lose your private seller area/);
-    expect(warning.textContent).toMatch(/your 2 private listing\(s\)/);
-    expect(warning.textContent).toMatch(/your 3 unused listing right\(s\)/);
+    expect(warning.textContent).toMatch(/your private listings \(2\)/);
+    expect(warning.textContent).toMatch(/your unused listing rights \(3\)/);
   });
 
   it("shows no warning for an address that is not a private seller", async () => {
