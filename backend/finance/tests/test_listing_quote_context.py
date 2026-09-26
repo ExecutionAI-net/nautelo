@@ -148,9 +148,9 @@ def test_an_unknown_listing_is_not_found(api, estimates_on):
 
 
 @pytest.mark.django_db
-def test_a_private_listing_is_refused(api, estimates_on):
-    """Spec §40 Scenario D: public finance is not visible for a private seller,
-    on every surface, including this one."""
+def test_a_private_listing_is_quoted(api, estimates_on):
+    """Product decision 2026-09-26: private listings show the estimate, so the
+    quote endpoint answers for them as well."""
     owner = make_user(
         email=f"seller-{next(_names)}@example.com",
         role=UserRole.PRIVATE_SELLER,
@@ -166,8 +166,7 @@ def test_a_private_listing_is_refused(api, estimates_on):
 
     response = api.post(QUOTE_URL, {"listing_id": str(listing.pk)}, format="json")
 
-    assert response.status_code == 400
-    assert response.data["error"]["code"] == "finance_not_available_for_listing"
+    assert response.status_code == 200, response.data
 
 
 @pytest.mark.django_db
@@ -631,7 +630,6 @@ def _ineligible(reason):
 @pytest.mark.parametrize(
     "reason",
     [
-        "private_seller",
         "snapshot_toggle_off",
         "non_eur_currency",
         "finance_disabled",

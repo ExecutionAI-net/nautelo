@@ -170,6 +170,11 @@ def create_listing_draft(*, actor, broker_id=None, payload: dict) -> BoatListing
     # here, which is what makes `brand_id` and `model_id` *required* on create
     # (spec §11.4 declares all three columns NOT NULL).
     _apply_payload_to_listing(listing, cleaned)
+    if context.seller_type == SellerType.PRIVATE:
+        # Private listings always show the estimated monthly payment, at the
+        # platform's standard rate and term; the seller never sees the switch
+        # (product decision 2026-09-26, finance.listing_quotes).
+        listing.show_finance_estimate = True
 
     try:
         listing.full_clean(exclude=FULL_CLEAN_EXCLUDED_FIELDS)

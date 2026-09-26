@@ -304,8 +304,13 @@ def test_a_scan_whose_task_was_lost_is_queued_again_and_finally_given_up(client,
     # The re-queued row was touched, so the very next sweep leaves it alone.
     assert requeue_stuck_media(now=now + timedelta(minutes=21)) == {"requeued": 0, "rejected": 0}
 
-    ListingMedia.objects.filter(pk=media_id).update(updated_at=now - timedelta(hours=7))
-    assert requeue_stuck_media(now=now) == {"requeued": 0, "rejected": 1}
+    # The scanner stays down: every sweep re-queues the row (and touches it), yet six
+    # hours after the upload the row is given up rather than re-queued forever.
+    later = now + timedelta(minutes=21)
+    while later < now + timedelta(hours=5, minutes=30):
+        later += timedelta(minutes=20)
+        assert requeue_stuck_media(now=later) == {"requeued": 1, "rejected": 0}
+    assert requeue_stuck_media(now=now + timedelta(hours=7)) == {"requeued": 0, "rejected": 1}
     media.refresh_from_db()
     assert media.status == MediaStatus.REJECTED
     assert "upload it again" in media.rejection_reason

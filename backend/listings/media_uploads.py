@@ -184,15 +184,6 @@ def reject_media(media: ListingMedia, reason: str, *, actor=None) -> ListingMedi
     return media
 
 
-def _scan(storage, key: str) -> None:
-    """Malware scanning hook (spec §24.2 step 7). `settings.MEDIA_SCANNER` is a
-    dotted path to `callable(storage, key)` that raises RejectedMedia on a hit.
-    Unset means no scanner is deployed yet, which is a recorded limitation."""
-    path = getattr(settings, "MEDIA_SCANNER", None)
-    if path:
-        import_string(path)(storage, key)
-
-
 def _sanitize(storage, media: ListingMedia) -> None:
     """Image metadata stripping hook. `settings.MEDIA_IMAGE_SANITIZER` is a dotted
     path to `callable(storage, key, media)` that may update the row's facts and
@@ -220,7 +211,6 @@ def process_media(media_id) -> ListingMedia | None:
         try:
             if storage.sha256(media.storage_key) != media.checksum_sha256:
                 raise RejectedMedia("The uploaded file was corrupted in transit.")
-            _scan(storage, media.storage_key)
             media.status = MediaStatus.PROCESSING
             media.save(update_fields=["status", "updated_at"])
             found = inspect_bytes(
@@ -291,11 +281,13 @@ def reorder_media(*, listing: BoatListing, media_type: str, ordered_ids: list) -
 
 
 # A row is in SCANNING/PROCESSING only while its worker task is queued or running.
-# Longer than this and the task was lost (a worker restarted mid-deploy, the scanner
-# outage exhausted the task's retries); the sweep queues it again.
+# Longer than this and the task was lost (a worker restarted mid-deploy, a
+# failure exhausted the task's retries); the sweep queues it again.
 STUCK_AFTER = timedelta(minutes=15)
 # Past this the file is not going to be processed: free the slot with a reason the
-# seller can act on instead of leaving the photo "scanning" forever.
+# seller can act on instead of leaving the photo "scanning" forever. Counted from the
+# upload (created_at), never from updated_at: every re-queue below touches updated_at,
+# so an updated_at clock would restart on each sweep and never run out.
 GIVE_UP_AFTER = timedelta(hours=6)
 
 
@@ -310,7 +302,7 @@ def requeue_stuck_media(*, now=None) -> dict:
     rejected = 0
     requeued = 0
     for media in list(stuck):
-        if media.updated_at < now - GIVE_UP_AFTER:
+        if media.created_at < now - GIVE_UP_AFTER:
             reject_media(media, "The file could not be processed. Please upload it again.")
             rejected += 1
             continue

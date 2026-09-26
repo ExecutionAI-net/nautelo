@@ -11,7 +11,7 @@ Region: `eu-west-1`; AWS account: `790702264138`; EC2: `i-0a628b595b9e8d709` (cu
 
 Nginx routes `/api/`, `/ws/`, and `/admin/` to Django, `/static/` to Django's collected assets, and all other paths to Next.js. It preserves the existing `/api/v1/...` paths. **Do not append `/api` to `NEXT_PUBLIC_API_BASE_URL`: the frontend already adds it.**
 
-The two environments retain separate databases, Redis, ClamAV, workers, schedules, networks and volumes. One shared proxy publishes only ports 80 and 443. It can start before prod is deployed; the undeployed environment returns 502 without preventing dev from running. Media remains in private S3 with signed PUT/GET URLs, independent of Cloudflare site proxying.
+The two environments retain separate databases, Redis, workers, schedules, networks and volumes. One shared proxy publishes only ports 80 and 443. It can start before prod is deployed; the undeployed environment returns 502 without preventing dev from running. Media remains in private S3 with signed PUT/GET URLs, independent of Cloudflare site proxying.
 
 ## 1. Cloudflare DNS and SSL
 
@@ -54,7 +54,7 @@ sudo docker compose -f /opt/nautelo/proxy/docker-compose.proxy.yml exec -T nginx
 sudo docker compose -f /opt/nautelo/proxy/docker-compose.proxy.yml exec -T nginx nginx -s reload
 ```
 
-Python 3, AWS CLI v2, Docker, Compose 2.30+, `openssl`, and `curl` must be installed on EC2. Your SSM Agent and existing instance role remain in use. Keep ports 80/443 available; SSH can remain restricted to your administration IP. Application ports, PostgreSQL, Redis and ClamAV do not need host ingress rules.
+Python 3, AWS CLI v2, Docker, Compose 2.30+, `openssl`, and `curl` must be installed on EC2. Your SSM Agent and existing instance role remain in use. Keep ports 80/443 available; SSH can remain restricted to your administration IP. Application ports, PostgreSQL and Redis do not need host ingress rules.
 
 ## 3. Update the AWS secrets
 
@@ -208,20 +208,11 @@ proxy configuration and its `/api/` upstream. A `Location` header identifies a
 redirect that the previous Node fetch would have followed. Keep the existing
 volumes; deleting them cannot repair API routing and can destroy stored data.
 
-## Video scanning limits
+## Media uploads
 
-Both deployment stacks configure ClamAV through the official image's `CLAMD_CONF_*`
-environment variables: 300 MiB stream/file limits, a 600 MiB aggregate scan limit,
-a 240-second scan budget (`MaxScanTime` uses milliseconds), and a 300-second
-stream read timeout. `AlertExceedsMax` rejects scans that exceed inspection limits.
-The application's video upload limit remains 250 MiB and 120 seconds.
-The backend scanner socket timeout defaults to 300 seconds (`CLAMAV_TIMEOUT`).
-This is a per-socket-operation timeout, not an overall task deadline.
-
-Deploy the updated backend image and Compose files together. The deployment helper
-now permits Compose to recreate ClamAV when its configuration or image changes;
-the signature database volume is retained. No Nginx changes are needed for the
-direct-to-S3 upload path.
+There is no malware scanner (product decision 2026-09-26): an upload is checked for
+type, size and dimensions, has its image metadata stripped or its video probed with
+ffprobe, and becomes READY. The video upload limit is 250 MiB and 120 seconds.
 
 ## Frontend production bundler
 

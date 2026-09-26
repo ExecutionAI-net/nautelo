@@ -21,6 +21,7 @@ vi.mock("@/lib/api/sellerListings", () => ({
   updateDraft: vi.fn(),
   submitListing: vi.fn(),
   listMedia: vi.fn().mockResolvedValue([]),
+  isMediaProcessing: (status: string) => ["UPLOADING", "SCANNING", "PROCESSING"].includes(status),
   removeMedia: vi.fn(),
   uploadMedia: vi.fn(),
   applyMediaUpgrade: vi.fn(),

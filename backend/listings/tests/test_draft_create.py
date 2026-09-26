@@ -69,6 +69,22 @@ def test_a_private_seller_creates_a_draft_listing_and_its_first_revision(api, wo
 
 
 @pytest.mark.django_db
+def test_a_private_draft_always_shows_the_finance_estimate(api, workflow_enabled):
+    """Private sellers never see the switch; the estimate is on, at platform terms."""
+    seller = _seller()
+    brand = make_brand()
+    api.force_authenticate(seller)
+
+    response = api.post(reverse("listing-draft-create"), _body(brand, make_model(brand)), format="json")
+
+    assert response.status_code == 201
+    listing = BoatListing.objects.get(pk=response.data["id"])
+    assert listing.show_finance_estimate is True
+    assert listing.finance_rate_override_percent is None
+    assert listing.finance_term_override_months is None
+
+
+@pytest.mark.django_db
 def test_the_response_reports_the_role_policy_capabilities(api, workflow_enabled):
     seller = _seller()
     brand = make_brand()

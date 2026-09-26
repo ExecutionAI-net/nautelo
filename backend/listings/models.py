@@ -153,11 +153,6 @@ class BoatListing(UUIDTimeStampedModel):
                 name="listings_broker_requires_org_and_no_owner",
             ),
             models.CheckConstraint(
-                condition=Q(show_finance_estimate=False)
-                | Q(seller_type=SellerType.BROKER),
-                name="listings_finance_flag_requires_broker",
-            ),
-            models.CheckConstraint(
                 condition=Q(manufacture_year__gte=MIN_MANUFACTURE_YEAR),
                 name="listings_manufacture_year_at_least_1900",
             ),

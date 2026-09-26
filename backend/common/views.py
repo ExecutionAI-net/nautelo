@@ -15,29 +15,11 @@ class HealthCheckView(APIView):
             "redis": self._check_redis(),
             "celery_worker": self._check_celery(),
         }
-        # The API is healthy without the malware scanner: reads, logins and
-        # checkouts keep working and uploads wait in SCANNING for it. Reporting
-        # it below (but outside the 503 decision) is what lets an operator see
-        # why photos have stopped becoming READY without the container
-        # health-check restarting an API that is fine.
         healthy = all(value == "ok" for value in checks.values())
-        checks["media_scanner"] = self._check_media_scanner()
         return Response(
             {"status": "ok" if healthy else "degraded", "checks": checks},
             status=200 if healthy else 503,
         )
-
-    def _check_media_scanner(self):
-        from django.conf import settings
-
-        if not getattr(settings, "MEDIA_SCANNER", None):
-            return "disabled"
-        try:
-            from listings.media_scan import ping_clamd
-
-            return "ok" if ping_clamd() else "unavailable"
-        except Exception:
-            return "unavailable"
 
     def _check_database(self):
         try:

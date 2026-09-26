@@ -110,13 +110,14 @@ def test_the_list_response_carries_the_same_block(api, estimates_on):
 
 
 @pytest.mark.django_db
-def test_a_private_listing_carries_only_visible_false(api, estimates_on):
-    """Spec §1: private-seller finance is never displayed. Spec §40 Scenario D."""
+def test_a_private_listing_always_shows_the_estimate(api, estimates_on):
+    """Product decision 2026-09-26: a private listing shows the estimated monthly
+    payment at the platform's standard terms, even with no per-listing switch."""
     listing = _publish(_private_listing())
 
     response = api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk}))
 
-    assert response.data["finance"] == {"visible": False}
+    assert response.data["finance"]["visible"] is True
 
 
 @pytest.mark.django_db

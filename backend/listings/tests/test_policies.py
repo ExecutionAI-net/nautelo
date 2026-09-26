@@ -128,11 +128,11 @@ def test_a_private_seller_always_requires_staff_approval():
 
 
 @pytest.mark.django_db
-def test_a_broker_without_the_policy_requires_staff_approval():
+def test_an_active_broker_skips_staff_approval_even_without_the_old_policy_flag():
     actor = make_user("policy-broker-off@example.com", role=UserRole.BROKER)
     broker = _policy_broker("policy-off", auto=False)
     listing = make_broker_listing(broker=broker, actor=actor)
-    assert requires_staff_approval(listing) is True
+    assert requires_staff_approval(listing) is False
 
 
 @pytest.mark.django_db

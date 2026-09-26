@@ -38,25 +38,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-  clamav:
-    image: clamav/clamav:stable
-    environment:
-      # Allow the application's 250 MiB videos with room for format overhead.
-      CLAMD_CONF_StreamMaxLength: "300M"
-      CLAMD_CONF_MaxFileSize: "300M"
-      CLAMD_CONF_MaxScanSize: "600M"
-      CLAMD_CONF_MaxScanTime: "240000" # milliseconds; below the client timeout
-      CLAMD_CONF_ReadTimeout: "300" # seconds waiting for stream data
-      CLAMD_CONF_AlertExceedsMax: "yes" # never treat a size-limited scan as clean
-    volumes: [clamav_data:/var/lib/clamav]
-    restart: unless-stopped
-    logging: *logging
-    healthcheck:
-      test: [CMD-SHELL, "clamdcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      start_period: 180s
-      retries: 10
   migrate:
     <<: *backend
     restart: "no"
@@ -81,7 +62,6 @@ services:
     command: celery -A config worker -l info --concurrency=2 -Q default,notifications,media,maintenance
     depends_on:
       migrate: {condition: service_completed_successfully}
-      clamav: {condition: service_healthy}
   beat:
     <<: *backend
     command: celery -A config beat -l info --schedule=/app/beat/celerybeat-schedule
@@ -113,7 +93,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  clamav_data:
   beat_data:
   static_data:
     name: nautelo-prod-static
