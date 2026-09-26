@@ -4,18 +4,21 @@ import MessagesScreen from "@/components/messages/MessagesScreen";
 
 export const dynamic = "force-dynamic";
 
-// Service requests are professional-inquiry conversations; the thread opens
-// under Requests too, never in the private seller area.
-export default function ProviderRequestsPage() {
+// Next 16: params is a Promise.
+type Params = Promise<{ conversationId: string }>;
+
+/** One service request, opened inside the service provider area. */
+export default async function ProviderRequestThreadPage({ params }: { params: Params }) {
+  const { conversationId } = await params;
   return (
     <AreaShell area="provider" active="/dashboard/service-provider/requests/">
       <RequirePermission>
         <MessagesScreen
           basePath="/dashboard/service-provider/requests/"
           filter="ALL"
+          selectedId={conversationId}
           eyebrow="Service provider / Requests"
           heading="Requests"
-          intro="Requests from boat owners and buyers who contacted your profile. Reply here; contact details are shared only with the person who wrote to you."
         />
       </RequirePermission>
     </AreaShell>

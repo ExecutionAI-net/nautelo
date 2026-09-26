@@ -117,7 +117,7 @@ export default function ProviderOverview() {
           {(state?.requests ?? []).map((row) => (
             <Link
               key={row.id}
-              href={`/dashboard/private-seller/messages/${row.id}/`}
+              href={`/dashboard/service-provider/requests/${row.id}/`}
               className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm hover:shadow-md transition-shadow flex items-start justify-between gap-space-md"
             >
               <span className="min-w-0">

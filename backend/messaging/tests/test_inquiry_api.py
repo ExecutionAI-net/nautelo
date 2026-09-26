@@ -6,6 +6,7 @@ import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from accounts.enums import UserRole
 from accounts.tests.factories import make_user
 from brokers.enums import BrokerMembershipRole
 from brokers.tests.factories import make_broker, make_membership
@@ -288,6 +289,19 @@ def test_an_unpublished_listing_is_recipient_unavailable(api, asker):
     )
     assert response.status_code == 409
     assert response.data["error"]["code"] == "recipient_unavailable"
+
+
+@pytest.mark.parametrize("role", [UserRole.BROKER, UserRole.PROFESSIONAL])
+def test_business_accounts_cannot_start_a_conversation(api, professional, role):
+    """Only private sellers open threads; brokers and professionals only reply."""
+    business = make_user(email=f"api-{role.lower()}@phase6.example", role=role)
+    api.force_authenticate(business)
+    response = api.post(
+        reverse("inquiry-create"), _body(professional.pk, business.email), format="json"
+    )
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "inquiry_initiator_not_allowed"
+    assert Conversation.objects.count() == 0
 
 
 def test_a_seller_cannot_inquire_about_their_own_listing(api):

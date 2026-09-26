@@ -256,10 +256,10 @@ def test_professional_journey(django_capture_on_commit_callbacks, storage):
     seen = visitor_api.get(reverse("conversation-messages", args=[conversation.pk]))
     assert seen.status_code == 200 and "Happy to help" in str(seen.json())
 
-    # 9. Removing the manager returns them to a plain account and closes access.
+    # 9. Removing the manager closes access; the account stays a professional account.
     seat = ProfessionalMembership.objects.get(user__email="mia@blue-rigging.example")
     assert api.delete(reverse("provider-team-member", args=[seat.pk])).status_code == 204
-    assert User.objects.get(email="mia@blue-rigging.example").primary_role == UserRole.PRIVATE_SELLER
+    assert User.objects.get(email="mia@blue-rigging.example").primary_role == UserRole.PROFESSIONAL
     assert team.get(reverse("provider-team")).status_code in (403, 404)
 
 

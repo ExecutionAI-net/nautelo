@@ -21,7 +21,7 @@ export default function StaffLeadsPage() {
             { key: "broker_name", label: "Broker" },
             { key: "created_at", label: "Created", sortable: true },
           ]}
-          statusOptions={["OPEN", "ARCHIVED", "BLOCKED"]}
+          statusOptions={["OPEN", "ARCHIVED", "BLOCKED", "CLOSED"]}
         />
       </RequirePermission>
     </AreaShell>

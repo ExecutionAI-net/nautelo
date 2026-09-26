@@ -12,8 +12,6 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -139,6 +137,13 @@ def _resolve(raw_token: str) -> OrganizationInvitation:
     return invitation
 
 
+def private_seller_warning(invitation) -> dict | None:
+    """What an existing private seller loses by accepting an organization invitation."""
+    from accounts.private_exit import private_footprint
+
+    return private_footprint(User.objects.filter(email=invitation.email).first())
+
+
 def preview_invitation(raw_token: str) -> dict:
     invitation = _resolve(raw_token)
     return {
@@ -147,6 +152,7 @@ def preview_invitation(raw_token: str) -> dict:
         "role": invitation.role,
         "email": invitation.email,
         "account_exists": User.objects.filter(email=invitation.email).exists(),
+        "private_seller_warning": private_seller_warning(invitation),
     }
 
 
@@ -182,6 +188,11 @@ def accept_invitation(*, raw_token, user=None, password="", full_name="", locale
         if has_live_seat(existing):
             raise ValidationError({"token": ["already_member"]})
         user = existing
+        if user.primary_role == UserRole.PRIVATE_SELLER:
+            # A broker or professional account is never a private seller again; see private_exit.
+            from accounts.private_exit import retire_private_space
+
+            retire_private_space(user, new_role=invitation.org_type)
         user.primary_role = invitation.org_type
         user.save(update_fields=["primary_role", "updated_at"])
 
@@ -208,22 +219,3 @@ def accept_invitation(*, raw_token, user=None, password="", full_name="", locale
     invitation.accepted_user = user
     invitation.save(update_fields=["accepted_at", "accepted_user", "updated_at"])
     return user
-
-
-def release_role_if_unseated(user) -> None:
-    """A member with no live seat left goes back to being a private seller."""
-    if user.primary_role in (UserRole.BROKER, UserRole.PROFESSIONAL) and not has_live_seat(user):
-        User.objects.filter(pk=user.pk).update(primary_role=UserRole.PRIVATE_SELLER)
-
-
-def _seat_saved(sender, instance, **kwargs):
-    if not instance.is_active:
-        release_role_if_unseated(instance.user)
-
-
-def connect_seat_signals():
-    from brokers.models import BrokerMembership
-    from professionals.models import ProfessionalMembership
-
-    post_save.connect(_seat_saved, sender=BrokerMembership, dispatch_uid="release_broker_seat")
-    post_save.connect(_seat_saved, sender=ProfessionalMembership, dispatch_uid="release_pro_seat")

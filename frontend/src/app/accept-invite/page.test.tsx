@@ -32,4 +32,24 @@ describe("AcceptInvitePage", () => {
     expect(hrefs.some((href) => href?.startsWith("/login/?next="))).toBe(true);
     expect(screen.queryByRole("button", { name: "Accept invitation" })).toBeNull();
   });
+
+  it("warns a private seller in red what joining a brokerage takes away", async () => {
+    apiFetch.mockResolvedValueOnce({
+      organization: "Blue Marine", org_type: "BROKER", role: "AGENT", email: "p@x.co", account_exists: true,
+      private_seller_warning: { listings: 2, unused_rights: 3 },
+    });
+    render(<AcceptInvitePage />);
+    const warning = await screen.findByRole("note");
+    expect(warning.className).toContain("text-error");
+    expect(warning.textContent).toMatch(/lose your private seller area/);
+    expect(warning.textContent).toMatch(/your private listings \(2\)/);
+    expect(warning.textContent).toMatch(/your unused listing rights \(3\)/);
+  });
+
+  it("shows no warning for an address that is not a private seller", async () => {
+    apiFetch.mockResolvedValueOnce({ organization: "Blue Marine", org_type: "BROKER", role: "AGENT", email: "n@x.co", account_exists: false, private_seller_warning: null });
+    render(<AcceptInvitePage />);
+    await screen.findByLabelText("Full name");
+    expect(screen.queryByRole("note")).toBeNull();
+  });
 });

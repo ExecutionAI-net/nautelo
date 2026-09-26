@@ -35,7 +35,7 @@ export default function ConversationThread({
   // comes from the server (spec 2.1); this is the control's visibility, and
   // messaging.services.set_conversation_status is the rule.
   const canFile =
-    conversation.status !== "BLOCKED" && !conversation.viewer_is_initiator;
+    conversation.status !== "BLOCKED" && conversation.status !== "CLOSED" && !conversation.viewer_is_initiator;
 
   return (
     <div>
@@ -66,6 +66,11 @@ export default function ConversationThread({
           {conversation.status === "BLOCKED" ? (
             <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
               {tConversations(locale, "messages.blocked_badge")}
+            </span>
+          ) : null}
+          {conversation.status === "CLOSED" ? (
+            <span className="rounded border border-outline-variant px-space-xs font-label-sm text-label-sm text-on-surface-variant">
+              {tConversations(locale, "messages.closed_badge")}
             </span>
           ) : null}
           {canFile ? (

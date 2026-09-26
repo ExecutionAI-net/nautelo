@@ -43,6 +43,7 @@ def test_conversation_status_values_match_spec_11_8():
         ("OPEN", "OPEN"),
         ("ARCHIVED", "ARCHIVED"),
         ("BLOCKED", "BLOCKED"),
+        ("CLOSED", "CLOSED"),
     ]
 
 

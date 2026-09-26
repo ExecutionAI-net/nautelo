@@ -33,7 +33,14 @@ function Heading({ icon, tile, kicker, title }: { icon: string; tile: string; ki
   );
 }
 
-export default function AccountSettings() {
+const BREADCRUMBS = {
+  seller: "auth.account_settings.breadcrumb",
+  broker: "auth.account_settings.breadcrumb_broker",
+  provider: "auth.account_settings.breadcrumb_provider",
+} as const;
+
+/** `area` names the dashboard this page sits in, so a broker or professional never reads "Seller area". */
+export default function AccountSettings({ area = "seller" }: { area?: keyof typeof BREADCRUMBS }) {
   const t = useT();
   const { session, reload } = useSession();
   const user = session?.user;
@@ -92,7 +99,7 @@ export default function AccountSettings() {
   return (
     <form onSubmit={save} className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">{t("auth.account_settings.breadcrumb")}</span>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">{t(BREADCRUMBS[area])}</span>
         <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">{t("auth.account_settings.title")}</h1>
         <p className="mt-space-xs font-body-md text-on-surface-variant">{t("auth.account_settings.subtitle")}</p>
       </div>

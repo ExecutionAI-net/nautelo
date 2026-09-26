@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 SUBJECTS = {
     "EN": "Confirm your Nautelo email address",
     "IT": "Conferma il tuo indirizzo email Nautelo",
-    "ES": "Confirma tu direccion de correo Nautelo",
+    "ES": "Confirma tu dirección de correo de Nautelo",
 }
 BODIES = {
     "EN": "Hello {name},\n\nConfirm your Nautelo account by opening:\n{url}\n\nThis link expires in 24 hours.",
@@ -45,12 +45,12 @@ def send_email_verification_email(user_id: str, raw_token: str) -> None:
 RESET_SUBJECTS = {
     "EN": "Reset your Nautelo password",
     "IT": "Reimposta la tua password Nautelo",
-    "ES": "Restablece tu contrasena Nautelo",
+    "ES": "Restablece tu contraseña de Nautelo",
 }
 RESET_BODIES = {
     "EN": "Hello {name},\n\nChoose a new password by opening:\n{url}\n\nThis link expires in 1 hour. If you did not ask for it, ignore this email.",
     "IT": "Ciao {name},\n\nScegli una nuova password aprendo:\n{url}\n\nIl link scade tra 1 ora. Se non l'hai richiesto, ignora questa email.",
-    "ES": "Hola {name},\n\nElige una nueva contrasena abriendo:\n{url}\n\nEl enlace caduca en 1 hora. Si no lo pediste, ignora este correo.",
+    "ES": "Hola {name},\n\nElige una nueva contraseña abriendo:\n{url}\n\nEl enlace caduca en 1 hora. Si no lo pediste, ignora este correo.",
 }
 
 
@@ -80,13 +80,79 @@ INVITE_SUBJECTS = {
 INVITE_BODIES = {
     "EN": "Hello,\n\n{inviter} invited you to join {org} on Nautelo as {role}.\nAccept the invitation:\n{url}\n\nThe link expires in 7 days.",
     "IT": "Ciao,\n\n{inviter} ti ha invitato a unirti a {org} su Nautelo come {role}.\nAccetta l'invito:\n{url}\n\nIl link scade tra 7 giorni.",
-    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en Nautelo como {role}.\nAcepta la invitacion:\n{url}\n\nEl enlace caduca en 7 dias.",
+    "ES": "Hola,\n\n{inviter} te ha invitado a unirte a {org} en Nautelo como {role}.\nAcepta la invitación:\n{url}\n\nEl enlace caduca en 7 días.",
 }
+INVITE_BUTTONS = {"EN": "Accept the invitation", "IT": "Accetta l'invito", "ES": "Aceptar la invitación"}
+#: Shown only when the invited address already belongs to a private seller who
+#: is being invited into an organization: accepting retires their private space
+#: for good (accounts.private_exit).
+INVITE_PRIVATE_WARNINGS = {
+    "EN": (
+        "Important: you will lose your private seller area.",
+        "This email address already has a private seller account on Nautelo. If you accept, it becomes a business "
+        "account permanently: your private listings ({listings}) will be archived and removed from the site, your "
+        "unused listing rights ({rights}) will be forfeited, and your conversations with buyers will be closed. "
+        "This cannot be undone.",
+    ),
+    "IT": (
+        "Importante: perderai la tua area di venditore privato.",
+        "Questo indirizzo email ha già un account da venditore privato su Nautelo. Se accetti, diventerà "
+        "definitivamente un account aziendale: i tuoi annunci privati ({listings}) saranno archiviati e rimossi dal "
+        "sito, i tuoi diritti di pubblicazione non utilizzati ({rights}) andranno persi e le conversazioni con gli "
+        "acquirenti saranno chiuse. L'operazione non è reversibile.",
+    ),
+    "ES": (
+        "Importante: perderás tu área de vendedor particular.",
+        "Esta dirección de correo ya tiene una cuenta de vendedor particular en Nautelo. Si aceptas, pasará a ser "
+        "una cuenta de empresa de forma permanente: tus anuncios particulares ({listings}) se archivarán y se "
+        "retirarán del sitio, perderás tus derechos de publicación sin usar ({rights}) y se cerrarán tus "
+        "conversaciones con compradores. No se puede deshacer.",
+    ),
+}
+
+
+def _invitation_locale(invitation) -> str:
+    """The recipient's own language when they already have an account,
+    otherwise the inviter's, otherwise English."""
+    recipient = User.objects.filter(email=invitation.email).first()
+    for person in (recipient, invitation.invited_by):
+        if person is not None and person.locale in INVITE_SUBJECTS:
+            return person.locale
+    return "EN"
+
+
+def _invitation_html(*, locale, inviter, org, role, url, warning) -> str:
+    from django.utils.html import escape
+
+    from emailing.layout import BRAND_TEAL, wrap_in_layout
+
+    parts = []
+    if warning is not None:
+        title, text = INVITE_PRIVATE_WARNINGS[locale]
+        parts.append(
+            '<div style="margin:0 0 24px;padding:16px;border:2px solid #b3261e;border-radius:8px;background:#fdecea;">'
+            f'<p style="margin:0 0 8px;font-size:20px;line-height:1.35;font-weight:700;color:#b3261e;">{escape(title)}</p>'
+            f'<p style="margin:0;font-size:17px;line-height:1.5;font-weight:600;color:#b3261e;">'
+            f"{escape(text.format(listings=warning['listings'], rights=warning['unused_rights']))}</p>"
+            "</div>"
+        )
+    body = INVITE_BODIES[locale].format(inviter=inviter, org=org, role=role, url="")
+    lines = [line for line in body.split("\n") if line.strip()]
+    for line in lines[:-1]:
+        parts.append(f'<p style="margin:0 0 12px;">{escape(line)}</p>')
+    parts.append(
+        f'<p style="margin:24px 0;"><a href="{escape(url)}" style="display:inline-block;padding:12px 24px;'
+        f'background:{BRAND_TEAL};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">'
+        f"{escape(INVITE_BUTTONS[locale])}</a></p>"
+    )
+    parts.append(f'<p style="margin:0 0 8px;font-size:13px;">{escape(lines[-1])}</p>')
+    parts.append(f'<p style="margin:0;font-size:12px;color:#5f6b6c;word-break:break-all;">{escape(url)}</p>')
+    return wrap_in_layout("\n".join(parts))
 
 
 @shared_task(queue="notifications")
 def send_invitation_email(invitation_id: str, raw_token: str) -> None:
-    from accounts.invitations import organization_name
+    from accounts.invitations import organization_name, private_seller_warning
     from accounts.models import OrganizationInvitation
 
     invitation = (
@@ -97,17 +163,23 @@ def send_invitation_email(invitation_id: str, raw_token: str) -> None:
     if invitation is None:
         return
     inviter = invitation.invited_by
-    locale = inviter.locale if inviter and inviter.locale in INVITE_SUBJECTS else "EN"
+    locale = _invitation_locale(invitation)
     org = organization_name(invitation)
     url = f"{settings.PUBLIC_BASE_URL}/accept-invite?token={raw_token}"
+    inviter_name = (inviter.full_name or inviter.email) if inviter else "A colleague"
+    role = invitation.role.title()
+    warning = private_seller_warning(invitation)
+    text = INVITE_BODIES[locale].format(inviter=inviter_name, org=org, role=role, url=url)
+    if warning is not None:
+        title, detail = INVITE_PRIVATE_WARNINGS[locale]
+        detail = detail.format(listings=warning["listings"], rights=warning["unused_rights"])
+        text = f"{title.upper()}\n{detail}\n\n{text}"
     send_mail(
         subject=INVITE_SUBJECTS[locale].format(org=org),
-        message=INVITE_BODIES[locale].format(
-            inviter=(inviter.full_name or inviter.email) if inviter else "A colleague",
-            org=org,
-            role=invitation.role.title(),
-            url=url,
-        ),
+        message=text,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[invitation.email],
+        html_message=_invitation_html(
+            locale=locale, inviter=inviter_name, org=org, role=role, url=url, warning=warning
+        ),
     )

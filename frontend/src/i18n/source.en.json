@@ -1921,6 +1921,8 @@
   "auth.org_register.error_fallback": "Registration failed. Please check the details and try again.",
   "auth.org_register.compare_plans": "Compare plans",
   "auth.account_settings.breadcrumb": "Seller area / My account",
+  "auth.account_settings.breadcrumb_broker": "Brokerage area / My account",
+  "auth.account_settings.breadcrumb_provider": "Service provider area / My account",
   "auth.account_settings.title": "My account",
   "auth.account_settings.subtitle": "Your personal details, language and sign-in security.",
   "auth.account_settings.profile_kicker": "Profile",
@@ -2217,5 +2219,8 @@
   "pricing.page.up_to_photos": "Up to {count} photos",
   "pricing.page.and_video": "and {count} video",
   "nav.dash.contact_requests": "Contact requests",
-  "nav.dash.group.overview": "Overview"
+  "nav.dash.group.overview": "Overview",
+  "inquiry.business_cannot_start": "Business accounts reply to the messages they receive but cannot start new conversations.",
+  "auth.invite.private_warning_title": "Important: you will lose your private seller area.",
+  "auth.invite.private_warning_body": "If you accept, this account becomes a business account permanently: your private listings ({listings}) will be archived and removed from the site, your unused listing rights ({rights}) will be forfeited, and your conversations with buyers will be closed. This cannot be undone."
 }

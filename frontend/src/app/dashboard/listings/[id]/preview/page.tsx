@@ -9,6 +9,8 @@ import { BoatDetailView } from "@/components/listings/BoatDetailView";
 import { useT } from "@/i18n/client";
 import type { PublicListing } from "@/lib/api/listings";
 import { fetchListingPreview } from "@/lib/api/sellerListings";
+import { isBrokerAccount } from "@/lib/auth/home";
+import { useSession } from "@/lib/auth/session";
 import { useLocale } from "@/lib/i18n/useLocale";
 import { ApiError } from "@/lib/api/client";
 
@@ -23,6 +25,7 @@ export default function ListingPreviewPage() {
   const params = useParams<{ id: string }>();
   const t = useT();
   const locale = useLocale();
+  const { session } = useSession();
   const [state, setState] = useState<{ id: string; listing: PublicListing | null; error: string | null }>({
     id: params.id,
     listing: null,
@@ -55,13 +58,16 @@ export default function ListingPreviewPage() {
   }, [params.id, t]);
 
   const { listing, error } = state;
+  // A broker listing is edited in the brokerage fleet, never in the private sell form.
+  const brokerListing = listing ? listing.seller_type === "BROKER" : isBrokerAccount(session);
+  const editHref = brokerListing ? `/dashboard/broker/fleet/${params.id}/` : `/sell/${params.id}/`;
 
   return (
     <RequirePermission>
       <main className="w-full bg-surface">
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-space-sm bg-primary px-margin-mobile py-space-sm text-on-primary md:px-margin lg:px-margin-desktop">
           <p className="font-label-md text-label-md uppercase tracking-wider">{t("boat.preview_banner")}</p>
-          <Link href={`/sell/${params.id}/`} className="font-label-md text-label-md underline">
+          <Link href={editHref} className="font-label-md text-label-md underline">
             {t("boat.preview_back")}
           </Link>
         </div>

@@ -70,6 +70,7 @@ const PILL: Record<string, string> = {
   DISPUTED: "bg-error-container text-on-error-container",
   PAST_DUE: "bg-error-container text-on-error-container",
   BLOCKED: "bg-error-container text-on-error-container",
+  CLOSED: "bg-surface-container-high text-on-surface-variant",
   PENDING: "bg-amber-100 text-amber-900",
   PENDING_APPROVAL: "bg-amber-100 text-amber-900",
   PENDING_REVIEW: "bg-amber-100 text-amber-900",

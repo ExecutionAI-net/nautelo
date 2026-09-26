@@ -1,4 +1,5 @@
 
+import PrivateAreaGuard from "@/components/auth/PrivateAreaGuard";
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import DashboardSidebar, { type MenuGroup } from "@/components/layout/DashboardSidebar";
 
@@ -26,6 +27,7 @@ const AREAS = {
       { href: "/dashboard/broker/team/", label: "Team" },
       { href: "/dashboard/broker/profile/", label: "Profile" },
       { href: "/dashboard/broker/subscription/", label: "My plan" },
+      { href: "/dashboard/broker/account/", label: "My account" },
       { href: "/dashboard/broker/notifications/", label: "Notifications" },
     ] as Tab[],
   },
@@ -38,6 +40,7 @@ const AREAS = {
       { href: "/dashboard/service-provider/profile/", label: "Profile" },
       { href: "/dashboard/service-provider/team/", label: "Team" },
       { href: "/dashboard/service-provider/membership/", label: "My plan" },
+      { href: "/dashboard/service-provider/account/", label: "My account" },
       { href: "/dashboard/service-provider/notifications/", label: "Notifications" },
     ] as Tab[],
   },
@@ -70,8 +73,8 @@ const AREAS = {
 // Menu sections per area; each entry names a tab above by its label.
 const GROUPS: Record<string, [string, string[]][]> = {
   seller: [["Portfolio", ["Overview", "My listings"]], ["Communication", ["Messages"]], ["Account", ["Services", "My account", "Notifications"]]],
-  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan", "Notifications"]]],
-  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan", "Notifications"]]],
+  broker: [["Workspace", ["Dashboard", "Fleet", "Leads"]], ["Communication", ["Messages"]], ["Organisation", ["Team", "Profile", "My plan"]], ["Account", ["My account", "Notifications"]]],
+  provider: [["Work", ["Dashboard", "Requests"]], ["Business", ["Services", "Profile"]], ["Organisation", ["Team", "My plan"]], ["Account", ["My account", "Notifications"]]],
   staff: [
     ["Overview", ["Dashboard"]],
     ["Moderation", ["Boats", "Contact grants"]],
@@ -104,7 +107,7 @@ export default function AreaShell({
   children: React.ReactNode;
 }) {
   const config = AREAS[area];
-  return (
+  const shell = (
     <div className="flex w-full flex-col bg-surface lg:min-h-screen lg:flex-row">
       <DashboardSidebar eyebrow={config.eyebrow} groups={menuGroups(area, config.tabs)} active={active} title={title} languageSwitcher={area !== "staff"} />
       <main className="min-w-0 flex-1">
@@ -115,4 +118,6 @@ export default function AreaShell({
       </main>
     </div>
   );
+  // Broker accounts never use the private seller area.
+  return area === "seller" ? <PrivateAreaGuard>{shell}</PrivateAreaGuard> : shell;
 }
