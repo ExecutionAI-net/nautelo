@@ -6,6 +6,7 @@ export interface FormOptions {
   hull_materials: string[];
   engine_types: string[];
   fuel_types: string[];
+  engines: string[];
   cabins: string[];
   bathrooms: string[];
   countries: string[];

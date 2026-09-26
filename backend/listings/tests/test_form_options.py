@@ -21,7 +21,7 @@ def test_options_endpoint_serves_every_list_to_a_signed_in_user():
     api = APIClient()
     api.force_authenticate(make_user(email="opt@example.com", role=UserRole.PRIVATE_SELLER, verified=True))
     body = api.get(reverse("listing-form-options")).json()
-    for key in ("years", "hull_materials", "engine_types", "fuel_types", "cabins", "bathrooms", "countries", "boat_types"):
+    for key in ("years", "hull_materials", "engine_types", "fuel_types", "engines", "cabins", "bathrooms", "countries", "boat_types"):
         assert body[key]
     assert {"TR", "US", "CA", "RU", "DE", "IT", "ES"} <= set(body["countries"])
     assert APIClient().get(reverse("listing-form-options")).status_code in (401, 403)
