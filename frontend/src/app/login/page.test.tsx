@@ -44,7 +44,7 @@ async function submit() {
   // past waitFor/testTimeout (see the flakiness investigation in Task 14).
   const user = userEvent.setup({ delay: null });
   await user.type(screen.getByLabelText(/email/i), "pilot@example.com");
-  await user.type(screen.getByLabelText(/password/i), "n4uta-test-Passw0rd");
+  await user.type(screen.getByLabelText(/^password/i), "n4uta-test-Passw0rd");
   await user.click(screen.getByRole("button", { name: /sign in/i }));
 }
 

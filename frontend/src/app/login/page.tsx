@@ -24,6 +24,8 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const toggleLabel = t(visible ? "auth.password.hide" : "auth.password.show");
 
   const destination = safeNextUrl(searchParams.get("next"));
 
@@ -69,16 +71,29 @@ function LoginForm() {
       </label>
       <label className="block font-label-md text-label-md" htmlFor="password">
         {t("auth.login.password")}
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="mt-space-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md"
-        />
+        <div className="relative mt-space-xs">
+          <input
+            id="password"
+            name="password"
+            type={visible ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm pr-10 font-body-md"
+          />
+          <button
+            type="button"
+            aria-label={toggleLabel}
+            aria-pressed={visible}
+            onClick={() => setVisible((current) => !current)}
+            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-on-surface-variant hover:text-primary"
+          >
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
+              {visible ? "visibility_off" : "visibility"}
+            </span>
+          </button>
+        </div>
       </label>
       {error ? (
         <p role="alert" className="font-body-sm text-error">
