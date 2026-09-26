@@ -31,8 +31,19 @@ import {
   type WorkflowListing,
 } from "@/lib/api/sellerListings";
 
-const FIELD =
-  "mt-space-xs w-full rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-primary";
+// FIELD_BOX has no width or top margin, so a field sharing a row (the price and its
+// currency) can size itself; FIELD is the ordinary full-width field.
+const FIELD_BOX =
+  "rounded-lg bg-surface-container-low px-space-sm py-2.5 font-body-md text-on-surface focus:outline-none focus:ring-1 focus:ring-primary";
+const FIELD = `mt-space-xs w-full ${FIELD_BOX}`;
+
+// The upload rules of backend listings/media_policy.py.
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const VIDEO_TYPES = ["video/mp4", "video/webm"];
+const IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+const VIDEO_MAX_BYTES = 250 * 1024 * 1024;
+const IMAGE_MIN_WIDTH = 400;
+const IMAGE_MIN_HEIGHT = 300;
 const CARD = "rounded-xl bg-surface-container-lowest p-space-lg shadow-sm";
 const LABEL = "block font-label-sm uppercase tracking-wider text-on-surface-variant";
 
@@ -173,7 +184,10 @@ export default function SellListingForm({
   const [placeId, setPlaceId] = useState<number | null>(typeof seed.location_place_id === "number" ? seed.location_place_id : null);
   const [price, setPrice] = useState(text(seed, "price"));
   const [currency, setCurrency] = useState(text(seed, "currency") || "EUR");
-  const [showFinance, setShowFinance] = useState(seed.show_finance_estimate === true);
+  // On by default: a broker unticks it to hide the estimate. A saved choice (true or false) is kept.
+  const [showFinance, setShowFinance] = useState(
+    typeof seed.show_finance_estimate === "boolean" ? seed.show_finance_estimate : true,
+  );
   const [downOverride, setDownOverride] = useState(text(seed, "finance_down_payment_override_percent"));
   const [rateOverride, setRateOverride] = useState(text(seed, "finance_rate_override_percent"));
   const [termOverride, setTermOverride] = useState(text(seed, "finance_term_override_months"));
@@ -473,6 +487,27 @@ export default function SellListingForm({
       : { images: l.free_images, videos: l.free_videos };
   })();
   const isVideo = (file: File) => file.type.startsWith("video/");
+
+  // Mirrors backend listings/media_policy.py so a file that would be refused is
+  // stopped here, before the upload, with the rule it breaks.
+  async function fileProblem(file: File): Promise<string | null> {
+    const video = isVideo(file);
+    if (!(video ? VIDEO_TYPES : IMAGE_TYPES).includes(file.type)) return t("sell.media_bad_type", { name: file.name });
+    if (file.size > (video ? VIDEO_MAX_BYTES : IMAGE_MAX_BYTES)) {
+      return t("sell.media_too_big", { name: file.name, limit: video ? 250 : 25 });
+    }
+    if (!video && typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const small = bitmap.width < IMAGE_MIN_WIDTH || bitmap.height < IMAGE_MIN_HEIGHT;
+        bitmap.close();
+        if (small) return t("sell.media_too_small", { name: file.name });
+      } catch {
+        // Undecodable here; the server has the final word.
+      }
+    }
+    return null;
+  }
   const imageCount = media.filter((row) => row.media_type === "IMAGE").length + pending.filter((item) => !isVideo(item.file)).length;
   const videoCount = media.filter((row) => row.media_type === "VIDEO").length + pending.filter((item) => isVideo(item.file)).length;
 
@@ -493,6 +528,11 @@ export default function SellListingForm({
     let videos = videoCount;
     const accepted: File[] = [];
     for (const file of Array.from(files)) {
+      const problem = await fileProblem(file);
+      if (problem) {
+        setError(problem);
+        continue;
+      }
       if (isVideo(file) ? videos >= mediaLimits.videos : images >= mediaLimits.images) {
         setError(t("sell.media_full", { limit: isVideo(file) ? mediaLimits.videos : mediaLimits.images }));
         continue;
@@ -969,16 +1009,16 @@ export default function SellListingForm({
                 <label className={LABEL}>
                   {t("sell.price")}
                   <Req />
-                  <div className="mt-space-xs flex gap-space-xs">
+                  <div className="mt-space-xs flex items-stretch gap-space-xs">
                     <input
-                      className={`${FIELD} mt-0 min-w-0 flex-1`}
+                      className={`${FIELD_BOX} min-w-0 flex-1`}
                       inputMode="decimal"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       required
                     />
                     <select
-                      className={`${FIELD} mt-0 w-28 shrink-0`}
+                      className={`${FIELD_BOX} w-24 shrink-0 py-0`}
                       aria-label={t("sell.currency")}
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value)}
@@ -1080,10 +1120,11 @@ export default function SellListingForm({
             <label className="mt-space-sm flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-space-lg text-center font-body-md text-on-surface-variant hover:bg-surface-container">
               <span className="material-symbols-outlined text-3xl text-secondary" aria-hidden="true">add_photo_alternate</span>
               <span>{t("sell.media_drop")}</span>
+              <span className="font-label-md">{t("sell.media_rules")}</span>
               <input
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,video/mp4"
+                accept={[...IMAGE_TYPES, ...VIDEO_TYPES].join(",")}
                 aria-label={t("sell.add_media")}
                 disabled={busy}
                 onChange={(e) => {

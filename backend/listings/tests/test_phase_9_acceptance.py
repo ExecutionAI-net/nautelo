@@ -113,9 +113,9 @@ def test_acceptance_2_list_and_finance_page_use_equal_assumptions_and_results(ap
 
 @pytest.mark.django_db
 def test_acceptance_3_a_private_sellers_crafted_finance_payload_is_rejected(api):
-    """Spec §40 Scenario D. The payload refusal is Phase 11's
-    `finance_not_allowed_for_private_seller`; this test proves it still holds
-    now that finance has a public surface, and that the surface stays absent."""
+    """The payload refusal is Phase 11's `finance_not_allowed_for_private_seller`:
+    a private seller can neither switch the estimate nor override its terms. Since
+    2026-09-26 the public listing still shows it, at the platform's standard terms."""
     owner = make_user(
         email=f"seller-{next(_names)}@example.com",
         role=UserRole.PRIVATE_SELLER,
@@ -141,7 +141,7 @@ def test_acceptance_3_a_private_sellers_crafted_finance_payload_is_rejected(api)
     api.force_authenticate(user=None)
     _publish(listing)
     detail = api.get(reverse("listing-detail", kwargs={"listing_id": listing.pk}))
-    assert detail.data["finance"] == {"visible": False}
+    assert detail.data["finance"]["visible"] is True
 
 
 @pytest.mark.django_db

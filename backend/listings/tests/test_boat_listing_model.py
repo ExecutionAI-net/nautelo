@@ -95,11 +95,11 @@ def test_broker_listing_carrying_an_owner_user_is_rejected_by_the_database():
 
 
 @pytest.mark.django_db
-def test_private_listing_cannot_enable_the_finance_estimate_flag():
-    owner = make_user()
-    with pytest.raises(IntegrityError):
-        with transaction.atomic():
-            make_private_listing(owner=owner, show_finance_estimate=True)
+def test_private_listing_may_carry_the_finance_estimate_flag():
+    """Product decision 2026-09-26: private listings show the estimate too."""
+    listing = make_private_listing(owner=make_user(), show_finance_estimate=True)
+
+    assert listing.show_finance_estimate is True
 
 
 @pytest.mark.django_db

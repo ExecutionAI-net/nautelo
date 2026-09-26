@@ -334,7 +334,7 @@
   "sell.move_later": "Move later",
   "sell.remove": "Remove",
   "sell.media_checking": "Checking…",
-  "sell.media_checking_note": "Your photos are being checked for security. This usually takes less than a minute; if it takes longer, it finishes on its own and this page updates by itself. You can also leave and come back later. You can send the listing for review once at least one photo is ready.",
+  "sell.media_checking_note": "Your photos are being prepared. This usually takes a few seconds; if it takes longer, it finishes on its own and this page updates by itself. You can also leave and come back later. You can send the listing for review once at least one photo is ready.",
   "sell.finance_title": "Financing estimate",
   "sell.finance_toggle": "Show an estimated monthly payment on this listing",
   "sell.finance_help": "Leave blank to use the platform defaults. The estimate is illustrative and not a credit offer.",
@@ -2224,5 +2224,9 @@
   "nav.dash.group.overview": "Overview",
   "inquiry.business_cannot_start": "Business accounts reply to the messages they receive but cannot start new conversations.",
   "auth.invite.private_warning_title": "Important: you will lose your private seller area.",
-  "auth.invite.private_warning_body": "If you accept, this account becomes a business account permanently: your private listings ({listings}) will be archived and removed from the site, your unused listing rights ({rights}) will be forfeited, and your conversations with buyers will be closed. This cannot be undone."
+  "auth.invite.private_warning_body": "If you accept, this account becomes a business account permanently: your private listings ({listings}) will be archived and removed from the site, your unused listing rights ({rights}) will be forfeited, and your conversations with buyers will be closed. This cannot be undone.",
+  "sell.media_rules": "Photos: JPG, PNG or WebP, up to 25 MB, at least 400×300 px. Videos: MP4 or WebM, up to 250 MB and 2 minutes.",
+  "sell.media_bad_type": "{name}: this file type is not accepted. Use JPG, PNG or WebP for photos and MP4 or WebM for videos.",
+  "sell.media_too_big": "{name} is too large. The limit is {limit} MB.",
+  "sell.media_too_small": "{name} is too small. Photos must be at least 400×300 px."
 }

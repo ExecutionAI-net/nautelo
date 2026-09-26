@@ -32,6 +32,5 @@ CACHES["default"]["KEY_PREFIX"] = f"test_{_worktree_suffix}"  # noqa: F405
 
 if os.environ.get("GITHUB_ACTIONS") != "true":
     DATABASES["default"]["TEST"] = {"NAME": f"test_nautelo_{_worktree_suffix}"}
-MEDIA_SCANNER = None
 MEDIA_VIDEO_INSPECTOR = None
 SEMANTIC_EMBEDDER = "hash"

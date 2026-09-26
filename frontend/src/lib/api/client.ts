@@ -56,6 +56,20 @@ export class ApiError extends Error {
   }
 }
 
+// Every 5xx and every request that never reached the server shows this, in the
+// page's language: the details are for the logs (request_id), not the visitor.
+export const SYSTEM_ERROR_CODE = "system_error";
+const SYSTEM_ERROR_MESSAGES: Record<string, string> = {
+  en: "There is a problem in the system right now. Please try again later.",
+  it: "Al momento c'è un problema nel sistema. Riprova più tardi.",
+  es: "Ahora mismo hay un problema en el sistema. Inténtalo de nuevo más tarde.",
+};
+
+export function systemErrorMessage(): string {
+  const lang = typeof document === "undefined" ? "" : document.documentElement.lang.slice(0, 2).toLowerCase();
+  return SYSTEM_ERROR_MESSAGES[lang] ?? SYSTEM_ERROR_MESSAGES.en;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -73,12 +87,18 @@ async function toApiError(response: Response): Promise<ApiError> {
     // A non-JSON error body (proxy/gateway failure) still becomes an ApiError.
   }
   const envelope = body.error ?? {};
+  const requestId = envelope.request_id ?? response.headers.get("X-Request-ID") ?? "";
+  if (response.status >= 500) {
+    // The code survives (callers may branch on e.g. translation_unavailable);
+    // the message is always the plain one.
+    return new ApiError(response.status, envelope.code ?? SYSTEM_ERROR_CODE, systemErrorMessage(), {}, requestId);
+  }
   return new ApiError(
     response.status,
     envelope.code ?? "unexpected_error",
     envelope.message ?? `Request failed with status ${response.status}.`,
     envelope.fields ?? {},
-    envelope.request_id ?? response.headers.get("X-Request-ID") ?? "",
+    requestId,
   );
 }
 
@@ -90,11 +110,17 @@ async function rawFetch(path: string, init?: RequestInit): Promise<Response> {
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: "include",
-  });
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+  } catch (caught) {
+    // A caller's own abort is not a failure to report.
+    if (caught instanceof DOMException && caught.name === "AbortError") throw caught;
+    throw new ApiError(0, SYSTEM_ERROR_CODE, systemErrorMessage());
+  }
 }
 
 // Backend rotates and blacklists the refresh token on every use

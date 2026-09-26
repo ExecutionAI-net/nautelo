@@ -1,3 +1,5 @@
+import logging
+
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.db import IntegrityError
 from django.http import Http404
@@ -5,10 +7,14 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
+from rest_framework.views import set_rollback
+
+logger = logging.getLogger(__name__)
 
 GENERIC_VALIDATION_MESSAGE = "The submitted data is invalid."
 GENERIC_ERROR_MESSAGE = "Request failed."
 GENERIC_CONFLICT_MESSAGE = "The request could not be completed because of a conflicting change. Please try again."
+GENERIC_SERVER_ERROR_MESSAGE = "There is a problem in the system right now. Please try again later."
 NON_FIELD_ERRORS_KEY = "non_field_errors"
 _MAX_UNWRAP_DEPTH = 5
 _UNIQUE_VIOLATION_SQLSTATE = "23505"
@@ -140,9 +146,16 @@ def nauta_exception_handler(exc, context):
     else:
         response = drf_exception_handler(exc, context)
         if response is None:
-            return None
-
-        if isinstance(exc, ValidationError):
+            # An unexpected error: log it with its traceback, undo the request's
+            # writes, and answer with the envelope instead of Django's HTML 500
+            # page, so the client can show a plain "try again later".
+            logger.error("unhandled API error", exc_info=exc, extra={"request_id": request_id})
+            set_rollback()
+            response = Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            code = "server_error"
+            message = GENERIC_SERVER_ERROR_MESSAGE
+            fields = {}
+        elif isinstance(exc, ValidationError):
             code = "validation_error"
             message = GENERIC_VALIDATION_MESSAGE
             fields = _field_map(exc.detail)

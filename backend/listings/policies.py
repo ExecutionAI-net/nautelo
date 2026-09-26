@@ -191,11 +191,13 @@ def requires_staff_approval(listing: BoatListing) -> bool:
     """Whether a submission must wait for a moderator (spec §21, §20.4, §6.1).
 
     Returns False in exactly one case: a broker listing, inside the ordinary
-    edit loop, belonging to an ACTIVE organization whose staff-admin-enabled
-    `auto_approve_listings` policy is on. Everything else still goes through
-    moderation — every private seller, a broker listing with no organization
-    row, an organization that is DRAFT/PENDING/SUSPENDED, and any listing state
-    outside AUTO_APPROVABLE_LISTING_STATES.
+    edit loop, belonging to an ACTIVE organization. Broker listings are
+    published without moderation (product decision, 2026-09-26); the
+    per-broker `auto_approve_listings` flag is no longer consulted. Everything
+    else still goes through moderation — every private seller, a broker listing
+    with no organization row, an organization that is DRAFT/PENDING/SUSPENDED
+    (e.g. an unpaid subscription), and any listing state outside
+    AUTO_APPROVABLE_LISTING_STATES.
 
     Read at submit time only, which is what makes spec §21 rules 5 and 6 true:
     the policy governs *future* submissions, so a revision already sitting in
@@ -214,9 +216,7 @@ def requires_staff_approval(listing: BoatListing) -> bool:
     if listing.status not in AUTO_APPROVABLE_LISTING_STATES:
         return True
     broker = listing.broker
-    if broker is None or not broker.is_active:
-        return True
-    return not broker.auto_approve_listings
+    return broker is None or not broker.is_active
 
 
 def effective_media_allowance(listing: BoatListing) -> MediaAllowance:

@@ -214,15 +214,15 @@ class FinanceQuoteService:
     def is_visible(listing: BoatListing, *, policy: FinancePolicy) -> bool:
         """Spec §18.2's conjunction, in the order the spec writes it.
 
-        Every condition is checked independently — in particular seller_type is
-        not inferred from the snapshot's flag, even though a database constraint
-        keeps that flag off private listings today.
+        A broker chooses per listing (the snapshot's flag). A private listing
+        always shows it at the platform's standard rate and term — the seller
+        cannot switch it off or override the terms (product decision
+        2026-09-26), so a snapshot published before that decision is covered too.
         """
         snapshot = listing.current_public_snapshot
         return (
-            listing.seller_type == SellerType.BROKER
-            and snapshot is not None
-            and snapshot.show_finance_estimate
+            snapshot is not None
+            and (listing.seller_type == SellerType.PRIVATE or snapshot.show_finance_estimate)
             and policy.active
             and is_financeable_price(snapshot.price, snapshot.currency)
             and listing.status == ListingStatus.PUBLISHED

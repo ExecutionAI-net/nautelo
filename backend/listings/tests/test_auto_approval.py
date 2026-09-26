@@ -60,11 +60,11 @@ def _payload(media_id):
     }
 
 
-def _ready_broker_listing(*, auto, slug, email, status=ListingStatus.DRAFT):
+def _ready_broker_listing(*, auto, slug, email, status=ListingStatus.DRAFT, broker_status=BrokerOrganizationStatus.ACTIVE):
     broker = make_broker(
         name=f"Broker {slug}",
         slug=slug,
-        status=BrokerOrganizationStatus.ACTIVE,
+        status=broker_status,
         auto_approve_listings=auto,
     )
     actor = _broker_admin(email, broker)
@@ -97,9 +97,27 @@ def test_an_auto_approved_initial_submission_publishes_immediately():
 
 
 @pytest.mark.django_db
-def test_a_broker_without_the_policy_still_waits_for_a_moderator():
+def test_an_active_broker_publishes_without_moderation_whatever_the_old_policy_flag_says():
+    """Product decision 2026-09-26: every ACTIVE broker's listing goes live at once."""
     _, actor, listing, revision = _ready_broker_listing(
         auto=False, slug="auto-off", email="auto-off@example.com"
+    )
+
+    submit_listing_revision(
+        listing=listing, actor=actor, expected_version=revision.version
+    )
+
+    listing.refresh_from_db()
+    assert listing.status == ListingStatus.PUBLISHED
+    assert listing.current_public_snapshot_id is not None
+
+
+@pytest.mark.django_db
+def test_a_broker_that_is_not_active_still_waits_for_a_moderator():
+    """An unpaid (SUSPENDED) or not-yet-approved brokerage keeps going through moderation."""
+    _, actor, listing, revision = _ready_broker_listing(
+        auto=True, slug="auto-suspended", email="auto-suspended@example.com",
+        broker_status=BrokerOrganizationStatus.SUSPENDED,
     )
 
     submit_listing_revision(
@@ -187,17 +205,18 @@ def test_media_that_is_not_ready_blocks_an_auto_approved_submission():
 
 
 @pytest.mark.django_db
-def test_enabling_the_policy_does_not_retro_approve_a_pending_submission():
-    """Spec §21 rule 5."""
+def test_reactivating_a_broker_does_not_retro_approve_a_pending_submission():
+    """Spec §21 rule 5: the rule is read at submit time only."""
     broker, actor, listing, revision = _ready_broker_listing(
-        auto=False, slug="auto-pending", email="auto-pending@example.com"
+        auto=False, slug="auto-pending", email="auto-pending@example.com",
+        broker_status=BrokerOrganizationStatus.SUSPENDED,
     )
     submit_listing_revision(
         listing=listing, actor=actor, expected_version=revision.version
     )
 
-    broker.auto_approve_listings = True
-    broker.save(update_fields=["auto_approve_listings"])
+    broker.status = BrokerOrganizationStatus.ACTIVE
+    broker.save(update_fields=["status"])
 
     listing.refresh_from_db()
     revision.refresh_from_db()
@@ -311,7 +330,8 @@ def test_a_manual_broker_submission_still_summons_a_moderator():
         signal.connect(receiver)
     try:
         _, actor, listing, revision = _ready_broker_listing(
-            auto=False, slug="manual-signals", email="manual-signals@example.com"
+            auto=False, slug="manual-signals", email="manual-signals@example.com",
+            broker_status=BrokerOrganizationStatus.SUSPENDED,
         )
         submit_listing_revision(
             listing=listing, actor=actor, expected_version=revision.version

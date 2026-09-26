@@ -331,9 +331,10 @@ def test_21_rule_2_a_suspended_organization_does_not_auto_publish(
 
 
 @pytest.mark.django_db
-def test_21_rule_5_enabling_the_policy_leaves_the_pending_backlog_pending(
+def test_an_active_brokers_listing_goes_live_on_submit_without_a_moderator(
     api, workflow_enabled
 ):
+    """Product decision 2026-09-26: broker listings are never held for moderation."""
     broker, agent = _agency("rule5", "rule5@example.com", auto=False)
     brand = make_brand("Jeanneau")
     model = make_model(brand, "Sun Odyssey 410")
@@ -341,21 +342,8 @@ def test_21_rule_5_enabling_the_policy_leaves_the_pending_backlog_pending(
     listing, submitted = _publish_through_the_api(api, broker, agent, brand, model)
     assert submitted.status_code == 200
     listing.refresh_from_db()
-    assert listing.status == ListingStatus.PENDING_APPROVAL
-
-    admin = _staff("rule5-admin@example.com", StaffGroup.ADMIN)
-    api.force_authenticate(admin)
-    policy = api.patch(
-        reverse("staff-broker-approval-policy", args=[broker.pk]),
-        {"auto_approve_listings": True, "reason": "Vetted after review."},
-        format="json",
-    )
-
-    assert policy.status_code == 200
-    listing.refresh_from_db()
-    assert listing.status == ListingStatus.PENDING_APPROVAL
-    assert listing.current_public_snapshot_id is None
-    assert policy.data["pending_revision_count"] == 1
+    assert listing.status == ListingStatus.PUBLISHED
+    assert listing.current_public_snapshot_id is not None
 
 
 @pytest.mark.django_db
@@ -389,13 +377,17 @@ def test_21_rule_6_disabling_the_policy_leaves_published_listings_live(
 def test_21_rule_7_staff_bulk_approve_clears_the_backlog_and_is_audited(
     api, workflow_enabled
 ):
+    from unittest import mock
+
     broker, agent = _agency("rule7", "rule7@example.com", auto=False)
     brand = make_brand("Dufour")
     api.force_authenticate(agent)
-    for index in range(3):
-        model = make_model(brand, f"470-{index}")
-        _, submitted = _publish_through_the_api(api, broker, agent, brand, model)
-        assert submitted.status_code == 200
+    # A backlog submitted before broker listings stopped needing a moderator.
+    with mock.patch("listings.submissions.requires_staff_approval", return_value=True):
+        for index in range(3):
+            model = make_model(brand, f"470-{index}")
+            _, submitted = _publish_through_the_api(api, broker, agent, brand, model)
+            assert submitted.status_code == 200
 
     moderator = _staff("rule7-mod@example.com", StaffGroup.MODERATOR)
     api.force_authenticate(moderator)

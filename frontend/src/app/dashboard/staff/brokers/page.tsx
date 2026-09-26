@@ -21,7 +21,6 @@ export default function StaffBrokersPage() {
             { key: "member_count", label: "Members", sortable: true },
             { key: "listing_count", label: "Listings", sortable: true },
             { key: "created_at", label: "Registered", sortable: true },
-            { key: "auto_approve_listings", label: "Auto-approve listings", panelOnly: true },
             { key: "plan_renews_at", label: "Plan renews", panelOnly: true },
           ]}
           statusOptions={["DRAFT", "PENDING", "ACTIVE", "SUSPENDED"]}

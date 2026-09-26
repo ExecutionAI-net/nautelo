@@ -99,14 +99,42 @@ describe("SellListingForm", () => {
     expect(screen.queryByRole("heading", { name: "Buy the paid listing you picked" })).toBeNull();
   });
 
-  it("lets photos be picked before the first save and counts them", () => {
+  it("lets photos be picked before the first save and counts them", async () => {
     URL.createObjectURL = vi.fn(() => "blob:x");
     URL.revokeObjectURL = vi.fn();
     render(<SellListingForm />);
     expect(screen.getByText("Photos 0 / 1")).toBeTruthy();
     const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
     fireEvent.change(screen.getByLabelText("Add media"), { target: { files: [file] } });
-    expect(screen.getByText("Photos 1 / 1")).toBeTruthy();
+    expect(await screen.findByText("Photos 1 / 1")).toBeTruthy();
+  });
+
+  it("states the accepted files in the upload box and stops a file that breaks them", async () => {
+    render(<SellListingForm />);
+    expect(screen.getByText(/JPG, PNG or WebP, up to 25 MB, at least 400×300 px/)).toBeTruthy();
+    expect(screen.getByLabelText("Add media").getAttribute("accept")).toContain("video/webm");
+
+    const gif = new File(["x"], "a.gif", { type: "image/gif" });
+    fireEvent.change(screen.getByLabelText("Add media"), { target: { files: [gif] } });
+    expect(await screen.findByText(/a.gif: this file type is not accepted/)).toBeTruthy();
+
+    const huge = new File(["x"], "big.jpg", { type: "image/jpeg" });
+    Object.defineProperty(huge, "size", { value: 26 * 1024 * 1024 });
+    fireEvent.change(screen.getByLabelText("Add media"), { target: { files: [huge] } });
+    expect(await screen.findByText("big.jpg is too large. The limit is 25 MB.")).toBeTruthy();
+    expect(screen.getByText("Photos 0 / 1")).toBeTruthy();
+  });
+
+  it("switches the broker's monthly payment estimate on by default", () => {
+    render(<SellListingForm brokerId="b1" />);
+    expect(screen.getByRole("checkbox", { name: /estimated monthly payment/i })).toBeChecked();
+  });
+
+  it("keeps the currency next to the price instead of stretching it full width", () => {
+    render(<SellListingForm />);
+    const currency = screen.getByRole("combobox", { name: /currency/i });
+    expect(currency.className).toContain("w-24");
+    expect(currency.className).not.toContain("w-full");
   });
 
   it("explains a photo that is still being checked and picks up the verdict by itself", async () => {
@@ -118,11 +146,11 @@ describe("SellListingForm", () => {
 
       expect(await screen.findByText("Checking…")).toBeTruthy();
       expect(screen.queryByText(/IMAGE · SCANNING/)).toBeNull();
-      expect(screen.getByText(/being checked for security/)).toBeTruthy();
+      expect(screen.getByText(/being prepared/)).toBeTruthy();
 
       await vi.advanceTimersByTimeAsync(15000);
       await waitFor(() => expect(screen.queryByText("Checking…")).toBeNull());
-      expect(screen.queryByText(/being checked for security/)).toBeNull();
+      expect(screen.queryByText(/being prepared/)).toBeNull();
     } finally {
       vi.useRealTimers();
     }

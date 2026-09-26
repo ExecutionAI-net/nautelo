@@ -306,6 +306,6 @@ describe("requestFinanceQuote", () => {
 
   it("propagates a network error", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
-    await expect(requestFinanceQuote({ listing_id: "abc" })).rejects.toThrow("fetch failed");
+    await expect(requestFinanceQuote({ listing_id: "abc" })).rejects.toThrow("There is a problem in the system right now. Please try again later.");
   });
 });

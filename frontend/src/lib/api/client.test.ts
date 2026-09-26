@@ -247,3 +247,45 @@ describe("apiFetch silent refresh on a fresh page load", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("apiFetch system errors", () => {
+  afterEach(() => {
+    document.documentElement.lang = "";
+  });
+
+  it("turns a 5xx into the plain try-again-later message, keeping its code", async () => {
+    const body = { error: { code: "translation_unavailable", message: "OpenRouter 502 upstream", request_id: "r1" } };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 503 })));
+    const { apiFetch } = await import("@/lib/api/client");
+
+    await expect(apiFetch("/api/v1/whatever/")).rejects.toMatchObject({
+      status: 503,
+      code: "translation_unavailable",
+      message: "There is a problem in the system right now. Please try again later.",
+      requestId: "r1",
+    });
+  });
+
+  it("says the same, in the page's language, when the server cannot be reached", async () => {
+    document.documentElement.lang = "it";
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const { apiFetch } = await import("@/lib/api/client");
+
+    await expect(apiFetch("/api/v1/whatever/")).rejects.toMatchObject({
+      status: 0,
+      code: "system_error",
+      message: "Al momento c'è un problema nel sistema. Riprova più tardi.",
+    });
+  });
+
+  it("leaves a validation error's own message alone", async () => {
+    const body = { error: { code: "validation_error", message: "The submitted data is invalid.", fields: {} } };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 400 })));
+    const { apiFetch } = await import("@/lib/api/client");
+
+    await expect(apiFetch("/api/v1/whatever/")).rejects.toMatchObject({
+      status: 400,
+      message: "The submitted data is invalid.",
+    });
+  });
+});

@@ -107,9 +107,8 @@ def test_an_ineligible_listing_returns_exactly_one_key(eligible_listing):
 
 
 @pytest.mark.django_db
-def test_a_private_listing_is_never_eligible_even_if_its_snapshot_says_otherwise():
-    """Spec §18.2 lists seller_type as its own condition, so the check may not
-    lean on the database constraint that keeps the flag off broker-only rows."""
+def test_a_private_listing_is_eligible():
+    """Product decision 2026-09-26: private listings show the estimate."""
     _enable_estimates()
     owner = make_user(
         email=f"seller-{next(_names)}@example.com",
@@ -121,7 +120,7 @@ def test_a_private_listing_is_never_eligible_even_if_its_snapshot_says_otherwise
         show_finance_estimate=True,
     )
 
-    assert FinanceQuoteService.is_visible(listing, policy=FinancePolicy.load()) is False
+    assert FinanceQuoteService.is_visible(listing, policy=FinancePolicy.load()) is True
 
 
 @pytest.mark.django_db
@@ -413,17 +412,19 @@ def test_partial_overrides_fall_back_to_global_per_field(eligible_listing):
 
 
 @pytest.mark.django_db
-def test_seller_type_alone_makes_an_otherwise_eligible_listing_ineligible(
+def test_only_a_broker_can_switch_the_estimate_off(
     eligible_listing,
 ):
-    """Everything else about this listing is eligible; only seller_type
-    differs, so this fails if the seller_type condition is dropped."""
+    """A broker's per-listing switch hides the estimate; a private listing has
+    no switch and keeps showing it."""
     policy = FinancePolicy.load()
     assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is True
 
-    eligible_listing.seller_type = SellerType.PRIVATE
-
+    eligible_listing.current_public_snapshot.show_finance_estimate = False
     assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is False
     assert FinanceQuoteService.card_block(
         eligible_listing, policy=policy
     ) == {"visible": False}
+
+    eligible_listing.seller_type = SellerType.PRIVATE
+    assert FinanceQuoteService.is_visible(eligible_listing, policy=policy) is True

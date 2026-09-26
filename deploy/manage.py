@@ -29,7 +29,7 @@ MIN_FREE_BYTES = 8 * 1024**3
 
 
 def reclaim_disk_space():
-    """Drop images no container uses and the build cache. Volumes (database, media, clamav) are never touched.
+    """Drop images no container uses and the build cache. Volumes (database, media) are never touched.
 
     Runs BEFORE the pull as well as after a deploy: a full disk fails the pull, and the old
     cleanup at the end of a deploy is then never reached.
@@ -145,7 +145,7 @@ def environments(secret, region, environment="prod"):
         "REDIS_URL": "redis://redis:6379/0", "CELERY_BROKER_URL": "redis://redis:6379/1",
         "CELERY_RESULT_BACKEND": "redis://redis:6379/2", "CHANNELS_REDIS_URL": "redis://redis:6379/3",
         "MEDIA_SIGNED_URLS": "True", "MEDIA_PUBLIC_BASE_URL": "",
-        "CLAMAV_HOST": "clamav", "MEDIA_VIDEO_PROBE": "True",
+        "MEDIA_VIDEO_PROBE": "True",
     })
     frontend = {"NEXT_PUBLIC_BASE_URL": web, "NEXT_PUBLIC_API_BASE_URL": api,
                 "INTERNAL_SERVICE_SECRET": secret["INTERNAL_SERVICE_SECRET"]}
@@ -232,10 +232,6 @@ def main():
         ensure_free_space()
         run(compose + ["pull"], env=process_env)
         run(compose + ["up", "-d", "--wait", "postgres", "redis"], env=process_env)
-        # The malware scanner backs every media upload (CLAMAV_HOST=clamav). Not awaited: it needs minutes to load
-        # its signatures, and the worker retries the scan until it answers. Allow Compose to recreate
-        # the container when scanner configuration or its image changes.
-        run(compose + ["up", "-d", "clamav"], env=process_env)
         # Run migrations for EVERY deployment; completed one-shot containers must not be reused.
         run(compose + ["run", "--rm", "--no-deps", "migrate"], env=process_env)
         if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
@@ -245,7 +241,8 @@ def main():
             run(proxy + ["up", "-d", "--force-recreate", "--wait", "--wait-timeout", "90"], env=proxy_env)
         else:
             run(["python3", str(ROOT / "deploy/proxy.py"), "apply"])
-        run(compose + ["up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "180",
+        # --remove-orphans drops containers of services no longer in the file (the old clamav).
+        run(compose + ["up", "-d", "--no-deps", "--force-recreate", "--remove-orphans", "--wait", "--wait-timeout", "180",
                        "api", "worker", "beat", "web"], env=process_env)
         if values["backend"]["DEPLOY_ALLOW_HTTP"] == "true":
             run(proxy + ["exec", "-T", "nginx", "wget", "-q", "-O", "/dev/null",
