@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import NotificationBell from "@/components/layout/NotificationBell";
+import { accountHrefFor, isBrokerAccount } from "@/lib/auth/home";
 import { useSession } from "@/lib/auth/session";
 import type { PermissionKey } from "@/lib/auth/types";
 import { tConversations } from "@/lib/i18n/conversations";
@@ -74,7 +75,7 @@ export default function PrimaryNav() {
   const t = useT();
   const authenticated = session?.authenticated === true;
 
-  const isBrokerMember = (session?.broker_memberships?.length ?? 0) > 0;
+  const isBrokerMember = isBrokerAccount(session);
   // PrimaryNav is already a client component holding the session, so the
   // viewer's own locale is available here. resolveLocale is the shared helper
   // (lib/i18n/directory.ts:15) — the session's LocaleCode is "EN"/"IT"/"ES"
@@ -139,7 +140,7 @@ export default function PrimaryNav() {
         {loading ? null : authenticated ? (
           <>
             <NotificationBell locale={locale} />
-            <Link href="/dashboard/private-seller/account/" className="font-body-sm text-on-surface-variant hover:text-primary">
+            <Link href={accountHrefFor(session?.user)} className="font-body-sm text-on-surface-variant hover:text-primary">
               {session?.user?.full_name || session?.user?.email}
             </Link>
             <button type="button" onClick={() => void logout()} className="font-label-md text-label-md text-primary">

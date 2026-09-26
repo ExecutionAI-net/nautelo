@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import ThreadPage from "@/app/dashboard/private-seller/messages/[conversationId]/page";
 
 vi.mock("@/components/layout/DashboardSidebar", () => ({ default: () => null }));
+vi.mock("@/components/auth/PrivateAreaGuard", () => ({
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 vi.mock("@/components/messages/MessagesScreen", () => ({
   default: ({ selectedId: conversationId, basePath }: Record<string, unknown>) => (
     <div

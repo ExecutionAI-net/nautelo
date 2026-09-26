@@ -354,3 +354,14 @@ describe("InquiryForm", () => {
     );
   });
 });
+
+describe("InquiryForm for business accounts", () => {
+  it.each(["BROKER", "PROFESSIONAL"])("tells a %s account it cannot start a conversation", (role) => {
+    sessionValue = signedIn({ primary_role: role });
+    renderForm();
+
+    expect(screen.getByText(/cannot start new conversations/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Message")).toBeNull();
+    expect(submitInquiry).not.toHaveBeenCalled();
+  });
+});

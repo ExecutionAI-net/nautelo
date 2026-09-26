@@ -15,6 +15,8 @@ interface Preview {
   role: string;
   email: string;
   account_exists: boolean;
+  /** Set when the address is a private seller being invited into a brokerage: what accepting takes away. */
+  private_seller_warning?: { listings: number; unused_rights: number } | null;
 }
 
 const INPUT =
@@ -87,13 +89,26 @@ function AcceptInvite() {
       <p className="font-body-md">
         {t("auth.invite.invited_as", { organization: preview.organization, role: preview.role.toLowerCase(), email: preview.email })}
       </p>
+      {preview.private_seller_warning ? (
+        <div role="note" className="rounded-lg border-2 border-error bg-error-container p-space-md text-error">
+          <p className="font-headline-sm text-xl font-bold">{t("auth.invite.private_warning_title")}</p>
+          <p className="mt-space-xs font-body-lg text-lg font-semibold">
+            {t("auth.invite.private_warning_body", {
+              listings: preview.private_seller_warning.listings,
+              rights: preview.private_seller_warning.unused_rights,
+            })}
+          </p>
+        </div>
+      ) : null}
       {preview.account_exists ? (
         signedInAsInvitee ? (
+          preview.private_seller_warning ? null : (
           <p className="font-body-sm text-on-surface-variant">
             {t("auth.invite.account_exists_change_type", {
               type: preview.org_type === "BROKER" ? t("auth.invite.broker") : t("auth.invite.professional"),
             })}
           </p>
+          )
         ) : (
           <p className="font-body-md">
             {t("auth.invite.account_exists_sign_in")}{" "}

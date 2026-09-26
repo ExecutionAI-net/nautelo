@@ -45,6 +45,7 @@ const ERROR_MESSAGE_KEYS: Record<string, string> = {
   recipient_unavailable: "inquiry.error.recipient_unavailable",
   consent_required: "inquiry.error.consent_required",
   self_inquiry_not_allowed: "inquiry.error.self_inquiry",
+  inquiry_initiator_not_allowed: "inquiry.business_cannot_start",
   feature_disabled: "inquiry.error.feature_disabled",
   email_verification_required: "inquiry.verify_email_first",
   draft_expired: "inquiry.error.draft_expired",
@@ -64,6 +65,8 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
   const user = session?.user ?? null;
   const isSignedIn = Boolean(session?.authenticated && user);
   const isVerified = Boolean(user?.email_verified);
+  // Only private sellers start conversations; broker and professional accounts only reply.
+  const isBusiness = isSignedIn && user?.primary_role !== "PRIVATE_SELLER";
 
   // `context` arrives as an object literal from the page (Task 13), so it is a
   // NEW object on every render. Depending on it directly would make the restore
@@ -248,6 +251,17 @@ export default function InquiryForm({ context, config, locale }: InquiryFormProp
     t("inquiry.privacy_consent"),
     { version: config.privacy_policy_version },
   );
+
+  if (isBusiness) {
+    return (
+      <section aria-labelledby="inquiry-heading" className="mt-space-xl">
+        <h2 id="inquiry-heading" className="font-title-lg text-title-lg text-primary">
+          {t("inquiry.heading")}
+        </h2>
+        <p className="mt-space-md font-body-md text-on-surface-variant">{t("inquiry.business_cannot_start")}</p>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="inquiry-heading" className="mt-space-xl">

@@ -2217,5 +2217,8 @@
   "pricing.page.up_to_photos": "Up to {count} photos",
   "pricing.page.and_video": "and {count} video",
   "nav.dash.contact_requests": "Contact requests",
-  "nav.dash.group.overview": "Overview"
+  "nav.dash.group.overview": "Overview",
+  "inquiry.business_cannot_start": "Business accounts reply to the messages they receive but cannot start new conversations.",
+  "auth.invite.private_warning_title": "Important: you will lose your private seller area.",
+  "auth.invite.private_warning_body": "If you accept, this account becomes a broker account permanently: your {listings} private listing(s) will be archived and removed from the site, your {rights} unused listing right(s) will be forfeited, and your conversations with buyers will be closed. This cannot be undone."
 }
