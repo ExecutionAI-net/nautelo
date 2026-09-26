@@ -82,3 +82,28 @@ def test_parse_probe_accepts_a_short_video():
 def test_parse_probe_rejects_bad_videos(payload):
     with pytest.raises(RejectedMedia):
         parse_probe(payload)
+
+
+def test_scan_uses_configured_timeout(settings, monkeypatch):
+    settings.CLAMAV_HOST = "clamav"
+    settings.CLAMAV_PORT = 3310
+    settings.CLAMAV_TIMEOUT = 420.0
+    calls = []
+
+    def scan(chunks, **kwargs):
+        calls.append(kwargs)
+        assert b"".join(chunks) == Storage().read("k")
+        return "stream: OK"
+
+    monkeypatch.setattr("listings.media_scan.scan_stream", scan)
+    clamd_scan(Storage(), "k")
+    assert calls == [{"host": "clamav", "port": 3310, "timeout": 420.0}]
+
+
+def test_socket_timeout_remains_retryable(monkeypatch):
+    def connect(*args, **kwargs):
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    with pytest.raises(ScannerUnavailable, match="timed out"):
+        scan_stream([b"abc"], host="clamav", port=3310)

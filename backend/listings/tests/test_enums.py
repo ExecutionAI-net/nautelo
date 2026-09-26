@@ -22,6 +22,7 @@ def test_listing_status_values_match_the_spec():
         "PUBLISHED",
         "REJECTED",
         "SUSPENDED",
+        "PAUSED",
         "EXPIRED",
         "ARCHIVED",
     ]
@@ -68,6 +69,8 @@ def test_sanctioned_listing_transitions_are_allowed():
     assert can_transition_listing(ListingStatus.PUBLISHED, ListingStatus.SUSPENDED)
     assert can_transition_listing(ListingStatus.SUSPENDED, ListingStatus.PUBLISHED)
     assert can_transition_listing(ListingStatus.SUSPENDED, ListingStatus.ARCHIVED)
+    assert can_transition_listing(ListingStatus.PUBLISHED, ListingStatus.PAUSED)
+    assert can_transition_listing(ListingStatus.PAUSED, ListingStatus.PUBLISHED)
     assert can_transition_listing(ListingStatus.PUBLISHED, ListingStatus.EXPIRED)
     assert can_transition_listing(ListingStatus.EXPIRED, ListingStatus.ARCHIVED)
     # Reserved for Phase 12 broker auto-approval; unreachable in Phase 11.
@@ -80,6 +83,7 @@ def test_unsanctioned_listing_transitions_are_refused():
     assert not can_transition_listing(ListingStatus.ARCHIVED, ListingStatus.PUBLISHED)
     assert not can_transition_listing(ListingStatus.EXPIRED, ListingStatus.PUBLISHED)
     assert not can_transition_listing(ListingStatus.PUBLISHED, ListingStatus.DRAFT)
+    assert not can_transition_listing(ListingStatus.PAUSED, ListingStatus.ARCHIVED)
 
 
 def test_revision_transitions_follow_spec_6_2():

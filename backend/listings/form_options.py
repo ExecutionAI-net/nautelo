@@ -41,6 +41,7 @@ FUEL_TYPES = ["Diesel", "Petrol", "Electric", "Hybrid", "LPG", "Hydrogen", "Othe
 
 CABINS = [str(n) for n in range(0, 13)]
 BATHROOMS = [str(n) for n in range(0, 11)]
+ENGINES = [str(n) for n in range(1, 5)]
 
 # ISO 3166-1 alpha-2. EU members, the big non-EU markets and the flag states
 # common in yachting. Display names are localised by the client from the code.
@@ -86,6 +87,7 @@ def form_options(now=None) -> dict:
         "hull_materials": HULL_MATERIALS,
         "engine_types": ENGINE_TYPES,
         "fuel_types": FUEL_TYPES,
+        "engines": ENGINES,
         "cabins": CABINS,
         "bathrooms": BATHROOMS,
         "countries": COUNTRIES,

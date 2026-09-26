@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import PhoneNumberField from "@/components/forms/PhoneNumberField";
+import { useT } from "@/i18n/client";
 import { apiFetch } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/session";
 import { resolveLocale, type Locale } from "@/lib/i18n/directory";
@@ -33,6 +34,7 @@ function Heading({ icon, tile, kicker, title }: { icon: string; tile: string; ki
 }
 
 export default function AccountSettings() {
+  const t = useT();
   const { session, reload } = useSession();
   const user = session?.user;
   const [fullName, setFullName] = useState(user?.full_name ?? "");
@@ -90,24 +92,24 @@ export default function AccountSettings() {
   return (
     <form onSubmit={save} className="flex flex-col gap-space-lg">
       <div>
-        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Seller area / My account</span>
-        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">My account</h1>
-        <p className="mt-space-xs font-body-md text-on-surface-variant">Your personal details, language and sign-in security.</p>
+        <span className="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">{t("auth.account_settings.breadcrumb")}</span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg text-primary tracking-tight">{t("auth.account_settings.title")}</h1>
+        <p className="mt-space-xs font-body-md text-on-surface-variant">{t("auth.account_settings.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         <div className="lg:col-span-7 flex flex-col gap-space-lg">
           <section className={CARD}>
-            <Heading icon="person" tile="bg-primary-fixed text-primary" kicker="Profile" title="Personal details" />
+            <Heading icon="person" tile="bg-primary-fixed text-primary" kicker={t("auth.account_settings.profile_kicker")} title={t("auth.account_settings.profile_title")} />
             <label className="font-label-sm uppercase text-on-surface-variant">
-              Full name
+              {t("auth.account_settings.full_name")}
               <input className={FIELD} value={fullName} onChange={(event) => setFullName(event.target.value)} />
             </label>
             <PhoneNumberField
               value={phoneNumber}
               onChange={setPhoneNumber}
-              countryLabel="Country code"
-              numberLabel="Phone number"
+              countryLabel={t("auth.account_settings.country_code")}
+              numberLabel={t("auth.account_settings.phone_number")}
               selectClassName={FIELD}
               inputClassName={FIELD}
               labelClassName="font-label-sm uppercase text-on-surface-variant"
@@ -118,10 +120,10 @@ export default function AccountSettings() {
                 checked={newsletterOptIn}
                 onChange={(event) => setNewsletterOptIn(event.target.checked)}
               />
-              Send me occasional updates from Nautelo.
+              {t("auth.account_settings.newsletter")}
             </label>
             <div>
-              <span className="font-label-sm uppercase text-on-surface-variant">Email</span>
+              <span className="font-label-sm uppercase text-on-surface-variant">{t("auth.account_settings.email")}</span>
               <div className="mt-space-xs flex flex-wrap items-center gap-space-sm">
                 <span className="font-body-md text-primary">{user.email}</span>
                 <span
@@ -130,19 +132,19 @@ export default function AccountSettings() {
                   }`}
                 >
                   <span className="material-symbols-outlined text-[13px]" aria-hidden="true">{user.email_verified ? "verified" : "info"}</span>
-                  {user.email_verified ? "Verified" : "email not verified"}
+                  {user.email_verified ? t("auth.account_settings.email_verified") : t("auth.account_settings.email_not_verified")}
                 </span>
               </div>
             </div>
           </section>
           <div className="flex items-center gap-space-md">
             <button type="submit" className="rounded-lg bg-primary px-space-lg py-space-sm font-body-md text-on-primary hover:bg-primary-container">
-              Save
+              {t("auth.account_settings.save")}
             </button>
-            {status === "saved" ? <p role="status" className="font-body-md text-secondary">Saved.</p> : null}
+            {status === "saved" ? <p role="status" className="font-body-md text-secondary">{t("auth.account_settings.saved")}</p> : null}
             {status === "error" ? (
               <p role="alert" className="text-error">
-                The changes could not be saved.
+                {t("auth.account_settings.save_error")}
               </p>
             ) : null}
           </div>
@@ -150,9 +152,9 @@ export default function AccountSettings() {
 
         <div className="lg:col-span-5 flex flex-col gap-space-lg">
           <section className={CARD}>
-            <Heading icon="language" tile="bg-secondary-fixed text-on-secondary-fixed" kicker="Language" title="Interface language" />
+            <Heading icon="language" tile="bg-secondary-fixed text-on-secondary-fixed" kicker={t("auth.account_settings.language_kicker")} title={t("auth.account_settings.language_title")} />
             <label className="font-label-sm uppercase text-on-surface-variant">
-              Language
+              {t("auth.account_settings.language_kicker")}
               <select className={FIELD} value={locale} onChange={(event) => setLocale(event.target.value)}>
                 {LOCALES.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -163,12 +165,12 @@ export default function AccountSettings() {
             </label>
           </section>
           <section className={CARD}>
-            <Heading icon="lock" tile="bg-tertiary-fixed text-on-tertiary-fixed" kicker="Security" title="Password" />
-            <p className="font-body-md text-on-surface-variant">Change your password with a secure reset link sent to your email.</p>
+            <Heading icon="lock" tile="bg-tertiary-fixed text-on-tertiary-fixed" kicker={t("auth.account_settings.security_kicker")} title={t("auth.account_settings.password_title")} />
+            <p className="font-body-md text-on-surface-variant">{t("auth.account_settings.password_help")}</p>
             {confirmingReset ? (
-              <div role="dialog" aria-modal="true" aria-label="Send password reset link" className="rounded-lg border border-outline-variant bg-surface-container-low p-space-md">
+              <div role="dialog" aria-modal="true" aria-label={t("auth.account_settings.reset_dialog_label")} className="rounded-lg border border-outline-variant bg-surface-container-low p-space-md">
                 <p className="font-body-md text-on-surface">
-                  Send a password reset link to <strong>{user.email}</strong>?
+                  {t("auth.account_settings.reset_confirm_prefix")} <strong>{user.email}</strong>?
                 </p>
                 <div className="mt-space-sm flex gap-space-sm">
                   <button
@@ -176,14 +178,14 @@ export default function AccountSettings() {
                     onClick={() => void sendResetLink()}
                     className="rounded-lg bg-primary px-space-md py-space-sm font-label-md text-label-md text-on-primary"
                   >
-                    Yes, send it
+                    {t("auth.account_settings.reset_confirm_yes")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmingReset(false)}
                     className="rounded-lg border border-outline px-space-md py-space-sm font-label-md text-label-md text-on-surface"
                   >
-                    Cancel
+                    {t("auth.account_settings.reset_cancel")}
                   </button>
                 </div>
               </div>
@@ -193,13 +195,13 @@ export default function AccountSettings() {
                 onClick={() => setConfirmingReset(true)}
                 className="w-fit rounded-lg bg-surface-container px-space-md py-space-sm font-body-md text-primary hover:bg-surface-container-high"
               >
-                Send reset link
+                {t("auth.account_settings.send_reset_link")}
               </button>
             )}
-            {resetStatus === "sent" ? <p role="status" className="font-body-md text-secondary">Check your email for the reset link.</p> : null}
+            {resetStatus === "sent" ? <p role="status" className="font-body-md text-secondary">{t("auth.account_settings.reset_sent")}</p> : null}
             {resetStatus === "error" ? (
               <p role="alert" className="text-error">
-                The reset link could not be sent.
+                {t("auth.account_settings.reset_error")}
               </p>
             ) : null}
           </section>
