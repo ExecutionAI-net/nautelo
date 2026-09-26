@@ -348,14 +348,6 @@ export default function OrganizationRegisterForm({ orgType }: { orgType: "BROKER
       {brokerFields}
       {professionalFields}
       <label className="flex items-start gap-space-xs font-body-sm">
-        <input type="checkbox" required checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
-        {t("auth.org_register.accept_terms_prefix")}{" "}
-        <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-          {t("auth.org_register.accept_terms_link")}
-        </Link>
-        <span aria-hidden="true" className="text-error">*</span>
-      </label>
-      <label className="flex items-start gap-space-xs font-body-sm">
         <input type="checkbox" checked={newsletterOptIn} onChange={(e) => setNewsletterOptIn(e.target.checked)} />
         {t("auth.org_register.newsletter")}
       </label>
